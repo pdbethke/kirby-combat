@@ -177,12 +177,12 @@ class AttackResult:
 
     hit: bool
     to_hit: ToHitResult
-    damage: DamageResult
-    defense: DefenseProfile
+    damage: DamageResult | None
+    defense: DefenseProfile | None
     stun_dealt: int
     body_dealt: int
     end_spent: int
-    knockback: KnockbackResult
+    knockback: KnockbackResult | None
     status_changes: list[str]
     power_xmlid: str
     audit_trail: list[str] = field(default_factory=list)
