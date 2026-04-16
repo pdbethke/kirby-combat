@@ -5,3 +5,7 @@ dist/
 *.egg-info/
 .idea/
 .vscode/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
