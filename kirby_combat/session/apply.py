@@ -43,8 +43,16 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     # Declaration events don't mutate snapshot.
-    if kind in {"ActionDeclared", "HeldActionDeclared", "AbortDeclared"}:
+    if kind in {"ActionDeclared", "HeldActionDeclared"}:
         return replace(session, event_log=new_log, updated_at=now)
+
+    if kind == "AbortDeclared":
+        from kirby_combat.session.events import AbortDeclared as _AD
+        assert isinstance(event, _AD)
+        new_aborted = set(session.timeline.aborted_this_phase)
+        new_aborted.add(event.combatant_id)
+        new_timeline = replace(session.timeline, aborted_this_phase=new_aborted)
+        return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     # Task 5 stubs: these events persist to the log but don't yet mutate
     # state. Later tasks (Recovery/Adjustments/Entangle/Flash/etc.) will
