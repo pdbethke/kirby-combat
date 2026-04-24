@@ -35,3 +35,14 @@ def test_fake_roller_half_die():
     f = FakeRoller([[3, 4, 5]], half_die_results=[2])
     assert f.roll_dice(3, sides=6) == [3, 4, 5]
     assert f.roll_half_die() == 2
+
+
+def test_fake_roller_isolates_inputs():
+    # After constructing FakeRoller, mutating the passed-in lists should not
+    # affect what FakeRoller yields.
+    dice_in = [[3, 4, 5], [1, 2, 3]]
+    f = FakeRoller(dice_in)
+    dice_in[0][0] = 99
+    dice_in[1] = [9, 9, 9]
+    assert f.roll_dice(3, sides=6) == [3, 4, 5]
+    assert f.roll_dice(3, sides=6) == [1, 2, 3]

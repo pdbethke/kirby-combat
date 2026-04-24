@@ -18,7 +18,7 @@ class FakeRoller:
         dice_results: list[list[int]],
         half_die_results: list[int] | None = None,
     ) -> None:
-        self._dice = list(dice_results)
+        self._dice = [list(inner) for inner in dice_results]
         self._half = list(half_die_results or [])
         self._dice_idx = 0
         self._half_idx = 0
