@@ -105,3 +105,36 @@ def range_penalty(distance_m: float) -> int:
         return 0
     doublings = math.ceil(math.log2(distance_m / 8)) if distance_m > 8 else 0
     return max(RANGE_MODIFIER_TABLE[250], -doublings * 2)
+
+
+# ---------------------------------------------------------------------------
+# SPD Chart: HERO 6E SPD → segments when character has a phase.
+# Source: 6E1 pg 44 (SPD chart).
+# ---------------------------------------------------------------------------
+SPD_TO_SEGMENTS: dict[int, frozenset[int]] = {
+    0:  frozenset(),
+    1:  frozenset({7}),
+    2:  frozenset({6, 12}),
+    3:  frozenset({4, 8, 12}),
+    4:  frozenset({3, 6, 9, 12}),
+    5:  frozenset({3, 5, 8, 10, 12}),
+    6:  frozenset({2, 4, 6, 8, 10, 12}),
+    7:  frozenset({2, 4, 6, 7, 9, 11, 12}),
+    8:  frozenset({2, 3, 5, 6, 8, 9, 11, 12}),
+    9:  frozenset({2, 3, 5, 6, 8, 9, 11, 12}),
+    10: frozenset({2, 3, 4, 5, 7, 8, 9, 10, 11, 12}),
+    11: frozenset({2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}),
+    12: frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}),
+}
+
+
+def segments_for_spd(spd: int) -> frozenset[int]:
+    """Return the set of segments (1-12) a combatant of given SPD has phases in.
+
+    Out-of-range SPD clamps to [0, 12].
+    """
+    if spd < 0:
+        spd = 0
+    if spd > 12:
+        spd = 12
+    return SPD_TO_SEGMENTS[spd]
