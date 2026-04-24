@@ -29,3 +29,9 @@ __all__ += [
     "EnvironmentalTriggered", "GMOverride", "SessionEnded",
     "make_author_combatant", "make_author_gm", "make_author_engine",
 ]
+
+from kirby_combat.session.combat_session import CombatSession
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.rewind import rewind_to_sequence
+
+__all__ += ["CombatSession", "apply_event", "rewind_to_sequence"]

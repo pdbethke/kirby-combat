@@ -44,6 +44,15 @@ class CombatTemplate:
     # Extension hooks
     custom_rules: dict = field(default_factory=dict)
 
+    @classmethod
+    def default_6e_superheroic(cls) -> "CombatTemplate":
+        """Factory returning the standard RAW Superheroic 6E template.
+
+        This is an alias for the module-level RAW_SUPERHEROIC constant. Kept as
+        a classmethod for API ergonomics (CombatSession.create callers use this).
+        """
+        return RAW_SUPERHEROIC
+
 
 # ---------------------------------------------------------------------------
 # Pre-built templates
