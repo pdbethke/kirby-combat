@@ -64,9 +64,9 @@ def test_move_through_attacker_takes_same_dc_self_damage():
 
 
 def test_move_through_ocv_penalty_scales_with_velocity():
-    # velocity_m / 5 = OCV penalty (negative). 20m → -4 OCV.
+    # velocity_m / 10 = OCV penalty (negative). 20m → -2 OCV.
     out = MoveThrough.compute(attacker_str=30, velocity_mps=20.0)
-    assert out.ocv_modifier == -4
+    assert out.ocv_modifier == -2
 
 
 def test_move_through_zero_velocity_zero_ocv_penalty():
