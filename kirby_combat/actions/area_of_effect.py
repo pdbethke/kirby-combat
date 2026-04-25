@@ -199,6 +199,7 @@ class AreaOfEffect:
     @staticmethod
     def selective_filter(
         outcome: AoEOutcome,
+        *,
         excluded_ids: set[str],
     ) -> AoEOutcome:
         """Return a new AoEOutcome with *excluded_ids* removed.
