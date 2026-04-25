@@ -1,4 +1,10 @@
-"""Falling — support check, falling damage, landing resolution."""
+"""Falling — support check, falling damage, landing resolution.
+
+Note: Dorman's reference implementation does not include falling damage
+computation. The 1d6/2m + 20d6 cap formula is our interpretation per HERO 6E2;
+RAW-verify the exact cap and per-meter rate against the rulebook before
+relying on this in production.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,7 +40,7 @@ def is_supported_at(pos: Position, scene: Scene) -> bool:
 
 
 def compute_falling_damage(fall_distance_m: float) -> int:
-    """HERO 6E1 pg 432: 1d6 normal damage per 2m fallen, cap 20d6 (terminal velocity)."""
+    """per HERO 6E2: 1d6 normal damage per 2m fallen, cap 20d6 (terminal velocity)."""
     if fall_distance_m < 2:
         return 0
     dice = int(fall_distance_m // 2)

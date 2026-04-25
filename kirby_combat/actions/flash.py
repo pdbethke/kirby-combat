@@ -1,6 +1,6 @@
 """Flash attack — sense-group blinding with per-phase recovery.
 
-HERO 6E1 pg 188:
+per HERO 6E1:
 - Flash targets a specific sense group (sight, hearing, smell/taste, mental, radio)
 - Segments flashed = max(0, body_dealt - flash_defense)
 - While flashed in any sense, target suffers -½ OCV and -½ DCV

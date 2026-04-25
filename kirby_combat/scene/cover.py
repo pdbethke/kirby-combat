@@ -1,6 +1,11 @@
 """Cover resolution — compute 0-4 cover level a target enjoys vs a shooter.
 
-Cover level maps to OCV penalty per 6E2 pg 56:
+Note: Dorman's reference implementation does not include a cover OCV penalty
+table. The 0/-2/-4/-6/-8 mapping is our interpretation per HERO 6E2; RAW-verify
+before relying on this. The "nearest-wall-to-target wins" tie-break is our
+design choice.
+
+Cover level maps to OCV penalty per HERO 6E2:
     0 → -0    (no cover)
     1 → -2    (light)
     2 → -4    (partial)

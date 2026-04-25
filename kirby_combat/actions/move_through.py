@@ -1,6 +1,6 @@
 """Move-Through — velocity-based full-phase slam attack.
 
-HERO 6E2 pg 71:
+per HERO 6E2:
 - Damage DC = STR_DC + floor(velocity_m / 6), STR_DC = floor(STR / 5)
 - Attacker takes the same DC of damage (defended by attacker's rPD/rED — caller applies)
 - Attacker: -floor(velocity_m / 10) OCV (scales with velocity), -3 DCV

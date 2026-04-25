@@ -1,6 +1,10 @@
 """Entangle attack — applies an entanglement; victims escape via STR.
 
-HERO 6E1 pg 218-220:
+Note: Dorman's reference does not implement programmatic entangle escape;
+the casual STR (str/10) and full STR (str/5) damage formulas are our
+interpretation per HERO 6E2. RAW-verify before relying on this.
+
+per HERO 6E1:
 - Entangle creates a temporary obstruction with its own BODY, PD, ED
 - Target inside the entangle has -2 OCV and -2 DCV
 - Casual STR escape (half-phase): BODY damage = STR/10 minus entangle PD
@@ -195,7 +199,7 @@ class Entangle:
     ) -> dict:
         """Return OCV/DCV multipliers while entangled; empty dict otherwise.
 
-        Per Dorman + 6E2 pg 115: entangled characters have 0 DCV and 1/2 OCV.
+        Per Dorman + HERO 6E2: entangled characters have 0 DCV and 1/2 OCV.
         Modeled as multiplicative factors so callers compose: effective_dcv =
         base_dcv * dcv_factor; effective_ocv = base_ocv * ocv_factor.
         """

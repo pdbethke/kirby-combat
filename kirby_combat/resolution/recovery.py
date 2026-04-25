@@ -1,6 +1,6 @@
 """Recovery resolution — Phase 12, Post-Segment 12, Full Recovery.
 
-HERO 6E1 pg 423:
+per HERO 6E1:
 - A conscious character with a phase at segment 12 may take a "Recovery Action"
   (full-phase action) to gain REC STUN + REC END, capped at max.
 - At the end of every turn (after segment 12), all characters — conscious or

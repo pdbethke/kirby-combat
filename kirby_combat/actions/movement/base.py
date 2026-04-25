@@ -4,7 +4,7 @@ Subclasses (Task 10): Running, Leaping, Flight, Swimming, Teleportation, Tunneli
 Each subclass sets `name`, `base_inches`, and overrides `noncombat_multiplier`
 or `end_per_10m` if the power deviates from defaults.
 
-Movement modes per 6E2 pg 53:
+Movement modes per HERO 6E2:
   half-move:   distance ≤ base_inches × 1m;   DCV factor 1.0; OCV factor 1.0
   full-move:   distance ≤ base_inches × 2m;   DCV factor 0.5; OCV factor 1.0
   noncombat:   distance ≤ base_inches × 2m × noncombat_multiplier; DCV/OCV 0

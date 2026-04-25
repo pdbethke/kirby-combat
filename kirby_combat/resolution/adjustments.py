@@ -1,6 +1,6 @@
 """Adjustment powers resolution — Aid, Drain, Transfer, Suppress, Absorption.
 
-Per HERO 6E1 pg 132-144. All formulas adjust Active Points divided by the
+Per HERO 6E1. All formulas adjust Active Points divided by the
 stat's cost-per-level. Fade rates default to 5 active points per turn; can
 be bought up via advantages (out of scope — handled by cost engine, not
 combat engine).

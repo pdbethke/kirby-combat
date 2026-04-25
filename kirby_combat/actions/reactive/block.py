@@ -1,4 +1,9 @@
-"""Block — opposed 3d6 OCV roll. On success, attack is negated."""
+"""Block — opposed 3d6 OCV roll. On success, attack is negated.
+
+Note: Dorman defers Block resolution to GM/player by rendering a chat card.
+This implementation automates the opposed-margin comparison per HERO 6E1
+(blocker wins ties on >=). RAW-verify before relying on this.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -39,7 +44,7 @@ class Block:
         """Resolve an opposed 3d6 OCV roll.
 
         Each side computes margin = (OCV + 11 - roll). Higher margin wins.
-        Ties go to the blocker (RAW 6E2 pg 56 — block succeeds on ties).
+        Ties go to the blocker (per HERO 6E2 — block succeeds on ties).
         """
         if len(attacker_dice) != 3 or len(blocker_dice) != 3:
             raise ValueError("block requires 3d6 rolls on both sides")

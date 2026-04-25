@@ -1,6 +1,6 @@
 """Move-By — velocity-based half-phase attack while moving past target.
 
-HERO 6E2 pg 70:
+per HERO 6E2:
 - Damage DC = STR_DC + floor(velocity_m / 10), where STR_DC = floor(STR / 5)
 - Attacker: -2 OCV, -2 DCV
 - Half-phase action; attacker continues moving past target
