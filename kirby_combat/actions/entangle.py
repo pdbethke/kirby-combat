@@ -193,6 +193,11 @@ class Entangle:
     def modifiers(
         session: CombatSession, combatant_id: str,
     ) -> dict:
-        """Return OCV/DCV penalties while entangled; empty dict otherwise."""
+        """Return OCV/DCV multipliers while entangled; empty dict otherwise.
+
+        Per Dorman + 6E2 pg 115: entangled characters have 0 DCV and 1/2 OCV.
+        Modeled as multiplicative factors so callers compose: effective_dcv =
+        base_dcv * dcv_factor; effective_ocv = base_ocv * ocv_factor.
+        """
         is_e, _ = Entangle.is_entangled(session, combatant_id)
-        return {"ocv_modifier": -2, "dcv_modifier": -2} if is_e else {}
+        return {"ocv_factor": 0.5, "dcv_factor": 0.0} if is_e else {}

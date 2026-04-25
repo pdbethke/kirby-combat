@@ -88,14 +88,14 @@ def test_is_entangled_returns_remaining_body():
 
 # ---- modifiers ----
 
-def test_modifiers_minus_2_ocv_dcv_when_entangled():
+def test_modifiers_zero_dcv_half_ocv_when_entangled():
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     mods = Entangle.modifiers(s2, "bob")
-    assert mods == {"ocv_modifier": -2, "dcv_modifier": -2}
+    assert mods == {"ocv_factor": 0.5, "dcv_factor": 0.0}
 
 
 def test_modifiers_empty_when_not_entangled():
