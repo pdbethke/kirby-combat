@@ -10,6 +10,10 @@ from kirby_combat.vehicles.passenger import (
 from kirby_combat.vehicles.ramming import (
     RammingResult, resolve_ramming, ramming_dc,
 )
+from kirby_combat.vehicles.controls import (
+    DrivingRollResult, SwerveResult, Maneuver,
+    driving_roll, swerve_to_avoid,
+)
 
 __all__ = [
     "Vehicle", "Passenger", "max_passengers_for_size",
@@ -17,4 +21,6 @@ __all__ = [
     "apply_shared_fate", "passenger_can_be_rescued",
     "SharedFateResult",
     "RammingResult", "resolve_ramming", "ramming_dc",
+    "DrivingRollResult", "SwerveResult", "Maneuver",
+    "driving_roll", "swerve_to_avoid",
 ]
