@@ -103,7 +103,7 @@ def test_brace_declare_emits_actiondeclared():
     assert evt in s2.event_log
 
 
-# ---- Dive for Cover -----
+# ---- Dive for Cover (per 6E2 p87) -----
 
 def test_dive_for_cover_marks_aborting():
     s = _session()
@@ -113,26 +113,66 @@ def test_dive_for_cover_marks_aborting():
     assert evt.to_action == "dive_for_cover"
 
 
-def test_dive_for_cover_dex_roll_succeeds_when_under_target():
-    # alice DEX=18 → target = 9 + 18//3 = 9 + 6 = 15
-    # Roll 3+3+3=9, less than or equal to 15 → success
-    result = DiveForCover.resolve_dex_roll(combatant_dex=18, dice=[3, 3, 3])
+def test_dive_for_cover_success_prone_half_dcv_no_attacker_bonus():
+    """Per 6E2 p87: successful Dive → prone at destination, ½ DCV, no attacker bonus."""
+    # DEX=18 → target = 9 + 18//3 = 15. Roll 9 → success.
+    result = DiveForCover.resolve_dex_roll(
+        combatant_dex=18, dice=[3, 3, 3],
+        requested_destination=(10.0, 5.0, 0.0),
+    )
     assert result.success is True
-    assert result.granted_partial_cover is True
-    assert result.granted_prone is True
+    assert result.diver_prone is True
+    assert result.diver_dcv_factor == 0.5
+    assert result.attacker_ocv_bonus == 0
+    assert result.destination == (10.0, 5.0, 0.0)
 
 
-def test_dive_for_cover_dex_roll_fails_when_over_target():
-    # alice DEX=18 → target=15. Roll 18 → fail
-    result = DiveForCover.resolve_dex_roll(combatant_dex=18, dice=[6, 6, 6])
+def test_dive_for_cover_failure_half_dcv_no_movement_attacker_plus_2_ocv():
+    """Per 6E2 p87: failed Dive → ½ DCV, no movement, attacker +2 OCV."""
+    # DEX=18 → target=15. Roll 18 → fail.
+    result = DiveForCover.resolve_dex_roll(
+        combatant_dex=18, dice=[6, 6, 6],
+        requested_destination=(10.0, 5.0, 0.0),
+    )
     assert result.success is False
-    assert result.granted_partial_cover is False
+    assert result.diver_prone is True
+    assert result.diver_dcv_factor == 0.5
+    assert result.attacker_ocv_bonus == 2
+    assert result.destination is None    # didn't move
 
 
 def test_dive_for_cover_dex_roll_succeeds_on_equal():
-    # DEX=18 → target=15. Roll exactly 15 → success (3d6 ≤ target)
+    """3d6 ≤ target → roll == target succeeds (HERO Skill Roll convention)."""
     result = DiveForCover.resolve_dex_roll(combatant_dex=18, dice=[5, 5, 5])
     assert result.success is True
+
+
+def test_dive_for_cover_avoids_aoe_when_destination_outside_radius():
+    """Per 6E2 p87: AoE attack misses iff diver's destination is outside the AoE radius."""
+    # DEX=18 → target=15. Roll 9 → success. Destination (20, 0, 0) is 20m
+    # from origin (0, 0, 0) — outside a 10m AoE.
+    result = DiveForCover.resolve_dex_roll(
+        combatant_dex=18, dice=[3, 3, 3],
+        requested_destination=(20.0, 0.0, 0.0),
+        attack_is_aoe=True,
+        aoe_origin=(0.0, 0.0, 0.0),
+        aoe_radius_m=10.0,
+    )
+    assert result.success is True
+    assert result.avoids_aoe is True
+
+
+def test_dive_for_cover_does_not_avoid_aoe_when_destination_inside_radius():
+    """If destination is inside the AoE, the diver is still hit."""
+    result = DiveForCover.resolve_dex_roll(
+        combatant_dex=18, dice=[3, 3, 3],
+        requested_destination=(3.0, 0.0, 0.0),
+        attack_is_aoe=True,
+        aoe_origin=(0.0, 0.0, 0.0),
+        aoe_radius_m=10.0,
+    )
+    assert result.success is True
+    assert result.avoids_aoe is False
 
 
 # ---- Pulling Punch (per 6E2 p89) -----
