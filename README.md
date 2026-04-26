@@ -17,8 +17,26 @@ commit.
   Scene data model, falling, cover, line-of-sight, hazards, recovery,
   adjustments, entangle, flash, martial arts, triggers, held actions.
   450 tests passing. 96% coverage on `session/`, `scene/`, `resolution/`.
-- **Phase 2 Plan 2** (next): mental combat, vehicles, mass combat,
-  breakables, PRE attacks, GM tools, serialization.
+- **Phase 2 Plan 2** (v0.3.0): Engine advanced. Mental combat pipeline
+  (Mind Control / Telepathy / Mental Illusion / Mental Blast / Mental
+  Entangle), vehicles (HDC-shaped Combatant subtype with passengers,
+  ramming, driving rolls), mass combat (Unit aggregation + morale
+  cycling), breakables (objects + structure cascade), Presence attacks,
+  GM tooling engine layer (Tier 1/2/3 overrides, GM-on-behalf-of
+  attacks, spawn/despawn), serialization (to_dict / from_dict with
+  round-trip parity). 569 tests, 96% coverage.
+
+### engine-advanced subsystems
+
+| Module | Purpose |
+|---|---|
+| `kirby_combat/mental/` | OMCV/DMCV pipeline + the five mental powers |
+| `kirby_combat/vehicles/` | Vehicle (Combatant subtype), passengers, ramming, controls |
+| `kirby_combat/masscombat/` | Unit (pack-of-N) and aggregate resolution |
+| `kirby_combat/breakables/` | ObjectCombatant + structure integrity cascade |
+| `kirby_combat/pre_attacks/` | Presence attacks with effects ladder |
+| `kirby_combat/gm/` | Tier 1/2/3 GMOverride helpers + GM attack + spawn/despawn |
+| `kirby_combat/serialization/` | `to_dict` / `from_dict` for full session round-trip |
 
 ## Usage
 

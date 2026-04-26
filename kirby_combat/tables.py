@@ -169,3 +169,89 @@ MARTIAL_MANEUVERS: dict[str, MartialManeuver] = {
     "plus_one_dc":      MartialManeuver("+1 Damage Class",  +0, +0, 1, "none", "Adds to all Martial Maneuvers"),
     "weapon_element":   MartialManeuver("Weapon Element",   +0, +0, 0, "none", "Allows use of Martial Arts with weapons"),
 }
+
+
+# ---------------------------------------------------------------------------
+# Mental Power degree ladders — margin (effect_roll - target.EGO) thresholds.
+# 6E1 pg 101 (Mind Control), pg 116 (Telepathy), pg 109 (Mental Illusion).
+# Each ladder maps margin -> tier name. Higher tiers strictly imply lower
+# tiers reached.
+# ---------------------------------------------------------------------------
+
+#: 6E1 p101 Mind Control degrees.
+MIND_CONTROL_DEGREES: list[tuple[int, str]] = [
+    (0, "ego_push"),         # EGO+0:  push/nudge suggestion
+    (10, "simple"),          # EGO+10: simple commands within target's normal behavior
+    (20, "contrary"),        # EGO+20: commands contrary to personality
+    (30, "violent"),         # EGO+30: violent acts against friends/self
+]
+
+
+def mind_control_degree(effect_roll_total: int, target_ego: int) -> str:
+    """Return the degree tier reached by effect_roll_total vs EGO + degree threshold."""
+    margin = effect_roll_total - target_ego
+    reached = "none"
+    for threshold, name in MIND_CONTROL_DEGREES:
+        if margin >= threshold:
+            reached = name
+    return reached
+
+
+#: 6E1 p116 Telepathy degrees.
+TELEPATHY_DEGREES: list[tuple[int, str]] = [
+    (0, "surface_thoughts"),     # EGO+0:  current surface thoughts
+    (10, "specific_memories"),   # EGO+10: specific memories on request
+    (20, "deep_thoughts"),       # EGO+20: deep thoughts and beliefs
+    (30, "subconscious"),        # EGO+30: subconscious + blocked memories
+]
+
+
+def telepathy_degree(effect_roll_total: int, target_ego: int) -> str:
+    margin = effect_roll_total - target_ego
+    reached = "none"
+    for threshold, name in TELEPATHY_DEGREES:
+        if margin >= threshold:
+            reached = name
+    return reached
+
+
+#: 6E1 p109 Mental Illusion degrees.
+MENTAL_ILLUSION_DEGREES: list[tuple[int, str]] = [
+    (0, "simple"),                # EGO+0:  simple, brief illusion
+    (10, "moderate"),             # EGO+10: moderately convincing
+    (20, "elaborate"),            # EGO+20: elaborate, multi-sense illusion
+    (30, "perfect"),              # EGO+30: perfect, indistinguishable from reality
+]
+
+
+def mental_illusion_degree(effect_roll_total: int, target_ego: int) -> str:
+    margin = effect_roll_total - target_ego
+    reached = "none"
+    for threshold, name in MENTAL_ILLUSION_DEGREES:
+        if margin >= threshold:
+            reached = name
+    return reached
+
+
+# ---------------------------------------------------------------------------
+# Presence Attack effects ladder — margin over target's PRE.
+# 6E2 p139.
+# ---------------------------------------------------------------------------
+
+#: 6E2 p139 Presence Attack effect tiers.
+PRESENCE_ATTACK_EFFECTS: list[tuple[int, str]] = [
+    (0,  "no_effect"),
+    (10, "hesitation"),             # target pauses one phase
+    (20, "impressed"),              # target compliant for one scene
+    (30, "fear"),                   # target flees / submits
+    (40, "cower"),                  # target incapacitated this turn
+]
+
+
+def presence_attack_effect(roll_total: int, target_pre: int) -> str:
+    margin = roll_total - target_pre
+    effect = "no_effect"
+    for threshold, name in PRESENCE_ATTACK_EFFECTS:
+        if margin >= threshold:
+            effect = name
+    return effect

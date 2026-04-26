@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.3.0 — 2026-04-25
+
+Phase 2 Plan 2 (engine advanced). Tier-4 parallel systems for mental
+combat, vehicles, mass combat, breakables, presence attacks, GM tooling
+engine layer, and full session serialization round-trip.
+
+### Added
+- Mental combat pipeline (OMCV vs DMCV, no range/LoS gating per 6E1 p105)
+- Mind Control with degree ladder (ego_push / simple / contrary / violent)
+  and EGO Roll breakout per 6E1 p101
+- Telepathy with degree ladder (surface_thoughts / specific_memories /
+  deep_thoughts / subconscious) and mental-awareness gating per 6E1 p116
+- Mental Illusion with degree ladder + disbelief mechanics per 6E1 p109
+- Mental Blast (STUN-only, vs Mental Defense, no BODY/KB) per 6E1 p105
+- Mental Entangle (Works Against EGO + Mental Paralysis variant)
+  with EGO-based escape
+- Vehicles (Combatant subtype, HDC-shaped) with size, movement_inches,
+  passengers, capacity-by-size table
+- Passenger mechanics: cover from vehicle, firing ports, shared fate on
+  vehicle destruction, rescue from crashed vehicle
+- Ramming (extreme move-through): DC = round(SIZE * v / 12); +1 DC at
+  >60 m/seg; attacker takes half DC self-damage per 6E Vehicles p33
+- Driving rolls and maneuvers (STRAIGHT/SHARP_TURN/SWERVE/BOOTLEG_TURN/
+  BARREL_ROLL); terrain and velocity modifiers
+- Mass combat: Unit (pack-of-N), morale ladder
+  (FRESH/STEADY/SHAKEN/ROUTING/BROKEN), aggregate damage / count loss,
+  25%-casualty morale check
+- Aggregate resolution: attack_vs_unit, aoe_vs_unit, attack_vs_individual,
+  unit_attack_dc_bonus
+- Breakables: ObjectCombatant with material defaults
+  (paper/glass/wood/stone/metal/steel/concrete) and hdc_source_xml field
+- Structure integrity cascade: load-bearing destruction propagates via
+  StructuralGraph; combatants on collapsed surfaces flagged for falling
+- Presence attacks: PRE/5 base dice + situational bonus, less PRE Defense;
+  effects ladder (no_effect / hesitation / impressed / fear / cower)
+  per 6E2 p139
+- GM tooling engine layer:
+  - Tier 1 overrides (stun adjust, status apply) — no justification
+  - Tier 2 overrides (dice override, retroactive abort) — justification REQUIRED
+  - Tier 3 overrides (spawn/despawn, scene mutation) — justification REQUIRED
+- GM attack-on-behalf-of mechanics (NPC actions or absent-PC actions
+  authored by the GM, flowing through normal pipeline)
+- Combatant spawn/despawn mid-session via Tier 3 GMOverride; spawning in
+  an active segment skips the immediate phase
+- Serialization: to_dict (JSON-safe with __type__ discriminator) and
+  from_dict (type-dispatched, subclass-preserving) with round-trip parity
+  tests (representative events, every CombatEvent subclass, hypothesis
+  property test on Combatant, complex Scene, Vehicle with passengers,
+  Unit with morale Enum)
+
+### HDC round-trip compatibility
+- Vehicle, ObjectCombatant carry HDC-source-preserving fields for Plan 3
+  import/export. Vehicle's field shape mirrors HDC vehicle XML (NAME,
+  SIZE, BODY, DEF, PD, ED, STUN, SPD, DEX, STR, MOVEMENT).
+
+### Fixed
+- `from_dict` now skips `init=False` fields (events have init=False `kind`
+  Literal) and resolves forward-ref string field types via the type
+  registry (handles `Unit.morale -> UnitMorale` enum coercion).
+
+### Tests
+- 569 passing (up from 450 at end of Plan 1)
+- 96% line coverage across `kirby_combat/`
+- All new subsystems >85% (most >93%)
+
 ## 0.2.0 — 2026-04-25
 
 Phase 2 Plan 1 (engine foundation). RAW-verified against the Codex 6E
