@@ -16,10 +16,14 @@ Killing damage
 - BODY = sum of all full dice values
     (half_die: BODY += value // 2)
     (plus_one: BODY += 1)
-- STUN multiplier:
+- STUN multiplier (per 6E2 p100 §Killing Damage Attacks):
     If template.killing_stun_mult_fixed is set → use that value.
-    Otherwise: base + (stun_multiplier_die - 1), minimum 1.
-    power.increased_stun_mult adds to the multiplier.
+    Otherwise: roll ½d6 (range 1-3) — caller passes a raw d6 in
+    dice.stun_multiplier[0] (1-6) and we map to a half-die value
+    via half_die = (raw_d6 + 1) // 2 (round-up halving).
+    Final multiplier = base + (half_die - 1) + power.increased_stun_mult,
+    minimum 1.
+    Per 6E1 p244, Increased STUN Multiplier ADDS to the rolled ½d6.
 - STUN = BODY × multiplier  (integer result)
 """
 from __future__ import annotations
@@ -187,21 +191,17 @@ def _compute_killing(
         stun_mult = template.killing_stun_mult_fixed
         audit.append(f"Killing STUN multiplier: fixed={stun_mult} (from template)")
     else:
+        # Per 6E2 p100: roll ½d6 (range 1-3). Caller passes a raw d6 (1-6);
+        # we map to a half-die via round-up halving: (n+1)//2 → 1,1,2,2,3,3.
         stun_mult_die = dice.stun_multiplier[0] if dice.stun_multiplier else 1
-        raw_mult = template.killing_stun_mult_base + (stun_mult_die - 1)
-        raw_mult = max(1, raw_mult)
-        stun_mult = raw_mult
+        half_die = (stun_mult_die + 1) // 2
+        base = template.killing_stun_mult_base
+        inc = power.increased_stun_mult or 0
+        raw_mult = base + (half_die - 1) + inc
+        stun_mult = max(1, raw_mult)
         audit.append(
-            f"Killing STUN multiplier: base={template.killing_stun_mult_base} "
-            f"+ (die={stun_mult_die} - 1) = {raw_mult}"
-        )
-
-    # Power's increased_stun_mult adds on top
-    if power.increased_stun_mult:
-        stun_mult += power.increased_stun_mult
-        stun_mult = max(1, stun_mult)
-        audit.append(
-            f"Increased STUN multiplier +{power.increased_stun_mult} → multiplier={stun_mult}"
+            f"Killing STUN multiplier: ½d6 from die={stun_mult_die} → half_die={half_die}, "
+            f"base={base}, +increased={inc} → final={stun_mult}"
         )
 
     stun = body * stun_mult

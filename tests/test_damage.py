@@ -98,7 +98,10 @@ class TestNormalDamage:
 
 class TestKillingDamage:
     def test_killing_damage_3d6(self):
-        """dice [4,3,5], stun_mult [4] → BODY=12, mult=4, STUN=48"""
+        """dice [4,3,5], stun_mult [4] → BODY=12, ½d6 mult=2, STUN=24
+
+        Per 6E2 p100: STUN multiplier is ½d6 (range 1-3). Raw d6=4 → half_die=2.
+        """
         power = make_power(damage_type="killing")
         dice = make_dice([4, 3, 5], stun_multiplier=[4])
         template = make_template(killing_stun_mult_base=1)
@@ -106,8 +109,8 @@ class TestKillingDamage:
         result = compute_damage(power, dice, template)
 
         assert result.body == 12
-        assert result.stun_multiplier == 4
-        assert result.stun == 48
+        assert result.stun_multiplier == 2  # half_die((4+1)//2)=2; base 1 + (2-1) = 2
+        assert result.stun == 24
         assert result.damage_type == "killing"
 
     def test_killing_damage_fixed_stun_mult(self):
@@ -123,28 +126,50 @@ class TestKillingDamage:
         assert result.stun == 27
 
     def test_killing_damage_increased_stun_mult(self):
-        """increased_stun_mult=1 adds to the computed multiplier."""
+        """increased_stun_mult=1 adds to the computed multiplier (per 6E1 p244).
+
+        Raw d6=2 → half_die = (2+1)//2 = 1. base 1 + (1-1) + 1 increased = 2.
+        """
         power = make_power(damage_type="killing", increased_stun_mult=1)
-        # stun_multiplier die=2 → raw_mult = base(1) + (2-1) = 2, +1 from power = 3
         dice = make_dice([3, 3, 3], stun_multiplier=[2])
         template = make_template(killing_stun_mult_base=1)
 
         result = compute_damage(power, dice, template)
 
         assert result.body == 9
-        assert result.stun_multiplier == 3   # 1 + (2-1) + 1 increased
-        assert result.stun == 27
+        assert result.stun_multiplier == 2   # half_die=1; base 1 + (1-1) + 1 increased = 2
+        assert result.stun == 18
 
     def test_killing_damage_minimum_mult_is_1(self):
-        """Stun multiplier cannot go below 1."""
+        """Stun multiplier cannot go below 1.
+
+        Raw d6=1 → half_die=1; base 1 + (1-1) = 1. Floors at 1.
+        """
         power = make_power(damage_type="killing")
-        # stun_multiplier die=1 → raw_mult = base(1) + (1-1) = 1, minimum 1
         dice = make_dice([3], stun_multiplier=[1])
         template = make_template(killing_stun_mult_base=1)
 
         result = compute_damage(power, dice, template)
 
         assert result.stun_multiplier >= 1
+
+    def test_killing_stun_mult_is_half_die_round_up_per_6e2_p100(self):
+        """Per 6E2 p100: STUN multiplier is ½d6, range 1-3.
+
+        Raw d6 → half_die mapping: 1→1, 2→1, 3→2, 4→2, 5→3, 6→3.
+        With base=1, multiplier = base + (half_die - 1) → 1, 1, 2, 2, 3, 3.
+        """
+        power = make_power(damage_type="killing")
+        template = make_template(killing_stun_mult_base=1)
+
+        expected = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3}
+        for raw_d6, expected_mult in expected.items():
+            dice = make_dice([3], stun_multiplier=[raw_d6])
+            result = compute_damage(power, dice, template)
+            assert result.stun_multiplier == expected_mult, (
+                f"raw d6={raw_d6} should map to ½d6={expected_mult}, "
+                f"got {result.stun_multiplier}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +216,10 @@ class TestHalfDieAndPlusOne:
         assert result.body == 2   # 1 + 1 = 2
 
     def test_killing_half_die(self):
-        """Killing damage with half_die: BODY uses same half-die logic."""
+        """Killing damage with half_die: BODY uses same half-die logic.
+
+        Raw STUN-mult d6=2 → ½d6 = 1; multiplier = base 1 + (1-1) = 1.
+        """
         power = make_power(damage_type="killing", half_die=True)
         # Full dice: [3, 4], half-die: 5 → BODY = 3+4+(5//2=2) = 9
         dice = make_dice([3, 4, 5], stun_multiplier=[2])
@@ -200,10 +228,13 @@ class TestHalfDieAndPlusOne:
         result = compute_damage(power, dice, template)
 
         assert result.body == 9   # 3 + 4 + 2 = 9
-        assert result.stun == 18  # 9 × 2 = 18
+        assert result.stun == 9   # 9 × 1 = 9
 
     def test_killing_plus_one(self):
-        """Killing damage with plus_one: +1 to BODY."""
+        """Killing damage with plus_one: +1 to BODY.
+
+        Raw STUN-mult d6=3 → ½d6 = 2; multiplier = base 1 + (2-1) = 2.
+        """
         power = make_power(damage_type="killing", plus_one=True)
         dice = make_dice([3, 4], stun_multiplier=[3])
         template = make_template(killing_stun_mult_base=1)
@@ -211,7 +242,7 @@ class TestHalfDieAndPlusOne:
         result = compute_damage(power, dice, template)
 
         assert result.body == 8   # 3 + 4 + 1 = 8
-        assert result.stun == 24  # 8 × 3 = 24
+        assert result.stun == 16  # 8 × 2 = 16
 
 
 # ---------------------------------------------------------------------------

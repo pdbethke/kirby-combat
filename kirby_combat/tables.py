@@ -1,4 +1,7 @@
 """HERO System 6E combat data tables."""
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # Speed Chart: SPD -> list of segments in which that combatant acts
@@ -41,8 +44,8 @@ HIT_LOCATIONS: dict[str, dict] = {
     "HeadShot":  {"label": "Head Shot",  "stunX": 5, "nStunX": 2,   "bodyX": 2,   "ocvMod": -4},
     # HighShot: upper body (head/shoulder/arm); -2 OCV
     "HighShot":  {"label": "High Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod": -2},
-    # BodyShot: center mass (chest/stomach); no OCV penalty
-    "BodyShot":  {"label": "Body Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod":  0},
+    # BodyShot: center mass (Hands/Arms/Shoulders/Chest/Stomach/Vitals/Thighs/Legs); -1 OCV per 6E1 p465 §Combat Modifiers
+    "BodyShot":  {"label": "Body Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod": -1},
     # LowShot: lower body (thigh/leg/foot); -2 OCV
     "LowShot":   {"label": "Low Shot",   "stunX": 2, "nStunX": 0.5, "bodyX": 0.5, "ocvMod": -2},
     # LegShot: legs specifically; -4 OCV
@@ -105,3 +108,64 @@ def range_penalty(distance_m: float) -> int:
         return 0
     doublings = math.ceil(math.log2(distance_m / 8)) if distance_m > 8 else 0
     return max(RANGE_MODIFIER_TABLE[250], -doublings * 2)
+
+
+# HERO 6E SPD → segments helper.
+# Reads from the authoritative SPEED_TO_SEGMENTS table above, returns a frozenset
+# for immutability and membership-check ergonomics.
+
+def segments_for_spd(spd: int) -> frozenset[int]:
+    """Return the set of segments (1-12) a combatant of given SPD has phases in.
+
+    Reads from SPEED_TO_SEGMENTS (the Phase-1 oracle-validated chart).
+    Out-of-range SPD clamps to [0, 12].
+    """
+    if spd < 0:
+        spd = 0
+    if spd > 12:
+        spd = 12
+    return frozenset(SPEED_TO_SEGMENTS[spd])
+
+
+# ---------------------------------------------------------------------------
+# Martial Maneuvers — 6E2 p93 §STANDARD MARTIAL MANEUVERS table.
+# Verified against Codex (throwback tenant, Hero System 6E2 p93) on 2026-04-25.
+#
+# Each entry encodes the modifiers a character applies when declaring this
+# maneuver. `dc_bonus` is the extra Damage Classes added on top of STR (so
+# "STR Strike" = 0, "STR +2d6 Strike" = 2, "STR +4d6 Strike" = 4). Special
+# damage encodings (HKA ½d6, NND, Throw v/5) are flagged via `notes` rather
+# than dc_bonus — the Martial Arts action interprets those.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class MartialManeuver:
+    """A single 6E martial maneuver from 6E2 p93."""
+    name: str               # display name
+    ocv: int                # OCV modifier
+    dcv: int                # DCV modifier
+    dc_bonus: int           # extra DC added to a STR-Strike baseline
+    phase: str              # "half" | "full" | "none"
+    notes: str              # short tag/effect descriptor
+
+
+#: Per 6E2 p93 §STANDARD MARTIAL MANEUVERS. 14 standard + 2 element entries.
+MARTIAL_MANEUVERS: dict[str, MartialManeuver] = {
+    "choke_hold":       MartialManeuver("Choke Hold",       -2, 0, 0, "half", "Grab One Limb; 2d6 NND"),
+    "defensive_strike": MartialManeuver("Defensive Strike", +1, +3, 0, "half", "STR Strike"),
+    "killing_strike":   MartialManeuver("Killing Strike",   -2, 0, 0, "half", "HKA 1/2d6"),
+    "legsweep":         MartialManeuver("Legsweep",         +2, -1, 1, "half", "STR +1d6 Strike; Target Falls"),
+    "martial_block":    MartialManeuver("Martial Block",    +2, +2, 0, "half", "Block, Abort"),
+    "martial_disarm":   MartialManeuver("Martial Disarm",   -1, +1, 0, "half", "Disarm; +10 STR to Disarm roll"),
+    "martial_dodge":    MartialManeuver("Martial Dodge",     0, +5, 0, "half", "Dodge, Affects All Attacks, Abort"),
+    "martial_escape":   MartialManeuver("Martial Escape",   +0, +0, 0, "half", "+15 STR vs. Grabs"),
+    "martial_grab":     MartialManeuver("Martial Grab",     -1, -1, 0, "half", "Grab Two Limbs; +10 STR for holding on"),
+    "martial_strike":   MartialManeuver("Martial Strike",   +0, +2, 2, "half", "STR +2d6 Strike"),
+    "martial_throw":    MartialManeuver("Martial Throw",    +0, +1, 0, "half", "STR +v/5; Target Falls"),
+    "nerve_strike":     MartialManeuver("Nerve Strike",     -1, +1, 0, "half", "2d6 NND"),
+    "offensive_strike": MartialManeuver("Offensive Strike", -2, +1, 4, "half", "STR +4d6 Strike"),
+    "sacrifice_throw":  MartialManeuver("Sacrifice Throw",  +2, +1, 0, "half", "STR Strike; You Fall, Target Falls"),
+    # Elements — no phase/OCV/DCV impact; pricing-only or composability flags.
+    "plus_one_dc":      MartialManeuver("+1 Damage Class",  +0, +0, 1, "none", "Adds to all Martial Maneuvers"),
+    "weapon_element":   MartialManeuver("Weapon Element",   +0, +0, 0, "none", "Allows use of Martial Arts with weapons"),
+}
