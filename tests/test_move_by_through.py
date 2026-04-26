@@ -8,20 +8,31 @@ from kirby_combat.actions.move_through import MoveThrough, MoveThroughOutcome
 # ---- Move-By ----
 
 def test_move_by_dc_str_plus_velocity_over_10():
-    # STR=50 (STR_DC=10), velocity=20m → DC = 10 + 2 = 12
+    # Per 6E2 p72: damage = (STR/2) + (vel/10)d6.
+    # STR=50 → STR/2=25 → str_dc=5; velocity=20m → vel_dc=2; total 7.
     out = MoveBy.compute(attacker_str=50, velocity_mps=20.0)
-    assert out.damage_dc == 12
+    assert out.damage_dc == 7
 
 
 def test_move_by_dc_floors_velocity_division():
-    # STR=25 (STR_DC=5), velocity=15m → 15/10 = 1 (floor) → DC = 5 + 1 = 6
+    # STR=25 → STR/2=12 → str_dc=2; velocity=15m → vel_dc=1; total 3.
     out = MoveBy.compute(attacker_str=25, velocity_mps=15.0)
-    assert out.damage_dc == 6
+    assert out.damage_dc == 3
 
 
 def test_move_by_dc_zero_velocity_uses_str_only():
+    # STR=30 → STR/2=15 → str_dc=3.
     out = MoveBy.compute(attacker_str=30, velocity_mps=0.0)
-    assert out.damage_dc == 6           # STR_DC = 30/5 = 6
+    assert out.damage_dc == 3
+
+
+def test_move_by_damage_per_6e2_p72():
+    """Per 6E2 p72: damage = (STR/2) + (vel/10)d6 — STR halved BEFORE conversion."""
+    # STR=60 (a typical mid-tier brick) → STR/2=30 → str_dc=6
+    # vel=30m → vel_dc=3
+    # Total: 9 DCs
+    out = MoveBy.compute(attacker_str=60, velocity_mps=30.0)
+    assert out.damage_dc == 9
 
 
 def test_move_by_modifiers_minus_2_ocv_minus_2_dcv():

@@ -1,9 +1,14 @@
 """Move-By — velocity-based half-phase attack while moving past target.
 
-per HERO 6E2:
-- Damage DC = STR_DC + floor(velocity_m / 10), where STR_DC = floor(STR / 5)
-- Attacker: -2 OCV, -2 DCV
-- Half-phase action; attacker continues moving past target
+Per 6E2 p72 §MOVE BY:
+    Damage = (STR/2) + (vel/10)d6
+        - STR is HALVED before conversion to DCs (so str_dc = (STR // 2) // 5).
+        - Each 10m of velocity contributes 1d6 → 1 DC.
+    Attacker: -2 OCV, -2 DCV
+    Half-phase action; attacker continues moving past target.
+    Attacker takes 1/3 of the STUN/BODY done to the target as self-damage
+    (see attacker_self_damage_fraction; computation of the actual damage
+    happens at the combat-session layer where target defenses are known).
 """
 from __future__ import annotations
 
@@ -48,7 +53,8 @@ class MoveBy:
         """
         v = max(0.0, velocity_mps)
         s = max(0, attacker_str)
-        str_dc = s // 5
+        # Per 6E2 p72: damage is (STR/2) + (vel/10)d6. STR is HALVED before DCs.
+        str_dc = (s // 2) // 5
         velocity_dc = math.floor(v / 10.0)
         damage_dc = str_dc + velocity_dc
 
