@@ -41,8 +41,8 @@ HIT_LOCATIONS: dict[str, dict] = {
     "HeadShot":  {"label": "Head Shot",  "stunX": 5, "nStunX": 2,   "bodyX": 2,   "ocvMod": -4},
     # HighShot: upper body (head/shoulder/arm); -2 OCV
     "HighShot":  {"label": "High Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod": -2},
-    # BodyShot: center mass (chest/stomach); no OCV penalty
-    "BodyShot":  {"label": "Body Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod":  0},
+    # BodyShot: center mass (Hands/Arms/Shoulders/Chest/Stomach/Vitals/Thighs/Legs); -1 OCV per 6E1 p465 §Combat Modifiers
+    "BodyShot":  {"label": "Body Shot",  "stunX": 3, "nStunX": 1,   "bodyX": 1,   "ocvMod": -1},
     # LowShot: lower body (thigh/leg/foot); -2 OCV
     "LowShot":   {"label": "Low Shot",   "stunX": 2, "nStunX": 0.5, "bodyX": 0.5, "ocvMod": -2},
     # LegShot: legs specifically; -4 OCV

@@ -200,13 +200,13 @@ class TestHitLocation:
 
         assert result.hit_location_penalty == 0
 
-    def test_bodyshot_zero_penalty(self):
-        """Aim at BodyShot (0 OCV mod) still results in zero penalty."""
+    def test_bodyshot_minus_1_penalty_per_6e1_p465(self):
+        """Per 6E1 p465 §Combat Modifiers: Body Shot is -1 OCV (not 0)."""
         attack = make_attack(attacker=make_combatant(ocv=8), aim="BodyShot")
         result = resolve_to_hit(attack, RAW_HEROIC)
 
-        assert result.hit_location_penalty == 0
-        assert result.effective_ocv == 8
+        assert result.hit_location_penalty == -1
+        assert result.effective_ocv == 7
 
 
 class TestOcvModifier:
