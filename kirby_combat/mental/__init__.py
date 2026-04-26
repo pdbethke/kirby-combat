@@ -6,9 +6,13 @@ from kirby_combat.mental.mind_control import (
     MindControlResult, MindControlState,
     resolve_mind_control, can_break_out_with_ego_roll,
 )
+from kirby_combat.mental.telepathy import (
+    TelepathyResult, resolve_telepathy,
+)
 
 __all__ = [
     "MentalToHitResult", "resolve_mental_to_hit",
     "MindControlResult", "MindControlState",
     "resolve_mind_control", "can_break_out_with_ego_roll",
+    "TelepathyResult", "resolve_telepathy",
 ]
