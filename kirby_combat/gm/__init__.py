@@ -8,6 +8,10 @@ from kirby_combat.gm.overrides import (
 from kirby_combat.gm.gm_attack import (
     GMAttackDeclaration, make_gm_attack, can_actor_pay_end,
 )
+from kirby_combat.gm.spawn_despawn import (
+    spawn_combatant, despawn_combatant,
+    is_active_target, spawn_skips_immediate_segment,
+)
 
 __all__ = [
     "make_tier1_stun_adjust", "make_tier1_status_application",
@@ -15,4 +19,6 @@ __all__ = [
     "make_tier3_spawn", "make_tier3_scene_mutation",
     "apply_tier1_override", "apply_tier3_spawn", "apply_tier3_despawn",
     "GMAttackDeclaration", "make_gm_attack", "can_actor_pay_end",
+    "spawn_combatant", "despawn_combatant",
+    "is_active_target", "spawn_skips_immediate_segment",
 ]
