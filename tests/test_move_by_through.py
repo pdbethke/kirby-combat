@@ -55,6 +55,12 @@ def test_move_by_distance_past_target_is_half_remaining_movement():
     assert out.distance_past_target_m == 18.0  # 30 - 12
 
 
+def test_move_by_attacker_takes_one_third_self_damage():
+    """Per 6E2 p72: Move-By attacker takes 1/3 of damage done to target."""
+    out = MoveBy.compute(attacker_str=30, velocity_mps=20.0)
+    assert out.attacker_self_damage_fraction == pytest.approx(1.0 / 3.0)
+
+
 # ---- Move-Through ----
 
 def test_move_through_dc_str_plus_velocity_over_6():
@@ -70,8 +76,26 @@ def test_move_through_dc_floors_velocity_division():
 
 
 def test_move_through_attacker_takes_same_dc_self_damage():
+    """Legacy field: kept for back-compat (replaced by attacker_self_damage_fraction)."""
     out = MoveThrough.compute(attacker_str=30, velocity_mps=18.0)
     assert out.attacker_self_damage_dc == out.damage_dc
+
+
+def test_move_through_attacker_takes_half_self_damage_normally_full_when_no_kb():
+    """Per 6E2 p72: Move-Through attacker takes 1/2 of damage done normally.
+
+    If the target resisted Knockback (immovable wall, KB-resistance ≥ KB
+    distance, or attacker opts in), the attacker takes the FULL damage instead.
+    """
+    # Default case (target took knockback)
+    out_normal = MoveThrough.compute(attacker_str=30, velocity_mps=18.0)
+    assert out_normal.attacker_self_damage_fraction == 0.5
+
+    # No-KB case (target resisted) → attacker takes full
+    out_no_kb = MoveThrough.compute(
+        attacker_str=30, velocity_mps=18.0, target_resisted_kb=True,
+    )
+    assert out_no_kb.attacker_self_damage_fraction == 1.0
 
 
 def test_move_through_ocv_penalty_scales_with_velocity():

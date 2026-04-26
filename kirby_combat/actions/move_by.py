@@ -24,6 +24,10 @@ class MoveByOutcome:
     dcv_modifier: int                         # always -2 for Move-By
     phase_cost: Literal["half", "full"]       # "half" for Move-By
     distance_past_target_m: float = 0.0       # 0 unless caller supplies movement context
+    # Per 6E2 p72: attacker takes 1/3 of STUN/BODY done to the target.
+    # The actual self-damage is computed by the combat-session layer once
+    # target defenses are applied; this field exposes the RAW fraction.
+    attacker_self_damage_fraction: float = 1.0 / 3.0
 
 
 class MoveBy:
@@ -68,4 +72,5 @@ class MoveBy:
             dcv_modifier=-2,
             phase_cost="half",
             distance_past_target_m=distance_past,
+            attacker_self_damage_fraction=1.0 / 3.0,
         )
