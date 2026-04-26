@@ -86,12 +86,13 @@ class TestKillingAttack:
         # To-hit: roll 9, OCV 8, range -2 (10m), target number = (8-2)+11-4 = 13. 9<=13 -> hit
         assert result.hit is True
 
-        # Damage: killing 3d6+1 -> BODY = 4+5+3+1 = 13. stun_mult = 1+(4-1)=4. STUN = 13*4 = 52
+        # Damage: killing 3d6+1 -> BODY = 4+5+3+1 = 13. Per 6E2 p100, STUN mult is ½d6:
+        # raw d6=4 → half_die=2; multiplier = 1+(2-1) = 2. STUN = 13*2 = 26.
         assert result.damage.body == 13
-        assert result.damage.stun == 52
+        assert result.damage.stun == 26
 
         # Defense: Bulldozer ED=15, rED=5.
-        # Killing: STUN dealt = raw_stun - total_defense = 52 - 15 = 37
+        # Killing: STUN dealt = max(0, raw_stun - total_defense) = max(0, 26-15) = 11
         # BODY dealt = raw_body - resistant_defense = 13 - 5 = 8
-        assert result.stun_dealt == 37
+        assert result.stun_dealt == 11
         assert result.body_dealt == 8
