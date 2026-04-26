@@ -29,41 +29,72 @@ def _session() -> CombatSession:
     ).start()
 
 
-# ---- Grab declare ----
+# ---- Grab declare (per 6E2 p67: Attack Roll at -1 OCV / -2 DCV) ----
 
-def test_grab_higher_str_wins():
+
+def _grab(s, *, attacker_ocv=8, target_dcv=5, attack_roll=10,
+          attacker_str=30, target_str=15):
+    """Helper to call Grab with default RAW parameters."""
+    return Grab.declare_and_resolve(
+        s, attacker_id="alice", target_id="bob",
+        attacker_str=attacker_str, target_str=target_str,
+        attacker_ocv=attacker_ocv, target_dcv=target_dcv, attack_roll=attack_roll,
+    )
+
+
+def test_grab_succeeds_when_attack_roll_hits_per_6e2_p67():
+    """Per 6E2 p67: Grab requires a successful Attack Roll at -1 OCV.
+
+    Attacker OCV 8 → effective 7. Target DCV 5. Roll 11 → 7+11-11 = 7 >= 5 → hit.
+    """
     s = _session()
-    s2, result = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                          attacker_str=30, target_str=15)
+    s2, result = _grab(s, attacker_ocv=8, target_dcv=5, attack_roll=11)
     assert isinstance(result, GrabResult)
+    assert result.hit is True
     assert result.success is True
+    assert result.effective_ocv == 7   # 8 - 1
     assert result.attacker_id == "alice"
     assert result.target_id == "bob"
 
 
-def test_grab_tied_str_fails_defender_wins():
+def test_grab_fails_when_attack_roll_misses_dcv():
+    """If the Attack Roll misses, the Grab fails regardless of STR."""
     s = _session()
-    s2, result = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                          attacker_str=20, target_str=20)
+    # OCV 8 → effective 7. Target DCV 10. Roll 16 → 7+11-16 = 2 < 10 → miss.
+    s2, result = _grab(s, attacker_ocv=8, target_dcv=10, attack_roll=16,
+                       attacker_str=100, target_str=5)  # huge STR doesn't help
+    assert result.hit is False
     assert result.success is False
 
 
-def test_grab_lower_str_fails():
+def test_grab_str_does_not_determine_initial_success():
+    """Per 6E2 p67: STR contest is for ESCAPE only, not initial grab.
+
+    Even with target_str > attacker_str, the Grab can succeed on a hit.
+    """
     s = _session()
-    s2, result = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                          attacker_str=15, target_str=30)
-    assert result.success is False
+    s2, result = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10,
+                       attacker_str=15, target_str=30)
+    assert result.hit is True
+    assert result.success is True
+
+
+def test_grab_applies_minus_1_ocv_penalty():
+    """Per 6E2 p67: Grab takes a -1 OCV penalty on the Attack Roll."""
+    s = _session()
+    # OCV 8 → effective 7. Target DCV 7. Roll 12.
+    # Without -1: 8+11-12 = 7 >= 7 → hit. With -1: 7+11-12 = 6 < 7 → miss.
+    s2, result = _grab(s, attacker_ocv=8, target_dcv=7, attack_roll=12)
+    assert result.effective_ocv == 7
+    assert result.hit is False
 
 
 def test_grab_emits_action_declared_and_resolved_events():
     s = _session()
-    s2, _ = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                     attacker_str=30, target_str=15)
+    s2, _ = _grab(s, attack_roll=10)
     kinds = [e.kind for e in s2.event_log]
-    # Should have SessionStarted + ActionDeclared + ActionResolved at minimum
     assert "ActionDeclared" in kinds
     assert "ActionResolved" in kinds
-    # ActionDeclared comes before ActionResolved
     declared_ix = kinds.index("ActionDeclared")
     resolved_ix = kinds.index("ActionResolved")
     assert declared_ix < resolved_ix
@@ -78,8 +109,7 @@ def test_is_grabbed_false_initially():
 
 def test_is_grabbed_true_after_successful_grab():
     s = _session()
-    s2, _ = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                     attacker_str=30, target_str=15)
+    s2, _ = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10)
     is_g, by = Grab.is_grabbed(s2, "bob")
     assert is_g is True
     assert by == "alice"
@@ -87,18 +117,18 @@ def test_is_grabbed_true_after_successful_grab():
 
 def test_is_grabbed_false_after_failed_grab():
     s = _session()
-    s2, _ = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                     attacker_str=15, target_str=30)
+    # Roll high → miss
+    s2, _ = _grab(s, attacker_ocv=8, target_dcv=10, attack_roll=18)
     is_g, by = Grab.is_grabbed(s2, "bob")
     assert is_g is False
 
 
-# ---- Escape ----
+# ---- Escape (STR contest, per 6E2 p67) ----
 
 def test_escape_success_releases_grab():
     s = _session()
-    s2, _ = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                     attacker_str=30, target_str=15)
+    s2, _ = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10,
+                  attacker_str=30, target_str=15)
     assert Grab.is_grabbed(s2, "bob")[0] is True
     s3, esc = Grab.escape(s2, escaper_id="bob", escaper_str=40, grabber_str=30)
     assert esc.success is True
@@ -107,8 +137,8 @@ def test_escape_success_releases_grab():
 
 def test_escape_failure_keeps_grab():
     s = _session()
-    s2, _ = Grab.declare_and_resolve(s, attacker_id="alice", target_id="bob",
-                                     attacker_str=30, target_str=15)
+    s2, _ = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10,
+                  attacker_str=30, target_str=15)
     s3, esc = Grab.escape(s2, escaper_id="bob", escaper_str=20, grabber_str=30)
     assert esc.success is False
     is_g, by = Grab.is_grabbed(s3, "bob")

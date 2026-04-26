@@ -1,11 +1,13 @@
-"""Grab — opposed-STR contest; grabbed status tracked via event log scan.
+"""Grab — Attack Roll at -1 OCV / -2 DCV; grabbed status tracked via event log scan.
 
-HERO 6E2 pg 67-68:
-- Half-phase action; assumes the to-hit attack already landed
-- Deterministic STR contest: attacker_str > target_str → success; defender wins ties
-- Successful grab tags the victim as "grabbed by attacker_id"
-- Escape: opposed STR on victim's phase; escaper wins only if escaper_str > grabber_str
-  (grabber wins ties)
+Per 6E2 p67 §USING GRAB and the maneuver table on p62:
+    - Performing a Grab requires a successful Attack Roll at -1 OCV.
+      The grabber is also at -2 DCV while holding the grabbed character.
+    - The STR-vs-STR contest is for the ESCAPE attempt, not the initial grab.
+    - Half-phase action.
+    - Successful grab tags the victim as "grabbed by attacker_id".
+    - Escape: on the victim's phase, opposed STR — escaper wins iff
+      escaper_str > grabber_str (grabber wins ties).
 
 This module tracks grab state by scanning ActionResolved events whose
 result_payload has type in {"grab", "grab_escape"}.
@@ -30,6 +32,13 @@ class GrabResult:
     target_id: str
     attacker_str: int
     target_str: int
+    # To-hit details for the initial Grab Attack Roll (per 6E2 p67).
+    # Only meaningful when supplied by declare_and_resolve callers; defaults
+    # exist for back-compat with code that doesn't yet pass roll info.
+    effective_ocv: int = 0
+    effective_dcv: int = 0
+    attack_roll: int = 0
+    hit: bool = False
 
 
 class Grab:
@@ -44,19 +53,47 @@ class Grab:
         target_id: str,
         attacker_str: int,
         target_str: int,
+        attacker_ocv: int,
+        target_dcv: int,
+        attack_roll: int,
     ) -> tuple[CombatSession, GrabResult]:
         """Apply a grab attempt. Emits ActionDeclared + ActionResolved events.
 
+        Per 6E2 p67 (and the maneuver table on p62), Grab requires a
+        successful Attack Roll at -1 OCV. The grabber holds the target at
+        -2 DCV while the grab is maintained (caller-tracked).
+
+        Args:
+            attacker_ocv: Attacker's OCV BEFORE the Grab maneuver penalty.
+                The -1 OCV penalty is applied internally.
+            target_dcv: Target's DCV (unmodified — the -2 DCV from the
+                Grab maneuver applies to the GRABBER, not the target).
+            attack_roll: Sum of the attacker's 3d6 to-hit roll.
+            attacker_str / target_str: STR values stored on the result for
+                later escape resolution. They do NOT determine grab success.
+
         Returns (new_session, result). The grab succeeds iff
-        attacker_str > target_str (defender wins ties).
+        (effective_OCV + 11 - attack_roll) >= target_DCV.
         """
         from kirby_combat.session.apply import apply_event
 
-        success = attacker_str > target_str
+        # Per 6E2 p67: -1 OCV on the Grab Attack Roll. -2 DCV applies to
+        # the grabber (caller-tracked, applied to the grabber's DCV while
+        # holding the grab; not used to resolve this Attack Roll).
+        effective_ocv = attacker_ocv - 1
+        effective_dcv = target_dcv
+        margin = (effective_ocv + 11 - attack_roll) - effective_dcv
+        hit = margin >= 0
+        success = hit  # Grab succeeds on a successful Attack Roll.
+
         result = GrabResult(
             success=success,
             attacker_id=attacker_id, target_id=target_id,
             attacker_str=attacker_str, target_str=target_str,
+            effective_ocv=effective_ocv,
+            effective_dcv=effective_dcv,
+            attack_roll=attack_roll,
+            hit=hit,
         )
 
         now = datetime.now(timezone.utc)
@@ -69,7 +106,13 @@ class Grab:
             combatant_id=attacker_id,
             action_type="grab",
             targets=[target_id],
-            parameters={"attacker_str": attacker_str, "target_str": target_str},
+            parameters={
+                "attacker_str": attacker_str,
+                "target_str": target_str,
+                "attacker_ocv": attacker_ocv,
+                "target_dcv": target_dcv,
+                "attack_roll": attack_roll,
+            },
         )
         s = apply_event(session, declared)
 
@@ -87,6 +130,10 @@ class Grab:
                 "target_id": target_id,
                 "attacker_str": attacker_str,
                 "target_str": target_str,
+                "effective_ocv": effective_ocv,
+                "effective_dcv": effective_dcv,
+                "attack_roll": attack_roll,
+                "hit": hit,
             },
         )
         s = apply_event(s, resolved)
