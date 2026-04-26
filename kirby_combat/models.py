@@ -168,6 +168,7 @@ class KnockbackResult:
     distance_m: float
     damage_dice: int
     resisted: bool
+    target_passed_through: bool = False    # True if KB broke through a breakable object
     audit: list[str] = field(default_factory=list)
 
 
