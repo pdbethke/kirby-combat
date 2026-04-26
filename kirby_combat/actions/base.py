@@ -92,12 +92,16 @@ class AttackAction:
         # ------------------------------------------------------------------
         knockback: KnockbackResult | None = None
         if template.use_knockback and body_dealt > 0:
+            # Per 6E2 p116, the attacker rolls 2d6 (+ modifier dice) to
+            # subtract from BODY rolled. We pass attack.dice.knockback as the
+            # caller-rolled pool (caller is responsible for adding/removing
+            # dice per the modifiers table).
             knockback = compute_knockback(
-                body_dealt,
-                defense.knockback_resistance,
-                template.knockback_multiplier,
-                attack.dice,
-                template,
+                body=body_dealt,
+                knockback_dice=list(attack.dice.knockback),
+                kb_resistance_m=defense.knockback_resistance,
+                knockback_multiplier=template.knockback_multiplier,
+                template=template,
             )
             audit_trail.extend(knockback.audit)
 

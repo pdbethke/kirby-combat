@@ -29,13 +29,17 @@ def _open_scene_with_ground() -> Scene:
 
 
 def test_no_kb_when_body_resisted():
+    """Per 6E2 p116: if KB resistance ≥ pre-resistance distance, KB is fully resisted.
+
+    BODY=6, KB-roll=[3,3]=6 → delta=0 → 0m before resistance. Resisted.
+    """
     s = _open_scene_with_ground()
     out = resolve_knockback_movement(
         combatant_id="alice",
         attacker_pos=Position(0, 0, 0),
         target_pos=Position(10, 0, 0),
-        body_dealt=2, kb_resistance=10,    # resisted (effective ≤ 0)
-        dice=DiceValues(knockback=[3, 3, 3]),
+        body_dealt=6, kb_resistance=0,    # resisted (KB-roll meets BODY)
+        dice=DiceValues(knockback=[3, 3]),
         scene=s, template=RAW_SUPERHEROIC,
     )
     assert out.intended_distance_m == 0.0
@@ -47,16 +51,17 @@ def test_no_kb_when_body_resisted():
 
 
 def test_kb_in_open_field_moves_target_full_distance():
+    """BODY=15, KB-roll=[4,5]=9 → delta=6 → 12m east."""
     s = _open_scene_with_ground()
     out = resolve_knockback_movement(
         combatant_id="alice",
         attacker_pos=Position(0, 5, 0),
         target_pos=Position(10, 5, 0),
-        body_dealt=6, kb_resistance=0,
-        dice=DiceValues(knockback=[4, 5, 4]),    # at least 3 dice — Phase 1 may sum some
+        body_dealt=15, kb_resistance=0,
+        dice=DiceValues(knockback=[4, 5]),
         scene=s, template=RAW_SUPERHEROIC,
     )
-    assert out.intended_distance_m > 0
+    assert out.intended_distance_m == 12.0
     assert out.wall_collision is None
     assert out.fall is None
     # Direction east (+x): final_pos.x > target_pos.x
@@ -80,12 +85,13 @@ def test_kb_into_wall_stops_at_wall():
         ambient=AmbientConditions(),
         combatant_positions={},
     )
+    # BODY=20, KB-roll=[1,1]=2 → delta=18 → 36m east. Wall at x=15 → target hits at x=15.
     out = resolve_knockback_movement(
         combatant_id="alice",
         attacker_pos=Position(0, 5, 0),
         target_pos=Position(10, 5, 0),
-        body_dealt=10, kb_resistance=0,
-        dice=DiceValues(knockback=[6, 6, 6, 6, 6]),    # very large KB
+        body_dealt=20, kb_resistance=0,
+        dice=DiceValues(knockback=[1, 1]),    # very small KB-roll → big distance
         scene=s, template=RAW_SUPERHEROIC,
     )
     assert out.wall_collision is not None
@@ -116,12 +122,13 @@ def test_kb_off_rooftop_triggers_fall():
         ambient=AmbientConditions(),
         combatant_positions={},
     )
+    # BODY=15, KB-roll=[3,4]=7 → delta=8 → 16m west. Edge at x=5 → target falls.
     out = resolve_knockback_movement(
         combatant_id="alice",
         attacker_pos=Position(20, 10, 12),     # to the east, on (or past) rooftop
         target_pos=Position(8, 10, 12),         # near the west edge
-        body_dealt=6, kb_resistance=0,
-        dice=DiceValues(knockback=[3, 4, 3]),  # KB direction: -x (away from attacker)
+        body_dealt=15, kb_resistance=0,
+        dice=DiceValues(knockback=[3, 4]),     # KB direction: -x (away from attacker)
         scene=s, template=RAW_SUPERHEROIC,
     )
     # KB pushes target west past x=5 → off rooftop → falls
@@ -147,12 +154,13 @@ def test_kb_through_hazard_triggers_it():
         ambient=AmbientConditions(),
         combatant_positions={},
     )
+    # BODY=15, KB-roll=[1,2]=3 → delta=12 → 24m east — pushes through fire.
     out = resolve_knockback_movement(
         combatant_id="alice",
         attacker_pos=Position(0, 5, 0),
         target_pos=Position(5, 5, 0),
-        body_dealt=8, kb_resistance=0,
-        dice=DiceValues(knockback=[6, 6, 6, 6]),    # big KB pushes through fire
+        body_dealt=15, kb_resistance=0,
+        dice=DiceValues(knockback=[1, 2]),     # small KB-roll → big distance
         scene=s, template=RAW_SUPERHEROIC,
     )
     # KB path goes from (5,5) eastward, crossing fire polygon (x ∈ [8, 12])
@@ -166,8 +174,8 @@ def test_collision_damage_dice_exposed_for_caller():
         combatant_id="alice",
         attacker_pos=Position(0, 0, 0),
         target_pos=Position(10, 0, 0),
-        body_dealt=6, kb_resistance=0,
-        dice=DiceValues(knockback=[4, 5, 4]),
+        body_dealt=15, kb_resistance=0,
+        dice=DiceValues(knockback=[3, 2]),    # delta=10 → 20m → ground impact 5 dice
         scene=s, template=RAW_SUPERHEROIC,
     )
     # Phase 1's KnockbackResult.damage_dice — caller applies on wall hit
@@ -182,8 +190,8 @@ def test_direction_uses_attacker_to_target_vector():
         combatant_id="alice",
         attacker_pos=Position(0, 10, 0),
         target_pos=Position(10, 0, 0),
-        body_dealt=4, kb_resistance=0,
-        dice=DiceValues(knockback=[3, 3]),
+        body_dealt=10, kb_resistance=0,
+        dice=DiceValues(knockback=[3, 3]),    # delta=4 → 8m
         scene=s, template=RAW_SUPERHEROIC,
     )
     # direction_xy is normalized; (10-0, 0-10) = (10, -10) normalized = (~0.707, -0.707)
@@ -197,7 +205,7 @@ def test_attacker_and_target_same_position_uses_default_direction():
         combatant_id="alice",
         attacker_pos=Position(5, 5, 0),
         target_pos=Position(5, 5, 0),
-        body_dealt=4, kb_resistance=0,
+        body_dealt=10, kb_resistance=0,
         dice=DiceValues(knockback=[3, 3]),
         scene=s, template=RAW_SUPERHEROIC,
     )

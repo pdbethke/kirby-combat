@@ -91,12 +91,13 @@ def resolve_knockback_movement(
     template: "CombatTemplate",
     gravity_scale: float = 1.0,
 ) -> KnockbackMovementResult:
-    # 1. Phase 1 KB calc
+    # 1. Phase 1 KB calc — per 6E2 p116, KB-roll is 2d6 (+ modifier dice)
+    # subtracted from BODY. Caller passes dice.knockback as the rolled pool.
     kb = compute_knockback(
-        body_dealt=body_dealt,
-        kb_resistance=kb_resistance,
+        body=body_dealt,
+        knockback_dice=list(dice.knockback),
+        kb_resistance_m=kb_resistance,
         knockback_multiplier=template.knockback_multiplier,
-        dice=dice,
         template=template,
     )
     intended = kb.distance_m
