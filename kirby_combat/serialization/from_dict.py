@@ -64,16 +64,22 @@ def _coerce_field(field_type: Any, value: Any) -> Any:
     """Best-effort coerce a primitive value into its declared type.
 
     Handles Enum subclasses (rehydrate from value), datetime ISO strings.
+    `field_type` may be a string (PEP 563/forward ref) — we look it up in
+    the type registry.
     """
-    # Enums rehydrate from value if value is a primitive
-    if isinstance(field_type, type) and issubclass(field_type, Enum):
-        if isinstance(value, field_type):
+    # Resolve string-typed (forward-ref) field types via the registry.
+    resolved = field_type
+    if isinstance(field_type, str):
+        resolved = _TYPE_REGISTRY.get(field_type, field_type)
+
+    if isinstance(resolved, type) and issubclass(resolved, Enum):
+        if isinstance(value, resolved):
             return value
         try:
-            return field_type(value)
+            return resolved(value)
         except (ValueError, KeyError):
             return value
-    if field_type is datetime and isinstance(value, str):
+    if resolved is datetime and isinstance(value, str):
         try:
             return datetime.fromisoformat(value)
         except ValueError:
@@ -99,6 +105,10 @@ def from_dict(data: Any) -> Any:
             raise TypeError(f"type {type_name!r} is not a dataclass")
         kwargs: dict[str, Any] = {}
         for f in fields(cls):
+            # Skip init=False fields (e.g., the `kind` Literal on each event
+            # subclass) — they auto-populate via __init__ default.
+            if not f.init:
+                continue
             if f.name in data:
                 raw = from_dict(data[f.name])
                 kwargs[f.name] = _coerce_field(f.type, raw)
