@@ -2,5 +2,13 @@
 from kirby_combat.mental.mental_combat import (
     MentalToHitResult, resolve_mental_to_hit,
 )
+from kirby_combat.mental.mind_control import (
+    MindControlResult, MindControlState,
+    resolve_mind_control, can_break_out_with_ego_roll,
+)
 
-__all__ = ["MentalToHitResult", "resolve_mental_to_hit"]
+__all__ = [
+    "MentalToHitResult", "resolve_mental_to_hit",
+    "MindControlResult", "MindControlState",
+    "resolve_mind_control", "can_break_out_with_ego_roll",
+]
