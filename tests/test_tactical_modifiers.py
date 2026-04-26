@@ -10,7 +10,7 @@ from kirby_combat.actions.haymaker import Haymaker
 from kirby_combat.actions.set_action import Set
 from kirby_combat.actions.brace import Brace
 from kirby_combat.actions.dive_for_cover import DiveForCover, DiveForCoverResult
-from kirby_combat.actions.pulling_punch import apply_pulling_punch
+from kirby_combat.actions.pulling_punch import resolve_pulled_punch, PulledPunchOutcome
 from kirby_combat.actions.held_action import HeldAction
 
 
@@ -135,22 +135,70 @@ def test_dive_for_cover_dex_roll_succeeds_on_equal():
     assert result.success is True
 
 
-# ---- Pulling Punch -----
-
-def test_pulling_punch_reduces_dc():
-    assert apply_pulling_punch(base_dc=10, reduction=4) == 6
+# ---- Pulling Punch (per 6E2 p89) -----
 
 
-def test_pulling_punch_clamps_at_zero():
-    assert apply_pulling_punch(base_dc=10, reduction=99) == 0
+def test_pull_one_5dc_increment_costs_neg_1_ocv():
+    """Per 6E2 p89: -1 OCV per 5 DCs pulled. 5 DCs pulled → -1 OCV."""
+    out = resolve_pulled_punch(base_dcs=12, dcs_pulled=5)
+    assert isinstance(out, PulledPunchOutcome)
+    assert out.ocv_modifier == -1
+    assert out.dcs_pulled == 5
 
 
-def test_pulling_punch_negative_reduction_treated_as_zero():
-    assert apply_pulling_punch(base_dc=10, reduction=-3) == 10
+def test_pull_3_increments_costs_neg_3_ocv():
+    """15 DCs pulled (3×5) → -3 OCV."""
+    out = resolve_pulled_punch(base_dcs=30, dcs_pulled=15)
+    assert out.ocv_modifier == -3
+    assert out.dcs_pulled == 15
 
 
-def test_pulling_punch_zero_reduction_returns_full_dc():
-    assert apply_pulling_punch(base_dc=10, reduction=0) == 10
+def test_pulling_halves_body_only_not_stun():
+    """Per 6E2 p89: pulling halves BODY (full STUN)."""
+    out = resolve_pulled_punch(base_dcs=10, dcs_pulled=4)
+    assert out.body_multiplier == 0.5
+    assert out.stun_multiplier == 1.0
+
+
+def test_pulling_capped_at_half_attack_dcs():
+    """Per 6E2 p89: max DCs pulled = base_dcs // 2."""
+    out = resolve_pulled_punch(base_dcs=10, dcs_pulled=99)
+    assert out.dcs_pulled == 5   # 10 // 2 = 5
+    # 5 // 5 = 1 → -1 OCV
+    assert out.ocv_modifier == -1
+
+
+def test_pulling_overridden_when_attack_rolled_exactly_per_6e2_p89():
+    """Per 6E2 p89: if Attack Roll exactly meets DCV (margin==0), the pull
+    is forfeited and full damage applies. OCV cost still stands."""
+    out = resolve_pulled_punch(
+        base_dcs=20, dcs_pulled=10, rolled_exactly=True,
+    )
+    assert out.ocv_modifier == -2   # 10 // 5 = 2; cost still applies
+    assert out.body_multiplier == 1.0
+    assert out.stun_multiplier == 1.0
+    assert out.rolled_exactly is True
+
+
+def test_pulling_zero_dcs_no_changes():
+    """Pulling 0 DCs → no OCV cost, no body change."""
+    out = resolve_pulled_punch(base_dcs=10, dcs_pulled=0)
+    assert out.ocv_modifier == 0
+    assert out.body_multiplier == 1.0
+    assert out.stun_multiplier == 1.0
+
+
+def test_pulling_negative_dcs_treated_as_zero():
+    out = resolve_pulled_punch(base_dcs=10, dcs_pulled=-5)
+    assert out.dcs_pulled == 0
+    assert out.body_multiplier == 1.0
+
+
+def test_pulling_4_dcs_costs_0_ocv_under_5dc_threshold():
+    """Pulling 4 DCs → -1 OCV per 5 DCs → 0 OCV cost (integer division)."""
+    out = resolve_pulled_punch(base_dcs=20, dcs_pulled=4)
+    assert out.ocv_modifier == 0
+    assert out.body_multiplier == 0.5
 
 
 # ---- Held Action -----
