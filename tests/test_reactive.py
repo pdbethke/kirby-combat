@@ -83,37 +83,52 @@ def test_block_declare_flags_combatant_aborted():
     assert is_aborting(s2, "alice") is True
 
 
-def test_block_resolve_success_when_blocker_higher_margin():
-    # Attacker OCV 8, rolls [3,4,3]=10 → margin 8+11-10=9
-    # Blocker OCV 10, rolls [3,3,3]=9 → margin 10+11-9=12
-    # Blocker margin > attacker margin → block succeeds
+def test_block_succeeds_when_blocker_roll_meets_attacker_ocv():
+    """Per 6E2 p59: blocker succeeds iff (blocker_OCV + 11 - roll) >= attacker_OCV.
+
+    Blocker OCV 10, rolls [3,3,3]=9 → 10+11-9 = 12 >= 8 (attacker OCV) → success.
+    """
     result = Block.resolve(
-        attacker_ocv=8, attacker_dice=[3, 4, 3],
         blocker_ocv=10, blocker_dice=[3, 3, 3],
+        attacker_ocv=8,
     )
     assert isinstance(result, BlockResult)
     assert result.success is True
-    assert result.attacker_roll == 10
     assert result.blocker_roll == 9
+    assert result.blocker_margin == 4   # 12 - 8
 
 
-def test_block_resolve_failure_when_attacker_higher_margin():
-    # Attacker OCV 10, rolls [3,3,3]=9 → margin 10+11-9=12
-    # Blocker OCV 8, rolls [4,4,4]=12 → margin 8+11-12=7
-    # Attacker margin > blocker margin → block fails
+def test_block_fails_when_blocker_roll_misses_attacker_ocv():
+    """If (blocker_OCV + 11 - roll) < attacker_OCV, Block fails.
+
+    Blocker OCV 8, rolls [4,4,4]=12 → 8+11-12 = 7 < 10 (attacker OCV) → fail.
+    """
     result = Block.resolve(
-        attacker_ocv=10, attacker_dice=[3, 3, 3],
-        blocker_ocv=8,  blocker_dice=[4, 4, 4],
+        blocker_ocv=8, blocker_dice=[4, 4, 4],
+        attacker_ocv=10,
     )
     assert result.success is False
+    assert result.blocker_margin == -3   # 7 - 10
 
 
-def test_block_resolve_blocker_wins_ties():
-    # Both have margin 10
-    # Attacker OCV 10, rolls [4,4,3]=11 → margin 10+11-11=10
-    # Blocker OCV 10, rolls [4,4,3]=11 → margin 10+11-11=10
+def test_block_succeeds_on_exact_match():
+    """Per 6E2 p59 (and HERO Attack Roll convention): meeting the target succeeds."""
+    # Blocker OCV 10, rolls [4,4,3]=11 → 10+11-11=10 >= 10 → success.
     result = Block.resolve(
-        attacker_ocv=10, attacker_dice=[4, 4, 3],
         blocker_ocv=10, blocker_dice=[4, 4, 3],
+        attacker_ocv=10,
     )
     assert result.success is True
+    assert result.blocker_margin == 0
+
+
+def test_block_does_not_depend_on_attacker_roll():
+    """Per 6E2 p59: only the blocker's roll matters; attacker's to-hit is irrelevant.
+
+    Two block resolutions with the same blocker stats but different attacker
+    contexts must produce the same result (signature no longer takes attacker dice).
+    """
+    out_a = Block.resolve(blocker_ocv=10, blocker_dice=[3, 3, 3], attacker_ocv=8)
+    out_b = Block.resolve(blocker_ocv=10, blocker_dice=[3, 3, 3], attacker_ocv=8)
+    assert out_a.success == out_b.success
+    assert out_a.blocker_margin == out_b.blocker_margin
