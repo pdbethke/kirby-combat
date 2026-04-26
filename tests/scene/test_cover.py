@@ -4,7 +4,7 @@ import pytest
 from kirby_combat.scene import (
     Scene, SceneBounds, Surface, Wall, Position, AmbientConditions,
 )
-from kirby_combat.scene.cover import compute_cover_level
+from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
 
 
 def _empty_scene() -> Scene:
@@ -235,3 +235,35 @@ def test_prone_alone_no_walls_returns_zero():
     # partial cover; the +1 bonus assumes existing concealment.
     # For this engine: prone bonus only applies when there's ≥ 1 base cover.
     assert level == 0
+
+
+# ---- cover_ocv_modifier — RAW table per 6E2 p45 -----
+
+
+def test_cover_ocv_modifier_matches_6e2_p45_table():
+    """Per 6E2 p45 §BEHIND COVER MODIFIERS — six discrete percent buckets."""
+    # 0-10% bucket: no penalty.
+    assert cover_ocv_modifier(0) == 0
+    assert cover_ocv_modifier(1) == 0
+    assert cover_ocv_modifier(10) == 0
+    # 11-24% bucket: -1.
+    assert cover_ocv_modifier(11) == -1
+    assert cover_ocv_modifier(24) == -1
+    # 25-50% bucket: -2.
+    assert cover_ocv_modifier(25) == -2
+    assert cover_ocv_modifier(50) == -2
+    # 51-74% bucket: -3.
+    assert cover_ocv_modifier(51) == -3
+    assert cover_ocv_modifier(74) == -3
+    # 75-90% bucket: -4.
+    assert cover_ocv_modifier(75) == -4
+    assert cover_ocv_modifier(90) == -4
+    # 91-100% bucket: -8 (head-only / full cover).
+    assert cover_ocv_modifier(91) == -8
+    assert cover_ocv_modifier(100) == -8
+
+
+def test_cover_ocv_modifier_clamps_out_of_range_inputs():
+    """Negative or >100 inputs are clamped to [0, 100]."""
+    assert cover_ocv_modifier(-50) == 0
+    assert cover_ocv_modifier(150) == -8

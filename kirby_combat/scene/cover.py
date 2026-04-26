@@ -1,18 +1,20 @@
-"""Cover resolution — compute 0-4 cover level a target enjoys vs a shooter.
+"""Cover resolution.
 
-Note: Dorman's reference implementation does not include a cover OCV penalty
-table. The 0/-2/-4/-6/-8 mapping is our interpretation per HERO 6E2; RAW-verify
-before relying on this. The "nearest-wall-to-target wins" tie-break is our
-design choice.
+Two layers:
+  1. ``compute_cover_level`` — scene-aware analysis returning a 0-4 abstract
+     cover *level* (a property of Walls/Surfaces, not directly the OCV penalty).
+  2. ``cover_ocv_modifier(percent_covered)`` — RAW lookup: percent of target
+     covered → OCV penalty per 6E2 p45 §BEHIND COVER MODIFIERS.
 
-Cover level maps to OCV penalty per HERO 6E2:
-    0 → -0    (no cover)
-    1 → -2    (light)
-    2 → -4    (partial)
-    3 → -6    (heavy)
-    4 → -8    (full)
+Per 6E2 p45 §BEHIND COVER MODIFIERS, the OCV penalty has six discrete buckets:
+    0-10%   →  0    (no cover / under cover but exposed)
+    11-24%  → -1    (light cover, e.g., behind a chair)
+    25-50%  → -2    (half cover, e.g., behind a low wall, knee-deep in water)
+    51-74%  → -3    (heavy cover, e.g., crouched behind a wall)
+    75-90%  → -4    (full cover except head/torso)
+    91-100% → -8    (head only / full cover)
 
-Algorithm:
+Algorithm for ``compute_cover_level`` (scene analysis):
     1. If LoS clear (no walls intersect between shooter and target with sufficient
        height to block), no wall cover applies.
     2. Otherwise, of the walls that block LoS, pick the one whose midpoint is
@@ -28,6 +30,30 @@ from kirby_combat.scene.scene import Position, Scene, Wall, Surface
 from kirby_combat.scene.geometry import (
     distance_3d, point_in_polygon_xy, segments_intersect_xy,
 )
+
+
+# Per 6E2 p45 §BEHIND COVER MODIFIERS — discrete percent-of-target-covered
+# buckets map to OCV penalties. Each tuple is (max_percent_in_bucket, ocv_mod).
+_COVER_PERCENT_TO_OCV: list[tuple[int, int]] = [
+    (10, 0),      # 0-10%: no penalty
+    (24, -1),     # 11-24%: light cover
+    (50, -2),     # 25-50%: half cover
+    (74, -3),     # 51-74%: heavy cover
+    (90, -4),     # 75-90%: full cover except head/torso
+    (100, -8),    # 91-100%: head only / full cover
+]
+
+
+def cover_ocv_modifier(percent_covered: int) -> int:
+    """Return the OCV penalty for an attack on a target this percent covered.
+
+    Per 6E2 p45 §BEHIND COVER MODIFIERS. Input is clamped to [0, 100].
+    """
+    pct = max(0, min(100, int(percent_covered)))
+    for max_pct, mod in _COVER_PERCENT_TO_OCV:
+        if pct <= max_pct:
+            return mod
+    return -8  # safety fallback (unreachable after clamp)
 
 
 def _wall_blocks_los(shooter: Position, target: Position, wall: Wall) -> bool:
