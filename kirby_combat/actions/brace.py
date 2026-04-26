@@ -1,4 +1,4 @@
-"""Brace — 1/2 DCV, 1/2 range penalty on next ranged attack (6E2 pg 64)."""
+"""Brace — +2 OCV that only offsets the Range Modifier; ½ DCV (6E2 p62)."""
 from __future__ import annotations
 
 import uuid
@@ -8,16 +8,34 @@ from typing import Any
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import ActionDeclared, ActionResolved, make_author_combatant
 
-_RANGE_PENALTY_FACTOR = 0.5
+# Per 6E2 p62 §BRACE — Brace grants +2 OCV that only offsets the Range
+# Modifier. The bonus cannot produce a positive net OCV contribution from
+# the range axis (it caps the effective range modifier at 0).
+_RANGE_OFFSET_BONUS = 2
 _DCV_FACTOR = 0.5
+
+
+def apply_brace_to_range_modifier(range_modifier: int) -> int:
+    """Apply the Brace +2 range-offset to a raw range modifier.
+
+    Per 6E2 p62 §BRACE, Brace grants +2 OCV "that only offsets the Range
+    Modifier" — the bonus only applies against negative range penalties and
+    cannot push the effective range contribution above 0.
+
+    Examples:
+        range_modifier = -3  → effective = -1 (offset by +2)
+        range_modifier = -1  → effective =  0 (offset by +2, capped)
+        range_modifier =  0  → effective =  0 (no positive bonus added)
+    """
+    return min(0, range_modifier + _RANGE_OFFSET_BONUS)
 
 
 class Brace:
     """Brace tactical modifier.
 
-    The combatant braces to negate recoil/movement effects on a ranged attack:
-    - Range penalty is halved (range_penalty_factor = 0.5).
-    - DCV is halved (dcv_factor = 0.5) while bracing.
+    Per 6E2 p62 §BRACE:
+    - Grants +2 OCV that *only* offsets the Range Modifier (capped at 0).
+    - Imposes ½ DCV on the bracer.
     """
 
     name: str = "brace"
@@ -52,9 +70,10 @@ class Brace:
     ) -> dict[str, Any]:
         """Return brace modifiers if pending, else {}.
 
-        Returns:
-            {"range_penalty_factor": 0.5, "dcv_factor": 0.5} when active,
-            {} when no brace has been declared or it has already resolved.
+        Per 6E2 p62 §BRACE, the returned dict carries:
+          - "range_offset_bonus": +2 OCV that only offsets the Range Modifier
+            (consumers should call ``apply_brace_to_range_modifier``).
+          - "dcv_factor": 0.5 (½ DCV while bracing).
         """
         declaration_id: str | None = None
         for evt in reversed(session.event_log):
@@ -78,6 +97,6 @@ class Brace:
                 return {}
 
         return {
-            "range_penalty_factor": _RANGE_PENALTY_FACTOR,
+            "range_offset_bonus": _RANGE_OFFSET_BONUS,
             "dcv_factor": _DCV_FACTOR,
         }

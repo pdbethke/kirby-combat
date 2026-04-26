@@ -8,7 +8,7 @@ from kirby_combat.dice import FakeRoller
 from kirby_combat.session import CombatSession
 from kirby_combat.actions.haymaker import Haymaker
 from kirby_combat.actions.set_action import Set
-from kirby_combat.actions.brace import Brace
+from kirby_combat.actions.brace import Brace, apply_brace_to_range_modifier
 from kirby_combat.actions.dive_for_cover import DiveForCover, DiveForCoverResult
 from kirby_combat.actions.pulling_punch import resolve_pulled_punch, PulledPunchOutcome
 from kirby_combat.actions.held_action import HeldAction
@@ -82,13 +82,28 @@ def test_set_no_bonus_without_declaration():
 
 # ---- Brace -----
 
-def test_brace_grants_half_range_penalty_modifier():
+def test_brace_grants_plus_2_range_offset_and_half_dcv_per_6e2_p62():
+    """Per 6E2 p62 §BRACE: +2 OCV that only offsets the Range Modifier; ½ DCV."""
     s = _session()
     s2, _ = Brace.declare(s, "alice")
     mods = Brace.modifiers_for_pending_attack(s2, "alice")
-    # Returns half-range-penalty flag and DCV delta
-    assert mods.get("range_penalty_factor") == 0.5
+    assert mods.get("range_offset_bonus") == 2
     assert mods.get("dcv_factor") == 0.5
+
+
+def test_brace_offsets_range_modifier_by_2_capped_at_zero():
+    """Per 6E2 p62 §BRACE: the +2 OCV ONLY offsets the Range Modifier — it
+    cannot produce a positive net OCV contribution from the range axis."""
+    # Range -3 → effective -1 (offset by +2)
+    assert apply_brace_to_range_modifier(-3) == -1
+    # Range -8 → effective -6 (offset by +2)
+    assert apply_brace_to_range_modifier(-8) == -6
+    # Range -1 → effective 0 (offset by +2, capped at 0)
+    assert apply_brace_to_range_modifier(-1) == 0
+    # Range -2 → effective 0 (offset by +2, capped at 0)
+    assert apply_brace_to_range_modifier(-2) == 0
+    # Range 0 → effective 0 (no positive bonus from the range axis)
+    assert apply_brace_to_range_modifier(0) == 0
 
 
 def test_brace_no_modifiers_without_declaration():
