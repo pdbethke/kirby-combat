@@ -2,8 +2,7 @@
 
 HERO 6E2 pg 73:
 - Each attack after the first takes a cumulative -2 OCV
-- 1/2 DCV (treated as 1/2 for engine simplification — RAW is 0 DCV but plan
-  author chose 1/2 for consistency with Sweep)
+- ½ DCV per 6E2 p79 §DCV Modifiers
 - Full-phase action
 - CSL offset (Combat Skill Levels allocated to OCV) flattens the descending
   penalty: per_shot_ocv[i] = base_ocv - max(0, (2*i) - csl_offset)
