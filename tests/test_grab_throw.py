@@ -152,30 +152,49 @@ def test_escape_when_not_grabbed_raises():
         Grab.escape(s, escaper_id="bob", escaper_str=20, grabber_str=30)
 
 
-# ---- Throw ----
+# ---- Throw (per 6E1 STR/THROWING TABLE) ----
 
 def test_throw_damage_dc_is_str_over_5():
+    """Damage is still STR/5 DCs (unchanged by Fix 10)."""
     out = Throw.compute(attacker_str=30)
     assert out.damage_dc == 6
 
 
-def test_throw_max_distance_is_str_over_5_meters():
+def test_throw_max_distance_str_30_per_table():
+    """Per 6E1 STR/THROWING TABLE (approximation): STR 30 → 40m for 1kg."""
     out = Throw.compute(attacker_str=30)
-    assert out.max_distance_m == 6.0
-    # default desired_distance is None → throws to max
-    assert out.throw_distance_m == 6.0
+    assert out.max_distance_m == 40.0
+    assert out.throw_distance_m == 40.0
+
+
+def test_throw_max_distance_str_50_per_table():
+    """Per 6E1 STR/THROWING TABLE: STR 50 → 64m for 1kg (was STR/5 = 10m)."""
+    out = Throw.compute(attacker_str=50)
+    assert out.max_distance_m == 64.0
+
+
+def test_throw_max_distance_str_100_per_table():
+    """Per 6E1 STR/THROWING TABLE: STR 100 → 144m (was STR/5 = 20m)."""
+    out = Throw.compute(attacker_str=100)
+    assert out.max_distance_m == 144.0
+
+
+def test_throw_max_distance_str_5_per_table():
+    """STR 5 → 8m (low end of table)."""
+    out = Throw.compute(attacker_str=5)
+    assert out.max_distance_m == 8.0
 
 
 def test_throw_with_short_desired_distance_clamps_at_request():
     out = Throw.compute(attacker_str=50, desired_distance_m=4)
-    assert out.max_distance_m == 10.0
+    assert out.max_distance_m == 64.0
     assert out.throw_distance_m == 4.0
 
 
 def test_throw_excessive_distance_clamped_to_max():
     out = Throw.compute(attacker_str=20, desired_distance_m=999)
-    assert out.max_distance_m == 4.0
-    assert out.throw_distance_m == 4.0
+    assert out.max_distance_m == 32.0    # STR 20 → 32m
+    assert out.throw_distance_m == 32.0
 
 
 def test_throw_negative_distance_clamped_to_zero():
@@ -193,3 +212,18 @@ def test_throw_zero_str_yields_zero_damage_zero_distance():
 def test_throw_phase_cost_half():
     out = Throw.compute(attacker_str=30)
     assert out.phase_cost == "half"
+
+
+def test_throw_distance_uses_table_step_function():
+    """STR 22 (between thresholds) uses the lower threshold's distance.
+
+    The table jumps at STR 20 (32m) and STR 25 (32m); 22 should be 32m.
+    """
+    out = Throw.compute(attacker_str=22)
+    assert out.max_distance_m == 32.0
+
+
+def test_throw_str_above_100_extrapolates():
+    """STR 120 → 144 + 16 = 160m (extrapolation per docstring)."""
+    out = Throw.compute(attacker_str=120)
+    assert out.max_distance_m == 160.0
