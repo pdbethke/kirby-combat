@@ -179,14 +179,32 @@ def test_recover_specific_sense_does_not_clear_others():
 
 # ---- modifiers ----
 
-def test_modifiers_half_ocv_dcv_when_flashed():
+def test_flash_hth_modifiers_half_ocv_half_dcv():
+    """Per 6E2 p127: HTH attacks vs flashed target → ½ OCV / ½ DCV."""
     s = _session()
     s2, _ = Flash.apply(
         s, attacker_id="alice", target_id="bob",
         sense_group="sight", body_dealt=8, flash_defense=3,
     )
+    # Default attack_type is "hth"
     mods = Flash.modifiers(s2, "bob")
     assert mods == {"ocv_factor": 0.5, "dcv_factor": 0.5}
+    # Explicit "hth" matches default
+    mods_hth = Flash.modifiers(s2, "bob", attack_type="hth")
+    assert mods_hth == {"ocv_factor": 0.5, "dcv_factor": 0.5}
+
+
+def test_flash_ranged_modifiers_zero_ocv_half_dcv_per_6e2_p127():
+    """Per 6E2 p127 §Inability To Sense An Opponent:
+    Ranged attacks vs flashed target → 0 OCV / ½ DCV (cannot meaningfully aim).
+    """
+    s = _session()
+    s2, _ = Flash.apply(
+        s, attacker_id="alice", target_id="bob",
+        sense_group="sight", body_dealt=8, flash_defense=3,
+    )
+    mods = Flash.modifiers(s2, "bob", attack_type="ranged")
+    assert mods == {"ocv_factor": 0.0, "dcv_factor": 0.5}
 
 
 def test_modifiers_empty_when_not_flashed():

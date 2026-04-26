@@ -171,6 +171,29 @@ class Flash:
 
     # ------------------------------------------------------------------ modifiers
     @staticmethod
-    def modifiers(session: CombatSession, combatant_id: str) -> dict:
+    def modifiers(
+        session: CombatSession,
+        combatant_id: str,
+        attack_type: str = "hth",
+    ) -> dict:
+        """Return the OCV/DCV factors for a flashed combatant making an attack.
+
+        Per 6E2 p127 §Inability To Sense An Opponent:
+          - HTH attacks:    ½ OCV / ½ DCV
+          - Ranged attacks: 0 OCV / ½ DCV  (cannot meaningfully aim)
+
+        Args:
+            session: combat session.
+            combatant_id: the (possibly-flashed) combatant.
+            attack_type: "hth" (default) or "ranged". Anything else is
+                treated as "hth" for safety.
+
+        Returns:
+            {} if not flashed; otherwise a dict with ocv_factor and dcv_factor.
+        """
         flashed, _ = Flash.is_flashed(session, combatant_id)
-        return {"ocv_factor": 0.5, "dcv_factor": 0.5} if flashed else {}
+        if not flashed:
+            return {}
+        if attack_type == "ranged":
+            return {"ocv_factor": 0.0, "dcv_factor": 0.5}
+        return {"ocv_factor": 0.5, "dcv_factor": 0.5}
