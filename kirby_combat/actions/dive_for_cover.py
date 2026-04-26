@@ -11,7 +11,9 @@ Per 6E2 p87 §Using Dive For Cover:
     - Failed Dive: character is at HALF DCV but did NOT move, AND the
       attacker gets +2 OCV against the diver this Phase.
 
-The DEX Roll is the standard HERO Skill Roll: 3d6 ≤ 9 + DEX // 3.
+The DEX Roll is the standard HERO Characteristic Roll: 3d6 ≤ 9 + DEX // 5,
+with a penalty of -1 per 2m of distance moved (rounded up). Underwater
+the penalty doubles to -1 per 1m moved (per 6E2 p170).
 """
 from __future__ import annotations
 
@@ -56,7 +58,9 @@ class DiveForCover:
     determines whether the dive succeeds (move + prone + ½ DCV) or fails
     (no movement + prone + ½ DCV + attacker gets +2 OCV).
 
-    DEX Roll formula (HERO standard Skill Roll): 3d6 ≤ 9 + DEX // 3.
+    DEX Roll formula (HERO standard Characteristic Roll, 6E2 p87):
+    3d6 ≤ 9 + DEX // 5, with -1 per 2m of distance moved (or fraction).
+    Underwater the penalty doubles to -1 per 1m (6E2 p170).
     """
 
     name: str = "dive_for_cover"
@@ -76,6 +80,8 @@ class DiveForCover:
         combatant_dex: int,
         dice: list[int],
         *,
+        distance_m: float = 0.0,
+        underwater: bool = False,
         requested_destination: tuple[float, float, float] | None = None,
         attack_is_aoe: bool = False,
         aoe_origin: tuple[float, float, float] | None = None,
@@ -86,6 +92,11 @@ class DiveForCover:
         Args:
             combatant_dex: The diver's DEX characteristic.
             dice: List of three die results (each 1-6).
+            distance_m: Distance the diver is attempting to move. Imposes
+                -1 to the DEX Roll per 2m (rounded up). Caller computes from
+                scene state; default 0 means an in-place dive (no penalty).
+            underwater: When True, the distance penalty doubles to -1/1m
+                per 6E2 p170.
             requested_destination: Where the diver wants to end up if
                 successful. Required if attack_is_aoe is True.
             attack_is_aoe: True if the incoming attack is an Area-of-Effect.
@@ -100,7 +111,15 @@ class DiveForCover:
               - Failure: diver is prone at half DCV, did NOT move,
                 attacker gets +2 OCV against the diver this Phase.
         """
-        target = 9 + (combatant_dex // 3)
+        # 6E2 p87: standard Characteristic Roll target is 9 + DEX/5.
+        base_target = 9 + (combatant_dex // 5)
+        # 6E2 p87: -1 per 2m moved (or fraction). p170: doubled underwater.
+        meters_per_penalty_step = 1.0 if underwater else 2.0
+        from math import ceil as _ceil
+        distance_penalty = (
+            _ceil(distance_m / meters_per_penalty_step) if distance_m > 0 else 0
+        )
+        target = base_target - distance_penalty
         roll = sum(dice)
         success = roll <= target
 
