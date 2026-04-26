@@ -4,7 +4,6 @@ import pytest
 from kirby_combat.actions.multiple_attack import MultipleAttack, MultiAttackOutcome
 from kirby_combat.actions.sweep import Sweep
 from kirby_combat.actions.rapid_fire import RapidFire
-from kirby_combat.actions.autofire import Autofire
 
 
 # ---- Multiple Attack ----
@@ -81,30 +80,110 @@ def test_rapid_fire_dcv_half():
     assert out.dcv_factor == 0.5
 
 
-# ---- Autofire ----
-
-def test_autofire_default_5_shots():
-    out = Autofire.compute(base_ocv=10)
-    assert len(out.per_shot_ocv) == 5
-    assert out.per_shot_ocv == [10, 8, 6, 4, 2]
+# ---- Autofire (6E2 p44) ----
 
 
-def test_autofire_dcv_unchanged():
-    out = Autofire.compute(base_ocv=10)
-    assert out.dcv_factor == 1.0
+def test_autofire_single_target_one_roll_margin_2_means_2_hits():
+    """Per 6E2 p44: single-target Autofire is ONE roll; hits 1 + (margin/2) times.
+
+    OCV 10, DCV 5, roll 11 → margin = (10+11-11) - 5 = 5; hits 1 + 5//2 = 3.
+    """
+    from kirby_combat.actions.autofire import resolve_autofire_single_target
+    out = resolve_autofire_single_target(
+        attacker_ocv=10, target_dcv=5, attacker_roll=11, autofire_shots=5,
+    )
+    assert out.hit is True
+    assert out.margin == 5
+    assert out.hit_count == 3
 
 
-def test_autofire_csl_levels_offset_penalties():
-    # 5 shots, csl_offset=4: i=0..2 full OCV, i=3 -> -2, i=4 -> -4
-    out = Autofire.compute(base_ocv=10, num_shots=5, csl_offset=4)
-    assert out.per_shot_ocv == [10, 10, 10, 8, 6]
+def test_autofire_single_target_capped_at_power_shots():
+    """Hit count is capped at the power's shot count even if margin is huge."""
+    from kirby_combat.actions.autofire import resolve_autofire_single_target
+    # Margin would be very high → cap at autofire_shots (5)
+    out = resolve_autofire_single_target(
+        attacker_ocv=20, target_dcv=0, attacker_roll=3, autofire_shots=5,
+    )
+    assert out.hit is True
+    assert out.hit_count == 5
+
+
+def test_autofire_single_target_miss_when_margin_negative():
+    """If margin < 0, no shots hit."""
+    from kirby_combat.actions.autofire import resolve_autofire_single_target
+    out = resolve_autofire_single_target(
+        attacker_ocv=5, target_dcv=10, attacker_roll=15, autofire_shots=5,
+    )
+    assert out.hit is False
+    assert out.hit_count == 0
+
+
+def test_autofire_single_target_exact_match_one_hit():
+    """Margin == 0 hits exactly once (1 + 0//2 = 1)."""
+    from kirby_combat.actions.autofire import resolve_autofire_single_target
+    # OCV 10, DCV 5, roll = 16 → margin = (10+11-16)-5 = 0
+    out = resolve_autofire_single_target(
+        attacker_ocv=10, target_dcv=5, attacker_roll=16, autofire_shots=5,
+    )
+    assert out.hit is True
+    assert out.margin == 0
+    assert out.hit_count == 1
 
 
 def test_autofire_zero_shots_raises():
-    with pytest.raises(ValueError, match="num_shots"):
-        Autofire.compute(base_ocv=10, num_shots=0)
+    from kirby_combat.actions.autofire import resolve_autofire_single_target
+    with pytest.raises(ValueError, match="autofire_shots"):
+        resolve_autofire_single_target(
+            attacker_ocv=10, target_dcv=5, attacker_roll=10, autofire_shots=0,
+        )
 
 
-def test_autofire_one_shot_no_penalty():
-    out = Autofire.compute(base_ocv=10, num_shots=1)
-    assert out.per_shot_ocv == [10]
+# ---- Autofire multi-target (-1 OCV per 2m of line) ----
+
+
+def test_autofire_multi_target_first_target_no_penalty():
+    """First target in a multi-target burst takes no line penalty."""
+    from kirby_combat.actions.autofire import (
+        resolve_autofire_multi_target, MultiTargetSpec,
+    )
+    targets = [MultiTargetSpec(target_id="t1", target_dcv=5, distance_to_prev_m=0)]
+    results = resolve_autofire_multi_target(
+        attacker_ocv=10, targets=targets, attacker_rolls=[11], autofire_shots=5,
+    )
+    assert len(results) == 1
+    assert results[0].line_penalty == 0
+    assert results[0].effective_ocv == 10
+
+
+def test_autofire_multi_target_line_penalty_minus_1_per_2m():
+    """Per 6E2 p44: -1 OCV per 2m of line connecting consecutive targets."""
+    from kirby_combat.actions.autofire import (
+        resolve_autofire_multi_target, MultiTargetSpec,
+    )
+    # t1 → t2: 4m → -2 OCV. t2 → t3: 6m → cumulative 10m → -5 OCV.
+    targets = [
+        MultiTargetSpec(target_id="t1", target_dcv=5, distance_to_prev_m=0),
+        MultiTargetSpec(target_id="t2", target_dcv=5, distance_to_prev_m=4),
+        MultiTargetSpec(target_id="t3", target_dcv=5, distance_to_prev_m=6),
+    ]
+    results = resolve_autofire_multi_target(
+        attacker_ocv=10, targets=targets, attacker_rolls=[10, 10, 10], autofire_shots=5,
+    )
+    assert results[0].line_penalty == 0
+    assert results[0].effective_ocv == 10
+    assert results[1].line_penalty == -2
+    assert results[1].effective_ocv == 8
+    assert results[2].line_penalty == -5
+    assert results[2].effective_ocv == 5
+
+
+def test_autofire_multi_target_more_targets_than_shots_raises():
+    from kirby_combat.actions.autofire import (
+        resolve_autofire_multi_target, MultiTargetSpec,
+    )
+    targets = [MultiTargetSpec(target_id=f"t{i}", target_dcv=5) for i in range(6)]
+    rolls = [10] * 6
+    with pytest.raises(ValueError, match="cannot fire"):
+        resolve_autofire_multi_target(
+            attacker_ocv=10, targets=targets, attacker_rolls=rolls, autofire_shots=5,
+        )
