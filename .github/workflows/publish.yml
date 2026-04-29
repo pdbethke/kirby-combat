@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,7 +23,7 @@ jobs:
   publish:
     needs: test
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner]
     permissions:
       # Default GITHUB_TOKEN needs explicit contents:write to push the
       # version-bump commit back to main. Avoids needing a PAT for
@@ -93,7 +93,7 @@ jobs:
   cascade:
     needs: publish
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner]
     # The cross-repo dispatch needs a real PAT (the default GITHUB_TOKEN
     # is scoped to its own repo). Without GH_DISPATCH_TOKEN set, this
     # step soft-fails — publish still succeeds; user can manually
