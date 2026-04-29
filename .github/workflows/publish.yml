@@ -24,13 +24,21 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      # Default GITHUB_TOKEN needs explicit contents:write to push the
+      # version-bump commit back to main. Avoids needing a PAT for
+      # in-repo writes (PAT is still needed for the cascade dispatch
+      # since that crosses repo boundaries — see cascade job).
+      contents: write
     outputs:
       version: ${{ steps.bump.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_DISPATCH_TOKEN }}
+          # Default GITHUB_TOKEN, scoped by the contents:write
+          # permissions block above. No PAT needed for the bump-back
+          # push.
 
       - uses: actions/setup-python@v5
         with:
@@ -86,11 +94,25 @@ jobs:
     needs: publish
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # The cross-repo dispatch needs a real PAT (the default GITHUB_TOKEN
+    # is scoped to its own repo). Without GH_DISPATCH_TOKEN set, this
+    # step soft-fails — publish still succeeds; user can manually
+    # \`gh workflow run -R pdbethke/kirby-api\` to redeploy with the
+    # new wheel, or set GH_DISPATCH_TOKEN to enable auto-cascade.
+    continue-on-error: true
     steps:
-      - name: Trigger kirby-api redeploy
+      - name: Trigger kirby-api redeploy (requires GH_DISPATCH_TOKEN)
+        env:
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          NEW_VERSION: ${{ needs.publish.outputs.version }}
         run: |
+          if [ -z "${GH_DISPATCH_TOKEN:-}" ]; then
+            echo "::warning::GH_DISPATCH_TOKEN secret not set — skipping kirby-api cascade."
+            echo "::warning::Manually run: gh workflow run -R pdbethke/kirby-api 'Test & Deploy'"
+            exit 0
+          fi
           curl -fsS -X POST \
-            -H "Authorization: Bearer ${{ secrets.GH_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer $GH_DISPATCH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/pdbethke/kirby-api/dispatches \
-            -d '{"event_type":"kirby-combat-updated","client_payload":{"version":"${{ needs.publish.outputs.version }}"}}'
+            -d "{\"event_type\":\"kirby-combat-updated\",\"client_payload\":{\"version\":\"$NEW_VERSION\"}}"
