@@ -1,7 +1,7 @@
 """Timeline + SPD chart phase resolution tests."""
 import pytest
 
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,

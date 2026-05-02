@@ -6,7 +6,7 @@ from kirby_combat.pre_attacks import (
     PresenceAttackResult,
 )
 from kirby_combat.tables import presence_attack_effect, PRESENCE_ATTACK_EFFECTS
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 
 
 def _attacker(pre: int = 25) -> Combatant:

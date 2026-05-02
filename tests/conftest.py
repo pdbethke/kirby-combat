@@ -1,7 +1,8 @@
 """Shared test fixtures for kirby-combat."""
 import pytest
 
-from kirby_combat.models import AttackPower, Combatant, DefenseItem
+from kirby_combat.models import AttackPower, DefenseItem
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.template import CombatTemplate
 
 

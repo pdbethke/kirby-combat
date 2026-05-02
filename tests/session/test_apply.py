@@ -7,7 +7,7 @@ from kirby_combat.session.events import (
     SegmentAdvanced, make_author_engine,
     ActionDeclared, make_author_combatant,
 )
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.template import CombatTemplate
 from kirby_combat.dice import FakeRoller
 

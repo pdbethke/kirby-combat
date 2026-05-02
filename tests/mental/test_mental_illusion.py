@@ -5,7 +5,7 @@ from kirby_combat.mental.mental_illusion import (
     resolve_mental_illusion, attempt_disbelief,
     MentalIllusionResult, DisbeliefResult,
 )
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 
 
 def _mentalist(id_: str = "a") -> Combatant:

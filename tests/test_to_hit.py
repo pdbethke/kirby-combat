@@ -1,4 +1,5 @@
 """Tests for HERO System 6E to-hit resolution."""
+from __future__ import annotations
 import pytest
 from kirby_combat.models import (
     AttackInput,
@@ -15,7 +16,7 @@ from fixtures.synthetic_hero import synthetic_combatant as Combatant
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_combatant(ocv: int = 6, dcv: int = 6, **kwargs) -> Combatant:
+def make_combatant(ocv: int = 6, dcv: int = 6, **kwargs) -> "Combatant":
     defaults = dict(
         id="test",
         name="Tester",
@@ -67,8 +68,8 @@ def make_power(range_m: float | None = None) -> AttackPower:
 
 
 def make_attack(
-    attacker: Combatant | None = None,
-    target: Combatant | None = None,
+    attacker: "Combatant | None" = None,
+    target: "Combatant | None" = None,
     power: AttackPower | None = None,
     dice_to_hit: list[int] | None = None,
     distance_m: float | None = None,

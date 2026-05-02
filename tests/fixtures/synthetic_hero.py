@@ -100,6 +100,10 @@ class _SyntheticCombatant(HeroCombatant):
     def is_mentalist(self) -> bool:
         return getattr(self, "_explicit_is_mentalist", False)
 
+    @property
+    def csls(self) -> list:
+        return getattr(self, "_explicit_csls", [])
+
 
 def synthetic_combatant(
     *,
@@ -194,12 +198,7 @@ def synthetic_combatant(
 
     sc.combat_stats = _patched_combat_stats  # type: ignore[method-assign]
 
-    # csls aren't on combat_stats; they're a legacy Combatant field.
-    # Stash on the instance so tests reading c.csls still work.
     if csls is not None:
-        # Override the empty-list property by setting an instance attr.
-        # We can't set attribute on a dataclass-frozen, but HeroCombatant
-        # is a regular dataclass so this works.
-        object.__setattr__(sc, "_explicit_csls", list(csls))
+        sc._explicit_csls = list(csls)
 
     return sc

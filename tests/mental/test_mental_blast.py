@@ -2,7 +2,7 @@
 import pytest
 
 from kirby_combat.mental.mental_blast import resolve_mental_blast, MentalBlastResult
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 
 
 def _mentalist(id_: str = "a") -> Combatant:
