@@ -4,10 +4,13 @@ This is the "Phase 2 redesign" Combatant that supersedes the flat
 ``models.Combatant``. See spec at
 ``kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md``.
 
-Status: SKELETON ONLY (2026-04-30). The dataclasses and from_hdc()
-shell are live; ``combat_stats()``, ``attack_view()``, and
-``defense_view()`` raise NotImplementedError. Subsequent commits on
-the ``combatant-redesign`` branch will fill them in.
+Status: STEP 1 LIVE (2026-05-02). The dataclasses, ``from_hdc()``,
+``combat_stats()``, ``attack_view()``, and ``defense_view()`` are
+implemented and verified end-to-end against the kirby-combat
+resolution engine via a to_legacy() bridge — see commit message for
+the demo. Refinements pending in steps 2-4: framework slot lookup,
+modifier-aware modifier accumulation, defense-power adder split for
+PD vs ED.
 
 Why this exists alongside ``models.Combatant``:
 
@@ -243,16 +246,17 @@ class HeroCombatant:
 
     @staticmethod
     def _compute_stats_skeleton(hero: "LoadedHero") -> HeroCombatStats:
-        """Internal: shell for combat_stats(). Filled in by next commit.
+        """Initial-vital seed for from_hdc(). Reads cost-engine
+        characteristic values via ``hero.characteristic_value(xmlid)``
+        and walks defense-type powers for resistant/mental/power/flash
+        totals.
 
-        Raises NotImplementedError so callers know the bridge is
-        skeleton-only on this branch.
+        This is a sub-piece of the full ``combat_stats()`` that runs
+        without a CombatState (since at from_hdc() time there's no
+        state yet to apply drains/aids from). The full instance method
+        layers state deltas on top.
         """
-        raise NotImplementedError(
-            "HeroCombatant stat derivation lands in the next "
-            "combatant-redesign commit. For now from_hdc() loads the "
-            "LoadedHero and constructs the dataclass shell only."
-        )
+        return _compute_stats_from_hero(hero)
 
     # ─────────────────────────────────────────────────────────────────────
     # Views (consumed by the resolution layer)
@@ -261,11 +265,23 @@ class HeroCombatant:
     def combat_stats(self) -> HeroCombatStats:
         """Effective integer stats at this moment.
 
-        Computes from ``hero.characteristics`` (with cost-engine
-        derivation), then applies any active drains/aids from state.
+        Reads cost-engine-computed characteristic values from
+        ``hero.characteristic_value(xmlid)``, walks defense powers for
+        resistant/mental/power/flash totals, then applies any active
+        drains/aids from ``state``.
         """
-        # See spec §3 + §6. Implementation lands in next commit.
-        raise NotImplementedError("combat_stats() implementation pending — next commit")
+        stats = _compute_stats_from_hero(self.hero)
+        # Apply drains (negative deltas) + aids (positive deltas).
+        # Drain stats keys match HeroCombatStats field names.
+        for stat, delta in self.state.drains.items():
+            current = getattr(stats, stat, None)
+            if current is not None:
+                setattr(stats, stat, max(0, current - delta))
+        for stat, delta in self.state.aids.items():
+            current = getattr(stats, stat, None)
+            if current is not None:
+                setattr(stats, stat, current + delta)
+        return stats
 
     def attack_view(
         self,
@@ -275,20 +291,321 @@ class HeroCombatant:
         target: Optional["HeroCombatant"] = None,
         distance_m: Optional[float] = None,
     ) -> AttackPower:
-        """Build an AttackPower view from one of this combatant's HD powers.
+        """Build an ``AttackPower`` view from one of this combatant's HD powers.
 
-        Walks the LoadedHero power tree, finds the power matching
-        ``power_xmlid``, applies modifiers + adders + levels, accounts
-        for active framework slot allocation, and returns the flat
-        record the resolution layer consumes.
+        Walks ``hero.powers`` for the matching xmlid (or framework slot),
+        reads levels + base/level cost rules to compute damage_dice,
+        scans assigned modifiers for Penetrating / Armor Piercing /
+        Reduced Endurance flags, and returns the flat record the
+        resolution layer consumes.
         """
-        raise NotImplementedError("attack_view() implementation pending — next commit")
+        power = _find_power(self.hero, power_xmlid, slot_xmlid=slot_xmlid)
+        if power is None:
+            raise ValueError(
+                f"power xmlid={power_xmlid!r} not found on {self.id!r}"
+            )
+        return _build_attack_power(power)
 
     def defense_view(self) -> list[DefenseItem]:
-        """Build the active defense set from HD powers + state.
+        """Build the active defense set from HD powers.
 
-        Filters powers by defense type (Resistance, Defense, Force
-        Field, Armor, etc.), applies modifiers, and accounts for
-        sustained vs. inactive END-cost defenses.
+        Walks all defense-type powers (FORCEFIELD, RESISTANTPROTECTION,
+        ARMOR, DAMAGEREDUCTION, MENTALDEFENSE, POWERDEFENSE,
+        FLASHDEFENSE, KBRESISTANCE, etc.) and emits one DefenseItem
+        per active defensive power. Characteristic-derived defenses
+        (PD/ED) are NOT in this list — those go on CombatStats and
+        the resolution layer reads them there. DefenseItem rows here
+        represent power-bought defenses on top of the base.
         """
-        raise NotImplementedError("defense_view() implementation pending — next commit")
+        items: list[DefenseItem] = []
+        for power in self.hero.powers:
+            xmlid = (getattr(power, "xmlid", None) or "").upper()
+            item = _power_to_defense_item(power, xmlid)
+            if item is not None:
+                items.append(item)
+        return items
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers — pure functions over a LoadedHero. These are the bridge between
+# HD's full-fidelity model and the flat AttackPower / DefenseItem records the
+# resolution layer consumes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# Defense xmlids that appear on hero.powers and contribute to defense_view().
+_DEFENSE_XMLIDS = {
+    "FORCEFIELD",                    # 6E: still parses; display 'Resistant Protection'
+    "RESISTANTPROTECTION",
+    "ARMOR",                          # 5E carryover; some HDC files still use it
+    "DAMAGENEGATION",
+    "DAMAGEREDUCTION",
+    "MENTALDEFENSE",
+    "POWERDEFENSE",
+    "FLASHDEFENSE",
+    "KBRESISTANCE",
+    "FORCEWALL",                      # treats as defensive in this iteration
+}
+
+
+def _has_modifier(power, mod_xmlid: str) -> bool:
+    """True if the power has an assigned modifier matching xmlid."""
+    mods = getattr(power, "assigned_modifiers", None) or []
+    target = mod_xmlid.upper()
+    for m in mods:
+        if (getattr(m, "xmlid", None) or "").upper() == target:
+            return True
+    return False
+
+
+def _modifier_levels(power, mod_xmlid: str) -> int:
+    """Return the levels on a specific modifier (0 if missing)."""
+    mods = getattr(power, "assigned_modifiers", None) or []
+    target = mod_xmlid.upper()
+    for m in mods:
+        if (getattr(m, "xmlid", None) or "").upper() == target:
+            return int(getattr(m, "levels", 0) or 0)
+    return 0
+
+
+def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
+    """Read cost-engine characteristic values + sum defense powers.
+
+    ``hero.characteristic_value(xmlid)`` returns the effective integer
+    after all bumps + figured-from-primary derivations, so the
+    primaries (STR/DEX/CON/INT/EGO/PRE) and combat values
+    (OCV/DCV/OMCV/DMCV/SPD) plus PD/ED/REC/END/STUN/BODY come straight
+    from there.
+
+    Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
+    powers, not characteristics. We walk hero.powers to total them.
+    """
+    cv = hero.characteristic_value
+
+    rpd = 0
+    red = 0
+    md = 0
+    powd = 0
+    flashd = 0
+    for p in hero.powers:
+        xmlid = (getattr(p, "xmlid", None) or "").upper()
+        levels = int(getattr(p, "levels", 0) or 0)
+        if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
+            # In 6E, levels on these powers can be split via PD/ED
+            # adders. Without per-adder parsing we assume the levels
+            # split half-and-half. Refined in step 3+.
+            rpd += levels // 2 + (levels % 2)
+            red += levels // 2
+        elif xmlid == "MENTALDEFENSE":
+            md += levels
+        elif xmlid == "POWERDEFENSE":
+            powd += levels
+        elif xmlid == "FLASHDEFENSE":
+            flashd += levels
+
+    return HeroCombatStats(
+        ocv=cv("OCV"),
+        dcv=cv("DCV"),
+        omcv=cv("OMCV"),
+        dmcv=cv("DMCV"),
+        spd=cv("SPD"),
+        dex=cv("DEX"),
+        ego=cv("EGO"),
+        str_=cv("STR"),
+        con=cv("CON"),
+        pre=cv("PRE"),
+        rec=cv("REC"),
+        pd=cv("PD"),
+        ed=cv("ED"),
+        rpd=rpd,
+        red=red,
+        md=md,
+        power_defense=powd,
+        flash_defense=flashd,
+        max_stun=cv("STUN"),
+        max_body=cv("BODY"),
+        max_end=cv("END"),
+    )
+
+
+def _power_to_defense_item(power, xmlid: str) -> DefenseItem | None:
+    """Convert a defense-type HD power to a DefenseItem record.
+
+    Returns None if the power is not a defense type (caller iterates
+    every power and filters via this).
+    """
+    if xmlid not in _DEFENSE_XMLIDS:
+        return None
+
+    name = (getattr(power, "name", None) or "").strip() or xmlid
+    levels = int(getattr(power, "levels", 0) or 0)
+    hardened = _modifier_levels(power, "HARDENED")
+    impenetrable = _modifier_levels(power, "IMPENETRABLE")
+
+    if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
+        rpd = levels // 2 + (levels % 2)
+        red = levels // 2
+        return DefenseItem(
+            name=name, rpd=rpd, red=red,
+            hardened=hardened, impenetrable=impenetrable,
+            is_resistant=True,
+        )
+    if xmlid == "DAMAGEREDUCTION":
+        # Levels mean different things by power-skill choice; treat
+        # raw levels as the % reduction and refine in step 3+.
+        return DefenseItem(name=name, damage_reduction_pct=levels)
+    if xmlid == "DAMAGENEGATION":
+        return DefenseItem(name=name, damage_negation=levels)
+    if xmlid == "MENTALDEFENSE":
+        return DefenseItem(name=name, md=levels, hardened=hardened)
+    if xmlid == "POWERDEFENSE":
+        return DefenseItem(name=name, power_defense=levels, hardened=hardened)
+    if xmlid == "FLASHDEFENSE":
+        return DefenseItem(name=name, flash_defense=levels, hardened=hardened)
+    if xmlid == "KBRESISTANCE":
+        return DefenseItem(name=name, knockback_resistance=levels)
+    return None
+
+
+# Damage-dice computation: HERO 6E charges per d6 of damage by power.
+# Energy Blast / Blast: 5 pts/d6.
+# Killing Attacks: 15 pts/d6 for the first die, with half-die granularity.
+# Mental Blast / Ego Attack: 10 pts/d6.
+# RKA-class falls under killing.
+_PTS_PER_DIE_NORMAL = 5
+_PTS_PER_DIE_KILLING = 15
+_PTS_PER_DIE_MENTAL = 10
+
+
+def _damage_type_for_power(xmlid: str) -> str:
+    """Return AttackPower.damage_type ('normal'|'killing'|'mental')
+    based on the source power xmlid."""
+    if xmlid in {"RKA", "HKA", "KILLINGATTACK", "KILLINGATTACKRANGED",
+                 "KILLINGATTACKHTH"}:
+        return "killing"
+    if xmlid in {"EGOATTACK", "MENTALBLAST"}:
+        return "mental"
+    return "normal"
+
+
+def _defense_type_for_power(xmlid: str) -> str:
+    """Return AttackPower.defense_type ('pd'|'ed'|'mental') for which
+    defense category the attack tests against."""
+    if xmlid in {"EGOATTACK", "MENTALBLAST"}:
+        return "mental"
+    # Energy Blast / RKA / HKA typically alternate by SFX. Without a
+    # reliable signal in hero-designer-python's parse we default to
+    # PD for HKA/HTH and ED for ranged blasts. Refined in step 4
+    # when SFX-aware modifiers land.
+    if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK",
+                 "HANDTOHAND"}:
+        return "pd"
+    return "ed"
+
+
+def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
+    """Return (full_dice, half_die, plus_one) from HD's level fields.
+
+    HD stores ``levels`` as the buy count, ``level_value`` as the
+    dice/level increment, and ``level_cost`` as points/level.
+    For normal attacks (Energy Blast / Blast): level_cost=5,
+    level_value=1.0 → each level = 1 d6.
+    For killing attacks (HKA / RKA): level_cost=5, level_value=⅓
+    in the cost engine — they advance ½d6 per level via a special
+    counter.
+
+    We use ``levels * level_value`` for normal/mental and a
+    half-die-step counter for killing.
+    """
+    levels = int(getattr(power, "levels", 0) or 0)
+    level_value = float(getattr(power, "level_value", 1.0) or 1.0)
+    damage_type = _damage_type_for_power(xmlid)
+
+    if damage_type == "killing":
+        # Killing attacks step ½d6 every level. 1 lvl = 1 pip / 0,
+        # 2 lvls = ½d6, 3 lvls = 1d6, etc. Inspect base_cost too:
+        # if base_cost ≥ 15 the power starts at 1d6 K and levels add.
+        base_cost = float(getattr(power, "base_cost", 0) or 0)
+        # Total dice expressed as half-d6 steps (5 = 1d6+1, 4 = 1d6, etc.)
+        # Approximation: each level adds 1 step. base_cost 0 starts at 0.
+        steps = levels  # half-die steps
+        if base_cost >= 15:
+            # Power starts at 1d6 (= 2 steps) and levels add on top.
+            steps += 2
+        full = steps // 2
+        half = bool(steps % 2)
+        return full, half, False
+
+    if damage_type == "mental":
+        full = int(levels * level_value)
+        return full, False, False
+
+    # Normal (Energy Blast etc.)
+    full = int(levels * level_value)
+    return full, False, False
+
+
+def _find_power(hero: "LoadedHero", power_xmlid: str, *,
+                slot_xmlid: Optional[str] = None):
+    """Locate a power by xmlid on hero.powers (top-level only for now).
+
+    Multipower / VPP slot lookup via slot_xmlid is recognized but
+    not yet recursive into sub_powers — wired in step 3 when the
+    session machinery starts asking for slot views.
+    """
+    target = power_xmlid.upper()
+    for p in hero.powers:
+        x = (getattr(p, "xmlid", None) or "").upper()
+        if x == target:
+            return p
+    if slot_xmlid is not None:
+        for p in hero.powers:
+            for sub in getattr(p, "sub_powers", None) or []:
+                sx = (getattr(sub, "xmlid", None) or "").upper()
+                if sx == slot_xmlid.upper():
+                    return sub
+    return None
+
+
+def _build_attack_power(power) -> AttackPower:
+    """Project a HD power into the flat AttackPower record."""
+    xmlid = (getattr(power, "xmlid", None) or "").upper()
+    name = (getattr(power, "name", None) or "").strip() or xmlid
+    full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
+    damage_type = _damage_type_for_power(xmlid)
+    defense_type = _defense_type_for_power(xmlid)
+
+    # Modifiers
+    armor_piercing = _modifier_levels(power, "ARMORPIERCING")
+    penetrating = _modifier_levels(power, "PENETRATING")
+    reduced_end = _has_modifier(power, "REDUCEDEND")  # noqa: F841 (END calc TBD)
+
+    # Range: HKA / STR-based attacks have no range; RKA + Blast etc. do.
+    if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK"}:
+        range_m = 0.0
+    else:
+        # Standard 6E ranged power: range = active points / 5 in meters.
+        # We don't have active_cost for sure (some HDC parses fail);
+        # fall back to levels * 5 / 5 = levels meters.
+        ap = getattr(power, "active_cost", None)
+        try:
+            range_m = float(ap) if ap else float(getattr(power, "levels", 0))
+        except (TypeError, ValueError):
+            range_m = 0.0
+
+    return AttackPower(
+        xmlid=xmlid,
+        name=name,
+        damage_dice=full_dice,
+        half_die=half_die,
+        plus_one=plus_one,
+        damage_type=damage_type,
+        defense_type=defense_type,
+        range_m=range_m,
+        uses_str=(xmlid in {"HKA", "STR", "KILLINGATTACKHTH",
+                            "HANDTOHANDATTACK"}),
+        str_min=0,
+        armor_piercing=armor_piercing,
+        penetrating=penetrating,
+        increased_stun_mult=0,
+    )
