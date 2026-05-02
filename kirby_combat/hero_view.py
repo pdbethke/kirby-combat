@@ -547,23 +547,45 @@ def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
 
 def _find_power(hero: "LoadedHero", power_xmlid: str, *,
                 slot_xmlid: Optional[str] = None):
-    """Locate a power by xmlid on hero.powers (top-level only for now).
+    """Locate a power by xmlid on hero.powers, walking sub_powers.
 
-    Multipower / VPP slot lookup via slot_xmlid is recognized but
-    not yet recursive into sub_powers — wired in step 3 when the
-    session machinery starts asking for slot views.
+    Search order:
+      1. If ``slot_xmlid`` is given, find the framework (parent) by
+         ``power_xmlid`` and return its slot whose xmlid matches.
+      2. Otherwise, breadth-first walk of ``hero.powers`` and every
+         power's ``sub_powers``, returning the first xmlid match.
+         This means a top-level Energy Blast wins over a Multipower
+         slot Energy Blast — top-level is examined first.
+
+    Step 3 will wire proper slot-allocation lookup driven by the
+    session's ``active_slot_per_framework`` state.
     """
     target = power_xmlid.upper()
-    for p in hero.powers:
+
+    if slot_xmlid is not None:
+        slot_target = slot_xmlid.upper()
+        for p in hero.powers:
+            x = (getattr(p, "xmlid", None) or "").upper()
+            if x == target:
+                for sub in getattr(p, "sub_powers", None) or []:
+                    sx = (getattr(sub, "xmlid", None) or "").upper()
+                    if sx == slot_target:
+                        return sub
+        return None
+
+    # BFS — top-level first, then one level of sub_powers.
+    queue = list(hero.powers)
+    seen: set[int] = set()
+    while queue:
+        p = queue.pop(0)
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
         x = (getattr(p, "xmlid", None) or "").upper()
         if x == target:
             return p
-    if slot_xmlid is not None:
-        for p in hero.powers:
-            for sub in getattr(p, "sub_powers", None) or []:
-                sx = (getattr(sub, "xmlid", None) or "").upper()
-                if sx == slot_xmlid.upper():
-                    return sub
+        sub = getattr(p, "sub_powers", None) or []
+        queue.extend(sub)
     return None
 
 
