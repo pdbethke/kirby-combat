@@ -1,7 +1,7 @@
 """Entangle action tests."""
 import pytest
 
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.template import CombatTemplate
 from kirby_combat.dice import FakeRoller
 from kirby_combat.session import CombatSession

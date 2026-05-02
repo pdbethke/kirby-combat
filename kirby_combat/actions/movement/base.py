@@ -28,6 +28,24 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import MovementResolved, make_author_combatant
 
 
+def _decrement_end(combatant, cost: int):
+    """Subtract ``cost`` from ``combatant.current_end`` and return the
+    updated combatant. Handles both legacy flat ``Combatant`` (END is a
+    dataclass field) and ``HeroCombatant`` (END lives on a separate
+    ``state`` dataclass via ``state.current_end``).
+
+    Detection: legacy Combatant's ``.state`` shim returns ``self``, so
+    ``combatant.state is combatant`` distinguishes the two shapes.
+    """
+    from dataclasses import replace as _replace
+    if combatant.state is not combatant:
+        # HeroCombatant: state is a separate HeroCombatState dataclass
+        new_state = _replace(combatant.state, current_end=combatant.current_end - cost)
+        return _replace(combatant, state=new_state)
+    # Legacy flat Combatant
+    return _replace(combatant, current_end=combatant.current_end - cost)
+
+
 _VALID_MOVE_TYPES = frozenset({"half", "full", "noncombat"})
 
 
@@ -115,9 +133,11 @@ class MovementAction:
             raise ValueError(f"movement validation failed: {'; '.join(errors)}")
 
         cost = self.end_cost()
-        # Decrement END on the combatant first (apply_event won't do it for us)
+        # Decrement END on the combatant first (apply_event won't do it for us).
+        # Both legacy Combatant (flat field) and HeroCombatant (state.current_end
+        # property) need a different update path; helper handles both.
         new_combatants = dict(session.combatants)
-        new_combatants[combatant_id] = replace(combatant, current_end=combatant.current_end - cost)
+        new_combatants[combatant_id] = _decrement_end(combatant, cost)
         session = replace(session, combatants=new_combatants)
 
         evt = MovementResolved(

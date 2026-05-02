@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from kirby_combat.actions.martial_arts import MartialArts
 from kirby_combat.dice import FakeRoller
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate
 

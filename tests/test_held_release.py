@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.dice import FakeRoller
-from kirby_combat.models import Combatant
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 from kirby_combat.session import CombatSession
 from kirby_combat.session.events import (
     ActionDeclared, HeldActionDeclared, make_author_combatant,

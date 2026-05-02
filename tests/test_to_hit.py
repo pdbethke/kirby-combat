@@ -3,12 +3,12 @@ import pytest
 from kirby_combat.models import (
     AttackInput,
     AttackPower,
-    Combatant,
     CombatSkillLevel,
     DiceValues,
 )
 from kirby_combat.template import CombatTemplate, RAW_SUPERHEROIC, RAW_HEROIC
 from kirby_combat.resolution.to_hit import resolve_to_hit
+from fixtures.synthetic_hero import synthetic_combatant as Combatant
 
 
 # ---------------------------------------------------------------------------
