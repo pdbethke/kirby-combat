@@ -84,3 +84,76 @@ def test_zero_rec_character_gets_no_recovery():
     stun_d, end_d = compute_recovery(c, RAW_SUPERHEROIC, "post_12")
     assert stun_d == 0
     assert end_d == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HeroCombatant dual-dispatch (combatant-redesign step 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _hero_combatant(*, stun: int, end: int, rec: int):
+    """Build a minimal HeroCombatant whose combat_stats() returns the
+    given rec/max_stun/max_end, and whose state carries current values.
+    Uses a stub `hero` that just exposes `characteristic_value()` returning
+    fixed values keyed by xmlid — no need for a real LoadedHero.
+    """
+    from kirby_combat.hero_view import HeroCombatant, HeroCombatState
+
+    char_values = {
+        "STR": 10, "DEX": 10, "CON": 10, "INT": 10, "EGO": 10, "PRE": 10,
+        "OCV": 3, "DCV": 3, "OMCV": 3, "DMCV": 3,
+        "SPD": 4, "PD": 5, "ED": 5,
+        "REC": rec,
+        "END": 60,  # max_end mostly irrelevant for these tests
+        "BODY": 10, "STUN": 60,
+    }
+
+    class _StubHero:
+        name = "test"
+        powers: list = []  # noqa: RUF012
+
+        def characteristic_value(self, xmlid: str) -> int:
+            return char_values.get(xmlid.upper(), 0)
+
+    return HeroCombatant(
+        id="test",
+        hero=_StubHero(),  # type: ignore[arg-type]  # quacks like LoadedHero
+        state=HeroCombatState(
+            current_stun=stun,
+            current_body=10,
+            current_end=end,
+        ),
+    )
+
+
+def test_hero_combatant_phase_12_normal():
+    """HeroCombatant: phase_12 recovery applies REC, capped at max."""
+    c = _hero_combatant(stun=10, end=20, rec=8)
+    stun_d, end_d = compute_recovery(c, RAW_SUPERHEROIC, "phase_12")
+    assert stun_d == 8
+    assert end_d == 8
+
+
+def test_hero_combatant_phase_12_ko_blocked():
+    """HeroCombatant: KO'd characters cannot phase_12 recover."""
+    c = _hero_combatant(stun=-5, end=10, rec=5)
+    stun_d, end_d = compute_recovery(c, RAW_SUPERHEROIC, "phase_12")
+    assert stun_d == 0
+    assert end_d == 0
+
+
+def test_hero_combatant_post_12_works_when_ko():
+    """HeroCombatant: post_12 still applies even when KO'd."""
+    c = _hero_combatant(stun=-5, end=10, rec=5)
+    stun_d, end_d = compute_recovery(c, RAW_SUPERHEROIC, "post_12")
+    assert stun_d == 5
+    assert end_d == 5
+
+
+def test_hero_combatant_full_recovery_to_max():
+    """HeroCombatant: full_recovery brings vitals back to max_*."""
+    c = _hero_combatant(stun=10, end=15, rec=4)
+    stun_d, end_d = compute_recovery(c, RAW_SUPERHEROIC, "full_recovery")
+    # max_stun was 60, max_end was 60 in our stub
+    assert stun_d == 50  # 60 - 10
+    assert end_d == 45   # 60 - 15

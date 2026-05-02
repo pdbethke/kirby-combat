@@ -10,9 +10,21 @@ per HERO 6E1:
 
 KO'd = current_stun <= 0. A KO'd character cannot take a Recovery Action (phase_12)
 but still benefits from Post-Segment 12 Recovery and Full Recovery.
+
+Step 2 of the combatant-redesign migration
+(kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md
+§4 step 2): this is the only file that reads ``combatant.current_stun /
+max_stun / rec`` directly and the spec calls it out as the first to
+migrate. We accept BOTH legacy ``Combatant`` and the new
+``HeroCombatant`` and dispatch internally — ducks via
+``hasattr(combatant, "state")``. Once steps 3-6 retire the legacy
+type, the dispatch helper goes away.
 """
 from __future__ import annotations
 
+from typing import Union
+
+from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.models import Combatant
 from kirby_combat.template import CombatTemplate
 
@@ -24,20 +36,48 @@ _VALID_RECOVERY_TYPES: frozenset[str] = frozenset({
 })
 
 
+def _vitals(combatant) -> tuple[int, int, int, int, int]:
+    """Return (current_stun, current_end, rec, max_stun, max_end) regardless
+    of whether ``combatant`` is a legacy ``Combatant`` or a ``HeroCombatant``.
+
+    HeroCombatant carries vitals on ``state`` (current_*) and computes
+    rec/max_* via ``combat_stats()``. Legacy Combatant is flat.
+    """
+    if hasattr(combatant, "state") and hasattr(combatant, "combat_stats"):
+        # HeroCombatant
+        s = combatant.combat_stats()
+        return (
+            int(combatant.state.current_stun),
+            int(combatant.state.current_end),
+            int(s.rec),
+            int(s.max_stun),
+            int(s.max_end),
+        )
+    # Legacy flat Combatant
+    return (
+        int(combatant.current_stun),
+        int(combatant.current_end),
+        int(combatant.rec),
+        int(combatant.max_stun),
+        int(combatant.max_end),
+    )
+
+
 def compute_recovery(
-    combatant: Combatant,
+    combatant: Union[Combatant, HeroCombatant],
     template: CombatTemplate,
     recovery_type: str,
 ) -> tuple[int, int]:
     """Compute signed (stun_delta, end_delta) for a recovery event.
 
-    Deltas are non-negative — apply via `current_* += delta`.
+    Deltas are non-negative — apply via ``current_* += delta``.
 
     Arguments:
-        combatant: the character recovering.
+        combatant: the character recovering. Accepts either the legacy
+            flat ``Combatant`` or the new HD-shaped ``HeroCombatant``.
         template: CombatTemplate — reserved for future house-rule hooks
-            (e.g. modified recovery rates). Currently unused but kept in the
-            signature so callers don't have to refactor later.
+            (e.g. modified recovery rates). Currently unused but kept in
+            the signature so callers don't have to refactor later.
         recovery_type: one of "phase_12", "post_12", "full_recovery".
 
     Raises:
@@ -46,11 +86,12 @@ def compute_recovery(
     if recovery_type not in _VALID_RECOVERY_TYPES:
         raise ValueError(f"unknown recovery_type: {recovery_type!r}")
 
-    is_ko = combatant.current_stun <= 0
+    current_stun, current_end, rec, max_stun, max_end = _vitals(combatant)
+    is_ko = current_stun <= 0
 
     if recovery_type == "full_recovery":
-        stun_delta = max(0, combatant.max_stun - combatant.current_stun)
-        end_delta = max(0, combatant.max_end - combatant.current_end)
+        stun_delta = max(0, max_stun - current_stun)
+        end_delta = max(0, max_end - current_end)
         return stun_delta, end_delta
 
     if recovery_type == "phase_12":
@@ -60,6 +101,6 @@ def compute_recovery(
         # Fall through to standard REC recovery, capped at max.
 
     # Both phase_12 (when not KO'd) and post_12 apply REC, capped at max.
-    stun_delta = min(combatant.rec, combatant.max_stun - combatant.current_stun)
-    end_delta = min(combatant.rec, combatant.max_end - combatant.current_end)
+    stun_delta = min(rec, max_stun - current_stun)
+    end_delta = min(rec, max_end - current_end)
     return max(0, stun_delta), max(0, end_delta)
