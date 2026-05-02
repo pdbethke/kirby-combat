@@ -20,9 +20,16 @@ import pytest
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState, HeroCombatStats
 
 
-# Fixtures — the four characters we just imported into character-json/.
-# These are real HDC files outside the kirby-combat repo; CI may not
-# have them, so each test that uses them is skipif-guarded.
+# Committed in-repo fixture — runs in CI with no host-path
+# dependency. ``Inferna.hdc`` is a built superhero (originally from
+# the kirby-api tests dir) used for both end-to-end loading and
+# resolution-engine integration tests.
+FIXTURES = Path(__file__).parent / "fixtures"
+INFERNA_HDC = FIXTURES / "Inferna.hdc"
+
+# Optional larger character set on the host machine (PCs, CV1, etc.)
+# for richer integration testing. Tests using these are skipif-guarded
+# so CI doesn't fail when they're absent.
 PC_DIR = Path(
     "/home/pdbethke/Documents/Champions/Pcs"
 )
@@ -207,3 +214,105 @@ def test_attack_input_accepts_hero_combatant():
     # Uniform read regardless of attacker shape
     assert ai.attacker.combat_stats().ocv == 5
     assert ai.attacker.state.current_stun == 30
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5 — committed-fixture integration tests
+# Use ``INFERNA_HDC`` (in-repo) so these run in CI without host-path
+# dependencies. Exercises the full HD-shaped path: from_hdc → views →
+# AttackInput → engine.resolve_attack → AttackResult.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_inferna_loads_from_in_repo_hdc():
+    """Sanity: committed HDC fixture loads cleanly."""
+    c = HeroCombatant.from_hdc(INFERNA_HDC)
+    assert c.hero is not None
+    assert c.hero.name  # any non-empty name
+    assert c.state.current_stun == c.combat_stats().max_stun
+
+
+def test_inferna_attack_resolves_through_engine():
+    """End-to-end: load Inferna twice, build AttackInput from her own
+    Energy Blast view, run RangedAttackAction.resolve() — expect the
+    audit trail to carry concrete to_hit / damage / defense lines.
+
+    Uses the to_legacy_combatant pattern (combatant-redesign step 4
+    bridge): each HeroCombatant exposes combat_stats() / .state, and
+    legacy Combatant has the no-op shim returning self, so the
+    engine consumes either uniformly. We feed the engine the legacy
+    shape via a minimal attacker / target Combatant built from the
+    HeroCombatant's combat_stats().
+    """
+    from kirby_combat.actions import RangedAttackAction, AttackInput
+    from kirby_combat.models import Combatant, DiceValues
+    from kirby_combat.template import CombatTemplate
+
+    inferna = HeroCombatant.from_hdc(INFERNA_HDC, id="inferna_a")
+    target = HeroCombatant.from_hdc(INFERNA_HDC, id="inferna_b")
+
+    s_a = inferna.combat_stats()
+    s_b = target.combat_stats()
+
+    # Build a minimal legacy Combatant per side so the existing
+    # action+resolution layer (which reads .ocv/.dcv/.pd/.ed/etc.)
+    # has the fields it expects. The shim makes both shapes
+    # interchangeable in step 4.
+    def _flat(hc, sst):
+        return Combatant(
+            id=hc.id, name=hc.hero.name or hc.id,
+            ocv=sst.ocv, dcv=sst.dcv, omcv=sst.omcv, dmcv=sst.dmcv,
+            spd=sst.spd, dex=sst.dex, ego=sst.ego, str_=sst.str_,
+            con=sst.con, pre=sst.pre, rec=sst.rec,
+            pd=sst.pd, ed=sst.ed, rpd=sst.rpd, red=sst.red, md=sst.md,
+            power_defense=sst.power_defense, flash_defense=sst.flash_defense,
+            max_stun=sst.max_stun, max_body=sst.max_body, max_end=sst.max_end,
+            current_stun=hc.state.current_stun,
+            current_body=hc.state.current_body,
+            current_end=hc.state.current_end,
+        )
+
+    a = _flat(inferna, s_a)
+    t = _flat(target, s_b)
+
+    # Find an attack power on inferna via attack_view
+    atk = None
+    for p in inferna.hero.powers:
+        x = (getattr(p, "xmlid", None) or "").upper()
+        if x in {"ENERGYBLAST", "RKA", "HKA"}:
+            try:
+                atk = inferna.attack_view(p.xmlid)
+                break
+            except ValueError:
+                continue
+
+    assert atk is not None, "Inferna should have at least one attack power"
+    assert atk.damage_dice >= 1
+
+    # Deterministic dice — produces a known result
+    dv = DiceValues(
+        to_hit=[3, 3, 3],   # 3+3+3 = 9, mid roll
+        damage=[3] * atk.damage_dice,
+        hit_location=[], stun_multiplier=[], knockback=[],
+    )
+    ai = AttackInput(
+        attacker=a, target=t, power=atk,
+        distance_m=10.0, aim=None, dice=dv,
+        ocv_modifier=0, dcv_modifier=0, dc_modifier=0,
+    )
+    template = CombatTemplate(name="kirby-combat-fixture-test")
+    result = RangedAttackAction().resolve(ai, template)
+
+    # Audit trail should have at least the to_hit lines and SOME
+    # damage line. We're not pinning hit/miss because that depends
+    # on Inferna's actual OCV/DCV which can change with HD fixes.
+    assert len(result.audit_trail) > 0
+    assert any("OCV" in line for line in result.audit_trail)
+    assert any("DCV" in line for line in result.audit_trail)
+    # If hit, audit should mention damage; if miss, it should mention miss.
+    if result.hit:
+        assert result.stun_dealt >= 0
+        assert any("STUN" in line or "damage" in line.lower()
+                   for line in result.audit_trail)
+    else:
+        assert any("MISS" in line.upper() for line in result.audit_trail)
