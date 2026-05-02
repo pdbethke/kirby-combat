@@ -1,9 +1,18 @@
-"""Recovery resolution tests — Phase 12, post-12, Full Recovery."""
+"""Recovery resolution tests — Phase 12, post-12, Full Recovery.
+
+Migrated to ``synthetic_combatant`` (combatant-redesign step 6
+proof-of-concept). The same flat-kwargs interface the old
+``Combatant(...)`` constructor accepted — now produces a
+HeroCombatant via the LoadedHero-shaped synthetic_hero stub.
+The dispatch helper inside compute_recovery routes through the
+HeroCombatant branch (state.current_* + combat_stats().rec).
+"""
 import pytest
 
-from kirby_combat.models import Combatant
 from kirby_combat.template import RAW_SUPERHEROIC
 from kirby_combat.resolution.recovery import compute_recovery
+
+from fixtures.synthetic_hero import synthetic_combatant
 
 
 def _c(
@@ -14,8 +23,8 @@ def _c(
     max_stun: int = 30,
     max_body: int = 15,
     max_end: int = 30,
-) -> Combatant:
-    return Combatant(
+):
+    return synthetic_combatant(
         id="c", name="c", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=rec,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,

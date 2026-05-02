@@ -198,6 +198,128 @@ class HeroCombatant:
     knockback_resistance: int = 0
 
     # ─────────────────────────────────────────────────────────────────────
+    # Legacy-Combatant-shaped read API (combatant-redesign step 6)
+    #
+    # The resolution layer (to_hit / damage / defense / knockback /
+    # status / adjustments) was written against the flat Combatant
+    # and reads ``attacker.ocv``, ``target.pd``, ``c.current_stun``,
+    # etc. directly. To let HeroCombatant flow into those code paths
+    # WITHOUT rewriting every resolution call site, expose the same
+    # fields as read-only properties — derived live from
+    # ``combat_stats()`` and ``state``.
+    #
+    # These are the inverse of the no-op shims on legacy Combatant
+    # (which had the fields and added ``combat_stats()``/``state``
+    # accessors). Together, both shapes expose the same surface.
+    # When LegacyCombatant deletes, the no-op shims go but these
+    # properties stay — callers permanently use ``c.ocv`` /
+    # ``c.combat_stats().ocv`` interchangeably.
+    # ─────────────────────────────────────────────────────────────────────
+
+    @property
+    def name(self) -> str:
+        n = getattr(self.hero, "name", None)
+        return n or self.id
+
+    @property
+    def ocv(self) -> int: return self.combat_stats().ocv
+    @property
+    def dcv(self) -> int: return self.combat_stats().dcv
+    @property
+    def omcv(self) -> int: return self.combat_stats().omcv
+    @property
+    def dmcv(self) -> int: return self.combat_stats().dmcv
+    @property
+    def spd(self) -> int: return self.combat_stats().spd
+    @property
+    def dex(self) -> int: return self.combat_stats().dex
+    @property
+    def ego(self) -> int: return self.combat_stats().ego
+    @property
+    def str_(self) -> int: return self.combat_stats().str_
+    @property
+    def con(self) -> int: return self.combat_stats().con
+    @property
+    def pre(self) -> int: return self.combat_stats().pre
+    @property
+    def rec(self) -> int: return self.combat_stats().rec
+    @property
+    def pd(self) -> int: return self.combat_stats().pd
+    @property
+    def ed(self) -> int: return self.combat_stats().ed
+    @property
+    def rpd(self) -> int: return self.combat_stats().rpd
+    @property
+    def red(self) -> int: return self.combat_stats().red
+    @property
+    def md(self) -> int: return self.combat_stats().md
+    @property
+    def power_defense(self) -> int: return self.combat_stats().power_defense
+    @property
+    def flash_defense(self) -> int: return self.combat_stats().flash_defense
+    @property
+    def max_stun(self) -> int: return self.combat_stats().max_stun
+    @property
+    def max_body(self) -> int: return self.combat_stats().max_body
+    @property
+    def max_end(self) -> int: return self.combat_stats().max_end
+
+    @property
+    def current_stun(self) -> int: return self.state.current_stun
+    @property
+    def current_body(self) -> int: return self.state.current_body
+    @property
+    def current_end(self) -> int: return self.state.current_end
+
+    @property
+    def attacks(self) -> list[AttackPower]:
+        """Build the attack list from defining hero powers. Walked
+        on demand — callers that iterate this often should cache
+        themselves. Top-level + sub_powers (Multipower slots)."""
+        out: list[AttackPower] = []
+        attack_xmlids = {
+            "ENERGYBLAST", "RKA", "HKA", "EGOATTACK", "MENTALBLAST",
+            "KILLINGATTACKRANGED", "KILLINGATTACKHTH",
+        }
+        seen: set[str] = set()
+        def _walk(power_list):
+            for p in power_list or []:
+                x = (getattr(p, "xmlid", None) or "").upper()
+                if x in attack_xmlids and x not in seen:
+                    try:
+                        out.append(self.attack_view(p.xmlid))
+                        seen.add(x)
+                    except ValueError:
+                        pass
+                sub = getattr(p, "sub_powers", None)
+                if sub:
+                    _walk(sub)
+        _walk(self.hero.powers)
+        return out
+
+    @property
+    def defenses(self) -> list[DefenseItem]:
+        """Alias for ``defense_view()`` — read like a legacy Combatant."""
+        return self.defense_view()
+
+    @property
+    def is_npc(self) -> bool:
+        """Default False — combatant-redesign doesn't yet thread the
+        is_npc flag through HeroCombatState. Override per-callsite if
+        the legacy path was reading this."""
+        return False
+
+    @property
+    def is_mentalist(self) -> bool:
+        return False
+
+    @property
+    def csls(self) -> list:
+        """CombatSkillLevels — empty until the relational rows are
+        wired through hero_view (future step)."""
+        return []
+
+    # ─────────────────────────────────────────────────────────────────────
     # Factories
     # ─────────────────────────────────────────────────────────────────────
 
