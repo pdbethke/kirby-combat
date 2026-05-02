@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -99,13 +100,45 @@ class Combatant:
     is_npc: bool = False
     knockback_resistance: int = 0
 
+    # ── HeroCombatant-compatible access (combatant-redesign step 4) ──
+    # The HD-shaped HeroCombatant exposes computed stats via
+    # ``combat_stats()`` and vitals via ``.state.current_*``. Adding
+    # the same interface here as a no-op shim lets the resolution
+    # layer (to_hit / damage / defense / status / actions) read
+    # uniformly from EITHER shape without per-file dispatch.
+    #
+    # legacy.combat_stats().ocv == legacy.ocv  (same field, same value)
+    # legacy.state.current_stun == legacy.current_stun
+    #
+    # This goes away in step 6 when LegacyCombatant is deleted.
+
+    def combat_stats(self) -> "Combatant":
+        """Return self — flat fields ARE the stats. Mirrors
+        :meth:`HeroCombatant.combat_stats` for uniform access."""
+        return self
+
+    @property
+    def state(self) -> "Combatant":
+        """Return self — flat ``current_*`` fields ARE the state.
+        Mirrors :attr:`HeroCombatant.state` for uniform access."""
+        return self
+
 
 @dataclass
 class AttackInput:
-    """All inputs needed to resolve a single attack."""
+    """All inputs needed to resolve a single attack.
 
-    attacker: Combatant
-    target: Combatant
+    ``attacker`` / ``target`` may be either a flat ``Combatant`` or
+    the HD-shaped ``HeroCombatant``. Both expose ``.combat_stats()``
+    and ``.state.current_*`` as a uniform interface (the legacy
+    ``Combatant`` does so via the no-op shim added for combatant-
+    redesign step 4 — see ``Combatant.combat_stats``). Resolution
+    code reads through that interface and works on either shape
+    without per-call dispatch.
+    """
+
+    attacker: Any  # Combatant | HeroCombatant
+    target: Any    # Combatant | HeroCombatant
     power: AttackPower
     distance_m: float | None
     aim: str | None
