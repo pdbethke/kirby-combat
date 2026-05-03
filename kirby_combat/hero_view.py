@@ -504,6 +504,8 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     """
     cv = hero.characteristic_value
 
+    pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
+    ed_bonus = 0   # extra non-resistant ED bought via ED-power rows
     rpd = 0
     red = 0
     md = 0
@@ -518,6 +520,13 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
             # split half-and-half. Refined in step 3+.
             rpd += levels // 2 + (levels % 2)
             red += levels // 2
+        elif xmlid == "PD":
+            # Bare PD as a *power* row (e.g. Takofanes' "Undying Form"
+            # buys +23 PD as a non-resistant defense power, separate
+            # from the PD characteristic). Adds straight to PD total.
+            pd_bonus += levels
+        elif xmlid == "ED":
+            ed_bonus += levels
         elif xmlid == "MENTALDEFENSE":
             md += levels
         elif xmlid == "POWERDEFENSE":
@@ -537,8 +546,8 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
         con=cv("CON"),
         pre=cv("PRE"),
         rec=cv("REC"),
-        pd=cv("PD"),
-        ed=cv("ED"),
+        pd=cv("PD") + pd_bonus,
+        ed=cv("ED") + ed_bonus,
         rpd=rpd,
         red=red,
         md=md,
