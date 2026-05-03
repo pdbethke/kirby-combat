@@ -273,23 +273,38 @@ class HeroCombatant:
 
     @property
     def attacks(self) -> list[AttackPower]:
-        """Build the attack list from defining hero powers. Walked
-        on demand — callers that iterate this often should cache
-        themselves. Top-level + sub_powers (Multipower slots)."""
+        """Every attack-shaped power on this combatant — top-level
+        + sub_powers (Multipower / framework slots). One AttackPower
+        instance per source power; **no deduplication by xmlid**.
+
+        Many characters carry multiple powers of the same xmlid
+        (Cheshire Cat: a 1d6 ENERGYBLAST + a 6d6 "Teleportation
+        Boxing" ENERGYBLAST; multipower batteries with several EB
+        slots; HKA Claws + HKA Fangs). Callers must be able to
+        address each one — disambiguate by `AttackPower.name`,
+        damage_dice, or position. Use ``attack_view(xmlid, name=...)``
+        to fetch a specific instance.
+        """
         out: list[AttackPower] = []
         attack_xmlids = {
             "ENERGYBLAST", "RKA", "HKA", "EGOATTACK", "MENTALBLAST",
             "KILLINGATTACKRANGED", "KILLINGATTACKHTH",
+            "HANDTOHANDATTACK", "HA",
         }
-        seen: set[str] = set()
+        seen_ids: set[int] = set()  # recursion guard, not xmlid dedup
         def _walk(power_list):
             for p in power_list or []:
+                pid = id(p)
+                if pid in seen_ids:
+                    continue
+                seen_ids.add(pid)
                 x = (getattr(p, "xmlid", None) or "").upper()
-                if x in attack_xmlids and x not in seen:
+                if x in attack_xmlids:
                     try:
-                        out.append(self.attack_view(p.xmlid))
-                        seen.add(x)
-                    except ValueError:
+                        out.append(_build_attack_power(
+                            p, str_for_augmentation=self.combat_stats().str_,
+                        ))
+                    except (ValueError, TypeError, AttributeError):
                         pass
                 sub = getattr(p, "sub_powers", None)
                 if sub:
@@ -410,6 +425,7 @@ class HeroCombatant:
         power_xmlid: str,
         *,
         slot_xmlid: Optional[str] = None,
+        name: Optional[str] = None,
         target: Optional["HeroCombatant"] = None,
         distance_m: Optional[float] = None,
     ) -> AttackPower:
@@ -420,13 +436,84 @@ class HeroCombatant:
         scans assigned modifiers for Penetrating / Armor Piercing /
         Reduced Endurance flags, and returns the flat record the
         resolution layer consumes.
+
+        Disambiguation: when a combatant has multiple powers of the
+        same xmlid (common — Cheshire Cat carries a 1d6 unnamed EB
+        plus a 6d6 "Teleportation Boxing" EB), pass ``name=`` to
+        select a specific one. Without ``name``, returns the first
+        match in walk order (top-level before sub_powers). Raises
+        ``ValueError`` if no power matches.
         """
+        if name is not None:
+            target_name = name.strip().lower()
+            target_xmlid = power_xmlid.upper()
+
+            def _walk_named(power_list):
+                for p in power_list or []:
+                    x = (getattr(p, "xmlid", None) or "").upper()
+                    pname = (getattr(p, "name", None) or "").strip().lower()
+                    if x == target_xmlid and pname == target_name:
+                        return p
+                    sub = getattr(p, "sub_powers", None)
+                    if sub:
+                        found = _walk_named(sub)
+                        if found is not None:
+                            return found
+                return None
+
+            power = _walk_named(self.hero.powers)
+            if power is None:
+                raise ValueError(
+                    f"power xmlid={power_xmlid!r} name={name!r} not found "
+                    f"on {self.id!r}"
+                )
+            return _build_attack_power(
+                power, str_for_augmentation=self.combat_stats().str_,
+            )
+
         power = _find_power(self.hero, power_xmlid, slot_xmlid=slot_xmlid)
         if power is None:
             raise ValueError(
                 f"power xmlid={power_xmlid!r} not found on {self.id!r}"
             )
-        return _build_attack_power(power)
+        return _build_attack_power(
+            power, str_for_augmentation=self.combat_stats().str_,
+        )
+
+    def str_strike_view(self) -> AttackPower:
+        """Build the ``AttackPower`` for this combatant's implicit Strike.
+
+        Every HERO 6E character has a baseline Strike maneuver that
+        deals ``STR / 5`` d6 normal damage at melee range, costs
+        STR/10 END (rounded up, ≥ 1), and uses the character's full
+        OCV/DCV. This factory builds the ``AttackPower`` view for that
+        maneuver so callers don't have to synthesise one — making
+        Strike a first-class engine input alongside attack_view().
+
+        Combatants whose sheets carry a built-up STR-based attack
+        (HKA Claws, MartialStrike, custom HANDTOHANDATTACK, etc.)
+        should still go through ``attack_view(xmlid)`` to pick up
+        modifiers and naming. ``str_strike_view`` is the bare-handed
+        baseline.
+        """
+        stats = self.combat_stats()
+        full_dice = stats.str_ // 5
+        half_die = (stats.str_ % 5) >= 3
+        return AttackPower(
+            xmlid="STR",
+            name="Strike",
+            damage_dice=full_dice,
+            half_die=half_die,
+            plus_one=False,
+            damage_type="normal",
+            defense_type="pd",
+            range_m=0.0,
+            uses_str=True,
+            str_min=0,
+            armor_piercing=0,
+            penetrating=0,
+            increased_stun_mult=0,
+        )
 
     def defense_view(self) -> list[DefenseItem]:
         """Build the active defense set from HD powers.
@@ -720,13 +807,59 @@ def _find_power(hero: "LoadedHero", power_xmlid: str, *,
     return None
 
 
-def _build_attack_power(power) -> AttackPower:
-    """Project a HD power into the flat AttackPower record."""
+_STR_USING_XMLIDS = frozenset({
+    "HKA", "STR", "KILLINGATTACKHTH", "HANDTOHANDATTACK", "HA",
+})
+
+
+def _str_augment_dice(
+    full_dice: int, half_die: bool, damage_type: str, str_: int,
+) -> tuple[int, bool]:
+    """Apply HERO 6E STR augmentation to an attack's damage dice.
+
+    Rules (6E1 p137 — adding STR to a STR-using attack):
+      * Each 5 STR adds 1 Damage Class.
+      * Normal damage: 1 DC = 1d6.
+      * Killing damage: 1 DC = ½d6.
+      * Doubling Rule: a character may add no more DCs from STR
+        than the attack's base DCs. So a 1d6 (3 DC) HKA accepts at
+        most 3 DC of STR → max augmented = 1d6 + 1½d6 ≈ 2½d6.
+    """
+    if str_ <= 0 or damage_type not in ("normal", "killing"):
+        return full_dice, half_die
+    str_dc = str_ // 5
+    if damage_type == "normal":
+        base_dc = full_dice  # half_die on normal = +1 STUN, not a DC
+        added_dc = min(str_dc, base_dc)
+        return full_dice + added_dc, half_die
+    # killing: track in half-die steps; 1 DC = 1 step (½d6 = 5 AP)
+    steps = full_dice * 2 + (1 if half_die else 0)
+    base_dc = steps  # 1 DC == 1 step for killing
+    added_dc = min(str_dc, base_dc)
+    new_steps = steps + added_dc
+    return new_steps // 2, bool(new_steps % 2)
+
+
+def _build_attack_power(power, *, str_for_augmentation: int = 0) -> AttackPower:
+    """Project a HD power into the flat AttackPower record.
+
+    ``str_for_augmentation`` is the wielder's effective STR. When the
+    attack's xmlid is a STR-using type (HKA, HANDTOHANDATTACK, HA),
+    STR/5 DCs of damage are added to the base dice subject to the 6E
+    Doubling Rule (cap at base DCs). Pass 0 (or omit) for views that
+    don't need augmentation, e.g. when only inspecting the bare power.
+    """
     xmlid = (getattr(power, "xmlid", None) or "").upper()
     name = (getattr(power, "name", None) or "").strip() or xmlid
     full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
     damage_type = _damage_type_for_power(xmlid)
     defense_type = _defense_type_for_power(xmlid)
+
+    uses_str = xmlid in _STR_USING_XMLIDS
+    if uses_str and str_for_augmentation > 0:
+        full_dice, half_die = _str_augment_dice(
+            full_dice, half_die, damage_type, str_for_augmentation,
+        )
 
     # Modifiers
     armor_piercing = _modifier_levels(power, "ARMORPIERCING")
@@ -734,7 +867,7 @@ def _build_attack_power(power) -> AttackPower:
     reduced_end = _has_modifier(power, "REDUCEDEND")  # noqa: F841 (END calc TBD)
 
     # Range: HKA / STR-based attacks have no range; RKA + Blast etc. do.
-    if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK"}:
+    if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK", "HA"}:
         range_m = 0.0
     else:
         # Standard 6E ranged power: range = active points / 5 in meters.
@@ -755,8 +888,7 @@ def _build_attack_power(power) -> AttackPower:
         damage_type=damage_type,
         defense_type=defense_type,
         range_m=range_m,
-        uses_str=(xmlid in {"HKA", "STR", "KILLINGATTACKHTH",
-                            "HANDTOHANDATTACK"}),
+        uses_str=uses_str,
         str_min=0,
         armor_piercing=armor_piercing,
         penetrating=penetrating,
