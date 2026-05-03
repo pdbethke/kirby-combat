@@ -34,6 +34,7 @@ LoadedHero + state.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -406,6 +407,13 @@ class HeroCombatant:
         ``hero.characteristic_value(xmlid)``, walks defense powers for
         resistant/mental/power/flash totals, then applies any active
         drains/aids from ``state``.
+
+        rPD/rED post-cap: resistant defenses derived from a
+        characteristic (via NAKEDMODIFIER+RESISTANT) cannot exceed
+        the current characteristic total. So a Drain on PD also
+        reduces rPD through the cap, even without a direct rPD drain.
+        Aids on rPD/rED are NOT capped — they represent external
+        bonuses (e.g. Force Wall Aid).
         """
         stats = _compute_stats_from_hero(self.hero)
         # Apply drains (negative deltas) + aids (positive deltas).
@@ -418,6 +426,16 @@ class HeroCombatant:
             current = getattr(stats, stat, None)
             if current is not None:
                 setattr(stats, stat, current + delta)
+        # Cap derived rPD/rED at current PD/ED (post-drain). This is
+        # what makes the naked-mod-resistant promotion real-time-safe:
+        # a Drain on PD shrinks the rPD pool through this cap.
+        # Skip if Aid on rpd/red is in play — the aid represents an
+        # external resistant defense that doesn't depend on the
+        # characteristic.
+        if "rpd" not in self.state.aids:
+            stats.rpd = min(stats.rpd, stats.pd)
+        if "red" not in self.state.aids:
+            stats.red = min(stats.red, stats.ed)
         return stats
 
     def attack_view(
@@ -577,6 +595,55 @@ def _modifier_levels(power, mod_xmlid: str) -> int:
     return 0
 
 
+# NAKEDMODIFIER INPUT-field parsing.
+#
+# HD lets you buy a "naked advantage" (xmlid=NAKEDMODIFIER) that
+# applies an Advantage to a slice of an existing power or
+# characteristic. The classic defensive use is "Tough As Granite":
+# buy a NAKEDMODIFIER carrying RESISTANT, with INPUT="for 45 PD/45 ED",
+# meaning 45 points of the character's PD and 45 of their ED become
+# resistant. Without this parse, GRANITEMAN-class bricks show rPD=0
+# and die to any HKA — a foundational rules error in any sim.
+_INPUT_DEFENSE_RE = re.compile(
+    r"(\d+)\s*(PD|ED|MD|POWD|POWER\s*DEFENSE|FLASHD|FLASH\s*DEFENSE|MENTAL\s*DEFENSE)",
+    re.IGNORECASE,
+)
+
+
+def _parse_input_for_defenses(input_str: str | None) -> dict[str, int]:
+    """Parse a NAKEDMODIFIER INPUT string into {DEFENSE_KEY: points}.
+
+    INPUT examples seen in published HDC:
+      "for 45 PD/45 ED"     → {"PD": 45, "ED": 45}
+      "for 30 ED"           → {"ED": 30}
+      "for 20 Mental Def"   → {"MD": 20}
+
+    Returns empty dict on no parse.
+    """
+    if not input_str:
+        return {}
+    out: dict[str, int] = {}
+    for amount, kind in _INPUT_DEFENSE_RE.findall(input_str):
+        k = re.sub(r"\s+", "", kind).upper()
+        # Normalise common aliases to HeroCombatStats field-keyed names
+        if k in ("MENTALDEFENSE",):
+            k = "MD"
+        elif k in ("POWERDEFENSE",):
+            k = "POWD"
+        elif k in ("FLASHDEFENSE",):
+            k = "FLASHD"
+        out[k] = out.get(k, 0) + int(amount)
+    return out
+
+
+def _has_assigned_modifier(power, target_xmlid: str) -> bool:
+    target = target_xmlid.upper()
+    for m in getattr(power, "assigned_modifiers", None) or []:
+        if (getattr(m, "xmlid", "") or "").upper() == target:
+            return True
+    return False
+
+
 def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     """Read cost-engine characteristic values + sum defense powers.
 
@@ -588,16 +655,30 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
 
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
     powers, not characteristics. We walk hero.powers to total them.
+
+    Real-time-correctness: this function is called fresh from
+    ``combat_stats()`` on every read, so Drain/Aid effects (applied
+    via ``state.drains``/``state.aids``) and Armor-Piercing
+    advantages (applied at attack-resolve time in
+    ``resolution.defense.compute_defense``) compose on top of these
+    values without staleness. Don't cache per-combatant.
     """
     cv = hero.characteristic_value
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows
-    rpd = 0
+    rpd = 0        # resistant PD from FORCEFIELD / ARMOR / RESISTANTPROTECTION
     red = 0
     md = 0
     powd = 0
     flashd = 0
+
+    # Slice of base PD/ED that NAKEDMODIFIER+RESISTANT (or a RESISTANT
+    # advantage on a bare PD/ED power row) converts from non-resistant
+    # to resistant. Capped against the available pool at the end.
+    naked_resistant: dict[str, int] = {"PD": 0, "ED": 0, "MD": 0,
+                                        "POWD": 0, "FLASHD": 0}
+
     for p in hero.powers:
         xmlid = (getattr(p, "xmlid", None) or "").upper()
         levels = int(getattr(p, "levels", 0) or 0)
@@ -608,18 +689,49 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
             rpd += levels // 2 + (levels % 2)
             red += levels // 2
         elif xmlid == "PD":
-            # Bare PD as a *power* row (e.g. Takofanes' "Undying Form"
-            # buys +23 PD as a non-resistant defense power, separate
-            # from the PD characteristic). Adds straight to PD total.
             pd_bonus += levels
+            # If this PD-power row carries a RESISTANT advantage, the
+            # whole bonus is resistant.
+            if _has_assigned_modifier(p, "RESISTANT"):
+                naked_resistant["PD"] += levels
         elif xmlid == "ED":
             ed_bonus += levels
+            if _has_assigned_modifier(p, "RESISTANT"):
+                naked_resistant["ED"] += levels
         elif xmlid == "MENTALDEFENSE":
             md += levels
         elif xmlid == "POWERDEFENSE":
             powd += levels
         elif xmlid == "FLASHDEFENSE":
             flashd += levels
+        elif xmlid == "NAKEDMODIFIER":
+            # Defensive naked advantages: carry a RESISTANT or
+            # HARDENED advantage targeting "for X PD/X ED/...".
+            input_str = getattr(p, "input_value", None)
+            parsed = _parse_input_for_defenses(input_str)
+            if not parsed:
+                continue
+            if _has_assigned_modifier(p, "RESISTANT"):
+                for k, amt in parsed.items():
+                    if k in naked_resistant:
+                        naked_resistant[k] += amt
+            # HARDENED on a NAKEDMODIFIER affects how Penetrating /
+            # AP interact with the named defense — not surfaced on
+            # HeroCombatStats yet (it's a per-DefenseItem flag in the
+            # current resolver). Tracked TODO.
+
+    # Compose: pd/ed totals include naked resistant pools as
+    # already counted in pd_bonus/ed_bonus or as part of cv("PD").
+    # rpd is the sum of FORCEFIELD-style resistant + the naked-mod
+    # slice of base PD that's been promoted to resistant. Cap at the
+    # total available.
+    base_pd = cv("PD") + pd_bonus
+    base_ed = cv("ED") + ed_bonus
+    final_rpd = min(rpd + naked_resistant["PD"], base_pd)
+    final_red = min(red + naked_resistant["ED"], base_ed)
+    final_md = md + naked_resistant["MD"]
+    final_powd = powd + naked_resistant["POWD"]
+    final_flashd = flashd + naked_resistant["FLASHD"]
 
     return HeroCombatStats(
         ocv=cv("OCV"),
@@ -633,13 +745,13 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
         con=cv("CON"),
         pre=cv("PRE"),
         rec=cv("REC"),
-        pd=cv("PD") + pd_bonus,
-        ed=cv("ED") + ed_bonus,
-        rpd=rpd,
-        red=red,
-        md=md,
-        power_defense=powd,
-        flash_defense=flashd,
+        pd=base_pd,
+        ed=base_ed,
+        rpd=final_rpd,
+        red=final_red,
+        md=final_md,
+        power_defense=final_powd,
+        flash_defense=final_flashd,
         max_stun=cv("STUN"),
         max_body=cv("BODY"),
         max_end=cv("END"),
