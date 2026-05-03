@@ -60,32 +60,99 @@ class AttackAction:
             )
 
         # ------------------------------------------------------------------
-        # 2. Damage
-        # ------------------------------------------------------------------
-        damage = compute_damage(power, attack.dice, template, hit_location=attack.aim)
-        audit_trail.extend(damage.audit)
-
-        # ------------------------------------------------------------------
-        # 3. Defense
+        # 2. Defense (computed first so we can apply Damage Negation
+        #    pre-damage-roll, per 6E1 p185 "uSING DAmAGE NEGATION":
+        #    "A character applies his Damage Negation to an incoming
+        #    attack before applying his other defenses. Before the
+        #    attacker makes the Effect Roll for his attack, he reduces
+        #    it to account for the Damage Negation.")
         # ------------------------------------------------------------------
         defense = compute_defense(target, power)
         audit_trail.extend(defense.audit)
 
         # ------------------------------------------------------------------
-        # 4. Apply damage
+        # 3. Damage Negation: trim DCs from the attack BEFORE the roll.
         # ------------------------------------------------------------------
-        if power.damage_type == "killing":
-            # Killing: total defense stops STUN, resistant defense stops BODY
+        effective_power = power
+        effective_dice = attack.dice
+        if defense.damage_negation > 0:
+            from dataclasses import replace as _replace
+            dcs_remove = defense.damage_negation
+            new_full = power.damage_dice
+            new_half = power.half_die
+            if power.damage_type == "killing":
+                # 1 DC = ½d6 = 1 half-die step
+                steps = new_full * 2 + (1 if new_half else 0)
+                steps = max(0, steps - dcs_remove)
+                new_full = steps // 2
+                new_half = bool(steps % 2)
+            else:
+                # 1 DC = 1d6 normal
+                new_full = max(0, new_full - dcs_remove)
+            effective_power = _replace(
+                power, damage_dice=new_full, half_die=new_half,
+            )
+            # Also truncate the rolled dice — compute_damage reads
+            # dice.damage, not power.damage_dice. Keep n_full + (1 if
+            # half_die) leading dice; rest are discarded.
+            n_keep = new_full + (1 if new_half else 0)
+            effective_dice = _replace(
+                attack.dice, damage=list(attack.dice.damage[:n_keep]),
+            )
+            audit_trail.append(
+                f"Damage Negation applied pre-roll: -{dcs_remove} DC "
+                f"({power.damage_dice}{'+½' if power.half_die else ''}d6 → "
+                f"{new_full}{'+½' if new_half else ''}d6 {power.damage_type})"
+            )
+
+        # ------------------------------------------------------------------
+        # 4. Damage
+        # ------------------------------------------------------------------
+        damage = compute_damage(
+            effective_power, effective_dice, template, hit_location=attack.aim,
+        )
+        audit_trail.extend(damage.audit)
+
+        # ------------------------------------------------------------------
+        # 5. Apply defenses (subtract PD/ED/rPD/rED)
+        # ------------------------------------------------------------------
+        if effective_power.damage_type == "killing":
             stun_dealt = max(0, damage.stun - defense.total_defense)
             body_dealt = max(0, damage.body - defense.resistant_defense)
         else:
-            # Normal: total defense stops both STUN and BODY
             stun_dealt = max(0, damage.stun - defense.total_defense)
             body_dealt = max(0, damage.body - defense.total_defense)
 
         audit_trail.append(
+            f"Damage after defenses: STUN={stun_dealt}, BODY={body_dealt}"
+        )
+
+        # ------------------------------------------------------------------
+        # 6. Damage Reduction: % cut applied AFTER subtractive defenses
+        #    (6E1 p185 "uSING DAmAGE NEGATION": "The effect of the attack
+        #    is then rolled normally and the character applies his
+        #    regular defenses, Damage Reduction, and any other
+        #    defensive abilities.")
+        # ------------------------------------------------------------------
+        if defense.damage_reduction_pct > 0:
+            mult = (100 - defense.damage_reduction_pct) / 100.0
+            stun_after_dr = int(stun_dealt * mult)
+            body_after_dr = int(body_dealt * mult)
+            audit_trail.append(
+                f"Damage Reduction {defense.damage_reduction_pct}%: "
+                f"STUN {stun_dealt}→{stun_after_dr}, "
+                f"BODY {body_dealt}→{body_after_dr}"
+            )
+            stun_dealt = stun_after_dr
+            body_dealt = body_after_dr
+
+        audit_trail.append(
             f"Damage applied: STUN dealt={stun_dealt}, BODY dealt={body_dealt}"
         )
+
+        # Use effective_power for downstream knockback / status checks
+        # so they see the post-DN attack shape.
+        power = effective_power
 
         # ------------------------------------------------------------------
         # 5. Knockback

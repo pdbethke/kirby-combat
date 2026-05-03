@@ -543,13 +543,28 @@ class HeroCombatant:
         (PD/ED) are NOT in this list — those go on CombatStats and
         the resolution layer reads them there. DefenseItem rows here
         represent power-bought defenses on top of the base.
+
+        Recursive over sub_powers: HD's compound powers (e.g. Phoenix's
+        "Born In Fire" wrapping two nested DAMAGEREDUCTION children for
+        Physical + Energy) need to surface every leaf defense, not
+        just the parent.
         """
         items: list[DefenseItem] = []
-        for power in self.hero.powers:
-            xmlid = (getattr(power, "xmlid", None) or "").upper()
-            item = _power_to_defense_item(power, xmlid)
-            if item is not None:
-                items.append(item)
+        seen: set[int] = set()
+
+        def _walk(power_list):
+            for power in power_list or []:
+                pid = id(power)
+                if pid in seen:
+                    continue
+                seen.add(pid)
+                xmlid = (getattr(power, "xmlid", None) or "").upper()
+                item = _power_to_defense_item(power, xmlid)
+                if item is not None:
+                    items.append(item)
+                _walk(getattr(power, "sub_powers", None))
+
+        _walk(self.hero.powers)
         return items
 
 
@@ -781,11 +796,50 @@ def _power_to_defense_item(power, xmlid: str) -> DefenseItem | None:
             is_resistant=True,
         )
     if xmlid == "DAMAGEREDUCTION":
-        # Levels mean different things by power-skill choice; treat
-        # raw levels as the % reduction and refine in step 3+.
-        return DefenseItem(name=name, damage_reduction_pct=levels)
+        # HD encodes the % tier in OPTIONID ("LVL25"/"LVL50"/"LVL75"
+        # optionally suffixed "RESISTANT") and the damage class in
+        # INPUT ("Physical"/"Energy"/"Mental"). 6E1 p185.
+        opt = (getattr(power, "option_id", "") or "").upper()
+        pct = 0
+        if "LVL75" in opt: pct = 75
+        elif "LVL50" in opt: pct = 50
+        elif "LVL25" in opt: pct = 25
+        resistant = "RESISTANT" in opt
+        cls = (getattr(power, "input_value", "") or "").strip().lower()
+        # Normalise common aliases
+        if cls in ("phys", "physical"): cls = "physical"
+        elif cls in ("energy",): cls = "energy"
+        elif cls in ("mental",): cls = "mental"
+        else: cls = ""
+        return DefenseItem(
+            name=name,
+            damage_reduction_pct=pct,
+            damage_class=cls,
+            dr_resistant=resistant,
+            is_resistant=resistant,
+        )
     if xmlid == "DAMAGENEGATION":
-        return DefenseItem(name=name, damage_negation=levels)
+        # 5 CP per -1 DC (6E1 p185); HD encodes the DC count in
+        # OPTIONID ("DCx" where x is the DC count) or in levels.
+        # Class via INPUT.
+        opt = (getattr(power, "option_id", "") or "").upper()
+        dcs = levels
+        if opt:
+            # Common HD shapes: "DC1", "DC2", "MINUS5DC", etc.
+            digits = re.findall(r"\d+", opt)
+            if digits:
+                dcs = max(dcs, int(digits[0]))
+        cls = (getattr(power, "input_value", "") or "").strip().lower()
+        if cls in ("phys", "physical"): cls = "physical"
+        elif cls in ("energy",): cls = "energy"
+        elif cls in ("mental",): cls = "mental"
+        else: cls = ""
+        return DefenseItem(
+            name=name,
+            damage_negation=dcs,
+            damage_class=cls,
+            dr_resistant=True,  # default per 6E1 p185 unless Nonresistant Lim
+        )
     if xmlid == "MENTALDEFENSE":
         return DefenseItem(name=name, md=levels, hardened=hardened)
     if xmlid == "POWERDEFENSE":

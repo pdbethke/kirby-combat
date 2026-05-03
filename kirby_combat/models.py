@@ -50,9 +50,19 @@ class DefenseItem:
     hardened: int = 0             # levels of hardened
     impenetrable: int = 0         # levels of impenetrable
     damage_reduction_pct: int = 0
-    damage_negation: int = 0
+    damage_negation: int = 0      # in DCs (each = -1 DC pre-attack)
     knockback_resistance: int = 0
     is_resistant: bool = False
+    # Damage Reduction / Damage Negation are class-split per HERO 6E:
+    # bought separately for "physical", "energy", or "mental".
+    # Empty string means "applies to any class" (e.g. for legacy
+    # records or test fixtures where class isn't specified).
+    damage_class: str = ""        # "" | "physical" | "energy" | "mental"
+    # Resistant DR works on Killing too; non-resistant DR only on
+    # Normal damage + AVADs. (6E1 p185.) Same flag distinguishes
+    # "Resistant Damage Negation" (default) from non-resistant
+    # negation taken via the Nonresistant -¼ Limitation.
+    dr_resistant: bool = True
 
 
 @dataclass

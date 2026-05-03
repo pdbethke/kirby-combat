@@ -92,17 +92,30 @@ def compute_defense(target: Combatant, power: AttackPower) -> DefenseProfile:
     # ------------------------------------------------------------------
     total_from_items = 0
     res_from_items = 0
-    total_damage_reduction_pct = 0
+    # Damage Reduction: per HERO 6E1 p185 multiple DR powers don't
+    # stack — apply max(matching). Track candidate %s per class.
+    matching_dr_pcts: list[int] = []
+    # Damage Negation: per HERO 6E1 p185 stacks additively (each
+    # 5 CP = -1 DC). Sum DCs for matching class.
     total_damage_negation = 0
     total_kb_from_items = 0
+
+    # Map attack's defense_type to the DR/DN damage_class label.
+    # Attacks with no engine-side class (defense_type == "") apply
+    # universally; DR/DN with no class (legacy) match anything.
+    attack_class = {
+        "pd": "physical",
+        "ed": "energy",
+        "mental": "mental",
+    }.get((power.defense_type or "").lower(), "")
+
+    is_killing = (power.damage_type == "killing")
 
     for item in target.defenses:
         item_base: int = getattr(item, item_base_attr, 0)
         item_res: int = getattr(item, item_res_attr, 0)
 
         if dtype in ("pd", "ed"):
-            # Item contributes its base (pd/ed) to the total pool.
-            # Item contributes its resistant (rpd/red) to the resistant pool.
             added_base = item_base
             added_res = item_res
         else:
@@ -111,16 +124,50 @@ def compute_defense(target: Combatant, power: AttackPower) -> DefenseProfile:
 
         total_from_items += added_base
         res_from_items += added_res
-
         total_kb_from_items += item.knockback_resistance
-        total_damage_reduction_pct += item.damage_reduction_pct
-        total_damage_negation += item.damage_negation
+
+        # Class-match DR / DN per attack class. Empty class on item
+        # OR attack means "applies".
+        item_class = (item.damage_class or "").lower()
+        class_matches = (
+            not item_class
+            or not attack_class
+            or item_class == attack_class
+        )
+
+        if item.damage_reduction_pct > 0 and class_matches:
+            # Resistant DR works on Normal + Killing.
+            # Non-resistant DR works on Normal only (NOT killing).
+            if (item.dr_resistant) or (not is_killing):
+                matching_dr_pcts.append(item.damage_reduction_pct)
+                audit.append(
+                    f"DR matches '{item.name}' "
+                    f"({item.damage_reduction_pct}% "
+                    f"{'resistant' if item.dr_resistant else 'normal'} "
+                    f"{item_class or 'any'})"
+                )
+
+        if item.damage_negation > 0 and class_matches:
+            if (item.dr_resistant) or (not is_killing):
+                total_damage_negation += item.damage_negation
+                audit.append(
+                    f"DN adds {item.damage_negation} DC from '{item.name}' "
+                    f"({item_class or 'any'})"
+                )
 
         if added_base > 0 or added_res > 0:
             audit.append(
                 f"Item '{item.name}': {dtype}={added_base}, r{dtype}={added_res}"
             )
             defense_tags.append(f"item:{item.name}")
+
+    # Pick highest matching DR (no stacking per 6E1 p185)
+    total_damage_reduction_pct = max(matching_dr_pcts) if matching_dr_pcts else 0
+    if matching_dr_pcts:
+        audit.append(
+            f"Damage Reduction selected: {total_damage_reduction_pct}% "
+            f"(from {len(matching_dr_pcts)} candidate(s); 6E1 p185 — pick max, no stack)"
+        )
 
     # ------------------------------------------------------------------
     # Combine totals before Armor Piercing
