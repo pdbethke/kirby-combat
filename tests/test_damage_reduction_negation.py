@@ -224,6 +224,53 @@ def test_dn_stacks_additively() -> None:
     assert r.body_dealt == 3
 
 
+# ── Rule-order regression gate ────────────────────────────────────────────
+def test_rule_order_defenses_subtract_FIRST_then_dr_multiplies() -> None:
+    """Rule order is explicit per HERO 6E1 p185 (USING DAMAGE NEGATION):
+
+        "The effect of the attack is then rolled normally and the
+         character applies his regular defenses, Damage Reduction, and
+         any other defensive abilities."
+
+    Order: defenses (PD/ED subtraction) FIRST, then Damage Reduction
+    (% multiplier) on the remainder.
+
+    Dice are rigged to produce strongly divergent results between the
+    two orderings, so flipping the order in the resolver — even
+    accidentally — fails the test loudly.
+
+    Setup: 6d6 EB damage rolled all 5s = 30 STUN, 6 BODY (each 5 = 1
+    BODY in HERO 6E normal-damage tables). Defender has 16 ED + 50%
+    Resistant Energy DR.
+
+    DEFENSES FIRST (correct, 6E1 p185):
+        STUN: 30 − 16 = 14, then × 0.5 = 7 → stun_dealt = 7
+        BODY:  6 − 16 = 0 (clamped), then × 0.5 = 0 → body_dealt = 0
+
+    DR FIRST (wrong):
+        STUN: 30 × 0.5 = 15, then − 16 = 0 (clamped) → stun_dealt = 0
+        BODY:  6 × 0.5 = 3, then − 16 = 0 (clamped) → body_dealt = 0
+
+    The test asserts stun_dealt == 7 — the wrong order produces 0,
+    so any future regression where DR is applied before subtractive
+    defenses fails this assertion immediately.
+    """
+    dr = DefenseItem(
+        name="Energy Damper", damage_reduction_pct=50,
+        damage_class="energy", dr_resistant=True,
+    )
+    deft = _defender(ed=16, defenses=[dr])
+    # 6d6 all 5s: each 5 contributes +5 STUN, +1 BODY → 30 STUN, 6 BODY
+    r = _resolve(_attacker(), deft, _eb(dice=6), damage_dice=[5] * 6)
+    assert r.stun_dealt == 7, (
+        f"Rule order broken: expected 7 STUN (defenses-first: 30-16=14, "
+        f"14*0.5=7); got {r.stun_dealt}. If DR fires before defense "
+        f"subtraction, the result would be 0 STUN (30*0.5=15, 15-16=0 "
+        f"clamped). 6E1 p185 explicitly says defenses FIRST, then DR."
+    )
+    assert r.body_dealt == 0
+
+
 def test_dn_and_dr_compose_dn_first_then_dr() -> None:
     """DN 1 (energy) + 50% Resistant Energy DR.
     6d6 EB - 1 DC = 5d6. All 4s = 20 STUN/5 BODY. ED 10 → 10 STUN/0 BODY.
