@@ -133,7 +133,12 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     # 10. Hit / miss
     # ------------------------------------------------------------------
     hit = roll <= target_number
-    margin = target_number - roll
+    # Margin is whole-valued by construction, but arrives as a float
+    # when OCV/DCV flow from canon HDC imports (the cost engine's
+    # characteristic_value() returns float). Normalize once so
+    # ToHitResult.margin honours its int annotation and the audit's
+    # {:+d} format works for either input shape.
+    margin = int(target_number - roll)
     outcome = "HIT" if hit else "MISS"
     audit.append(
         f"Result: {roll} vs {target_number} — {outcome}"

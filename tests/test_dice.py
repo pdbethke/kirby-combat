@@ -46,3 +46,23 @@ def test_fake_roller_isolates_inputs():
     dice_in[1] = [9, 9, 9]
     assert f.roll_dice(3, sides=6) == [3, 4, 5]
     assert f.roll_dice(3, sides=6) == [1, 2, 3]
+
+
+def test_random_roller_accepts_whole_valued_float_count():
+    """Canon HDC imports compute dice counts from float stats — the
+    cost engine's characteristic_value() returns float, so e.g.
+    PRE 60.0 // 5 = 12.0 dice. Whole-valued float counts must roll."""
+    r = RandomRoller(seed=7)
+    result = r.roll_dice(12.0)
+    assert len(result) == 12
+    assert all(1 <= d <= 6 for d in result)
+
+
+def test_random_roller_rejects_fractional_count():
+    """A fractional count means a half-die leaked into the d6 count.
+    HERO half-dice must go through roll_half_die(); reject rather than
+    silently truncate (truncation would drop the half die)."""
+    import pytest
+    r = RandomRoller(seed=7)
+    with pytest.raises(ValueError, match="whole number"):
+        r.roll_dice(4.5)

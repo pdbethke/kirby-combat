@@ -677,8 +677,19 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     advantages (applied at attack-resolve time in
     ``resolution.defense.compute_defense``) compose on top of these
     values without staleness. Don't cache per-combatant.
+
+    Int boundary: ``hero.characteristic_value()`` returns float (the
+    cost engine computes in floats; canon HDC/build-doc imports yield
+    whole-valued floats like ``OCV=4.0``). HeroCombatStats declares
+    int fields and the whole resolution layer assumes integer stats
+    (``pre // 5`` dice counts, ``{margin:+d}`` audit formats), so we
+    coerce HERE, at the engine→combat seam, rather than sprinkling
+    int() downstream. Truncation is also the rules-correct reading for
+    the one legitimately fractional case (5E figured SPD, e.g. 2.7
+    plays as SPD 2).
     """
-    cv = hero.characteristic_value
+    def cv(xmlid: str) -> int:
+        return int(hero.characteristic_value(xmlid))
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows

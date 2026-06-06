@@ -337,3 +337,46 @@ class TestTargetNumber:
         assert result.target_number is not None
         assert isinstance(result.hit, bool)
         assert result.margin == result.target_number - result.roll
+
+
+class TestCanonFloatStats:
+    """Combatants built from canon HDC/build-doc imports carry
+    whole-valued float stats (the cost engine's characteristic_value()
+    returns float, e.g. OCV=8.0). resolve_to_hit must not crash on the
+    {margin:+d} audit format and must return an int margin."""
+
+    class _FloatStatAttacker:
+        """Duck-typed attacker/target with engine-float stats, as seen
+        before hero_view's int boundary (and from any external caller
+        that feeds floats directly)."""
+
+        def __init__(self, ocv: float, dcv: float) -> None:
+            self.ocv = ocv
+            self.dcv = dcv
+            self.csls: list = []
+
+    def test_float_ocv_dcv_resolve_and_int_margin(self):
+        attacker = self._FloatStatAttacker(ocv=8.0, dcv=6.0)
+        target = self._FloatStatAttacker(ocv=6.0, dcv=5.0)
+        attack = make_attack(
+            attacker=attacker, target=target, dice_to_hit=[3, 4, 4],
+        )
+        result = resolve_to_hit(attack, RAW_SUPERHEROIC)
+        # TN = 8 + 11 - 5 = 14, roll 11 → hit by 3
+        assert result.hit is True
+        assert result.margin == 3
+        assert isinstance(result.margin, int)
+        assert "(margin: +3)" in result.audit[-1]
+
+    def test_float_stats_miss_margin_is_negative_int(self):
+        attacker = self._FloatStatAttacker(ocv=4.0, dcv=4.0)
+        target = self._FloatStatAttacker(ocv=4.0, dcv=9.0)
+        attack = make_attack(
+            attacker=attacker, target=target, dice_to_hit=[4, 4, 4],
+        )
+        result = resolve_to_hit(attack, RAW_SUPERHEROIC)
+        # TN = 4 + 11 - 9 = 6, roll 12 → miss by 6
+        assert result.hit is False
+        assert result.margin == -6
+        assert isinstance(result.margin, int)
+        assert "(margin: -6)" in result.audit[-1]

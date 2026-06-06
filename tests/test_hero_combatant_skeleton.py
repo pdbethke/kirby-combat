@@ -321,3 +321,68 @@ def test_inferna_attack_resolves_through_engine():
                    for line in result.audit_trail)
     else:
         assert any("MISS" in line.upper() for line in result.audit_trail)
+
+
+# ---------------------------------------------------------------------------
+# Int boundary — the cost engine's characteristic_value() returns float
+# (canon HDC/build-doc imports yield whole-valued floats like OCV=4.0).
+# _compute_stats_from_hero is the seam that must coerce to int so the
+# resolution layer never sees float stats (float PRE // 5 dice counts
+# used to TypeError in roll_dice; float margins used to ValueError on
+# the {margin:+d} audit format).
+# ---------------------------------------------------------------------------
+
+
+def test_compute_stats_coerces_engine_floats_to_int():
+    """A hero whose characteristic_value() returns floats (the real
+    engine's behaviour) must produce all-int HeroCombatStats."""
+    from kirby_combat.hero_view import _compute_stats_from_hero
+
+    class _FloatHero:
+        name = "Floaty"
+        powers: list = []
+
+        def characteristic_value(self, xmlid: str) -> float:
+            return {
+                "OCV": 8.0, "DCV": 7.0, "OMCV": 3.0, "DMCV": 3.0,
+                "SPD": 5.0, "DEX": 23.0, "EGO": 14.0, "STR": 60.0,
+                "CON": 28.0, "PRE": 20.0, "REC": 12.0,
+                "PD": 25.0, "ED": 20.0,
+                "STUN": 50.0, "BODY": 15.0, "END": 60.0,
+            }.get(xmlid, 0.0)
+
+    stats = _compute_stats_from_hero(_FloatHero())
+    for field_name in (
+        "ocv", "dcv", "omcv", "dmcv", "spd", "dex", "ego", "str_",
+        "con", "pre", "rec", "pd", "ed", "rpd", "red", "md",
+        "power_defense", "flash_defense", "max_stun", "max_body",
+        "max_end",
+    ):
+        value = getattr(stats, field_name)
+        assert type(value) is int, f"{field_name} leaked as {type(value)}"
+    # The downstream computations that crashed pre-fix now yield ints:
+    assert stats.pre // 5 == 4 and type(stats.pre // 5) is int
+    assert stats.str_ // 5 == 12 and type(stats.str_ // 5) is int
+
+
+def test_canon_hdc_combatant_stats_are_int_and_rollable():
+    """End-to-end: a real HDC-loaded combatant feeds integer dice
+    counts to RandomRoller (PRE dice, STR strike dice)."""
+    pytest.importorskip("hero_designer")
+    _need(INFERNA_HDC)
+
+    from kirby_combat.dice import RandomRoller
+    from kirby_combat.pre_attacks.presence import base_pre_dice
+
+    c = HeroCombatant.from_hdc(INFERNA_HDC)
+    stats = c.combat_stats()
+    assert type(stats.ocv) is int and type(stats.pre) is int
+
+    roller = RandomRoller(seed=11)
+    pre_dice = base_pre_dice(c)
+    assert type(pre_dice) is int
+    assert len(roller.roll_dice(pre_dice)) == pre_dice
+
+    strike = c.str_strike_view()
+    assert type(strike.damage_dice) is int
+    assert len(roller.roll_dice(strike.damage_dice)) == strike.damage_dice

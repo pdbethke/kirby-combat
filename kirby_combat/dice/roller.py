@@ -24,7 +24,19 @@ class RandomRoller:
         self._rng = random.Random(seed)
 
     def roll_dice(self, count: int, sides: int = 6) -> list[int]:
-        return [self._rng.randint(1, sides) for _ in range(count)]
+        # Accept whole-valued floats: dice counts computed from canon
+        # HDC-imported stats arrive as floats (the cost engine's
+        # characteristic_value() returns float, so e.g. PRE 15.0 // 5
+        # = 3.0 dice). A NON-integral count is rejected, not truncated:
+        # it would mean a half-die leaked into the d6 count, and HERO
+        # half-dice must go through roll_half_die() instead.
+        n = int(count)
+        if n != count:
+            raise ValueError(
+                f"roll_dice count must be a whole number, got {count!r}; "
+                "half-dice are rolled via roll_half_die()"
+            )
+        return [self._rng.randint(1, sides) for _ in range(n)]
 
     def roll_half_die(self) -> int:
         # HERO half-die: 1-2 = 0 pip, 3-4 = +1 pip, 5-6 = 1 body (caller decides semantics)
