@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 if TYPE_CHECKING:
     from kirby_combat.scene.scene import Scene
-    from kirby_combat.scene.hazards import HazardTriggerResult
 
 
 # ---------------------------------------------------------------------------
@@ -31,10 +30,13 @@ class AoEOutcome:
     target_dcv_for_aoe: int               # = 3 (HERO RAW: targets the hex)
     phase_cost: Literal["half", "full"]   # = "full" for all AoE shapes
     hazard_triggers: list = None          # type: list[HazardTriggerResult]; populated when a Scene is provided
+    affected_constructs: list = None      # type: list[str]; destructible construct obj_ids caught in template
 
     def __post_init__(self):
         if self.hazard_triggers is None:
             self.hazard_triggers = []
+        if self.affected_constructs is None:
+            self.affected_constructs = []
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +97,70 @@ def _perpendicular_distance_to_segment(
     closest_y = sy + t * dy
 
     return _distance_2d(point, (closest_x, closest_y))
+
+
+# ---------------------------------------------------------------------------
+# Construct geometry helpers
+# ---------------------------------------------------------------------------
+
+def _construct_point(c) -> "tuple[float, float] | None":
+    """Return a representative 2-D point for a Construct (segment midpoint or polygon centroid)."""
+    if c.segment is not None:
+        a, b = c.segment
+        return ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
+    if c.polygon_xy:
+        xs = [p[0] for p in c.polygon_xy]
+        ys = [p[1] for p in c.polygon_xy]
+        return (sum(xs) / len(xs), sum(ys) / len(ys))
+    return None
+
+
+def _constructs_in_radius(epicenter, radius_m, constructs) -> list[str]:
+    """Return obj_ids of destructible constructs whose representative point is within radius_m."""
+    out = []
+    for c in constructs or []:
+        if not c.destructible:
+            continue
+        pt = _construct_point(c)
+        if pt is None:
+            continue
+        if (pt[0] - epicenter[0]) ** 2 + (pt[1] - epicenter[1]) ** 2 <= radius_m * radius_m:
+            out.append(c.obj_id)
+    return out
+
+
+def _constructs_in_cone(origin, actual_direction, half_angle_rad, length_m, constructs) -> list[str]:
+    """Return obj_ids of destructible constructs within the cone template."""
+    out = []
+    for c in constructs or []:
+        if not c.destructible:
+            continue
+        pt = _construct_point(c)
+        if pt is None:
+            continue
+        dist = _distance_2d(origin, pt)
+        if dist > length_m:
+            continue
+        target_angle = _angle_between(origin, pt)
+        diff = _angle_diff(target_angle, actual_direction)
+        if diff <= half_angle_rad:
+            out.append(c.obj_id)
+    return out
+
+
+def _constructs_in_line(start, end, half_width, constructs) -> list[str]:
+    """Return obj_ids of destructible constructs within the line template."""
+    out = []
+    for c in constructs or []:
+        if not c.destructible:
+            continue
+        pt = _construct_point(c)
+        if pt is None:
+            continue
+        perp_dist = _perpendicular_distance_to_segment(pt, start, end)
+        if perp_dist <= half_width:
+            out.append(c.obj_id)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +234,7 @@ class AreaOfEffect:
         explosion: bool = False,
         scene: Optional["Scene"] = None,
         indirect: bool = False,
+        constructs: list | None = None,
     ) -> AoEOutcome:
         """Compute a circular AoE.
 
@@ -204,6 +271,7 @@ class AreaOfEffect:
             per_target_dc=per_target_dc,
             target_dcv_for_aoe=3,
             phase_cost="full",
+            affected_constructs=_constructs_in_radius(epicenter, radius_m, constructs),
         )
 
     @staticmethod
@@ -218,6 +286,7 @@ class AreaOfEffect:
         scene: Optional["Scene"] = None,
         indirect: bool = False,
         attacker_facing_rad: Optional[float] = None,
+        constructs: list | None = None,
     ) -> AoEOutcome:
         """Compute a cone-shaped AoE.
 
@@ -258,6 +327,7 @@ class AreaOfEffect:
             per_target_dc=per_target_dc,
             target_dcv_for_aoe=3,
             phase_cost="full",
+            affected_constructs=_constructs_in_cone(origin, actual_direction, half_angle_rad, length_m, constructs),
         )
 
     @staticmethod
@@ -271,6 +341,7 @@ class AreaOfEffect:
         scene: Optional["Scene"] = None,
         indirect: bool = False,
         elevation_z: float = 0.0,
+        constructs: list | None = None,
     ) -> AoEOutcome:
         """Compute a line-shaped AoE.
 
@@ -303,6 +374,7 @@ class AreaOfEffect:
             target_dcv_for_aoe=3,
             phase_cost="full",
             hazard_triggers=hazard_triggers,
+            affected_constructs=_constructs_in_line(start, end, half_width, constructs),
         )
 
     @staticmethod
