@@ -97,3 +97,15 @@ def test_angle_north_is_half_pi():
     a = Position(0, 0, 0)
     b = Position(0, 5, 0)
     assert angle_between_xy(a, b) == pytest.approx(pi / 2)
+
+
+def test_first_blocking_wall_picks_nearest_and_respects_height():
+    from kirby_combat.scene import Wall, Position
+    from kirby_combat.scene.geometry import first_blocking_wall, line_of_sight_clear
+    a, b = Position(-10, 0, 0), Position(10, 0, 0)
+    low = Wall(id="low", name="low", segment=(Position(0, -5, 0), Position(0, 5, 0)),
+               height_m=3.0, blocks_los=True, blocks_movement=True, cover_level=4, body=8)
+    assert first_blocking_wall(Position(-10, 0, 5), Position(10, 0, 5), [low]) is None
+    assert first_blocking_wall(a, b, [low]).id == "low"
+    assert line_of_sight_clear(a, b, [low]) is False
+    assert line_of_sight_clear(Position(-10, 0, 5), Position(10, 0, 5), [low]) is True

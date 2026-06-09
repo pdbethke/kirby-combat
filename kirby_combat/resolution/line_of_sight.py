@@ -20,8 +20,8 @@ even be made?
 """
 from __future__ import annotations
 
-from kirby_combat.scene.geometry import line_of_sight_clear
-from kirby_combat.scene.scene import Position, Scene
+from kirby_combat.scene.geometry import first_blocking_wall, line_of_sight_clear
+from kirby_combat.scene.scene import Position, Scene, Wall
 
 
 def has_line_of_sight(
@@ -71,3 +71,21 @@ def gate_ranged_attack(
         scene, attacker_pos, target_pos,
         indirect_advantage=indirect_advantage,
     )
+
+
+def blocking_wall_for_shot(
+    scene: Scene,
+    attacker_pos: Position,
+    target_pos: Position,
+    *,
+    is_ranged: bool,
+    indirect_advantage: bool = False,
+) -> "Wall | None":
+    """The wall a ranged shot is redirected into when LoS is blocked, or None.
+
+    HTH (is_ranged=False) and Indirect never redirect. The driver (kirby-api)
+    applies object damage to the returned wall and deals nothing to the target.
+    """
+    if not is_ranged or indirect_advantage:
+        return None
+    return first_blocking_wall(attacker_pos, target_pos, scene.walls)

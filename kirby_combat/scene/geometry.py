@@ -59,6 +59,41 @@ def segments_intersect_xy(
     return ccw(a1, b1, b2) != ccw(a2, b1, b2) and ccw(a1, a2, b1) != ccw(a1, a2, b2)
 
 
+def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) -> "Wall | None":
+    """Return the LoS-blocking wall nearest to `from_` that breaks the from_->to
+    line, or None if LoS is clear.
+
+    Blocking predicate (identical to the original line_of_sight_clear):
+      - wall.blocks_los is True, AND
+      - the wall's segment intersects the from_->to segment in xy, AND
+      - max(from_.z, to.z) <= wall_base_z + wall.height_m
+        where wall_base_z = min(segment[0].z, segment[1].z).
+    Nearest is determined by distance from `from_` to the wall's midpoint.
+    """
+    blockers: list[Wall] = []
+    for w in walls:
+        if not w.blocks_los:
+            continue
+        w_a = (w.segment[0].x, w.segment[0].y)
+        w_b = (w.segment[1].x, w.segment[1].y)
+        if not segments_intersect_xy((from_.x, from_.y), (to.x, to.y), w_a, w_b):
+            continue
+        wall_base_z = min(w.segment[0].z, w.segment[1].z)
+        wall_top_z = wall_base_z + w.height_m
+        shooter_z = max(from_.z, to.z)
+        if shooter_z <= wall_top_z:
+            blockers.append(w)
+    if not blockers:
+        return None
+
+    def _d2(w: Wall) -> float:
+        mx = (w.segment[0].x + w.segment[1].x) / 2.0
+        my = (w.segment[0].y + w.segment[1].y) / 2.0
+        return (mx - from_.x) ** 2 + (my - from_.y) ** 2
+
+    return min(blockers, key=_d2)
+
+
 def line_of_sight_clear(from_: Position, to: Position, walls: Iterable[Wall]) -> bool:
     """True if no LoS-blocking wall intersects the from->to segment in xy
     AND at least one of (from_.z, to.z) lies above the wall's height range.
@@ -67,16 +102,4 @@ def line_of_sight_clear(from_: Position, to: Position, walls: Iterable[Wall]) ->
     or if neither endpoint is within the wall's vertical range on its side.
     Simplified height check: if max(from_.z, to.z) > wall.height_m, LoS clears.
     """
-    for w in walls:
-        if not w.blocks_los:
-            continue
-        w_a = (w.segment[0].x, w.segment[0].y)
-        w_b = (w.segment[1].x, w.segment[1].y)
-        if segments_intersect_xy((from_.x, from_.y), (to.x, to.y), w_a, w_b):
-            # Check height: wall starts at segment's z (min_z) and goes up height_m
-            wall_base_z = min(w.segment[0].z, w.segment[1].z)
-            wall_top_z = wall_base_z + w.height_m
-            shooter_z = max(from_.z, to.z)
-            if shooter_z <= wall_top_z:
-                return False
-    return True
+    return first_blocking_wall(from_, to, walls) is None
