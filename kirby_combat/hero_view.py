@@ -571,6 +571,9 @@ class HeroCombatant:
         """True if a Life Support power grants Self-Contained Breathing / no need
         to breathe — immune to suffocation. Walks hero.powers (the engine reads
         the LoadedHero; there is no flat helper)."""
+        # TODO: does not recurse into sub_powers — a LIFESUPPORT inside a
+        # Multipower/Framework slot is missed (matches attack_view's first-pass
+        # behavior; revisit if a framework-housed Life Support character appears).
         for p in getattr(self.hero, "powers", []) or []:
             if (getattr(p, "xmlid", "") or "").upper() != "LIFESUPPORT":
                 continue
