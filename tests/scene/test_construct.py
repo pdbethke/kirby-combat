@@ -54,3 +54,15 @@ def test_construct_from_hazard_rejects_empty_effect():
                 effect=HazardEffect(damage_dice=0, damage_type="normal", status_inflicted=None))
     with pytest.raises(ValueError):
         construct_from_hazard(hz)
+
+
+def test_constructs_containing_point():
+    from kirby_combat.scene import Construct, Position
+    from kirby_combat.scene.construct import constructs_containing
+    pool = Construct(obj_id="pool", kind="hazard_zone",
+                     polygon_xy=[(0, 0), (4, 0), (4, 4), (0, 4)], elevation_range_m=(-2.0, 0.0))
+    inside = constructs_containing(Position(2, 2, -1), [pool])
+    outside = constructs_containing(Position(9, 9, -1), [pool])
+    above = constructs_containing(Position(2, 2, 5), [pool])  # out of elevation range
+    assert [c.obj_id for c in inside] == ["pool"]
+    assert outside == [] and above == []

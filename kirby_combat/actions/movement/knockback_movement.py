@@ -134,8 +134,17 @@ def resolve_knockback_movement(
     actual_end = tentative_end
     actual_distance = intended
 
+    _impermeable = [
+        Wall(id=c.obj_id, name=c.obj_id, segment=c.segment, height_m=c.height_m,
+             blocks_los=c.blocks_los, blocks_movement=True, cover_level=c.cover_level,
+             body=(c.body if c.body is not None else 6))
+        for c in (getattr(scene, "constructs", []) or [])
+        if c.permeability == "impermeable" and c.segment is not None
+    ]
+    collision_walls = list(scene.walls) + _impermeable
+
     closest_dist = math.inf
-    for wall in scene.walls:
+    for wall in collision_walls:
         if not wall.blocks_movement:
             continue
         if not _wall_height_blocks(target_pos.z, wall):

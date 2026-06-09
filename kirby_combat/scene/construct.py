@@ -11,9 +11,10 @@ kirby-api hydration on the next step.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Iterable, Literal
 
 from kirby_combat.scene.scene import Position, Wall, Hazard
+from kirby_combat.scene.geometry import point_in_polygon_xy
 
 EffectKind = Literal["damage", "suffocation", "status", "mental"]  # "mental" reserved (v1: not resolved)
 EffectGating = Literal["physical_def", "breathing_swimming", "mental_disbelief", "none"]
@@ -59,6 +60,21 @@ class Construct:
     @property
     def destructible(self) -> bool:
         return self.def_value is not None and self.body is not None
+
+
+def constructs_containing(pos: "Position", constructs: "Iterable[Construct]") -> "list[Construct]":
+    """Return constructs whose polygon contains `pos` in xy within their elevation
+    range (segment constructs are never 'containing' a point)."""
+    out: list[Construct] = []
+    for c in constructs:
+        if c.polygon_xy is None:
+            continue
+        lo, hi = c.elevation_range_m
+        if not (lo <= pos.z <= hi):
+            continue
+        if point_in_polygon_xy((pos.x, pos.y), c.polygon_xy):
+            out.append(c)
+    return out
 
 
 def construct_from_wall(wall: Wall) -> Construct:
