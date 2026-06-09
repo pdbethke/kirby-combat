@@ -66,3 +66,15 @@ def test_constructs_containing_point():
     above = constructs_containing(Position(2, 2, 5), [pool])  # out of elevation range
     assert [c.obj_id for c in inside] == ["pool"]
     assert outside == [] and above == []
+
+
+def test_construct_from_spawn_spec_builds_force_wall():
+    from kirby_combat.scene.construct import construct_from_spawn_spec
+    from kirby_combat.scene import Position
+    c = construct_from_spawn_spec(
+        obj_id="fw1", kind="force_wall",
+        segment=(Position(0, 0, 0), Position(0, 4, 0)), height_m=3.0,
+        def_value=5, body=4, source_combatant_id="cheshire", created_at_seq=12)
+    assert c.kind == "force_wall" and c.blocks_los and c.blocks_movement
+    assert c.permeability == "impermeable" and c.def_value == 5 and c.body == 4
+    assert c.source_combatant_id == "cheshire" and c.destructible

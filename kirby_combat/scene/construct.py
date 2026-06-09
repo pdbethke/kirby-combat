@@ -62,6 +62,38 @@ class Construct:
         return self.def_value is not None and self.body is not None
 
 
+def construct_from_spawn_spec(
+    *,
+    obj_id: str,
+    kind: "ConstructKind",
+    segment: "tuple[Position, Position] | None" = None,
+    polygon_xy: "list[tuple[float, float]] | None" = None,
+    elevation_range_m: "tuple[float, float]" = (0.0, 0.0),
+    height_m: float = 0.0,
+    def_value: "int | None" = None,
+    body: "int | None" = None,
+    effect: "ConstructEffect | None" = None,
+    permeability: "Permeability | None" = None,
+    source_combatant_id: "str | None" = None,
+    created_at_seq: "int | None" = None,
+) -> "Construct":
+    """Build a spawned Construct (force wall / spawn-on-destroy hazard). A
+    force_wall defaults to a LoS+movement blocking impermeable barrier; a
+    hazard_zone defaults to porous. kirby-api computes def/body/geometry from the
+    casting power (Plan 2) and passes them here. Spec §1.7."""
+    if permeability is None:
+        permeability = "impermeable" if kind in ("wall", "force_wall") else "porous"
+    blocks = kind in ("wall", "force_wall")
+    return Construct(
+        obj_id=obj_id, kind=kind, segment=segment, polygon_xy=polygon_xy,
+        elevation_range_m=elevation_range_m, height_m=height_m,
+        blocks_los=blocks, blocks_movement=blocks, permeability=permeability,
+        cover_level=4 if blocks else 0,
+        def_value=def_value, body=body, effect=effect,
+        source_combatant_id=source_combatant_id, created_at_seq=created_at_seq,
+    )
+
+
 def constructs_containing(pos: "Position", constructs: "Iterable[Construct]") -> "list[Construct]":
     """Return constructs whose polygon contains `pos` in xy within their elevation
     range (segment constructs are never 'containing' a point)."""

@@ -59,6 +59,8 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     #   - Adjustment / Entangle / Flash:  kirby_combat/session/effects.py
     #   - Recovery / status / movement:   resolved at action time, not on apply
     #   - GMOverride / EnvironmentalTriggered: structural log entries only
+    #   - ConstructDamaged / ConstructSpawned: audit-only; construct state
+    #     lives in kirby-api, not the engine session (Plan 2)
     # Rewind correctness depends on this — combatant stat mutations in apply
     # would force log replay to mirror combatant state, which is more brittle.
     if kind in {
@@ -68,6 +70,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "EnvironmentalTriggered", "GMOverride",
+        "ConstructDamaged", "ConstructSpawned",
     }:
         return replace(session, event_log=new_log, updated_at=now)
 

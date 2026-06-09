@@ -203,6 +203,28 @@ class GMOverride(_BaseEvent):
 
 
 @dataclass
+class ConstructDamaged(_BaseEvent):
+    kind: Literal["ConstructDamaged"] = field(default="ConstructDamaged", init=False)
+    construct_id: str = ""
+    body_rolled: int = 0
+    def_value: int = 0
+    body_through: int = 0
+    body_after: int = 0
+    destroyed: bool = False
+    by_combatant: str = ""
+
+
+@dataclass
+class ConstructSpawned(_BaseEvent):
+    kind: Literal["ConstructSpawned"] = field(default="ConstructSpawned", init=False)
+    construct_id: str = ""
+    construct_kind: str = "force_wall"
+    def_value: int | None = None
+    body: int | None = None
+    source_combatant: str = ""
+
+
+@dataclass
 class SessionEnded(_BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
@@ -230,6 +252,8 @@ CombatEvent = (
     | FlashApplied
     | FlashRecovered
     | EnvironmentalTriggered
+    | ConstructDamaged
+    | ConstructSpawned
     | GMOverride
     | SessionEnded
 )
