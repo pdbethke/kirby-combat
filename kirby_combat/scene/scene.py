@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from kirby_combat.scene.construct import Construct
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,7 @@ class Wall:
     blocks_movement: bool = True
     cover_level: int = 4                    # partial cover granted to those behind
     body: int = 6                           # BODY to break through
+    def_value: int | None = None            # resistant DEF an attack must beat (None = legacy/indestructible)
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,7 @@ class Scene:
     hazards: list[Hazard]
     ambient: AmbientConditions
     combatant_positions: dict[str, Position] = field(default_factory=dict)
+    constructs: list["Construct"] = field(default_factory=list)
 
     def place_combatant(self, combatant_id: str, position: Position) -> "Scene":
         """Return a new Scene with the combatant positioned.
