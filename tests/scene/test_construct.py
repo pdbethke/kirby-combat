@@ -45,3 +45,12 @@ def test_scene_constructs_defaults_empty():
               bounds=SceneBounds(min_x=0, min_y=0, min_z=0, max_x=10, max_y=10, max_z=5),
               surfaces=[], walls=[], hazards=[], ambient=AmbientConditions())
     assert s.constructs == []
+
+
+def test_construct_from_hazard_rejects_empty_effect():
+    import pytest
+    hz = Hazard(id="h0", name="nothing", polygon_xy=[(0, 0), (1, 0), (1, 1)],
+                elevation_range_m=(0.0, 1.0), trigger="on_enter",
+                effect=HazardEffect(damage_dice=0, damage_type="normal", status_inflicted=None))
+    with pytest.raises(ValueError):
+        construct_from_hazard(hz)

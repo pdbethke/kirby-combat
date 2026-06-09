@@ -79,6 +79,11 @@ def construct_from_hazard(hazard: Hazard) -> Construct:
     physical-DEF-gated damage or a status). Suffocation hazards are authored as
     Constructs directly by kirby-api, not via the legacy Hazard model."""
     eff = hazard.effect
+    if not eff.damage_dice and not eff.status_inflicted:
+        raise ValueError(
+            f"Hazard {hazard.id!r}: HazardEffect has neither damage_dice nor "
+            "status_inflicted — nothing to project into a Construct effect"
+        )
     kind: EffectKind = "damage" if eff.damage_dice else "status"
     return Construct(
         obj_id=hazard.id, kind="hazard_zone",
