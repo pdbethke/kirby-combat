@@ -567,6 +567,35 @@ class HeroCombatant:
         _walk(self.hero.powers)
         return items
 
+    def has_self_contained_breathing(self) -> bool:
+        """True if a Life Support power grants Self-Contained Breathing / no need
+        to breathe — immune to suffocation. Walks hero.powers (the engine reads
+        the LoadedHero; there is no flat helper)."""
+        for p in getattr(self.hero, "powers", []) or []:
+            if (getattr(p, "xmlid", "") or "").upper() != "LIFESUPPORT":
+                continue
+            blob = " ".join([
+                (getattr(p, "alias", "") or ""),
+                (getattr(p, "name", "") or ""),
+                " ".join((getattr(a, "alias", "") or "") for a in getattr(p, "adders", []) or []),
+                " ".join((getattr(a, "option_alias", "") or "") for a in getattr(p, "adders", []) or []),
+            ]).lower()
+            if "self-contained breathing" in blob or "does not breathe" in blob or "self contained" in blob:
+                return True
+        return False
+
+    def can_swim(self) -> bool:
+        """False if explicitly flagged (the 'cannot_swim' session status — set by
+        kirby-api/demo for e.g. a cat) OR no swimming capability; else True.
+        Everyone has base Swimming in 6E, so the marker is the decisive signal."""
+        if "cannot_swim" in self.state.statuses:
+            return False
+        try:
+            swim = float(self.hero.characteristic_value("SWIMMING")) or 4.0  # 6E base swimming
+        except Exception:
+            swim = 4.0  # 6E base swimming
+        return swim > 0.0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers — pure functions over a LoadedHero. These are the bridge between
