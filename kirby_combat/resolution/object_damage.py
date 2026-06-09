@@ -6,8 +6,8 @@ dice by hand). Spec 2026-06-09 §1.2.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace  # noqa: F401  # replace used by Task 4
-from typing import Iterable  # noqa: F401  # Iterable used by Task 4
+from dataclasses import dataclass, replace
+from typing import Iterable
 
 from kirby_combat.models import AttackPower, DiceValues
 from kirby_combat.template import CombatTemplate
@@ -53,3 +53,25 @@ def apply_attack_to_construct(
         body_through=body_through, body_before=body_before,
         body_after=max(0, body_after), destroyed=destroyed, audit=audit,
     )
+
+
+def apply_autofire_to_construct(
+    power: AttackPower,
+    per_shot_dice: Iterable[DiceValues],
+    construct: Construct,
+    template: CombatTemplate,
+) -> list[ConstructDamageResult]:
+    """Apply an autofire/rapid-fire burst to a construct shot-by-shot. DEF applies
+    PER SHOT (HERO-correct: a machine gun shreds wood, barely chips steel). Stops
+    once destroyed; remaining shots are not applied. Spec §1.2."""
+    results: list[ConstructDamageResult] = []
+    current = construct
+    for dice in per_shot_dice:
+        if not current.destructible or current.body <= 0:
+            break
+        r = apply_attack_to_construct(power, dice, current, template)
+        results.append(r)
+        if r.destroyed:
+            break
+        current = replace(current, body=r.body_after)
+    return results

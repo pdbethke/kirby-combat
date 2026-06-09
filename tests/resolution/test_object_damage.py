@@ -48,3 +48,23 @@ def test_indestructible_construct_rejected():
     with pytest.raises(ValueError):
         apply_attack_to_construct(_power(3), _dice([6, 6, 6]),
                                   Construct(obj_id="z", kind="hazard_zone"), tmpl)
+
+
+def test_autofire_applies_def_per_shot():
+    from kirby_combat.resolution.object_damage import apply_autofire_to_construct
+    tmpl = CombatTemplate(name="t")
+    # Each shot: [6,6,6] -> BODY 6, DEF 2 -> 4 through. Wood BODY 4 -> destroyed on shot 1.
+    shots = [_dice([6, 6, 6]) for _ in range(5)]
+    res = apply_autofire_to_construct(_power(3), shots, _wall_construct(2, 4), tmpl)
+    assert res[0].destroyed is True
+    assert len(res) == 1  # stops once destroyed; remaining shots not applied
+
+
+def test_autofire_chips_steel_over_multiple_shots():
+    from kirby_combat.resolution.object_damage import apply_autofire_to_construct
+    tmpl = CombatTemplate(name="t")
+    # DEF 9 steel: [6,6,6] -> BODY 6 < DEF 9 -> 0 through every shot; never falls.
+    shots = [_dice([6, 6, 6]) for _ in range(5)]
+    res = apply_autofire_to_construct(_power(3), shots, _wall_construct(9, 10), tmpl)
+    assert len(res) == 5 and all(r.body_through == 0 for r in res)
+    assert res[-1].body_after == 10 and res[-1].destroyed is False
