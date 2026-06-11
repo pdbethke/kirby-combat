@@ -33,6 +33,8 @@ class AttackPower:
     armor_piercing: int           # levels of armor piercing
     penetrating: int              # levels of penetrating
     increased_stun_mult: int      # +N to killing stun multiplier
+    is_ranged: bool = False       # True when range_m > 0
+    reach_m: float = 0.0         # effective melee reach in metres (0.0 for ranged)
 
 
 @dataclass

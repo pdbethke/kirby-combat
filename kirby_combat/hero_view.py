@@ -160,6 +160,9 @@ class HeroCombatStats:
     max_body: int
     max_end: int
 
+    # Movement / reach
+    reach_m: float = 0.0         # effective melee reach in metres (2m + Stretching)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HeroCombatant — the HD-shaped Combatant
@@ -436,6 +439,7 @@ class HeroCombatant:
             stats.rpd = min(stats.rpd, stats.pd)
         if "red" not in self.state.aids:
             stats.red = min(stats.red, stats.ed)
+        stats.reach_m = _base_reach_m(self.hero)
         return stats
 
     def attack_view(
@@ -487,6 +491,7 @@ class HeroCombatant:
                 )
             return _build_attack_power(
                 power, str_for_augmentation=self.combat_stats().str_,
+                hero=self.hero,
             )
 
         power = _find_power(self.hero, power_xmlid, slot_xmlid=slot_xmlid)
@@ -496,6 +501,7 @@ class HeroCombatant:
             )
         return _build_attack_power(
             power, str_for_augmentation=self.combat_stats().str_,
+            hero=self.hero,
         )
 
     def str_strike_view(self) -> AttackPower:
@@ -531,6 +537,8 @@ class HeroCombatant:
             armor_piercing=0,
             penetrating=0,
             increased_stun_mult=0,
+            is_ranged=False,
+            reach_m=_base_reach_m(self.hero),
         )
 
     def defense_view(self) -> list[DefenseItem]:
@@ -605,6 +613,29 @@ class HeroCombatant:
 # HD's full-fidelity model and the flat AttackPower / DefenseItem records the
 # resolution layer consumes.
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Reach constants (reach spec §1)
+# _BASE_REACH_M: 6E hex-adjacency (2m). Combatants in adjacent hexes can
+#   make melee attacks; beyond this range HTH is not available without
+#   Stretching or a move-and-strike action.
+# _STRETCH_M_PER_LEVEL: each level of the Stretching power extends reach by
+#   1 metre. Verified against Main6E.hdt: LVLCOST="1" LVLVAL="1" → 1 CP per
+#   1m, so LEVELS == metres of stretching. Evidence: Ravel.hdc LEVELS="8"
+#   → 8m stretch, total reach 10m.
+_BASE_REACH_M: float = 2.0
+_STRETCH_M_PER_LEVEL: float = 1.0
+
+
+def _base_reach_m(hero) -> float:
+    """Effective melee reach in metres: 2m base + Stretching levels (in metres).
+
+    Mirrors the power-walk pattern used for FORCEFIELD/can_swim().
+    """
+    stretch = 0
+    for p in getattr(hero, "powers", []) or []:
+        if (getattr(p, "xmlid", None) or "").upper() == "STRETCHING":
+            stretch += int(getattr(p, "levels", 0) or 0)
+    return _BASE_REACH_M + stretch * _STRETCH_M_PER_LEVEL
 
 
 # Defense xmlids that appear on hero.powers and contribute to defense_view().
@@ -1049,7 +1080,12 @@ def _str_augment_dice(
     return new_steps // 2, bool(new_steps % 2)
 
 
-def _build_attack_power(power, *, str_for_augmentation: int = 0) -> AttackPower:
+def _build_attack_power(
+    power,
+    *,
+    str_for_augmentation: int = 0,
+    hero=None,
+) -> AttackPower:
     """Project a HD power into the flat AttackPower record.
 
     ``str_for_augmentation`` is the wielder's effective STR. When the
@@ -1057,6 +1093,11 @@ def _build_attack_power(power, *, str_for_augmentation: int = 0) -> AttackPower:
     STR/5 DCs of damage are added to the base dice subject to the 6E
     Doubling Rule (cap at base DCs). Pass 0 (or omit) for views that
     don't need augmentation, e.g. when only inspecting the bare power.
+
+    ``hero`` (optional): the attacker's hero object. When provided,
+    ``is_ranged`` and ``reach_m`` are set on the returned AttackPower.
+    Melee attacks carry the attacker's effective reach (2m + Stretching);
+    ranged attacks carry 0.0 for reach_m.
     """
     xmlid = (getattr(power, "xmlid", None) or "").upper()
     name = (getattr(power, "name", None) or "").strip() or xmlid
@@ -1088,6 +1129,9 @@ def _build_attack_power(power, *, str_for_augmentation: int = 0) -> AttackPower:
         except (TypeError, ValueError):
             range_m = 0.0
 
+    is_ranged = range_m > 0
+    reach_m_val = 0.0 if is_ranged else (_base_reach_m(hero) if hero is not None else 0.0)
+
     return AttackPower(
         xmlid=xmlid,
         name=name,
@@ -1102,4 +1146,6 @@ def _build_attack_power(power, *, str_for_augmentation: int = 0) -> AttackPower:
         armor_piercing=armor_piercing,
         penetrating=penetrating,
         increased_stun_mult=0,
+        is_ranged=is_ranged,
+        reach_m=reach_m_val,
     )
