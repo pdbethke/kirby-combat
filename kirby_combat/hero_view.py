@@ -538,7 +538,7 @@ class HeroCombatant:
             penetrating=0,
             increased_stun_mult=0,
             is_ranged=False,
-            reach_m=_base_reach_m(self.hero),
+            reach_m=stats.reach_m,
         )
 
     def defense_view(self) -> list[DefenseItem]:
@@ -1084,6 +1084,9 @@ def _build_attack_power(
     power,
     *,
     str_for_augmentation: int = 0,
+    # Degraded-mode contract: when hero is None, melee reach_m falls back to
+    # 0.0 (see reach_m_val below). Callers that need correct melee reach MUST
+    # pass hero=<the attacker's hero object>.
     hero=None,
 ) -> AttackPower:
     """Project a HD power into the flat AttackPower record.
