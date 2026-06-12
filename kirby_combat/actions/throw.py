@@ -94,3 +94,30 @@ class Throw:
             max_distance_m=max_dist,
             phase_cost="half",
         )
+
+
+def resolve_object_throw(
+    thrower_str: int,
+    pd: int,
+    body: int,
+    damage_type: str = "normal",
+) -> tuple[int, str]:
+    """Thrown-object damage (6E2 p82): the thrower's STR damage dice capped by
+    the object's PD + BODY.  blunt → normal, sharp → killing (caller sets damage_type).
+
+    STR damage dice = STR // 5.  The cap is max(0, pd + body) so a 0/0 object
+    yields 0 dice regardless of STR.
+
+    Args:
+        thrower_str: Attacker's STR characteristic.
+        pd:          Object's PD (physical defence / hardness).
+        body:        Object's BODY (structural toughness).
+        damage_type: "normal" for blunt objects, "killing" for sharp/edged.
+
+    Returns:
+        (damage_dice, damage_type) — the number of dice to roll and the type
+        string to pass to the attack resolver.
+    """
+    str_dice = max(0, int(thrower_str) // 5)
+    cap = max(0, int(pd) + int(body))
+    return (min(str_dice, cap), damage_type)
