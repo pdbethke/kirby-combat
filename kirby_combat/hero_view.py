@@ -164,6 +164,35 @@ class HeroCombatStats:
     reach_m: float = 0.0         # effective melee reach in metres (2m + Stretching)
 
 
+@dataclass(frozen=True)
+class MartialManeuverView:
+    """A combat-ready martial maneuver built from a character's OWN bought
+    maneuver (not the static MARTIAL_MANEUVERS table). Feeds
+    MartialArtsModifiers (actions/martial_arts.py) → resolve_attack.
+
+    The boolean flags (is_attack/is_block/is_dodge/target_falls) are derived
+    from the maneuver's raw EFFECT string — grounded in Cheshire's real data
+    (e.g. Martial Dodge effect="Dodge, Affects All Attacks, Abort";
+    Martial Throw effect="[NORMALDC] +v/10, Target Falls").
+    """
+
+    maneuver_id: str       # stable id for declare(): "{xmlid}:{name}"
+    name: str              # display/alias — what the menu shows ("Martial Dodge")
+    ocv: int               # parsed flat OCV modifier (velocity → 0 at view time)
+    dcv: int               # parsed flat DCV modifier
+    dc_bonus: int          # extra damage classes
+    add_str: bool          # whether STR damage is added
+    damage_type: str       # "normal" | "killing"
+    phase: str             # "1/2" | "full" | "none"
+    category_is_ranged: bool
+    reach_m: float         # HTH reach (0.0 if ranged)
+    is_attack: bool        # makes a to-hit roll (False for Dodge/Escape/Block)
+    is_block: bool         # reactive Block (abort-eligible)
+    is_dodge: bool         # reactive Dodge (abort-eligible)
+    target_falls: bool     # target knocked prone on a hit
+    effect: str            # raw EFFECT string (display + future special handling)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HeroCombatant — the HD-shaped Combatant
 # ─────────────────────────────────────────────────────────────────────────────
@@ -587,6 +616,71 @@ class HeroCombatant:
         levels → metres. Zero-distance entries are suppressed.
         """
         return _movement_capabilities(self.hero)
+
+    def maneuver_view(self) -> list["MartialManeuverView"]:
+        """Build a MartialManeuverView per bought martial maneuver on this
+        character (martial-arts §3). Reads ``self.hero.martial_arts``; parses
+        the HD CV grammar via ``parse_cv``; reuses ``_base_reach_m`` for HTH
+        reach. Robust to a missing list (returns ``[]``) and to a maneuver
+        missing any field (getattr fallbacks).
+
+        Only real maneuvers (``xmlid == "MANEUVER"``) are surfaced — the
+        loader's MARTIALARTS section also yields a blank List wrapper
+        (``GENERIC_OBJECT``) and extra-damage-class elements (``EXTRADC``),
+        which are not declarable maneuvers and are filtered out.
+
+        Flag heuristics are grounded in the maneuvers' actual EFFECT strings
+        (Cheshire's real data), not the display names:
+          - is_dodge:  "dodge" in effect  (Martial Dodge: "Dodge, ...")
+          - is_block:  "block" in effect  (Defensive Block: "Block, Abort")
+          - target_falls: "target falls" in effect (Throws: "...; Target Falls")
+          - is_attack: a to-hit maneuver — False for Dodge/Block and for
+            Escape (escapes a Grab, no offensive roll: "[STRDC] vs. Grabs").
+        """
+        from kirby_combat.actions.cv_parser import parse_cv
+
+        out: list[MartialManeuverView] = []
+        reach = _base_reach_m(self.hero)
+        for m in getattr(self.hero, "martial_arts", None) or []:
+            # Only declarable maneuvers; skip List wrappers / EXTRADC elements.
+            if (getattr(m, "xmlid", "") or "").upper() != "MANEUVER":
+                continue
+
+            effect = getattr(m, "effect", "") or ""
+            effect_l = effect.lower()
+            ocv = parse_cv(getattr(m, "ocv", "--")).flat()
+            dcv = parse_cv(getattr(m, "dcv", "--")).flat()
+            is_ranged = (getattr(m, "category", "Hand To Hand") or "").strip().lower().startswith("ranged")
+            dt_int = int(getattr(m, "damage_type", 0) or 0)
+            damage_type = "killing" if dt_int == 3 else "normal"
+
+            is_dodge = "dodge" in effect_l
+            is_block = "block" in effect_l
+            # Dodge / Block are reactive (no offensive to-hit). Escape ("vs. Grabs")
+            # breaks free of a Grab and rolls no attack either.
+            is_escape = "vs. grabs" in effect_l or "escape" in effect_l
+            is_attack = not (is_dodge or is_block or is_escape)
+            target_falls = "target falls" in effect_l
+
+            name = str(getattr(m, "display", "") or getattr(m, "_alias", "") or "Maneuver")
+            out.append(MartialManeuverView(
+                maneuver_id=f"{getattr(m, 'xmlid', 'MANEUVER')}:{name}",
+                name=name,
+                ocv=ocv,
+                dcv=dcv,
+                dc_bonus=int(getattr(m, "dc", 0) or getattr(m, "dcs", 0) or 0),
+                add_str=bool(getattr(m, "add_str", False)),
+                damage_type=damage_type,
+                phase=str(getattr(m, "phase", "1/2") or "1/2"),
+                category_is_ranged=is_ranged,
+                reach_m=0.0 if is_ranged else reach,
+                is_attack=is_attack,
+                is_block=is_block,
+                is_dodge=is_dodge,
+                target_falls=target_falls,
+                effect=effect,
+            ))
+        return out
 
     def has_self_contained_breathing(self) -> bool:
         """True if a Life Support power grants Self-Contained Breathing / no need
