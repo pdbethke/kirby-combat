@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from kirby_combat.models import AttackPower, DefenseItem
+from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 
 if TYPE_CHECKING:
     # Avoid forcing hero-designer-python import at module load time;
@@ -575,6 +575,19 @@ class HeroCombatant:
         _walk(self.hero.powers)
         return items
 
+    def movement_view(self) -> list[MovementCapability]:
+        """All movement modes available to this combatant, with distances + END.
+
+        Mirrors ``attacks`` / ``defense_view``: one ``MovementCapability``
+        entry per mode the combatant actually has (combat_m > 0).
+
+        Characteristic-derived modes (RUNNING, LEAPING) come from the
+        cost-engine figured values; power-derived modes (FLIGHT,
+        TELEPORTATION, SWIMMING, TUNNELING) come from ``hero.powers``
+        levels → metres. Zero-distance entries are suppressed.
+        """
+        return _movement_capabilities(self.hero)
+
     def has_self_contained_breathing(self) -> bool:
         """True if a Life Support power grants Self-Contained Breathing / no need
         to breathe — immune to suffocation. Walks hero.powers (the engine reads
@@ -636,6 +649,99 @@ def _base_reach_m(hero) -> float:
         if (getattr(p, "xmlid", None) or "").upper() == "STRETCHING":
             stretch += int(getattr(p, "levels", 0) or 0)
     return _BASE_REACH_M + stretch * _STRETCH_M_PER_LEVEL
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Movement capability view (movement spec §1)
+#
+# _MOVE_M_PER_LEVEL: each level of a movement power adds 1 metre of combat
+#   speed. Verified against Gyre.hdc: FLIGHT LEVELS="15" → 15m flight
+#   (characteristic_value("FLIGHT") returns 0.0 — FLIGHT is a power, not a
+#   characteristic; levels map 1:1 to metres). Applies equally to
+#   TELEPORTATION, SWIMMING, and TUNNELING.
+#
+# END/NCM table — sourced directly from the movement classes:
+#   running, leaping, flight, swimming: end_per_10m=1, noncombat_multiplier=4
+#   teleportation:                       end_per_10m=2, noncombat_multiplier=1
+#   tunneling:                           end_per_10m=1, noncombat_multiplier=1
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MOVE_M_PER_LEVEL: float = 1.0
+
+# xmlids for movement powers (characteristics RUNNING/LEAPING handled separately)
+_MOVE_POWER_XMLIDS: frozenset[str] = frozenset(
+    {"FLIGHT", "TELEPORTATION", "SWIMMING", "TUNNELING"}
+)
+
+# Per-mode END cost + noncombat multiplier
+# Format: mode_name → (end_per_10m, noncombat_multiplier)
+_MOVE_MODE_PARAMS: dict[str, tuple[int, int]] = {
+    "running":      (1, 4),
+    "leaping":      (1, 4),
+    "flight":       (1, 4),
+    "swimming":     (1, 4),
+    "teleportation": (2, 1),
+    "tunneling":    (1, 1),
+}
+
+# Map power xmlid → canonical mode name
+_MOVE_XMLID_TO_MODE: dict[str, str] = {
+    "FLIGHT":        "flight",
+    "TELEPORTATION": "teleportation",
+    "SWIMMING":      "swimming",
+    "TUNNELING":     "tunneling",
+}
+
+
+def _movement_capabilities(hero) -> list[MovementCapability]:
+    """Enumerate every movement mode available to the hero.
+
+    Emits one ``MovementCapability`` per mode that has combat_m > 0:
+    - RUNNING and LEAPING come from ``hero.characteristic_value()``; these
+      are the cost-engine figured characteristics (STR-derived for LEAPING),
+      already in metres.
+    - FLIGHT/TELEPORTATION/SWIMMING/TUNNELING are powers — walk hero.powers
+      for each xmlid and convert levels → metres via ``_MOVE_M_PER_LEVEL``.
+
+    Zero-distance modes (no levels, or characteristic value == 0) are
+    omitted so callers never see dead entries.
+    """
+    out: list[MovementCapability] = []
+
+    # ── Characteristic-derived modes ────────────────────────────────────────
+    for xmlid, mode in (("RUNNING", "running"), ("LEAPING", "leaping")):
+        combat_m = float(hero.characteristic_value(xmlid))
+        if combat_m <= 0:
+            continue
+        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        vertical_m = combat_m / 2.0 if mode == "leaping" else 0.0
+        out.append(MovementCapability(
+            mode=mode,
+            combat_m=combat_m,
+            noncombat_m=combat_m * ncm,
+            end_per_10m=end_per_10m,
+            vertical_m=vertical_m,
+        ))
+
+    # ── Power-derived modes ─────────────────────────────────────────────────
+    for p in getattr(hero, "powers", []) or []:
+        xmlid = (getattr(p, "xmlid", None) or "").upper()
+        if xmlid not in _MOVE_POWER_XMLIDS:
+            continue
+        combat_m = int(getattr(p, "levels", 0) or 0) * _MOVE_M_PER_LEVEL
+        if combat_m <= 0:
+            continue
+        mode = _MOVE_XMLID_TO_MODE[xmlid]
+        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        out.append(MovementCapability(
+            mode=mode,
+            combat_m=combat_m,
+            noncombat_m=combat_m * ncm,
+            end_per_10m=end_per_10m,
+            vertical_m=0.0,
+        ))
+
+    return out
 
 
 # Defense xmlids that appear on hero.powers and contribute to defense_view().

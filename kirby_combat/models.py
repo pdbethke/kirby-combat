@@ -232,3 +232,28 @@ class AttackResult:
     status_changes: list[str]
     power_xmlid: str
     audit_trail: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MovementCapability:
+    """One movement mode available to a combatant (movement spec §1).
+
+    Produced by ``HeroCombatant.movement_view()``. Mirrors ``AttackPower``
+    in role: a flat, computed view of one mode read from characteristics
+    (RUNNING/LEAPING) or powers (FLIGHT/TELEPORTATION/SWIMMING/TUNNELING).
+
+    Fields:
+        mode         — canonical name: running | leaping | flight |
+                       teleportation | swimming | tunneling
+        combat_m     — full-phase combat movement distance in metres
+        noncombat_m  — noncombat distance (combat_m × NCM per mode)
+        end_per_10m  — END cost per 10 metres moved (1 or 2)
+        vertical_m   — maximum vertical distance in metres; leaping only
+                       (= combat_m / 2 per 6E); 0.0 for all other modes
+    """
+
+    mode: str
+    combat_m: float
+    noncombat_m: float
+    end_per_10m: int
+    vertical_m: float = 0.0
