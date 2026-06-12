@@ -43,6 +43,71 @@ class MartialArtsModifiers:
     target_falls: bool        # True if maneuver knocks target prone
     is_block: bool            # True if maneuver is reactive Block (Martial Block)
 
+    @classmethod
+    def from_maneuver_view(
+        cls,
+        mv: "MartialManeuverView",
+        *,
+        csl_allocation: Optional[dict[str, int]] = None,
+        extra_dc_levels: int = 0,
+    ) -> "MartialArtsModifiers":
+        """Build modifiers from a per-character ``MartialManeuverView``
+        (kirby_combat.hero_view) WITHOUT consulting the static
+        ``MARTIAL_MANEUVERS`` table — this is the §3 seam that lets a character
+        fight with the exact maneuvers they bought (custom names included).
+
+        The CSL + extra-DC folding mirrors ``_compute_modifiers`` exactly so a
+        custom maneuver behaves identically to a static-table one:
+        ``ocv += csl["ocv"]``; ``dcv += csl["dcv"]``;
+        ``dc_bonus += csl["dc"] + extra_dc_levels``. The view already carries
+        the parsed flat OCV/DCV (HD CV grammar resolved at view-build time) and
+        the derived damage-type / target-falls / is-block flags, so this method
+        only layers the per-action CSL/extra-DC adjustments on top.
+        """
+        csl = csl_allocation or {}
+        ocv = mv.ocv + int(csl.get("ocv", 0) or 0)
+        dcv = mv.dcv + int(csl.get("dcv", 0) or 0)
+        dc_bonus = mv.dc_bonus + int(csl.get("dc", 0) or 0) + int(extra_dc_levels or 0)
+        return cls(
+            maneuver_id=mv.maneuver_id,
+            ocv=ocv, dcv=dcv, dc_bonus=dc_bonus,
+            damage_type=mv.damage_type,
+            target_falls=mv.target_falls,
+            is_block=mv.is_block,
+        )
+
+    def as_params(self) -> dict[str, Any]:
+        """JSON-friendly dict for storing pre-built modifiers in an event's
+        ``parameters`` (keeps the event log serializable like the static path,
+        which stores only ints/strings)."""
+        return {
+            "maneuver_id": self.maneuver_id,
+            "ocv": self.ocv,
+            "dcv": self.dcv,
+            "dc_bonus": self.dc_bonus,
+            "damage_type": self.damage_type,
+            "target_falls": self.target_falls,
+            "is_block": self.is_block,
+        }
+
+
+def modifiers_for_maneuver_view(
+    mv: "MartialManeuverView",
+    *,
+    csl_allocation: Optional[dict[str, int]] = None,
+    extra_dc_levels: int = 0,
+) -> MartialArtsModifiers:
+    """Module-level convenience wrapper around
+    ``MartialArtsModifiers.from_maneuver_view``. This is the entry point §4
+    (kirby-api driver) calls to turn a per-character ``MartialManeuverView``
+    into applied modifiers, which it then passes to
+    ``MartialArts.declare(session, cid, modifiers=...)`` to flow through the
+    existing declare → ``modifiers_for_pending_attack`` → resolve_attack path.
+    """
+    return MartialArtsModifiers.from_maneuver_view(
+        mv, csl_allocation=csl_allocation, extra_dc_levels=extra_dc_levels,
+    )
+
 
 class MartialArts:
     """Martial Arts maneuver declaration + modifier projection."""
@@ -54,21 +119,44 @@ class MartialArts:
         session: CombatSession,
         combatant_id: str,
         *,
-        maneuver_id: str,
+        maneuver_id: Optional[str] = None,
         csl_allocation: Optional[dict[str, int]] = None,
         extra_dc_levels: int = 0,
+        modifiers: Optional["MartialArtsModifiers"] = None,
     ) -> tuple[CombatSession, ActionDeclared]:
-        """Declare a martial maneuver. Records all parameters in event_log."""
+        """Declare a martial maneuver. Records all parameters in event_log.
+
+        Two paths, sharing one resolve seam:
+
+        - **Static** (``maneuver_id=...``): the maneuver is looked up in
+          ``MARTIAL_MANEUVERS``; unknown ids are rejected. CSL/extra-DC fold in
+          at ``modifiers_for_pending_attack`` time via ``_compute_modifiers``.
+          This path is unchanged from before — same guard, same params shape.
+
+        - **Per-character** (``modifiers=...``): a caller (§4's kirby-api driver,
+          via ``modifiers_for_maneuver_view``) passes pre-built
+          ``MartialArtsModifiers`` derived from the character's OWN bought
+          maneuver — which need NOT exist in ``MARTIAL_MANEUVERS``. The static
+          table guard is skipped; the already-folded modifiers (CSL + extra-DC
+          baked in at ``from_maneuver_view`` time) are stored as a plain dict and
+          replayed verbatim. This is the smallest non-breaking seam: it reuses
+          the existing declare → ``modifiers_for_pending_attack`` → resolve flow
+          rather than adding a parallel resolver, and leaves the static-id path
+          byte-for-byte identical.
+        """
         from kirby_combat.session.apply import apply_event
 
-        if maneuver_id not in MARTIAL_MANEUVERS:
-            raise ValueError(f"unknown martial maneuver: {maneuver_id!r}")
+        if modifiers is not None:
+            params: dict[str, Any] = {"prebuilt_modifiers": modifiers.as_params()}
+        else:
+            if maneuver_id not in MARTIAL_MANEUVERS:
+                raise ValueError(f"unknown martial maneuver: {maneuver_id!r}")
 
-        params: dict[str, Any] = {
-            "maneuver_id": maneuver_id,
-            "csl_allocation": dict(csl_allocation or {}),
-            "extra_dc_levels": int(extra_dc_levels),
-        }
+            params = {
+                "maneuver_id": maneuver_id,
+                "csl_allocation": dict(csl_allocation or {}),
+                "extra_dc_levels": int(extra_dc_levels),
+            }
 
         evt = ActionDeclared(
             id=str(uuid.uuid4()),
@@ -127,7 +215,24 @@ class MartialArts:
 
 
 def _compute_modifiers(params: dict[str, Any]) -> MartialArtsModifiers:
-    """Pure: combine maneuver row + CSL allocation + extra DC levels."""
+    """Pure: combine maneuver row + CSL allocation + extra DC levels.
+
+    If the declaration carried ``prebuilt_modifiers`` (the per-character §3
+    path), those are replayed verbatim — CSL/extra-DC were already folded in at
+    ``from_maneuver_view`` time, and there's no static-table row to consult.
+    """
+    pre = params.get("prebuilt_modifiers")
+    if pre is not None:
+        return MartialArtsModifiers(
+            maneuver_id=pre["maneuver_id"],
+            ocv=int(pre["ocv"]),
+            dcv=int(pre["dcv"]),
+            dc_bonus=int(pre["dc_bonus"]),
+            damage_type=pre["damage_type"],
+            target_falls=bool(pre["target_falls"]),
+            is_block=bool(pre["is_block"]),
+        )
+
     maneuver_id = params.get("maneuver_id", "")
     csl = params.get("csl_allocation") or {}
     extra_dc = int(params.get("extra_dc_levels", 0) or 0)

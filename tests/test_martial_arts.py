@@ -109,3 +109,76 @@ def test_unknown_maneuver_raises():
     except ValueError:
         return
     raise AssertionError("declare() should reject unknown maneuver ids")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 3.3 — per-character maneuvers (NOT in the static MARTIAL_MANEUVERS table)
+# flow through MartialArtsModifiers + the existing declare/resolve seam.
+# ─────────────────────────────────────────────────────────────────────────────
+
+from kirby_combat.actions.martial_arts import (  # noqa: E402
+    MartialArtsModifiers,
+    modifiers_for_maneuver_view,
+)
+from kirby_combat.hero_view import MartialManeuverView  # noqa: E402
+
+
+def _mv(**kw) -> MartialManeuverView:
+    base = dict(
+        maneuver_id="MANEUVER:Aikijutsu Strike", name="Aikijutsu Strike",
+        ocv=0, dcv=2, dc_bonus=4, add_str=True, damage_type="normal",
+        phase="1/2", category_is_ranged=False, reach_m=2.0, is_attack=True,
+        is_block=False, is_dodge=False, target_falls=False, effect="",
+    )
+    base.update(kw)
+    return MartialManeuverView(**base)
+
+
+def test_modifiers_from_a_custom_maneuver_not_in_the_static_table():
+    # "Aikijutsu Strike" is NOT in MARTIAL_MANEUVERS — must still build modifiers.
+    mods = MartialArtsModifiers.from_maneuver_view(_mv())
+    assert mods.ocv == 0
+    assert mods.dcv == 2
+    assert mods.dc_bonus == 4          # before extra DCs / CSL
+    assert mods.damage_type == "normal"
+    assert mods.is_block is False
+
+
+def test_from_maneuver_view_applies_extra_dc_and_csl():
+    mods = MartialArtsModifiers.from_maneuver_view(
+        _mv(), extra_dc_levels=2, csl_allocation={"dc": 1})
+    assert mods.dc_bonus == 4 + 2 + 1
+
+
+def test_from_maneuver_view_folds_csl_into_ocv_and_dcv():
+    mods = MartialArtsModifiers.from_maneuver_view(
+        _mv(), csl_allocation={"ocv": 2, "dcv": 1})
+    assert mods.ocv == 0 + 2
+    assert mods.dcv == 2 + 1
+
+
+def test_block_maneuver_marks_is_block():
+    mods = MartialArtsModifiers.from_maneuver_view(
+        _mv(name="Defensive Block", is_block=True, is_attack=False))
+    assert mods.is_block is True
+
+
+def test_custom_maneuver_flows_through_declare_and_resolve_seam():
+    """The per-character maneuver round-trips through the SAME declare →
+    modifiers_for_pending_attack path the static maneuvers use, without ever
+    being present in MARTIAL_MANEUVERS."""
+    from kirby_combat.tables import MARTIAL_MANEUVERS
+
+    s = _session()
+    mods = modifiers_for_maneuver_view(
+        _mv(target_falls=True), extra_dc_levels=1, csl_allocation={"ocv": 1})
+    assert mods.maneuver_id not in MARTIAL_MANEUVERS  # truly custom
+
+    s, _ = MartialArts.declare(s, "fighter", modifiers=mods)
+    out = MartialArts.modifiers_for_pending_attack(s, "fighter")
+    assert out["maneuver_id"] == "MANEUVER:Aikijutsu Strike"
+    assert out["ocv_delta"] == 0 + 1
+    assert out["dcv_delta"] == 2
+    assert out["dc_bonus"] == 4 + 1
+    assert out["target_falls"] is True
+    assert out["damage_type"] == "normal"
