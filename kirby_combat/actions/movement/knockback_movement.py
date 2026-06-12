@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING
 from kirby_combat.models import DiceValues
 from kirby_combat.resolution.knockback import compute_knockback
 from kirby_combat.scene.scene import Position, Scene, Wall
-from kirby_combat.scene.geometry import segments_intersect_xy
+from kirby_combat.scene.geometry import (
+    segments_intersect_xy,
+    segment_intersection_xy,
+    wall_height_blocks,
+)
 from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingResult
 from kirby_combat.scene.hazards import compute_hazard_triggers, HazardTriggerResult
 
@@ -51,32 +55,6 @@ def _unit_xy(from_pos: Position, to_pos: Position) -> tuple[float, float]:
     if mag < 1e-9:
         return (1.0, 0.0)            # default east when no direction available
     return (dx / mag, dy / mag)
-
-
-def _segment_intersection_xy(
-    a1: tuple[float, float], a2: tuple[float, float],
-    b1: tuple[float, float], b2: tuple[float, float],
-) -> tuple[float, float] | None:
-    """Compute the (x, y) intersection point of two segments, or None if parallel/no intersection."""
-    x1, y1 = a1
-    x2, y2 = a2
-    x3, y3 = b1
-    x4, y4 = b2
-    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-    if abs(denom) < 1e-12:
-        return None     # parallel
-    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
-    u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
-    if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
-        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
-    return None
-
-
-def _wall_height_blocks(target_z: float, wall: Wall) -> bool:
-    """True if the wall's vertical extent covers target_z."""
-    base = min(wall.segment[0].z, wall.segment[1].z)
-    top = base + wall.height_m
-    return base <= target_z <= top
 
 
 def resolve_knockback_movement(
@@ -147,7 +125,7 @@ def resolve_knockback_movement(
     for wall in collision_walls:
         if not wall.blocks_movement:
             continue
-        if not _wall_height_blocks(target_pos.z, wall):
+        if not wall_height_blocks(target_pos.z, wall):
             continue
         wa = (wall.segment[0].x, wall.segment[0].y)
         wb = (wall.segment[1].x, wall.segment[1].y)
@@ -157,7 +135,7 @@ def resolve_knockback_movement(
             wa, wb,
         ):
             continue
-        impact = _segment_intersection_xy(
+        impact = segment_intersection_xy(
             (target_pos.x, target_pos.y),
             (tentative_end.x, tentative_end.y),
             wa, wb,

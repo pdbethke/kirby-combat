@@ -1,4 +1,6 @@
 """movement_reach: per-mode traversal legality + landing + fall (movement spec §2)."""
+import pytest
+
 from kirby_combat.scene import (
     Scene, SceneBounds, Surface, Wall, Position, AmbientConditions,
 )
@@ -40,6 +42,9 @@ B_GROUND_ACROSS_WALL = Position(15, 10, 0)  # ground, beyond the wall (same z)
 ROOF_POINT_z6 = Position(15, 10, 6)         # on the rooftop surface, z == elevation
 BEYOND_ROOF_EDGE = Position(5, 10, 6)       # z=6 but off the roof polygon -> unsupported
 MIDAIR_z6 = Position(5, 10, 6)              # z=6 over ground -> not supported
+# NOTE: BEYOND_ROOF_EDGE and MIDAIR_z6 are intentionally the same point — they
+# describe the same unsupported coordinate but are named for the test's perspective
+# (leap-off-ledge vs. teleport-to-midair).
 
 
 def test_running_blocked_by_wall():
@@ -160,3 +165,73 @@ def test_unknown_mode():
     assert isinstance(out, MovementOutcome)
     assert out.reachable is False
     assert out.landing == A_GROUND
+
+
+# ---------------------------------------------------------------------------
+# M5 coverage: uncovered branches
+# ---------------------------------------------------------------------------
+
+def test_running_wall_beyond_reach_clamps_short():
+    """Wall exists on the path but is farther than distance_m.
+
+    The runner stops at the run limit (distance_m from start), not at the
+    wall.  reachable is False (target is beyond the wall, regardless).
+    """
+    scene = _arena()
+    # A_GROUND is (2,10,0); wall is at x=8 (6m away); target is at x=15.
+    # With distance_m=4 the runner can only cover 4m — stopping at x=6, short
+    # of the wall at x=8.  The wall is beyond the reach limit.
+    out = movement_reach("running", A_GROUND, B_GROUND_ACROSS_WALL,
+                         distance_m=4, scene=scene)
+    assert out.reachable is False
+    # Clamped to 4m from start (x=2) → landing at x≈6 (the wall is at x=8,
+    # so we never hit it this phase).
+    assert out.landing.x == pytest.approx(6.0, abs=1e-6)
+
+
+def test_leap_wall_too_tall_blocks():
+    """A wall whose top exceeds the vertical cap is not cleared by the leap.
+
+    Arena wall: base z=0, height=8m → top z=8.  Leaping from z=0 with
+    distance_m=6 → vertical_cap=3m.  Wall top (8m) - from_pos.z (0) = 8 > 3
+    → wall_clears=False → reachable=False.
+    """
+    scene = _arena()
+    # A_GROUND→ROOF_POINT_z6 crosses the wall at x=8.
+    # With distance_m=6: vertical_cap=3 but wall needs 8m clearance.
+    out = movement_reach("leaping", A_GROUND, ROOF_POINT_z6,
+                         distance_m=6, scene=scene)
+    assert out.reachable is False
+
+
+def test_flight_ceiling_clamp():
+    """Flight to a point above bounds.max_z is not reachable; landing is
+    clamped to the ceiling (max_z=20 in the arena)."""
+    scene = _arena()
+    above_ceiling = Position(5, 10, 25)    # above bounds.max_z=20
+    out = movement_reach("flight", A_GROUND, above_ceiling,
+                         distance_m=50, scene=scene)
+    assert out.reachable is False
+    # The clamped landing must not exceed the scene ceiling.
+    assert out.landing.z <= scene.bounds.max_z + 1e-6
+
+
+def test_tunneling_different_elevation_not_reachable():
+    """Tunneling to a point at a different z is not reachable (v1 same-elevation gate)."""
+    scene = _arena()
+    # ROOF_POINT_z6 is at z=6; A_GROUND is at z=0 — different elevations.
+    out = movement_reach("tunneling", A_GROUND, ROOF_POINT_z6,
+                         distance_m=30, scene=scene)
+    assert out.reachable is False
+
+
+def test_movement_reach_combatant_id_threads_to_fall():
+    """combatant_id is passed through to FallingResult.combatant_id."""
+    scene = _arena()
+    # Run on the rooftop and step off — this triggers a fall.
+    start = Position(12, 10, 6)
+    off_edge = Position(8.5, 10, 6)
+    out = movement_reach("running", start, off_edge, distance_m=12,
+                         scene=scene, combatant_id="hero_1")
+    assert out.fall is not None
+    assert out.fall.combatant_id == "hero_1"

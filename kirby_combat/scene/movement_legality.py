@@ -21,7 +21,8 @@ Per-mode rules (spec §2 / Decisions §3):
                   deferred).
 
 Reuses `scene/falling.py` (`is_supported_at`, `resolve_fall`) and the wall
-geometry helpers from `actions/movement/knockback_movement.py`.
+geometry helpers from `scene/geometry.py` (`segment_intersection_xy`,
+`wall_height_blocks`).
 """
 from __future__ import annotations
 
@@ -33,15 +34,13 @@ from kirby_combat.scene.geometry import (
     distance_3d,
     point_in_polygon_xy,
     segments_intersect_xy,
+    segment_intersection_xy,
+    wall_height_blocks,
 )
 from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingResult
-from kirby_combat.actions.movement.knockback_movement import (
-    _segment_intersection_xy,
-    _wall_height_blocks,
-)
 
 _EPS = 1e-6
-_FALL_COMBATANT_ID = "mover"   # placeholder id; movement_reach is combatant-agnostic
+_FALL_COMBATANT_ID = "mover"   # default; overridden by movement_reach(combatant_id=)
 
 
 @dataclass
@@ -81,7 +80,7 @@ def _first_blocking_wall_xy(
     for wall in scene.walls:
         if not wall.blocks_movement:
             continue
-        if not _wall_height_blocks(target_z, wall):
+        if not wall_height_blocks(target_z, wall):
             continue
         wa = (wall.segment[0].x, wall.segment[0].y)
         wb = (wall.segment[1].x, wall.segment[1].y)
@@ -89,7 +88,7 @@ def _first_blocking_wall_xy(
             (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), wa, wb
         ):
             continue
-        impact = _segment_intersection_xy(
+        impact = segment_intersection_xy(
             (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), wa, wb
         )
         if impact is None:
@@ -104,11 +103,13 @@ def _first_blocking_wall_xy(
     return closest
 
 
-def _maybe_fall(landing: Position, scene: Scene) -> "FallingResult | None":
+def _maybe_fall(
+    landing: Position, scene: Scene, combatant_id: str = _FALL_COMBATANT_ID
+) -> "FallingResult | None":
     if is_supported_at(landing, scene):
         return None
     return resolve_fall(
-        combatant_id=_FALL_COMBATANT_ID,
+        combatant_id=combatant_id,
         from_pos=landing,
         scene=scene,
         gravity_scale=scene.ambient.gravity_scale,
@@ -132,14 +133,21 @@ def movement_reach(
     to_pos: Position,
     distance_m: float,
     scene: Scene,
+    combatant_id: str = "mover",
 ) -> MovementOutcome:
     """Resolve whether `to_pos` is reachable from `from_pos` via `mode` with
     `distance_m` of movement capacity. Returns a MovementOutcome with the actual
-    landing position and any resulting fall."""
+    landing position and any resulting fall.
+
+    `combatant_id` is threaded to `resolve_fall` so that callers consuming
+    `MovementOutcome.fall` can treat `fall.combatant_id` as the mover's id.
+    Defaults to ``"mover"`` so existing call sites without the argument are
+    unaffected.
+    """
     if mode == "running":
-        return _running(from_pos, to_pos, distance_m, scene)
+        return _running(from_pos, to_pos, distance_m, scene, combatant_id)
     if mode == "leaping":
-        return _leaping(from_pos, to_pos, distance_m, scene)
+        return _leaping(from_pos, to_pos, distance_m, scene, combatant_id)
     if mode == "flight":
         return _flight(from_pos, to_pos, distance_m, scene)
     if mode == "teleportation":
@@ -152,7 +160,8 @@ def movement_reach(
 
 
 def _running(
-    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene,
+    combatant_id: str = _FALL_COMBATANT_ID,
 ) -> MovementOutcome:
     same_z = abs(to_pos.z - from_pos.z) <= _EPS
 
@@ -169,7 +178,7 @@ def _running(
                 _clamp_xy_toward(from_pos, impact, distance_m)
             return MovementOutcome(
                 reachable=False, landing=landing,
-                fall=_maybe_fall(landing, scene),
+                fall=_maybe_fall(landing, scene, combatant_id),
             )
         # Wall is beyond our reach; fall through to the clamp-to-distance path.
 
@@ -179,7 +188,8 @@ def _running(
         landing = _clamp_xy_toward(from_pos, to_pos, distance_m)
         landing = Position(landing.x, landing.y, from_pos.z, landing.facing)
         return MovementOutcome(
-            reachable=False, landing=landing, fall=_maybe_fall(landing, scene),
+            reachable=False, landing=landing,
+            fall=_maybe_fall(landing, scene, combatant_id),
         )
 
     # Same elevation, unblocked: reach if within distance, else clamp short.
@@ -191,12 +201,14 @@ def _running(
         landing = _clamp_xy_toward(from_pos, to_pos, distance_m)
         reachable = False
     return MovementOutcome(
-        reachable=reachable, landing=landing, fall=_maybe_fall(landing, scene),
+        reachable=reachable, landing=landing,
+        fall=_maybe_fall(landing, scene, combatant_id),
     )
 
 
 def _leaping(
-    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene,
+    combatant_id: str = _FALL_COMBATANT_ID,
 ) -> MovementOutcome:
     horizontal_cap = distance_m
     vertical_cap = distance_m / 2.0
@@ -204,9 +216,9 @@ def _leaping(
     horiz = _xy_distance(from_pos, to_pos)
     rise = to_pos.z - from_pos.z
 
-    # A wall blocks the leap only if its top, relative to the start, exceeds the
-    # leap's vertical capacity (otherwise the leap arcs over it). Reuse the
-    # wall-top computation from _wall_height_blocks (base = min seg z + height).
+    # A wall blocks the leap only if (wall_base_z + wall.height_m - from_pos.z),
+    # i.e. the wall top's height above the leaper's start, exceeds vertical_cap.
+    # If it does not, the leap arc clears it.
     wall_clears = True
     for wall in scene.walls:
         if not wall.blocks_movement:
@@ -236,7 +248,8 @@ def _leaping(
         landing = _clamp_xy_toward(from_pos, to_pos, horizontal_cap)
 
     return MovementOutcome(
-        reachable=reachable, landing=landing, fall=_maybe_fall(landing, scene),
+        reachable=reachable, landing=landing,
+        fall=_maybe_fall(landing, scene, combatant_id),
     )
 
 

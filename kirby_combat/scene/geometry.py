@@ -59,6 +59,38 @@ def segments_intersect_xy(
     return ccw(a1, b1, b2) != ccw(a2, b1, b2) and ccw(a1, a2, b1) != ccw(a1, a2, b2)
 
 
+def segment_intersection_xy(
+    a1: tuple[float, float], a2: tuple[float, float],
+    b1: tuple[float, float], b2: tuple[float, float],
+) -> "tuple[float, float] | None":
+    """Compute the (x, y) intersection point of segments a1a2 and b1b2, or
+    None if they are parallel or do not intersect."""
+    x1, y1 = a1
+    x2, y2 = a2
+    x3, y3 = b1
+    x4, y4 = b2
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(denom) < 1e-12:
+        return None     # parallel
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+    u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
+    if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+    return None
+
+
+def wall_height_blocks(target_z: float, wall: Wall) -> bool:
+    """True if the wall's vertical extent covers target_z.
+
+    wall_base_z = min(segment[0].z, segment[1].z)
+    wall_top_z  = wall_base_z + wall.height_m
+    Blocks when wall_base_z <= target_z <= wall_top_z.
+    """
+    base = min(wall.segment[0].z, wall.segment[1].z)
+    top = base + wall.height_m
+    return base <= target_z <= top
+
+
 def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) -> "Wall | None":
     """Return the LoS-blocking wall nearest to `from_` that breaks the from_->to
     line, or None if LoS is clear.
