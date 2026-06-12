@@ -1,0 +1,304 @@
+"""movement_reach — per-mode movement legality + vertical physics + fall.
+
+Pure resolver (Scene + Positions in, MovementOutcome out) for the movement
+spec §2. Given a movement `mode`, a `from_pos`/`to_pos`, and the mode's
+`distance_m` capacity, decides whether `to_pos` is reachable, what the actual
+landing position is (clamped to what the mode/distance achieves toward the
+target), and whether the landing triggers a fall.
+
+Per-mode rules (spec §2 / Decisions §3):
+  - running       same-elevation only; blocked by impermeable walls crossing the
+                  path; lands short at the wall; falls off an unsupported ledge.
+  - leaping       horizontal up to distance_m, vertical up to distance_m/2;
+                  clears a wall whose top (relative to the start) is within the
+                  leap's vertical capacity; falls if the landing is unsupported.
+  - flight        free 3D within range, up to the scene ceiling; over walls; no
+                  fall (sustained).
+  - teleportation any *supported* destination within range; ignores walls (no
+                  path); no fall.
+  - swimming      only toward/within a water surface; otherwise unavailable.
+  - tunneling     v1 simple — same/ground elevation within range (material-DEF
+                  deferred).
+
+Reuses `scene/falling.py` (`is_supported_at`, `resolve_fall`) and the wall
+geometry helpers from `actions/movement/knockback_movement.py`.
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+from kirby_combat.scene.scene import Position, Scene, Wall
+from kirby_combat.scene.geometry import (
+    distance_3d,
+    point_in_polygon_xy,
+    segments_intersect_xy,
+)
+from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingResult
+from kirby_combat.actions.movement.knockback_movement import (
+    _segment_intersection_xy,
+    _wall_height_blocks,
+)
+
+_EPS = 1e-6
+_FALL_COMBATANT_ID = "mover"   # placeholder id; movement_reach is combatant-agnostic
+
+
+@dataclass
+class MovementOutcome:
+    reachable: bool
+    landing: Position
+    fall: "FallingResult | None" = None
+
+
+def _xy_distance(a: Position, b: Position) -> float:
+    return math.hypot(b.x - a.x, b.y - a.y)
+
+
+def _clamp_xy_toward(from_pos: Position, to_pos: Position, max_d: float) -> Position:
+    """Point along the from→to xy ray clamped to `max_d` (xy distance), keeping
+    to_pos.z. If already within `max_d`, returns `to_pos`."""
+    d = _xy_distance(from_pos, to_pos)
+    if d <= max_d + _EPS or d < _EPS:
+        return to_pos
+    frac = max_d / d
+    return Position(
+        x=from_pos.x + (to_pos.x - from_pos.x) * frac,
+        y=from_pos.y + (to_pos.y - from_pos.y) * frac,
+        z=to_pos.z,
+        facing=to_pos.facing,
+    )
+
+
+def _first_blocking_wall_xy(
+    from_pos: Position, to_pos: Position, scene: Scene, target_z: float,
+) -> tuple[Wall, Position] | None:
+    """Nearest movement-blocking wall whose vertical extent covers `target_z`
+    and whose segment crosses the from→to xy path. Returns (wall, impact_pos)
+    where impact_pos is the xy intersection at `target_z`, or None."""
+    closest: tuple[Wall, Position] | None = None
+    closest_dist = math.inf
+    for wall in scene.walls:
+        if not wall.blocks_movement:
+            continue
+        if not _wall_height_blocks(target_z, wall):
+            continue
+        wa = (wall.segment[0].x, wall.segment[0].y)
+        wb = (wall.segment[1].x, wall.segment[1].y)
+        if not segments_intersect_xy(
+            (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), wa, wb
+        ):
+            continue
+        impact = _segment_intersection_xy(
+            (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), wa, wb
+        )
+        if impact is None:
+            continue
+        d = math.hypot(impact[0] - from_pos.x, impact[1] - from_pos.y)
+        if d < closest_dist:
+            closest_dist = d
+            impact_pos = Position(
+                x=impact[0], y=impact[1], z=target_z, facing=from_pos.facing
+            )
+            closest = (wall, impact_pos)
+    return closest
+
+
+def _maybe_fall(landing: Position, scene: Scene) -> "FallingResult | None":
+    if is_supported_at(landing, scene):
+        return None
+    return resolve_fall(
+        combatant_id=_FALL_COMBATANT_ID,
+        from_pos=landing,
+        scene=scene,
+        gravity_scale=scene.ambient.gravity_scale,
+    )
+
+
+def _point_in_water(pos: Position, scene: Scene) -> bool:
+    for surf in scene.surfaces:
+        if surf.surface_type != "water":
+            continue
+        if abs(surf.elevation_m - pos.z) > _EPS:
+            continue
+        if point_in_polygon_xy((pos.x, pos.y), surf.polygon_xy):
+            return True
+    return False
+
+
+def movement_reach(
+    mode: str,
+    from_pos: Position,
+    to_pos: Position,
+    distance_m: float,
+    scene: Scene,
+) -> MovementOutcome:
+    """Resolve whether `to_pos` is reachable from `from_pos` via `mode` with
+    `distance_m` of movement capacity. Returns a MovementOutcome with the actual
+    landing position and any resulting fall."""
+    if mode == "running":
+        return _running(from_pos, to_pos, distance_m, scene)
+    if mode == "leaping":
+        return _leaping(from_pos, to_pos, distance_m, scene)
+    if mode == "flight":
+        return _flight(from_pos, to_pos, distance_m, scene)
+    if mode == "teleportation":
+        return _teleportation(from_pos, to_pos, distance_m, scene)
+    if mode == "swimming":
+        return _swimming(from_pos, to_pos, distance_m, scene)
+    if mode == "tunneling":
+        return _tunneling(from_pos, to_pos, distance_m, scene)
+    return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
+
+def _running(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    same_z = abs(to_pos.z - from_pos.z) <= _EPS
+
+    # A blocking wall crossing the path stops the run at the wall — regardless of
+    # elevation legality (you physically can't reach across it).
+    blocker = _first_blocking_wall_xy(from_pos, to_pos, scene, from_pos.z)
+    if blocker is not None:
+        wall, impact = blocker
+        dist_to_wall = _xy_distance(from_pos, impact)
+        if dist_to_wall <= distance_m + _EPS:
+            # Stop just before the wall (clamp to within reach if the wall is
+            # farther than we can run anyway).
+            landing = impact if dist_to_wall <= distance_m else \
+                _clamp_xy_toward(from_pos, impact, distance_m)
+            return MovementOutcome(
+                reachable=False, landing=landing,
+                fall=_maybe_fall(landing, scene),
+            )
+        # Wall is beyond our reach; fall through to the clamp-to-distance path.
+
+    if not same_z:
+        # Running can't change elevation. Clamp toward the target in xy (at the
+        # start's z) and report unreachable.
+        landing = _clamp_xy_toward(from_pos, to_pos, distance_m)
+        landing = Position(landing.x, landing.y, from_pos.z, landing.facing)
+        return MovementOutcome(
+            reachable=False, landing=landing, fall=_maybe_fall(landing, scene),
+        )
+
+    # Same elevation, unblocked: reach if within distance, else clamp short.
+    d3 = distance_3d(from_pos, to_pos)
+    if d3 <= distance_m + _EPS:
+        landing = to_pos
+        reachable = True
+    else:
+        landing = _clamp_xy_toward(from_pos, to_pos, distance_m)
+        reachable = False
+    return MovementOutcome(
+        reachable=reachable, landing=landing, fall=_maybe_fall(landing, scene),
+    )
+
+
+def _leaping(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    horizontal_cap = distance_m
+    vertical_cap = distance_m / 2.0
+
+    horiz = _xy_distance(from_pos, to_pos)
+    rise = to_pos.z - from_pos.z
+
+    # A wall blocks the leap only if its top, relative to the start, exceeds the
+    # leap's vertical capacity (otherwise the leap arcs over it). Reuse the
+    # wall-top computation from _wall_height_blocks (base = min seg z + height).
+    wall_clears = True
+    for wall in scene.walls:
+        if not wall.blocks_movement:
+            continue
+        wa = (wall.segment[0].x, wall.segment[0].y)
+        wb = (wall.segment[1].x, wall.segment[1].y)
+        if not segments_intersect_xy(
+            (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), wa, wb
+        ):
+            continue
+        wall_base_z = min(wall.segment[0].z, wall.segment[1].z)
+        wall_top_z = wall_base_z + wall.height_m
+        if (wall_top_z - from_pos.z) > vertical_cap + _EPS:
+            wall_clears = False
+            break
+
+    reachable = (
+        horiz <= horizontal_cap + _EPS
+        and rise <= vertical_cap + _EPS
+        and wall_clears
+    )
+
+    if reachable:
+        landing = to_pos
+    else:
+        # Clamp horizontally toward the target (overshoot short of it).
+        landing = _clamp_xy_toward(from_pos, to_pos, horizontal_cap)
+
+    return MovementOutcome(
+        reachable=reachable, landing=landing, fall=_maybe_fall(landing, scene),
+    )
+
+
+def _flight(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    d3 = distance_3d(from_pos, to_pos)
+    reachable = (
+        d3 <= distance_m + _EPS
+        and to_pos.z <= scene.bounds.max_z + _EPS
+    )
+    # Flight is sustained — it never falls. Landing is the target when reachable,
+    # else clamped toward it (3D) at the ceiling-limited point.
+    if reachable:
+        landing = to_pos
+    else:
+        landing = _flight_clamp(from_pos, to_pos, distance_m, scene)
+    return MovementOutcome(reachable=reachable, landing=landing, fall=None)
+
+
+def _flight_clamp(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> Position:
+    d3 = distance_3d(from_pos, to_pos)
+    if d3 < _EPS:
+        return to_pos
+    frac = min(1.0, distance_m / d3)
+    z = from_pos.z + (to_pos.z - from_pos.z) * frac
+    z = min(z, scene.bounds.max_z)
+    return Position(
+        x=from_pos.x + (to_pos.x - from_pos.x) * frac,
+        y=from_pos.y + (to_pos.y - from_pos.y) * frac,
+        z=z,
+        facing=to_pos.facing,
+    )
+
+
+def _teleportation(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    d3 = distance_3d(from_pos, to_pos)
+    reachable = d3 <= distance_m + _EPS and is_supported_at(to_pos, scene)
+    # No path → ignores walls; either lands at the supported target or doesn't go.
+    landing = to_pos if reachable else from_pos
+    return MovementOutcome(reachable=reachable, landing=landing, fall=None)
+
+
+def _swimming(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    d3 = distance_3d(from_pos, to_pos)
+    reachable = d3 <= distance_m + _EPS and _point_in_water(to_pos, scene)
+    landing = to_pos if reachable else from_pos
+    return MovementOutcome(reachable=reachable, landing=landing, fall=None)
+
+
+def _tunneling(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    # v1 simple ground gate: same elevation, within range. Material-DEF deferred.
+    same_z = abs(to_pos.z - from_pos.z) <= _EPS
+    d3 = distance_3d(from_pos, to_pos)
+    reachable = same_z and d3 <= distance_m + _EPS
+    landing = to_pos if reachable else from_pos
+    return MovementOutcome(reachable=reachable, landing=landing, fall=None)
