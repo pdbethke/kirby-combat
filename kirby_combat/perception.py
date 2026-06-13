@@ -207,6 +207,23 @@ def invisibility_groups(hero) -> frozenset[str]:
     return frozenset(groups)
 
 
+def flash_groups(power) -> frozenset[str]:
+    """The Sense Group(s) a single FLASH power covers (sense-affecting §1).
+
+    A FLASH power encodes its Sense Group(s) identically to INVISIBILITY: the
+    primary group in ``option_id`` (a ``*GROUP`` token) plus extra groups as
+    ``assigned_adders`` GROUP tokens. Defaults to the Sight Group (the HERO
+    default) for a present-but-unparsed FLASH power; returns an empty set for a
+    non-FLASH power so callers can probe any power uniformly.
+
+    Reuses the same field-reading as ``_power_invisibility_groups`` — a FLASH
+    power carries the group on the exact same shape."""
+    if (getattr(power, "xmlid", None) or "").upper() != "FLASH":
+        return frozenset()
+    found = _power_invisibility_groups(power)
+    return frozenset(found or {SIGHT})   # never empty for a present FLASH power
+
+
 @dataclass(frozen=True)
 class Perception:
     """Result of ``perceive(observer, target)``. ``via`` lists the senses that
@@ -290,6 +307,7 @@ _FRINGE_RANGE_M = 2.0
 
 def perceive(observer, target, scene, *, target_invisible: bool = False,
              target_hidden: bool = False, stealth_movement_modifier: int = 0,
+             observer_flashed_groups: frozenset[str] = frozenset(),
              roller=None) -> Perception:
     """Per-sense perception (spec §1). Sight + bought Targeting senses resolve
     LoS/occlusion; per-Sense-Group Invisibility blocks the covered senses
@@ -318,6 +336,12 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
 
     for sense in observer.senses():
         if not getattr(sense, "functional", True):
+            continue
+        # Flash: a sense whose group the OBSERVER currently has flashed can't
+        # perceive at all (sense-affecting §1). Group-generic, so a MENTAL-group
+        # flash skips a mental sense (Mind Scan) too — checked before the mental
+        # branch below so a flashed mental sense gives no mental LOS.
+        if sense.group in observer_flashed_groups:
             continue
         # Mental sense (Mind Scan / Mental Awareness): handle FIRST, before the
         # generic per-group Invisibility skip below. A mental sense perceives

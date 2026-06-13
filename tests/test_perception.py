@@ -627,3 +627,79 @@ def test_extreme_range_per_drops_to_zero_cannot_perceive():
     p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=5))
     # eff PER 11 − 12 = −1 ≤ 0 → too far to perceive even on a 3 (6E2 p9).
     assert p.targetable_physical is False
+
+
+# --- Task E1: flash_groups(power) + perceive(observer_flashed_groups=) ---------
+# Sense-Affecting Flash §1 (engine seam). A FLASH power encodes its Sense
+# Group(s) identically to INVISIBILITY (option_id *GROUP token + assigned_adders
+# GROUP tokens); a Flashed observer can't perceive via a flashed sense group.
+
+from kirby_combat.perception import flash_groups
+
+
+def test_flash_groups_reads_real_option_group():
+    # Real shape: a FLASH power's primary group lives in power.option_id.
+    class _P:
+        xmlid = "FLASH"
+        alias = "Flash"
+        option_id = "SIGHTGROUP"
+        assigned_adders: list = []
+    assert flash_groups(_P()) == frozenset({SIGHT})
+
+
+def test_flash_groups_defaults_to_sight_when_unparsed():
+    # A present FLASH power with no parseable group → the Sight Group default.
+    class _P:
+        xmlid = "FLASH"
+        alias = "Flash"
+        adders: list = []
+    assert flash_groups(_P()) == frozenset({SIGHT})
+
+
+def test_flash_groups_reads_option_and_adder_groups():
+    # Extra groups as GROUP-token adders, mirroring invisibility's shape.
+    class _Adder:
+        def __init__(self, xmlid):
+            self.XMLID = xmlid
+    class _P:
+        xmlid = "FLASH"
+        alias = "Flash"
+        option_id = "SIGHTGROUP"
+        assigned_adders = [_Adder("HEARINGGROUP")]
+    assert flash_groups(_P()) == frozenset({SIGHT, HEARING})
+
+
+def test_flash_groups_non_flash_power_is_empty():
+    # A non-FLASH power covers no flashed groups.
+    class _P:
+        xmlid = "INVISIBILITY"
+        alias = "Invisibility"
+        option_id = "SIGHTGROUP"
+        assigned_adders: list = []
+    assert flash_groups(_P()) == frozenset()
+
+
+def test_perceive_sight_flashed_observer_cannot_see():
+    # A sight-only observer whose Sight group is flashed can't perceive the
+    # target via sight → not physically targetable, kind "invisible".
+    obs = _hero_with_sense("NORMALSIGHT")
+    obs.id = "observer"
+    tgt = _hero_with_sense("NORMALSIGHT")
+    tgt.id = "target"
+    scene = _two_combatant_scene(obs, tgt, wall=False)
+    p = perceive(obs, tgt, scene, observer_flashed_groups=frozenset({SIGHT}))
+    assert p.targetable_physical is False
+    assert p.kind == "invisible"
+
+
+def test_perceive_radar_observer_unaffected_by_sight_flash():
+    # An observer with a non-Sight (Radar) sense + Sight flashed still perceives
+    # via radar — the skip is group-scoped.
+    obs = _hero_with_sense("RADAR")
+    obs.id = "observer"
+    tgt = _hero_with_sense("NORMALSIGHT")
+    tgt.id = "target"
+    scene = _two_combatant_scene(obs, tgt, wall=False)
+    p = perceive(obs, tgt, scene, observer_flashed_groups=frozenset({SIGHT}))
+    assert p.targetable_physical is True
+    assert "radar" in p.via
