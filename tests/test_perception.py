@@ -12,6 +12,12 @@ INFERNA_HDC = Path(__file__).parent / "fixtures" / "Inferna.hdc"
 
 
 def _inferna() -> HeroCombatant:
+    # hero_designer is an OPTIONAL integration dep — kirby-combat CI does not
+    # install it (the engine consumes a LoadedHero supplied by the consumer).
+    # Guard like test_hero_combatant_skeleton's from_hdc tests so the module's
+    # HDC-loading tests skip cleanly in CI; the pure-synthetic perception tests
+    # (Mind Scan, surprise, contests) carry no HDC dep and still run.
+    pytest.importorskip("hero_designer")
     if not INFERNA_HDC.exists():
         pytest.skip(f"HDC fixture not present: {INFERNA_HDC}")
     return HeroCombatant.from_hdc(str(INFERNA_HDC))
