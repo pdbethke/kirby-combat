@@ -552,3 +552,78 @@ def test_penetrative_sense_perceives_through_a_wall():
     scene.combatant_positions["observer"] = Position(0, 5, 1.5)
     p = perceive(obs, tgt, scene)
     assert p.targetable_physical is True   # Penetrative sense ignores the wall
+
+
+# --- Range Modifier on PER + movement modifier on Stealth (perception §1d) ----
+from kirby_combat.perception import range_modifier  # noqa: E402
+
+
+def test_range_modifier_table():
+    # 6E2 p40: no modifier ≤8m; −2 after 8m; −2 per range-doubling thereafter.
+    assert range_modifier(0) == 0
+    assert range_modifier(8) == 0
+    assert range_modifier(9) == -2
+    assert range_modifier(16) == -2
+    assert range_modifier(17) == -4
+    assert range_modifier(32) == -4
+    assert range_modifier(33) == -6
+    assert range_modifier(64) == -6
+    assert range_modifier(65) == -8
+
+
+class _StubSkill:
+    def __init__(self, xmlid: str, roll_value: int):
+        self.xmlid = xmlid
+        self.roll_value = roll_value
+
+
+class _StubHiderHero:
+    """Target hero with a STEALTH skill (no senses/Invisibility). INT 10."""
+
+    def __init__(self, stealth: int = 14, int_val: int = 10):
+        self.name = "Hider"
+        self.powers: list = []
+        self.talents: list = []
+        self.skills = [_StubSkill("STEALTH", stealth)]
+        self._int = int_val
+
+    def characteristic_value(self, xmlid: str) -> int:
+        return {"INT": self._int}.get(xmlid.upper(), 0)
+
+
+def _hider(stealth: int = 14) -> HeroCombatant:
+    from kirby_combat.hero_view import HeroCombatState
+    return HeroCombatant(
+        id="target",
+        hero=_StubHiderHero(stealth),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+
+
+def test_stealth_contest_applies_range_modifier_to_per():
+    obs = _hero_with_sense("NORMALSIGHT")   # INT 10 → PER 11
+    tgt = _hider(stealth=14)
+    scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=64.0)   # range mod −6
+    p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=5))
+    assert p.detail["range_modifier"] == -6
+    assert p.detail["per"] == per_roll_target(obs) - 6
+
+
+def test_movement_modifier_lowers_hider_stealth():
+    obs = _hero_with_sense("NORMALSIGHT")
+    tgt = _hider(stealth=14)
+    scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=2.0)    # range mod 0
+    p = perceive(obs, tgt, scene, target_hidden=True,
+                 stealth_movement_modifier=-5, roller=RandomRoller(seed=5))
+    # Noncombat movement (−5) makes the hider easier to spot → lower stealth target.
+    assert p.detail["stealth"] == 14 - 5
+    assert p.detail["range_modifier"] == 0
+
+
+def test_extreme_range_per_drops_to_zero_cannot_perceive():
+    obs = _hero_with_sense("NORMALSIGHT")   # PER 11
+    tgt = _hider(stealth=14)
+    scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=300.0)  # range mod −12
+    p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=5))
+    # eff PER 11 − 12 = −1 ≤ 0 → too far to perceive even on a 3 (6E2 p9).
+    assert p.targetable_physical is False

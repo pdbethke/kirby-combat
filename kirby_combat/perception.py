@@ -5,6 +5,7 @@ for line-of-sight, per-Sense-Group Invisibility, Stealth, and Mind Scan.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from kirby_combat.dice import RandomRoller
@@ -91,6 +92,17 @@ def _sense_capabilities(hero) -> list["SenseCapability"]:
 def per_roll_target(observer) -> int:
     """PER roll target = 9 + INT/5 (6E1). ``observer`` is a HeroCombatant."""
     return 9 + int(observer.hero.characteristic_value("INT")) // 5
+
+
+def range_modifier(distance_m: float) -> int:
+    """The HERO Range Modifier (6E2 p40), a penalty (≤0) that applies to all
+    PER rolls at distance (6E2 p13). No modifier out to 8m; −2 after 8m, then
+    −2 for each doubling of range thereafter: −2 at 9-16m, −4 at 17-32m,
+    −6 at 33-64m, and so on."""
+    d = float(distance_m)
+    if d <= 8.0:
+        return 0
+    return -2 * math.ceil(math.log2(d / 8.0))
 
 
 def _roll_3d6_succeeds(target: int, roller) -> bool:
@@ -277,7 +289,8 @@ _FRINGE_RANGE_M = 2.0
 
 
 def perceive(observer, target, scene, *, target_invisible: bool = False,
-             target_hidden: bool = False, roller=None) -> Perception:
+             target_hidden: bool = False, stealth_movement_modifier: int = 0,
+             roller=None) -> Perception:
     """Per-sense perception (spec §1). Sight + bought Targeting senses resolve
     LoS/occlusion; per-Sense-Group Invisibility blocks the covered senses
     (with a ≤2m Fringe PER roll unless the power has No Fringe); a Hidden
@@ -345,11 +358,21 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
                 # No Stealth skill → the target can't actually hide → perceived.
                 via_physical.append(_via_token(sense.xmlid))
                 continue
-            per_target = per_roll_target(observer)
+            # PER takes the Range Modifier at distance (6E2 p13/p40); the
+            # hider's Stealth takes the movement modifier kirby-api supplies
+            # for how the hider moved this phase (Western Hero p29: Noncombat
+            # −5 … creep ≤2m +2). A PER reduced to ≤0 by range can't perceive.
+            rng = range_modifier(_distance(observer, target, scene))
+            eff_per = per_roll_target(observer) + rng
+            eff_stealth = stealth_target + int(stealth_movement_modifier)
+            detail["stealth"] = eff_stealth
+            detail["per"] = eff_per
+            detail["range_modifier"] = rng
+            if eff_per <= 0:
+                # Too far to perceive distinctly even on a 3 (6E2 p9) → hidden.
+                continue
             perceived, per_roll, stealth_roll = _opposed_perceives(
-                per_target, stealth_target, roller)
-            detail["stealth"] = stealth_target
-            detail["per"] = per_target
+                eff_per, eff_stealth, roller)
             detail["per_roll"] = per_roll
             detail["stealth_roll"] = stealth_roll
             if perceived:
