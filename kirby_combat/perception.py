@@ -85,3 +85,80 @@ def per_roll_target(observer) -> int:
 def _roll_3d6_succeeds(target: int, roller) -> bool:
     """Auditable 3d6 ≤ target via the session roller (like the throw spec)."""
     return sum(roller.roll_dice(3)) <= int(target)
+
+
+# Invisibility's covered Sense Group(s) come from two real-shape places on a
+# loaded INVISIBILITY power (verified against the HSB bestiary corpus, e.g.
+# UNDEAD_GHOST_HSB.hdc — Sight+Hearing+Smell):
+#   1. the power's primary OPTION  -> ``power.option_id`` == "SIGHTGROUP"
+#      (NOTE: ``option_alias`` is None on the loaded object; the group token
+#       lives in ``option_id`` / the raw XML ``OPTIONID``).
+#   2. extra groups as adders     -> each ``assigned_adders`` entry whose
+#      ``XMLID`` is a *GROUP token, e.g. "HEARINGGROUP", "SMELLGROUP".
+# We map both the GROUP-token xmlids and free-text aliases to a sense group, so
+# the parse is robust whether we get a token, an alias, or a plain stub.
+_GROUP_TOKENS: dict[str, str] = {
+    "SIGHTGROUP": SIGHT,
+    "HEARINGGROUP": HEARING,
+    "MENTALGROUP": MENTAL,
+    "RADIOGROUP": RADIO,
+    "SMELLGROUP": SMELL,
+}
+
+# Free-text alias/option fragments → sense group (fallback / synthetic stubs).
+_GROUP_KEYWORDS: list[tuple[str, str]] = [
+    ("sight", SIGHT), ("hearing", HEARING), ("sound", HEARING),
+    ("mental", MENTAL), ("radio", RADIO), ("smell", SMELL), ("taste", SMELL),
+]
+
+
+def _groups_from_text(blob: str) -> set[str]:
+    return {g for kw, g in _GROUP_KEYWORDS if kw in blob}
+
+
+def _power_invisibility_groups(p) -> set[str]:
+    """Sense Group(s) one INVISIBILITY power covers, from its real load shape."""
+    found: set[str] = set()
+
+    # 1. Primary group: the power's OPTION token (option_id / option / optionid).
+    for attr in ("option_id", "optionid", "option"):
+        tok = (getattr(p, attr, None) or "")
+        if tok and tok.upper() in _GROUP_TOKENS:
+            found.add(_GROUP_TOKENS[tok.upper()])
+
+    # 2. Extra groups: GROUP-token adders. Loaders surface these as
+    #    ``assigned_adders`` (XMLID upper) or, on stubs, ``adders``.
+    adders = (getattr(p, "assigned_adders", None)
+              or getattr(p, "adders", None) or [])
+    for a in adders:
+        ax = (getattr(a, "XMLID", None) or getattr(a, "xmlid", None) or "")
+        if ax.upper() in _GROUP_TOKENS:
+            found.add(_GROUP_TOKENS[ax.upper()])
+
+    # 3. Free-text fallback (option_alias / aliases) — robust to odd encodings.
+    blob = " ".join([
+        (getattr(p, "option_alias", "") or ""),
+        (getattr(p, "alias", "") or ""),
+        " ".join((getattr(a, "option_alias", "") or "") + " "
+                 + (getattr(a, "alias", "") or "") for a in adders),
+    ]).lower()
+    # Only let the alias fallback ADD groups it clearly names beyond the bare
+    # power name "invisibility" (which contains no group word).
+    found |= _groups_from_text(blob)
+
+    return found
+
+
+def invisibility_groups(hero) -> frozenset[str]:
+    """The Sense Group(s) this character's Invisibility covers. Default: the
+    Sight Group (the HERO default when the power doesn't specify otherwise).
+
+    Returns an empty set when the character has no Invisibility power; never
+    returns empty for a *present* Invisibility power (defaults to {SIGHT})."""
+    groups: set[str] = set()
+    for p in getattr(hero, "powers", None) or []:
+        if (getattr(p, "xmlid", None) or "").upper() != "INVISIBILITY":
+            continue
+        found = _power_invisibility_groups(p)
+        groups |= (found or {SIGHT})   # never empty for a present power
+    return frozenset(groups)

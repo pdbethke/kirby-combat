@@ -66,3 +66,43 @@ def test_3d6_succeeds_is_roll_le_target():
     assert _roll_3d6_succeeds(target=rolled, roller=r) is True
     r2 = RandomRoller(seed=1)
     assert _roll_3d6_succeeds(target=rolled - 1, roller=r2) is False
+
+
+# --- Task 3: invisibility_groups(hero) ----------------------------------------
+
+from kirby_combat.perception import invisibility_groups, SIGHT, HEARING, SMELL
+
+
+def test_no_invisibility_power_means_no_groups():
+    assert invisibility_groups(_inferna().hero) == frozenset()
+
+
+def test_invisibility_defaults_to_sight_group():
+    # A synthetic hero with an INVISIBILITY power and no parseable group adder
+    # defaults to the Sight Group (the HERO default).
+    class _P:
+        xmlid = "INVISIBILITY"; alias = "Invisibility"; adders = []; sub_powers = []
+    class _H:
+        powers = [_P()]
+    assert invisibility_groups(_H()) == frozenset({SIGHT})
+
+
+def test_invisibility_reads_real_option_and_adder_groups():
+    # Real shape (HSB Ghost): primary group in power.option_id == "SIGHTGROUP",
+    # extra groups as assigned_adders with XMLID "HEARINGGROUP"/"SMELLGROUP".
+    class _Adder:
+        def __init__(self, xmlid, alias):
+            self.XMLID = xmlid
+            self.alias = alias
+    class _P:
+        xmlid = "INVISIBILITY"
+        alias = "Invisibility"
+        option_id = "SIGHTGROUP"
+        assigned_adders = [
+            _Adder("NOFRINGE", "No Fringe"),
+            _Adder("HEARINGGROUP", "Hearing Group"),
+            _Adder("SMELLGROUP", "Smell/Taste Group"),
+        ]
+    class _H:
+        powers = [_P()]
+    assert invisibility_groups(_H()) == frozenset({SIGHT, HEARING, SMELL})
