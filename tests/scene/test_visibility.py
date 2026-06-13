@@ -107,3 +107,18 @@ def test_behind_cover_point_returned_when_one_exists():
     assert p is not None
     # The returned point is behind cover: threat has NO LoS to it.
     assert line_of_sight_clear(threat, p, [wall]) is False
+
+
+def test_multi_wall_returns_only_a_point_clear_of_all_walls():
+    # Wall A blocks the direct line; a naive flank past A's near end is then
+    # blocked by Wall B. nearest_visible_point must return a point clear of BOTH
+    # (the full-occluder-set verification), not just clear of A.
+    from kirby_combat.scene.geometry import line_of_sight_clear
+    obs, tgt = Position(0, 0, 1.5), Position(20, 0, 1.5)
+    wall_a = _wall(x=10, y0=-3, y1=3, h=8.0, wid="A")
+    wall_b = _wall(x=15, y0=2, y1=12, h=8.0, wid="B")   # blocks the +y flank
+    scene = _scene(walls=[wall_a, wall_b])
+    p = nearest_visible_point(obs, tgt, scene, radius=40.0, vertical_reach=0.0)
+    assert p is not None
+    # whatever point it returns, it must have LoS clear of BOTH walls:
+    assert line_of_sight_clear(p, tgt, [wall_a, wall_b]) is True
