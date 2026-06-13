@@ -5,7 +5,9 @@ from kirby_combat.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Wall,
 )
 from kirby_combat.scene.geometry import line_of_sight_clear
-from kirby_combat.scene.visibility import nearest_visible_point
+from kirby_combat.scene.visibility import (
+    _dist, nearest_hidden_point, nearest_visible_point,
+)
 
 
 def _scene(walls=None) -> Scene:
@@ -66,3 +68,42 @@ def test_none_when_no_clear_point_within_radius():
     p = nearest_visible_point(obs, tgt, _scene(walls=[wall]),
                               radius=2.0, vertical_reach=0.0)
     assert p is None
+
+
+# --- nearest_hidden_point (defensive / break-contact) -----------------------
+
+
+def test_returns_observer_when_already_hidden():
+    # Wall between observer and threat -> obs already hidden -> returns obs.
+    obs, threat = Position(0, 0, 1.5), Position(20, 0, 1.5)
+    wall = _wall(x=10, y0=-5, y1=5, h=8.0)
+    p = nearest_hidden_point(obs, threat, _scene(walls=[wall]), radius=10.0)
+    assert p == obs
+
+
+def test_no_cover_returns_farthest_point_to_open_range():
+    # No walls -> can't hide -> open range: move ~away, near the radius edge.
+    obs, threat = Position(0, 0, 1.5), Position(5, 0, 1.5)
+    p = nearest_hidden_point(obs, threat, _scene(walls=[]), radius=12.0)
+    assert p is not None
+    # opened range -- moved roughly away from the threat, near the radius edge
+    assert _dist(obs, p) >= 8.0
+    assert _dist(p, threat) > _dist(obs, threat)
+
+
+def test_behind_cover_point_returned_when_one_exists():
+    # Threat has LoS to observer in the open, but a wall just off to the side
+    # casts a shadow a short hop away -> a behind-cover point is returned.
+    obs, threat = Position(0, 0, 1.5), Position(0, -20, 1.5)
+    # Wall running east-west, off to the observer's +x side, between the
+    # observer's flank and the threat's sightline to that flank.
+    wall = Wall(
+        id="w", name="Brick",
+        segment=(Position(2, -4, 0.0), Position(8, -4, 0.0)),
+        height_m=8.0, blocks_los=True, blocks_movement=True,
+        cover_level=4, body=6,
+    )
+    p = nearest_hidden_point(obs, threat, _scene(walls=[wall]), radius=12.0)
+    assert p is not None
+    # The returned point is behind cover: threat has NO LoS to it.
+    assert line_of_sight_clear(threat, p, [wall]) is False
