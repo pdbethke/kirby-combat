@@ -617,6 +617,13 @@ class HeroCombatant:
         """
         return _movement_capabilities(self.hero)
 
+    def senses(self) -> list["SenseCapability"]:
+        """The character's Targeting Senses (spec §1a). Normal Sight always
+        present; bought sense powers (IR, Radar, Mind Scan, …) added from
+        hero.powers. Mirrors movement_view()."""
+        from kirby_combat.perception import _sense_capabilities
+        return _sense_capabilities(self.hero)
+
     def maneuver_view(self) -> list["MartialManeuverView"]:
         """Build a MartialManeuverView per bought martial maneuver on this
         character (martial-arts §3). Reads ``self.hero.martial_arts``; parses
