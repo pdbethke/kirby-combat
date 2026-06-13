@@ -106,3 +106,57 @@ def test_invisibility_reads_real_option_and_adder_groups():
     class _H:
         powers = [_P()]
     assert invisibility_groups(_H()) == frozenset({SIGHT, HEARING, SMELL})
+
+
+# --- Task 4: Perception + perceive() LoS/occlusion core ------------------------
+
+from kirby_combat.perception import perceive, Perception
+from kirby_combat.scene import (
+    AmbientConditions, Position, Scene, SceneBounds, Wall,
+)
+
+
+def _wall(x: float = 10.0, height: float = 3.0) -> Wall:
+    # Mirrors tests/test_attack_los.py's _wall: a tall LoS-blocking wall.
+    return Wall(
+        id="w", name="Brick",
+        segment=(Position(x, 0, 0), Position(x, 10, 0)),
+        height_m=height, blocks_los=True, blocks_movement=True,
+        cover_level=4, body=6,
+    )
+
+
+def _two_combatant_scene(observer, target, *, wall: bool = False) -> Scene:
+    # Observer at (0,5,1.5), target at (20,5,1.5); optional wall at x=10
+    # (same geometry test_attack_los.py uses to (un)block LoS).
+    # Two Inferna loads share the HDC-derived id "inferna"; give them distinct
+    # session ids so combatant_positions doesn't collapse to one entry.
+    observer.id, target.id = "observer", "target"
+    return Scene(
+        id="s1", name="Perception",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[],
+        walls=[_wall(x=10.0, height=3.0)] if wall else [],
+        hazards=[],
+        ambient=AmbientConditions(),
+        combatant_positions={
+            observer.id: Position(0, 5, 1.5),
+            target.id: Position(20, 5, 1.5),
+        },
+    )
+
+
+def test_perceive_clear_los_is_targetable_via_sight():
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=False)
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is True
+    assert "normal_sight" in p.via or "NORMALSIGHT" in p.via
+
+
+def test_perceive_occluded_by_wall_is_not_physically_targetable():
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=True)
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is False
+    assert p.kind == "occluded"
