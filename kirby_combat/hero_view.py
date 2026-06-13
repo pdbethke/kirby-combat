@@ -624,6 +624,31 @@ class HeroCombatant:
         from kirby_combat.perception import _sense_capabilities
         return _sense_capabilities(self.hero)
 
+    def skill_roll_value(self, xmlid: str) -> int | None:
+        """The 3d6 roll target for a skill the character has (e.g. STEALTH),
+        from the cost engine's computed ``Skill.roll_value``. ``None`` if the
+        skill is absent or has no numeric roll (caller treats None as "can't
+        hide" / auto-perceived). Same source kirby-api's throw ``_roll_skill``
+        reads.
+
+        Verified against a real STEALTH-bearing hero (Cheshire): ``roll_value``
+        is the correct attribute and is an ``int`` for roll-based skills. Some
+        skills (e.g. PROFESSIONAL_SKILL variants) expose ``roll_value`` as an
+        unbound method rather than a computed value — guard against non-numeric
+        so those never crash a perception contest.
+        """
+        want = (xmlid or "").upper()
+        for sk in getattr(self.hero, "skills", None) or []:
+            if (getattr(sk, "xmlid", None) or "").upper() == want:
+                rv = getattr(sk, "roll_value", None)
+                if rv is None:
+                    return None
+                try:
+                    return int(rv)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
     def maneuver_view(self) -> list["MartialManeuverView"]:
         """Build a MartialManeuverView per bought martial maneuver on this
         character (martial-arts §3). Reads ``self.hero.martial_arts``; parses

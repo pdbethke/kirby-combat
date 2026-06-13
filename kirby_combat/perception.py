@@ -75,3 +75,13 @@ def _sense_capabilities(hero) -> list["SenseCapability"]:
 
     _walk(getattr(hero, "powers", None))
     return out
+
+
+def per_roll_target(observer) -> int:
+    """PER roll target = 9 + INT/5 (6E1). ``observer`` is a HeroCombatant."""
+    return 9 + int(observer.hero.characteristic_value("INT")) // 5
+
+
+def _roll_3d6_succeeds(target: int, roller) -> bool:
+    """Auditable 3d6 ≤ target via the session roller (like the throw spec)."""
+    return sum(roller.roll_dice(3)) <= int(target)

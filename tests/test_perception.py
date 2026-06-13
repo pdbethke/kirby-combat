@@ -38,3 +38,31 @@ def test_senses_are_targeting_only_set():
     # senses() returns only Targeting senses (the combat-relevant ones).
     for s in _inferna().senses():
         assert s.is_targeting is True
+
+
+# --- Task 2: PER + Stealth roll helpers ---------------------------------------
+
+from kirby_combat.perception import per_roll_target, _roll_3d6_succeeds
+from kirby_combat.dice import RandomRoller
+
+
+def test_per_target_is_9_plus_int_over_5():
+    hc = _inferna()
+    int_val = int(hc.hero.characteristic_value("INT"))
+    assert per_roll_target(hc) == 9 + int_val // 5
+
+
+def test_skill_roll_value_returns_none_when_absent():
+    # A character without STEALTH returns None (caller treats as auto-perceived).
+    hc = _inferna()
+    val = hc.skill_roll_value("DEFINITELY_NOT_A_SKILL")
+    assert val is None
+
+
+def test_3d6_succeeds_is_roll_le_target():
+    # roller seeded so the 3d6 is deterministic; success iff sum <= target.
+    r = RandomRoller(seed=1)
+    rolled = sum(RandomRoller(seed=1).roll_dice(3))   # same seed → same roll
+    assert _roll_3d6_succeeds(target=rolled, roller=r) is True
+    r2 = RandomRoller(seed=1)
+    assert _roll_3d6_succeeds(target=rolled - 1, roller=r2) is False
