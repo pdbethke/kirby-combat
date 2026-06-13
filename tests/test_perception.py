@@ -294,6 +294,72 @@ def test_hidden_target_runs_stealth_contest():
     assert p.targetable_physical is True   # Inferna has no STEALTH → can't actually hide
 
 
+# --- Task 6: Mind Scan / mental-LOS gate + is_surprised -----------------------
+
+from kirby_combat.perception import is_surprised
+
+
+class _TalentStub:
+    """One talent on a synthetic hero (duck-types the loaded talent: ``.xmlid``)."""
+
+    def __init__(self, xmlid: str):
+        self.xmlid = xmlid
+        self.alias = xmlid.replace("_", " ").title()
+
+
+class _StubTalentHero:
+    """Minimal LoadedHero stand-in carrying one talent (e.g. DANGER_SENSE) plus
+    Normal Sight only. INT defaults to 10 → PER target 11."""
+
+    def __init__(self, talent_xmlid: str, *, int_val: int = 10):
+        self.name = f"Talented<{talent_xmlid}>"
+        self.powers: list = []
+        self.skills: list = []
+        self.talents = [_TalentStub(talent_xmlid)]
+        self._int = int_val
+
+    def characteristic_value(self, xmlid: str) -> int:
+        return {"INT": self._int}.get(xmlid.upper(), 0)
+
+
+def _hero_with_talent(xmlid: str) -> HeroCombatant:
+    """A HeroCombatant whose only talent is ``xmlid`` (e.g. DANGER_SENSE)."""
+    from kirby_combat.hero_view import HeroCombatState
+
+    return HeroCombatant(
+        id="observer",
+        hero=_StubTalentHero(xmlid),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+
+
+def test_mind_scan_perceives_through_a_wall_mentally():
+    obs = _hero_with_sense("MINDSCAN")
+    tgt = _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=True)   # sight blocked
+    obs.id = "observer"
+    scene.combatant_positions["observer"] = Position(0, 5, 1.5)
+    p = perceive(obs, tgt, scene, target_invisible=True)  # sight-invisible too
+    assert p.targetable_physical is False      # can't punch/shoot
+    assert p.targetable_mental is True         # mental LOS via Mind Scan
+    assert "mindscan" in p.via
+
+
+def test_is_surprised_true_when_unperceived_and_no_danger_sense():
+    obs, attacker = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, attacker, wall=True)  # observer can't see attacker
+    assert is_surprised(observer=obs, attacker=attacker, scene=scene) is True
+
+
+def test_danger_sense_negates_surprise():
+    obs = _hero_with_talent("DANGER_SENSE")
+    attacker = _inferna()
+    scene = _two_combatant_scene(obs, attacker, wall=True)
+    obs.id = "observer"
+    scene.combatant_positions["observer"] = Position(0, 5, 1.5)
+    assert is_surprised(observer=obs, attacker=attacker, scene=scene) is False
+
+
 def test_hidden_cheshire_runs_real_stealth_contest():
     # Cheshire HAS Stealth (roll target 11) → a real opposed 3d6 contest runs
     # and the rolls are surfaced in detail.

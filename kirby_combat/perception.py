@@ -296,13 +296,25 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
     for sense in observer.senses():
         if not getattr(sense, "functional", True):
             continue
-        # Invisibility: a sense whose group the target's Invisibility covers
-        # can't normally perceive it — but a ≤2m physical sense can spot the
-        # Fringe (the tell-tale shimmer) on a PER roll, unless the power has
-        # No Fringe (6E1 p340). Mental senses don't perceive a physical Fringe.
+        # Mental sense (Mind Scan / Mental Awareness): handle FIRST, before the
+        # generic per-group Invisibility skip below. A mental sense perceives
+        # the mind regardless of line-of-sight, walls, or a *physical*
+        # Invisibility (Mind Scan is non-LOS — 6E2 p16) — it is defeated ONLY
+        # when the target's Invisibility covers the MENTAL group. So gate it on
+        # MENTAL ∈ inv_groups, never on the generic ``sense.group in
+        # inv_groups`` (which would let a Sight-group Invisibility wrongly blind
+        # a Mind Scan). No Fringe applies to physical senses only, so a mental
+        # sense gives no fringe perception.
+        if sense.mental:
+            if MENTAL not in inv_groups:
+                via_mental.append(_via_token(sense.xmlid))
+            continue
+        # Invisibility: a non-mental sense whose group the target's Invisibility
+        # covers can't normally perceive it — but a ≤2m physical sense can spot
+        # the Fringe (the tell-tale shimmer) on a PER roll, unless the power has
+        # No Fringe (6E1 p340).
         if sense.group in inv_groups:
-            if (not sense.mental
-                    and not inv_no_fringe
+            if (not inv_no_fringe
                     and "fringe" not in detail
                     and _distance(observer, target, scene) <= _FRINGE_RANGE_M):
                 per_target = per_roll_target(observer)
@@ -310,10 +322,6 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
                 if per_roll <= per_target:
                     detail["fringe"] = {"per": per_target, "per_roll": per_roll}
                     via_physical.append("fringe")
-            continue
-        if sense.mental:
-            # Mind Scan / mental sense — non-LOS (Task 6 adds the lock gate).
-            via_mental.append(_via_token(sense.xmlid))
             continue
         clear, occ = _sight_los(observer, target, scene, sense)
         if not clear:
@@ -356,3 +364,37 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         occluder_id=occluder,
         detail=detail,
     )
+
+
+def _has_talent(hero, xmlid: str) -> bool:
+    """True if the hero has the named Talent. Danger Sense / Combat Sense load
+    via the HDCLoader as ``hero.talents`` entries (verified against
+    ``Black Paladin.hdc``: ``<TALENT XMLID="DANGER_SENSE">`` → an entry on
+    ``hero.talents`` with ``.xmlid == "DANGER_SENSE"`` and nothing in
+    ``hero.powers``). We scan BOTH ``talents`` and ``powers`` so the check is
+    robust to alternate load shapes / synthetic stubs."""
+    want = (xmlid or "").upper()
+    for coll in (getattr(hero, "talents", None), getattr(hero, "powers", None)):
+        for t in coll or []:
+            if (getattr(t, "xmlid", None) or "").upper() == want:
+                return True
+    return False
+
+
+def is_surprised(*, observer, attacker, scene, roller=None) -> bool:
+    """Whether ``observer`` is Surprised by ``attacker`` (spec §1e).
+
+    The engine signal: the observer is Surprised iff it perceives the attacker
+    by NO sense (no physical, no mental, no nontargeting perception) AND lacks
+    Danger Sense. Danger Sense always negates Surprise (6E1 — it warns of
+    imminent danger regardless of LoS).
+
+    The "observer is not already expecting attacks" gate (turn/awareness state)
+    is applied by kirby-api, which knows the combat clock — this function only
+    answers the pure perception question."""
+    if _has_talent(observer.hero, "DANGER_SENSE"):
+        return False
+    p = perceive(observer, attacker, scene, roller=roller)
+    return not (p.targetable_physical
+                or p.targetable_mental
+                or p.kind == "perceived_nontargeting")
