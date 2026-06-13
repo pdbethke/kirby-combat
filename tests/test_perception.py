@@ -160,3 +160,162 @@ def test_perceive_occluded_by_wall_is_not_physically_targetable():
     p = perceive(obs, tgt, scene)
     assert p.targetable_physical is False
     assert p.kind == "occluded"
+
+
+# --- Task 5: Invisibility per-group + Fringe + Stealth-vs-PER contest ----------
+
+
+class _StubSensePower:
+    """One sense power for a synthetic observer hero (mirrors the loaded
+    power's duck-type: ``.xmlid`` + ``.sub_powers`` + adder accessors)."""
+
+    def __init__(self, xmlid: str):
+        self.xmlid = xmlid
+        self.alias = xmlid.title()
+        self.assigned_adders: list = []
+        self.adders: list = []
+        self.sub_powers: list = []
+
+
+class _StubObserverHero:
+    """Minimal LoadedHero stand-in exposing ``.powers`` (one sense power),
+    ``.skills`` and ``.characteristic_value`` — enough for ``senses()`` and
+    ``per_roll_target``. INT defaults to 10 → PER target 11."""
+
+    def __init__(self, xmlid: str, *, int_val: int = 10):
+        self.name = f"Observer<{xmlid}>"
+        self.powers = [_StubSensePower(xmlid)]
+        self.skills: list = []
+        self.talents: list = []
+        self._int = int_val
+
+    def characteristic_value(self, xmlid: str) -> int:
+        return {"INT": self._int}.get(xmlid.upper(), 0)
+
+
+def _hero_with_sense(xmlid: str) -> HeroCombatant:
+    """A HeroCombatant whose only bought sense is ``xmlid`` (plus the
+    always-present Normal Sight). Distinct id so positions don't collapse."""
+    from kirby_combat.hero_view import HeroCombatState
+
+    return HeroCombatant(
+        id="observer",
+        hero=_StubObserverHero(xmlid),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+
+
+def _two_combatant_scene_adjacent(observer, target, *, gap_m: float = 1.0) -> Scene:
+    # Observer at (0,5,1.5), target gap_m away along x — no wall.
+    observer.id, target.id = "observer", "target"
+    return Scene(
+        id="s2", name="PerceptionAdjacent",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[],
+        walls=[],
+        hazards=[],
+        ambient=AmbientConditions(),
+        combatant_positions={
+            observer.id: Position(0, 5, 1.5),
+            target.id: Position(gap_m, 5, 1.5),
+        },
+    )
+
+
+def test_sight_invisible_target_not_seen_by_sight_but_seen_by_radar():
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=False)
+    # obs has only Sight-group senses → sight-invisible target is unperceived
+    # (20m apart, so the Fringe doesn't apply).
+    p = perceive(obs, tgt, scene, target_invisible=True)
+    assert p.targetable_physical is False
+    assert p.kind == "invisible"
+    # ...but give the observer a Radar (non-Sight group) sense → perceived.
+    obs_radar = _hero_with_sense("RADAR")
+    obs_radar.id = "observer"
+    scene2 = _two_combatant_scene(obs_radar, tgt, wall=False)
+    p2 = perceive(obs_radar, tgt, scene2, target_invisible=True)
+    assert p2.targetable_physical is True
+    assert "radar" in p2.via
+
+
+def test_fringe_perceivable_within_2m():
+    # An Invisible target within 2m is perceivable via the Fringe (PER roll).
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=1.0)  # ≤2m apart
+    # seed=2 → 3d6 = 3 ≤ PER target 11 → Fringe spotted.
+    p = perceive(obs, tgt, scene, target_invisible=True, roller=RandomRoller(seed=2))
+    assert p.targetable_physical is True
+    assert "fringe" in p.detail
+
+
+def test_no_fringe_invisibility_is_not_spotted_within_2m():
+    # An Invisibility with the No Fringe adder gives no Fringe to perceive.
+    obs = _inferna()
+
+    class _Inv:
+        xmlid = "INVISIBILITY"
+        alias = "Invisibility"
+        option_id = "SIGHTGROUP"
+
+        class _NoFringe:
+            XMLID = "NOFRINGE"
+            alias = "No Fringe"
+
+        assigned_adders = [_NoFringe()]
+        sub_powers: list = []
+
+    class _Tgt:
+        name = "Ghost"
+        powers = [_Inv()]
+        skills: list = []
+        talents: list = []
+
+        def characteristic_value(self, xmlid):
+            return 10
+
+    from kirby_combat.hero_view import HeroCombatState
+
+    tgt = HeroCombatant(
+        id="target", hero=_Tgt(),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+    scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=1.0)
+    p = perceive(obs, tgt, scene, target_invisible=True, roller=RandomRoller(seed=2))
+    assert p.targetable_physical is False
+    assert p.kind == "invisible"
+
+
+def test_hidden_target_runs_stealth_contest():
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=False)
+    # target hidden; if no STEALTH skill → auto-perceived (no contest to win)
+    p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
+    assert p.targetable_physical is True   # Inferna has no STEALTH → can't actually hide
+
+
+def test_hidden_cheshire_runs_real_stealth_contest():
+    # Cheshire HAS Stealth (roll target 11) → a real opposed 3d6 contest runs
+    # and the rolls are surfaced in detail.
+    obs = _inferna()
+    cheshire_hdc = Path(
+        "/home/pdbethke/Documents/Champions/Docs/Champions_Villain_Teams_"
+        "Character_Pack/Champions Villains 2 6E ƒ/GRAB/CHESHIRE_CAT-CV2.hdc"
+    )
+    if not cheshire_hdc.exists():
+        pytest.skip(f"Cheshire HDC not present: {cheshire_hdc}")
+    tgt = HeroCombatant.from_hdc(str(cheshire_hdc))
+    obs.id, tgt.id = "observer", "target"
+    scene = Scene(
+        id="s3", name="StealthContest",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[], walls=[], hazards=[],
+        ambient=AmbientConditions(),
+        combatant_positions={
+            "observer": Position(0, 5, 1.5),
+            "target": Position(20, 5, 1.5),
+        },
+    )
+    p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
+    assert "stealth" in p.detail
+    assert p.detail["stealth"] == 11

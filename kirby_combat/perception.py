@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from kirby_combat.dice import RandomRoller
 from kirby_combat.resolution.line_of_sight import has_line_of_sight
 
 # Sense-group names — MUST match actions/flash.py's sense_group strings
@@ -158,6 +159,26 @@ def _power_invisibility_groups(p) -> set[str]:
     return found
 
 
+def _invisibility_has_no_fringe(hero) -> bool:
+    """True if the target's INVISIBILITY power carries the No Fringe adder
+    (XMLID ``NOFRINGE`` on ``assigned_adders``; falls back to ``adders`` /
+    free-text for synthetic stubs). No Fringe removes the tell-tale shimmer,
+    so the ≤2m Fringe PER roll can't perceive it (6E1 p340)."""
+    for p in getattr(hero, "powers", None) or []:
+        if (getattr(p, "xmlid", None) or "").upper() != "INVISIBILITY":
+            continue
+        adders = (getattr(p, "assigned_adders", None)
+                  or getattr(p, "adders", None) or [])
+        for a in adders:
+            ax = (getattr(a, "XMLID", None) or getattr(a, "xmlid", None) or "")
+            if ax.upper() == "NOFRINGE":
+                return True
+            alias = (getattr(a, "alias", "") or "").lower()
+            if "no fringe" in alias:
+                return True
+    return False
+
+
 def invisibility_groups(hero) -> frozenset[str]:
     """The Sense Group(s) this character's Invisibility covers. Default: the
     Sight Group (the HERO default when the power doesn't specify otherwise).
@@ -197,6 +218,34 @@ def _via_token(xmlid: str) -> str:
     return _VIA_ALIASES.get(x, x.lower())
 
 
+def _distance(o, t, scene) -> float:
+    """Euclidean distance (metres) between two combatants in the scene.
+    Returns 0.0 when either position is unknown (scene-less call)."""
+    positions = getattr(scene, "combatant_positions", None) or {} if scene else {}
+    a = positions.get(o.id)
+    b = positions.get(t.id)
+    if a is None or b is None:
+        return 0.0
+    return ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2) ** 0.5
+
+
+def _opposed_perceives(per_target: int, stealth_target: int, roller) -> tuple[bool, int, int]:
+    """Opposed 3d6 perception contest (spec §1d). The observer makes a PER
+    roll (3d6 ≤ ``per_target``) and the hider makes a Stealth roll
+    (3d6 ≤ ``stealth_target``). The observer perceives iff its *margin of
+    success* is at least the hider's — i.e.::
+
+        (per_target - per_roll) >= (stealth_target - stealth_roll)
+
+    Ties go to the observer. (A failed PER roll has a negative margin, so a
+    hider who makes their Stealth roll wins; a blown Stealth roll loses.)
+    Returns (perceived, per_roll, stealth_roll)."""
+    per_roll = sum(roller.roll_dice(3))
+    stealth_roll = sum(roller.roll_dice(3))
+    perceived = (per_target - per_roll) >= (stealth_target - stealth_roll)
+    return perceived, per_roll, stealth_roll
+
+
 def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     """Does a sight-like sense have a clear LoS to the target?
     Penetrative senses ignore occluders. A scene-less call / missing positions
@@ -214,40 +263,88 @@ def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     return clear, (None if clear else "occluded")
 
 
+_FRINGE_RANGE_M = 2.0
+
+
 def perceive(observer, target, scene, *, target_invisible: bool = False,
              target_hidden: bool = False, roller=None) -> Perception:
-    """Per-sense perception (spec §1). This task covers the Sight + bought
-    Targeting-sense LoS/occlusion core. Invisibility per-group is wired
-    structurally (a sense whose group the target's Invisibility covers can't
-    perceive); Fringe/Stealth/Mind-Scan-lock depth lands in Tasks 5-6.
+    """Per-sense perception (spec §1). Sight + bought Targeting senses resolve
+    LoS/occlusion; per-Sense-Group Invisibility blocks the covered senses
+    (with a ≤2m Fringe PER roll unless the power has No Fringe); a Hidden
+    target runs an opposed Stealth-vs-PER contest against any clear Sight-group
+    sense. Mental senses give non-LOS mental targeting (Task 6 adds the lock).
     Pure: no DB, no mutation."""
+    if roller is None:
+        roller = RandomRoller()
+
     via_physical: list[str] = []
     via_mental: list[str] = []
     occluder: str | None = None
+    detail: dict = {}
 
-    inv_groups = invisibility_groups(target.hero) if target_invisible else frozenset()
+    # ``target_invisible`` is the caller's authority that the target is
+    # currently Invisible (kirby-api / a GM toggle). Use the build's covered
+    # Sense Group(s) when its INVISIBILITY power names them; otherwise default
+    # to the Sight Group (the HERO default) so the flag still has effect even
+    # when the static build carries no INVISIBILITY power.
+    inv_groups = frozenset()
+    inv_no_fringe = False
+    if target_invisible:
+        inv_groups = invisibility_groups(target.hero) or frozenset({SIGHT})
+        inv_no_fringe = _invisibility_has_no_fringe(target.hero)
 
     for sense in observer.senses():
         if not getattr(sense, "functional", True):
             continue
         # Invisibility: a sense whose group the target's Invisibility covers
-        # can't perceive it (Fringe/Stealth resolution comes in Task 5).
+        # can't normally perceive it — but a ≤2m physical sense can spot the
+        # Fringe (the tell-tale shimmer) on a PER roll, unless the power has
+        # No Fringe (6E1 p340). Mental senses don't perceive a physical Fringe.
         if sense.group in inv_groups:
+            if (not sense.mental
+                    and not inv_no_fringe
+                    and "fringe" not in detail
+                    and _distance(observer, target, scene) <= _FRINGE_RANGE_M):
+                per_target = per_roll_target(observer)
+                per_roll = sum(roller.roll_dice(3))
+                if per_roll <= per_target:
+                    detail["fringe"] = {"per": per_target, "per_roll": per_roll}
+                    via_physical.append("fringe")
             continue
         if sense.mental:
             # Mind Scan / mental sense — non-LOS (Task 6 adds the lock gate).
             via_mental.append(_via_token(sense.xmlid))
             continue
         clear, occ = _sight_los(observer, target, scene, sense)
-        if clear:
-            via_physical.append(_via_token(sense.xmlid))
-        elif occ:
+        if not clear:
             occluder = occluder or occ
+            continue
+        # Hidden target: only Sight-group senses are fooled by Stealth (IR /
+        # Radar / Mind Scan aren't). Run the opposed contest once.
+        if target_hidden and sense.group == SIGHT and "stealth" not in detail:
+            stealth_target = target.skill_roll_value("STEALTH")
+            if stealth_target is None:
+                # No Stealth skill → the target can't actually hide → perceived.
+                via_physical.append(_via_token(sense.xmlid))
+                continue
+            per_target = per_roll_target(observer)
+            perceived, per_roll, stealth_roll = _opposed_perceives(
+                per_target, stealth_target, roller)
+            detail["stealth"] = stealth_target
+            detail["per"] = per_target
+            detail["per_roll"] = per_roll
+            detail["stealth_roll"] = stealth_roll
+            if perceived:
+                via_physical.append(_via_token(sense.xmlid))
+            continue
+        via_physical.append(_via_token(sense.xmlid))
 
     if via_physical:
         kind = "visible"
     elif occluder:
         kind = "occluded"
+    elif target_hidden:
+        kind = "hidden"
     else:
         kind = "invisible"
     return Perception(
@@ -257,4 +354,5 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         via=tuple(via_physical + via_mental),
         kind=kind,
         occluder_id=occluder,
+        detail=detail,
     )
