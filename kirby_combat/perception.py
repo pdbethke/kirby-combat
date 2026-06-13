@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from kirby_combat.dice import RandomRoller
 from kirby_combat.resolution.line_of_sight import has_line_of_sight
+from kirby_combat.scene.geometry import first_blocking_wall
 
 # Sense-group names — MUST match actions/flash.py's sense_group strings
 # ("sight" / "hearing" / "mental" / "radio"; smell as "smell").
@@ -201,7 +202,10 @@ class Perception:
     targetable_physical: bool      # a non-mental Targeting Sense reaches the target
     targetable_mental: bool        # mental LOS holds (any Targeting Sense / Mind Scan)
     via: tuple[str, ...] = ()      # e.g. ("normal_sight",) / ("mindscan",)
-    kind: str = "visible"          # visible|occluded|invisible|hidden|out_of_range|perceived_nontargeting
+    kind: str = "visible"          # visible|occluded|invisible|hidden|out_of_range
+    # Non-targeting-sense perception is a documented v1 deferral: senses()
+    # returns only Targeting senses, so perceive() never emits a
+    # "perceived_nontargeting" kind in v1.
     occluder_id: str | None = None
     detail: dict = field(default_factory=dict)
 
@@ -249,7 +253,9 @@ def _opposed_perceives(per_target: int, stealth_target: int, roller) -> tuple[bo
 def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     """Does a sight-like sense have a clear LoS to the target?
     Penetrative senses ignore occluders. A scene-less call / missing positions
-    is treated as no occlusion gate (clear). Returns (clear, occluder_id)."""
+    is treated as no occlusion gate (clear). Returns ``(clear, occluder_id)``,
+    where ``occluder_id`` is the REAL id of the nearest blocking wall (so the
+    Plan 2 GUI can surface the actual occluder) or ``None`` when clear."""
     if sense.penetrative:
         return True, None
     if scene is None:
@@ -260,7 +266,11 @@ def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     if o is None or t is None:
         return True, None            # scene-less / no positions → no occlusion gate
     clear = has_line_of_sight(scene, o, t)
-    return clear, (None if clear else "occluded")
+    if clear:
+        return True, None
+    # Recover the actual blocking wall's id (not the sentinel "occluded").
+    wall = first_blocking_wall(o, t, getattr(scene, "walls", None) or [])
+    return False, (getattr(wall, "id", None) if wall is not None else None)
 
 
 _FRINGE_RANGE_M = 2.0
@@ -381,20 +391,39 @@ def _has_talent(hero, xmlid: str) -> bool:
     return False
 
 
-def is_surprised(*, observer, attacker, scene, roller=None) -> bool:
+def has_combat_sense(hero) -> bool:
+    """True if the character has the Combat Sense Talent (spec §1a).
+
+    This is the SEAM Plan 2 needs to negate the HtH-blind penalty: a combatant
+    with Combat Sense can fight effectively without sight. The HtH negation
+    itself lives in Plan 2; here we only surface the capability. Reuses the
+    ``_has_talent`` scan over ``talents`` + ``powers`` for ``COMBAT_SENSE``."""
+    return _has_talent(hero, "COMBAT_SENSE")
+
+
+def is_surprised(*, observer, attacker, scene, roller=None,
+                 attacker_invisible: bool = False,
+                 attacker_hidden: bool = False) -> bool:
     """Whether ``observer`` is Surprised by ``attacker`` (spec §1e).
 
     The engine signal: the observer is Surprised iff it perceives the attacker
-    by NO sense (no physical, no mental, no nontargeting perception) AND lacks
-    Danger Sense. Danger Sense always negates Surprise (6E1 — it warns of
-    imminent danger regardless of LoS).
+    by NO sense (no physical, no mental) AND lacks Danger Sense. Danger Sense
+    always negates Surprise (6E1 — it warns of imminent danger regardless of
+    LoS). (Non-targeting-sense perception isn't modeled in v1 — see Perception
+    — so there's no third perception channel to check here.)
+
+    ``attacker_invisible`` / ``attacker_hidden`` carry the attacker's
+    concealment (the whole point of a sneak attack) into the perception check —
+    an Invisible or Hidden attacker the observer can't otherwise perceive
+    should come up Surprised.
 
     The "observer is not already expecting attacks" gate (turn/awareness state)
     is applied by kirby-api, which knows the combat clock — this function only
     answers the pure perception question."""
     if _has_talent(observer.hero, "DANGER_SENSE"):
         return False
-    p = perceive(observer, attacker, scene, roller=roller)
-    return not (p.targetable_physical
-                or p.targetable_mental
-                or p.kind == "perceived_nontargeting")
+    p = perceive(observer, attacker, scene,
+                 target_invisible=attacker_invisible,
+                 target_hidden=attacker_hidden,
+                 roller=roller)
+    return not (p.targetable_physical or p.targetable_mental)

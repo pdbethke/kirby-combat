@@ -162,6 +162,23 @@ def test_perceive_occluded_by_wall_is_not_physically_targetable():
     assert p.kind == "occluded"
 
 
+def test_occluded_perception_carries_real_wall_id():
+    # Fix I2: occluder_id must be the blocking wall's real id, not "occluded".
+    obs, tgt = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=True)
+    # The wall helper builds a wall with id="w".
+    p = perceive(obs, tgt, scene)
+    assert p.kind == "occluded"
+    assert p.occluder_id == "w"
+
+
+def test_no_scene_means_no_occluder_id():
+    # Fix I2: scene-less / no-position call → occluder_id is None (no gate).
+    obs, tgt = _inferna(), _inferna()
+    p = perceive(obs, tgt, None)
+    assert p.occluder_id is None
+
+
 # --- Task 5: Invisibility per-group + Fringe + Stealth-vs-PER contest ----------
 
 
@@ -385,3 +402,147 @@ def test_hidden_cheshire_runs_real_stealth_contest():
     p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
     assert "stealth" in p.detail
     assert p.detail["stealth"] == 11
+
+
+# --- Fix I3: Combat Sense seam ------------------------------------------------
+
+from kirby_combat.perception import has_combat_sense
+from kirby_combat.perception import MENTAL
+
+
+def test_has_combat_sense_true_for_a_combat_sense_hero():
+    # A hero carrying COMBAT_SENSE (talent) surfaces the seam as True.
+    hc = _hero_with_talent("COMBAT_SENSE")
+    assert has_combat_sense(hc.hero) is True
+    assert hc.has_combat_sense() is True
+
+
+def test_has_combat_sense_false_for_inferna():
+    hc = _inferna()
+    assert has_combat_sense(hc.hero) is False
+    assert hc.has_combat_sense() is False
+
+
+# --- Fix M4: is_surprised must see the attacker's concealment ------------------
+
+
+def test_is_surprised_true_for_invisible_attacker():
+    # An Invisible attacker the observer can't otherwise perceive (Sight-only
+    # observer, no wall) → surprised, because is_surprised now threads the
+    # attacker's Invisibility into perceive().
+    obs, attacker = _inferna(), _inferna()
+    scene = _two_combatant_scene(obs, attacker, wall=False)
+    assert is_surprised(
+        observer=obs, attacker=attacker, scene=scene,
+        attacker_invisible=True,
+    ) is True
+
+
+def test_is_surprised_false_when_nonsight_sense_perceives_invisible_attacker():
+    # Same Invisible (Sight-group) attacker, but the observer has Radar (a
+    # non-Sight sense) → perceives → not surprised.
+    obs_radar = _hero_with_sense("RADAR")
+    attacker = _inferna()
+    obs_radar.id, attacker.id = "observer", "target"
+    scene = Scene(
+        id="s4", name="SurpriseInvisible",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[], walls=[], hazards=[],
+        ambient=AmbientConditions(),
+        combatant_positions={
+            "observer": Position(0, 5, 1.5),
+            "target": Position(20, 5, 1.5),
+        },
+    )
+    assert is_surprised(
+        observer=obs_radar, attacker=attacker, scene=scene,
+        attacker_invisible=True,
+    ) is False
+
+
+# --- Test gaps: mental Invisibility vs Mind Scan; Penetrative through wall -----
+
+
+def test_mental_invisibility_blocks_mind_scan():
+    # A target whose Invisibility covers the MENTAL group can't be Mind Scanned.
+    obs = _hero_with_sense("MINDSCAN")
+
+    class _Inv:
+        xmlid = "INVISIBILITY"
+        alias = "Invisibility"
+        option_id = "MENTALGROUP"
+        assigned_adders: list = []
+        sub_powers: list = []
+
+    class _Tgt:
+        name = "MindCloaked"
+        powers = [_Inv()]
+        skills: list = []
+        talents: list = []
+
+        def characteristic_value(self, xmlid):
+            return 10
+
+    from kirby_combat.hero_view import HeroCombatState
+
+    tgt = HeroCombatant(
+        id="target", hero=_Tgt(),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+    # Sanity: the build's Invisibility covers MENTAL.
+    assert invisibility_groups(tgt.hero) == frozenset({MENTAL})
+    # Put a wall between them so Sight is occluded — the ONLY possible mental
+    # channel is Mind Scan, which the MENTAL-group Invisibility must block.
+    scene = _two_combatant_scene(obs, tgt, wall=True)
+    obs.id = "observer"
+    scene.combatant_positions["observer"] = Position(0, 5, 1.5)
+    p = perceive(obs, tgt, scene, target_invisible=True)
+    assert p.targetable_mental is False
+    assert "mindscan" not in p.via
+
+
+class _PenetrativeSensePower:
+    """A Spatial-Awareness-style sense power carrying the Penetrative adder."""
+
+    def __init__(self):
+        self.xmlid = "SPATIALAWARENESS"
+        self.alias = "Spatial Awareness"
+
+        class _Pen:
+            XMLID = "PENETRATIVE"
+            alias = "Penetrative"
+            option_alias = "Penetrative"
+
+        self.assigned_adders = [_Pen()]
+        self.adders: list = []
+        self.sub_powers: list = []
+
+
+class _PenetrativeObserverHero:
+    def __init__(self, int_val: int = 10):
+        self.name = "PenetrativeObserver"
+        self.powers = [_PenetrativeSensePower()]
+        self.skills: list = []
+        self.talents: list = []
+        self._int = int_val
+
+    def characteristic_value(self, xmlid: str) -> int:
+        return {"INT": self._int}.get(xmlid.upper(), 0)
+
+
+def test_penetrative_sense_perceives_through_a_wall():
+    from kirby_combat.hero_view import HeroCombatState
+
+    obs = HeroCombatant(
+        id="observer", hero=_PenetrativeObserverHero(),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+    # Confirm the Penetrative adder parsed onto the sense.
+    spatial = [s for s in obs.senses() if s.xmlid == "SPATIALAWARENESS"]
+    assert spatial and spatial[0].penetrative is True
+    tgt = _inferna()
+    scene = _two_combatant_scene(obs, tgt, wall=True)   # Sight is blocked
+    obs.id = "observer"
+    scene.combatant_positions["observer"] = Position(0, 5, 1.5)
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is True   # Penetrative sense ignores the wall

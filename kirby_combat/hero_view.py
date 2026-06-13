@@ -45,6 +45,12 @@ if TYPE_CHECKING:
     # Avoid forcing hero-designer-python import at module load time;
     # callers that don't use the new path won't pay the dep.
     from hero_designer.io.hdc_loader import LoadedHero
+    # Resolve the forward-ref on senses() -> list["SenseCapability"] (mirrors
+    # how MovementCapability is imported, but lazily under TYPE_CHECKING —
+    # perception imports hero_view at runtime, so a top-level import would
+    # cycle). Perception isn't referenced here, so it's intentionally not
+    # imported.
+    from kirby_combat.perception import SenseCapability
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -623,6 +629,13 @@ class HeroCombatant:
         hero.powers. Mirrors movement_view()."""
         from kirby_combat.perception import _sense_capabilities
         return _sense_capabilities(self.hero)
+
+    def has_combat_sense(self) -> bool:
+        """True if this combatant has the Combat Sense Talent (spec §1a).
+        The seam Plan 2 reads to negate the HtH-blind penalty; mirrors
+        ``senses()``. The HtH negation lives in Plan 2."""
+        from kirby_combat.perception import has_combat_sense
+        return has_combat_sense(self.hero)
 
     def skill_roll_value(self, xmlid: str) -> int | None:
         """The 3d6 roll target for a skill the character has (e.g. STEALTH),
