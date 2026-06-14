@@ -10,7 +10,9 @@ from dataclasses import dataclass, field
 
 from kirby_combat.dice import RandomRoller
 from kirby_combat.resolution.line_of_sight import has_line_of_sight
-from kirby_combat.scene.geometry import first_blocking_wall
+from kirby_combat.scene.geometry import (
+    first_blocking_wall, path_crosses_polygon, point_in_polygon_xy,
+)
 
 # Sense-group names — MUST match actions/flash.py's sense_group strings
 # ("sight" / "hearing" / "mental" / "radio"; smell as "smell").
@@ -224,6 +226,38 @@ def flash_groups(power) -> frozenset[str]:
     return frozenset(found or {SIGHT})   # never empty for a present FLASH power
 
 
+def darkness_groups(power) -> frozenset[str]:
+    """The Sense Group(s) a single DARKNESS power occludes (sense-affecting §2).
+
+    A DARKNESS power encodes its Sense Group(s) on the exact same shape as
+    INVISIBILITY/FLASH: the primary group in ``option_id`` (a ``*GROUP`` token)
+    plus extra groups as ``assigned_adders`` GROUP tokens. Defaults to the Sight
+    Group (the HERO default) for a present-but-unparsed DARKNESS power; returns
+    an empty set for a non-DARKNESS power so callers can probe any power
+    uniformly."""
+    if (getattr(power, "xmlid", None) or "").upper() != "DARKNESS":
+        return frozenset()
+    found = _power_invisibility_groups(power)
+    return frozenset(found or {SIGHT})   # never empty for a present DARKNESS power
+
+
+def darkness_personal_immunity(power) -> bool:
+    """True if a DARKNESS power carries the Personal Immunity adder (XMLID
+    ``PERSONALIMMUNITY`` on ``assigned_adders``; falls back to ``adders`` /
+    free-text for synthetic stubs). Personal Immunity lets the creating
+    combatant perceive through their own Darkness (6E1 p140)."""
+    adders = (getattr(power, "assigned_adders", None)
+              or getattr(power, "adders", None) or [])
+    for a in adders:
+        ax = (getattr(a, "XMLID", None) or getattr(a, "xmlid", None) or "")
+        if ax.upper() == "PERSONALIMMUNITY":
+            return True
+        alias = (getattr(a, "alias", "") or "").lower()
+        if "personal immunity" in alias:
+            return True
+    return False
+
+
 @dataclass(frozen=True)
 class Perception:
     """Result of ``perceive(observer, target)``. ``via`` lists the senses that
@@ -302,6 +336,55 @@ def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     return False, (getattr(wall, "id", None) if wall is not None else None)
 
 
+def _point_in_zone(p, zone) -> bool:
+    """True if a Position ``p`` lies inside a darkness_zone's polygon footprint
+    (xy) within its elevation range. Mirrors ``constructs_containing``."""
+    poly = getattr(zone, "polygon_xy", None)
+    if not poly:
+        return False
+    lo, hi = getattr(zone, "elevation_range_m", (0.0, 0.0))
+    if not (lo <= p.z <= hi):
+        return False
+    return point_in_polygon_xy((p.x, p.y), poly)
+
+
+def _darkness_blocks(observer, target, scene, sense) -> bool:
+    """True if a darkness_zone Construct occludes ``sense``'s Sense Group on the
+    observer→target ray (sense-affecting §2). The gate is group-keyed: only a
+    zone whose ``sense_group`` matches ``sense.group`` blocks. The ray is
+    occluded when it crosses the zone polygon OR either endpoint lies inside it
+    (within the zone's elevation range). The creating combatant with Personal
+    Immunity (``creator_immune``) is exempt for their own zone.
+
+    Fail-open: a scene-less call, missing positions, or no darkness zones → no
+    occlusion (returns False)."""
+    if scene is None:
+        return False
+    constructs = getattr(scene, "constructs", None) or []
+    if not constructs:
+        return False
+    positions = getattr(scene, "combatant_positions", None) or {}
+    o = positions.get(observer.id)
+    t = positions.get(target.id)
+    if o is None or t is None:
+        return False                 # missing positions → no darkness gate
+    for c in constructs:
+        if getattr(c, "kind", None) != "darkness_zone":
+            continue
+        if getattr(c, "sense_group", None) != sense.group:
+            continue
+        if (observer.id == getattr(c, "source_combatant_id", None)
+                and getattr(c, "creator_immune", False)):
+            continue                 # creator with Personal Immunity sees through
+        poly = getattr(c, "polygon_xy", None)
+        if not poly:
+            continue
+        if (path_crosses_polygon((o.x, o.y), (t.x, t.y), poly)
+                or _point_in_zone(o, c) or _point_in_zone(t, c)):
+            return True
+    return False
+
+
 _FRINGE_RANGE_M = 2.0
 
 
@@ -342,6 +425,14 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         # flash skips a mental sense (Mind Scan) too — checked before the mental
         # branch below so a flashed mental sense gives no mental LOS.
         if sense.group in observer_flashed_groups:
+            continue
+        # Darkness: a darkness_zone occluding this sense's group on the
+        # observer→target ray blocks the sense entirely (sense-affecting §2).
+        # Run BEFORE the mental branch AND before _sight_los's penetrative
+        # short-circuit, so a Sight-Darkness blocks a penetrative Sight sense
+        # (Nightvision) and a Mental-Darkness blocks Mind Scan. The creating
+        # combatant with Personal Immunity is exempt for their own zone.
+        if _darkness_blocks(observer, target, scene, sense):
             continue
         # Mental sense (Mind Scan / Mental Awareness): handle FIRST, before the
         # generic per-group Invisibility skip below. A mental sense perceives

@@ -703,3 +703,201 @@ def test_perceive_radar_observer_unaffected_by_sight_flash():
     p = perceive(obs, tgt, scene, observer_flashed_groups=frozenset({SIGHT}))
     assert p.targetable_physical is True
     assert "radar" in p.via
+
+
+# --- Task E2: darkness_groups(power) + darkness_personal_immunity + the gate ---
+# Sense-Affecting Darkness §2. A darkness_zone Construct occludes a Sense Group
+# on a crossing ray — it BEATS penetrative senses (Nightvision) and applies to
+# mental senses too; the creating combatant with Personal Immunity sees through.
+
+from kirby_combat.perception import (  # noqa: E402
+    darkness_groups, darkness_personal_immunity, MENTAL,
+)
+from kirby_combat.scene.construct import Construct  # noqa: E402
+
+
+def test_darkness_groups_reads_real_option_group():
+    # A DARKNESS power encodes its Sense Group identically to FLASH/INVISIBILITY.
+    class _P:
+        xmlid = "DARKNESS"
+        alias = "Darkness"
+        option_id = "SIGHTGROUP"
+        assigned_adders: list = []
+    assert darkness_groups(_P()) == frozenset({SIGHT})
+
+
+def test_darkness_groups_defaults_to_sight_when_unparsed():
+    class _P:
+        xmlid = "DARKNESS"
+        alias = "Darkness"
+        adders: list = []
+    assert darkness_groups(_P()) == frozenset({SIGHT})
+
+
+def test_darkness_groups_reads_option_and_adder_groups():
+    class _Adder:
+        def __init__(self, xmlid):
+            self.XMLID = xmlid
+    class _P:
+        xmlid = "DARKNESS"
+        alias = "Darkness"
+        option_id = "MENTALGROUP"
+        assigned_adders = [_Adder("HEARINGGROUP")]
+    assert darkness_groups(_P()) == frozenset({MENTAL, HEARING})
+
+
+def test_darkness_groups_non_darkness_power_is_empty():
+    class _P:
+        xmlid = "FLASH"
+        alias = "Flash"
+        option_id = "SIGHTGROUP"
+        assigned_adders: list = []
+    assert darkness_groups(_P()) == frozenset()
+
+
+def test_darkness_personal_immunity_reads_adder():
+    class _Adder:
+        def __init__(self, xmlid, alias=""):
+            self.XMLID = xmlid
+            self.alias = alias
+    class _P:
+        xmlid = "DARKNESS"
+        assigned_adders = [_Adder("PERSONALIMMUNITY", "Personal Immunity")]
+    assert darkness_personal_immunity(_P()) is True
+
+    class _P2:
+        xmlid = "DARKNESS"
+        assigned_adders = [_Adder("NOFRINGE", "No Fringe")]
+    assert darkness_personal_immunity(_P2()) is False
+
+
+def _darkness_zone(*, sense_group: str = "sight", creator_immune: bool = False,
+                   source: str | None = None) -> Construct:
+    # A box spanning x 8..12, y 0..10 — straddles the observer→target ray
+    # (observer at x=0, target at x=20, both y=5). Elevation covers z=1.5.
+    return Construct(
+        obj_id="dz1", kind="darkness_zone",
+        polygon_xy=[(8.0, 0.0), (12.0, 0.0), (12.0, 10.0), (8.0, 10.0)],
+        elevation_range_m=(0.0, 3.0),
+        sense_group=sense_group, creator_immune=creator_immune,
+        source_combatant_id=source,
+    )
+
+
+def _scene_with_constructs(observer, target, constructs) -> Scene:
+    observer.id, target.id = "observer", "target"
+    return Scene(
+        id="sdark", name="Darkness",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[], walls=[], hazards=[],
+        ambient=AmbientConditions(),
+        constructs=list(constructs),
+        combatant_positions={
+            observer.id: Position(0, 5, 1.5),
+            target.id: Position(20, 5, 1.5),
+        },
+    )
+
+
+def test_darkness_zone_blocks_sight_on_crossing_ray():
+    obs = _hero_with_sense("NORMALSIGHT")
+    tgt = _hero_with_sense("NORMALSIGHT")
+    scene = _scene_with_constructs(obs, tgt, [_darkness_zone(sense_group="sight")])
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is False
+    assert p.kind in ("occluded", "invisible")
+
+
+def test_darkness_beats_penetrative_sight_sense():
+    # Nightvision/Spatial-Awareness-style penetrative SIGHT sense still blocked
+    # by a Sight-Darkness — the gate runs BEFORE the penetrative short-circuit.
+    from kirby_combat.hero_view import HeroCombatState
+    obs = HeroCombatant(
+        id="observer", hero=_PenetrativeObserverHero(),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
+    )
+    spatial = [s for s in obs.senses() if s.xmlid == "SPATIALAWARENESS"]
+    assert spatial and spatial[0].penetrative is True
+    assert spatial[0].group == SIGHT
+    tgt = _hero_with_sense("NORMALSIGHT")
+    scene = _scene_with_constructs(obs, tgt, [_darkness_zone(sense_group="sight")])
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is False   # Darkness beats Nightvision
+
+
+def test_non_sight_sense_perceives_through_sight_darkness():
+    obs = _hero_with_sense("RADAR")         # RADIO group
+    tgt = _hero_with_sense("NORMALSIGHT")
+    scene = _scene_with_constructs(obs, tgt, [_darkness_zone(sense_group="sight")])
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is True
+    assert "radar" in p.via
+
+
+def test_creator_with_immunity_sees_through_own_darkness():
+    obs = _hero_with_sense("NORMALSIGHT")
+    obs.id = "creator"
+    tgt = _hero_with_sense("NORMALSIGHT")
+    tgt.id = "target"
+    scene = Scene(
+        id="sdark2", name="Darkness",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[], walls=[], hazards=[],
+        ambient=AmbientConditions(),
+        constructs=[_darkness_zone(sense_group="sight", creator_immune=True,
+                                   source="creator")],
+        combatant_positions={
+            "creator": Position(0, 5, 1.5),
+            "target": Position(20, 5, 1.5),
+        },
+    )
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is True    # creator + immunity sees through
+
+
+def test_creator_without_immunity_is_blind_in_own_darkness():
+    obs = _hero_with_sense("NORMALSIGHT")
+    obs.id = "creator"
+    tgt = _hero_with_sense("NORMALSIGHT")
+    tgt.id = "target"
+    scene = Scene(
+        id="sdark3", name="Darkness",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[], walls=[], hazards=[],
+        ambient=AmbientConditions(),
+        constructs=[_darkness_zone(sense_group="sight", creator_immune=False,
+                                   source="creator")],
+        combatant_positions={
+            "creator": Position(0, 5, 1.5),
+            "target": Position(20, 5, 1.5),
+        },
+    )
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_physical is False   # creator without immunity is blind
+
+
+def test_mental_darkness_blocks_mind_scan():
+    # A Mental-Darkness on the ray blocks the Mind Scan sense itself. The
+    # observer also has the always-present Normal Sight (which would otherwise
+    # grant mental LOS), so we ALSO drop a Sight-Darkness on the ray to isolate
+    # the mental channel → with Mind Scan blocked there is no mental targeting.
+    obs = _hero_with_sense("MINDSCAN")      # MENTAL group, non-LOS sense
+    tgt = _hero_with_sense("NORMALSIGHT")
+    sight_dz = _darkness_zone(sense_group="sight")
+    mental_dz = Construct(
+        obj_id="dz_mental", kind="darkness_zone",
+        polygon_xy=[(8.0, 0.0), (12.0, 0.0), (12.0, 10.0), (8.0, 10.0)],
+        elevation_range_m=(0.0, 3.0), sense_group="mental",
+    )
+    scene = _scene_with_constructs(obs, tgt, [sight_dz, mental_dz])
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_mental is False
+    assert "mindscan" not in p.via
+
+
+def test_darkness_gate_fails_open_without_scene_or_positions():
+    obs = _hero_with_sense("NORMALSIGHT")
+    tgt = _hero_with_sense("NORMALSIGHT")
+    # scene-less call → no darkness gate, still perceives by sight via no-scene
+    p = perceive(obs, tgt, None)
+    assert p.targetable_physical is True
