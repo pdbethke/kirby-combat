@@ -19,7 +19,7 @@ from kirby_combat.scene.geometry import point_in_polygon_xy
 EffectKind = Literal["damage", "suffocation", "status", "mental"]  # "mental" reserved (v1: not resolved)
 EffectGating = Literal["physical_def", "breathing_swimming", "mental_disbelief", "none"]
 EffectTrigger = Literal["on_enter", "on_pass", "every_segment", "passive"]
-ConstructKind = Literal["wall", "hazard_zone", "force_wall", "illusion_zone"]  # illusion_zone reserved
+ConstructKind = Literal["wall", "hazard_zone", "force_wall", "illusion_zone", "darkness_zone"]  # illusion_zone reserved
 Permeability = Literal["porous", "impermeable"]
 
 
@@ -56,6 +56,10 @@ class Construct:
     effect: ConstructEffect | None = None
     source_combatant_id: str | None = None
     created_at_seq: int | None = None
+    # sense-affecting (darkness_zone): the Sense Group this zone occludes
+    # (e.g. "sight", "mental") and whether the creating combatant sees through it.
+    sense_group: str | None = None
+    creator_immune: bool = False
 
     @property
     def destructible(self) -> bool:
@@ -76,6 +80,8 @@ def construct_from_spawn_spec(
     permeability: "Permeability | None" = None,
     source_combatant_id: "str | None" = None,
     created_at_seq: "int | None" = None,
+    sense_group: "str | None" = None,
+    creator_immune: bool = False,
 ) -> "Construct":
     """Build a spawned Construct (force wall / spawn-on-destroy hazard). A
     force_wall defaults to a LoS+movement blocking impermeable barrier; a
@@ -91,6 +97,7 @@ def construct_from_spawn_spec(
         cover_level=4 if blocks else 0,
         def_value=def_value, body=body, effect=effect,
         source_combatant_id=source_combatant_id, created_at_seq=created_at_seq,
+        sense_group=sense_group, creator_immune=creator_immune,
     )
 
 

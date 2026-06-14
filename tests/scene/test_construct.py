@@ -78,3 +78,37 @@ def test_construct_from_spawn_spec_builds_force_wall():
     assert c.kind == "force_wall" and c.blocks_los and c.blocks_movement
     assert c.permeability == "impermeable" and c.def_value == 5 and c.body == 4
     assert c.source_combatant_id == "cheshire" and c.destructible
+
+
+def test_construct_darkness_zone_carries_sense_group_and_creator_immune():
+    c = Construct(
+        kind="darkness_zone",
+        obj_id="dk1",
+        polygon_xy=[(0, 0), (4, 0), (4, 4), (0, 4)],
+        elevation_range_m=(0.0, 3.0),
+        sense_group="sight",
+        creator_immune=True,
+    )
+    assert c.kind == "darkness_zone"
+    assert c.sense_group == "sight"
+    assert c.creator_immune is True
+
+
+def test_construct_sense_group_creator_immune_default():
+    c = Construct(obj_id="x", kind="wall")
+    assert c.sense_group is None
+    assert c.creator_immune is False
+
+
+def test_construct_from_spawn_spec_threads_darkness_fields():
+    from kirby_combat.scene.construct import construct_from_spawn_spec
+    c = construct_from_spawn_spec(
+        obj_id="dk2", kind="darkness_zone",
+        polygon_xy=[(0, 0), (4, 0), (4, 4), (0, 4)],
+        elevation_range_m=(0.0, 3.0),
+        sense_group="mental", creator_immune=True,
+        source_combatant_id="orion",
+    )
+    assert c.kind == "darkness_zone"
+    assert c.sense_group == "mental"
+    assert c.creator_immune is True

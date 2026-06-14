@@ -6,7 +6,7 @@ from typing import Literal
 
 from kirby_combat.scene.scene import Hazard, HazardEffect, Position, Scene
 from kirby_combat.scene.geometry import (
-    point_in_polygon_xy, segments_intersect_xy,
+    point_in_polygon_xy, path_crosses_polygon,
 )
 
 
@@ -24,20 +24,6 @@ class HazardTriggerResult:
 def _within_elevation(z: float, elevation_range_m: tuple[float, float]) -> bool:
     lo, hi = elevation_range_m
     return lo <= z <= hi
-
-
-def _path_crosses_polygon(
-    a: tuple[float, float], b: tuple[float, float],
-    poly: list[tuple[float, float]],
-) -> bool:
-    """True if the segment from a to b crosses any edge of the polygon."""
-    n = len(poly)
-    for i in range(n):
-        p1 = poly[i]
-        p2 = poly[(i + 1) % n]
-        if segments_intersect_xy(a, b, p1, p2):
-            return True
-    return False
 
 
 def compute_hazard_triggers(
@@ -102,7 +88,7 @@ def compute_hazard_triggers(
                         affected.append(cid)
                     continue
                 # Path-crossing test
-                if _path_crosses_polygon(
+                if path_crosses_polygon(
                     (before_pos.x, before_pos.y),
                     (after_pos.x, after_pos.y),
                     hazard.polygon_xy,

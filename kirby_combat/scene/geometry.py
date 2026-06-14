@@ -59,6 +59,20 @@ def segments_intersect_xy(
     return ccw(a1, b1, b2) != ccw(a2, b1, b2) and ccw(a1, a2, b1) != ccw(a1, a2, b2)
 
 
+def path_crosses_polygon(
+    a: tuple[float, float], b: tuple[float, float],
+    poly: list[tuple[float, float]],
+) -> bool:
+    """True if the segment from a to b crosses any edge of the polygon."""
+    n = len(poly)
+    for i in range(n):
+        p1 = poly[i]
+        p2 = poly[(i + 1) % n]
+        if segments_intersect_xy(a, b, p1, p2):
+            return True
+    return False
+
+
 def segment_intersection_xy(
     a1: tuple[float, float], a2: tuple[float, float],
     b1: tuple[float, float], b2: tuple[float, float],

@@ -9,7 +9,20 @@ from kirby_combat.scene.geometry import (
     segments_intersect_xy,
     line_of_sight_clear,
     angle_between_xy,
+    path_crosses_polygon,
 )
+
+
+def test_path_crosses_polygon_true_when_segment_crosses():
+    poly = [(0, 0), (4, 0), (4, 4), (0, 4)]
+    # segment from left-outside to right-outside passing through the square
+    assert path_crosses_polygon((-1, 2), (5, 2), poly) is True
+
+
+def test_path_crosses_polygon_false_when_clear():
+    poly = [(0, 0), (4, 0), (4, 4), (0, 4)]
+    # segment well clear of the square
+    assert path_crosses_polygon((-5, 10), (5, 10), poly) is False
 
 
 def test_distance_3d_basic():
