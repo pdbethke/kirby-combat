@@ -901,3 +901,32 @@ def test_darkness_gate_fails_open_without_scene_or_positions():
     # scene-less call → no darkness gate, still perceives by sight via no-scene
     p = perceive(obs, tgt, None)
     assert p.targetable_physical is True
+
+
+class _FixedRoller:
+    """Rolls 3d6 summing to a fixed total (for disbelief contest tests)."""
+
+    def __init__(self, total):
+        self._total = total
+
+    def roll_dice(self, n):
+        base = self._total // n
+        rem = self._total - base * n
+        return [base + (1 if i < rem else 0) for i in range(n)]
+
+
+def test_disbelieve_image_succeeds_when_roll_under_target():
+    from kirby_combat.perception import disbelieve_image
+    assert disbelieve_image(per_target=12, image_penalty=2, roller=_FixedRoller(6)) is True
+
+
+def test_disbelieve_image_fails_when_roll_over_effective_target():
+    from kirby_combat.perception import disbelieve_image
+    assert disbelieve_image(per_target=11, image_penalty=4, roller=_FixedRoller(12)) is False
+
+
+def test_disbelieve_image_penalty_lowers_effective_target():
+    from kirby_combat.perception import disbelieve_image
+    # roll of 9: penalty 0 (target 11) succeeds; penalty 4 (target 7) fails.
+    assert disbelieve_image(per_target=11, image_penalty=0, roller=_FixedRoller(9)) is True
+    assert disbelieve_image(per_target=11, image_penalty=4, roller=_FixedRoller(9)) is False

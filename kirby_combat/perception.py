@@ -112,6 +112,18 @@ def _roll_3d6_succeeds(target: int, roller) -> bool:
     return sum(roller.roll_dice(3)) <= int(target)
 
 
+def disbelieve_image(*, per_target: int, image_penalty: int, roller) -> bool:
+    """A single observer's PER-Roll-to-disbelieve an Image (6E1 p238-240).
+
+    An observer with a line to the Image may roll PER to see through it, at a
+    penalty equal to the Image's complexity. Returns True if *this* observer
+    perceives the illusion as fake: 3d6 ≤ (per_target − image_penalty).
+    ``per_target`` is the observer's PER roll target (``per_roll_target``);
+    ``image_penalty`` is the Image's concealment/complexity PER penalty (≥0).
+    """
+    return _roll_3d6_succeeds(int(per_target) - int(image_penalty), roller)
+
+
 # Invisibility's covered Sense Group(s) come from two real-shape places on a
 # loaded INVISIBILITY power (verified against the HSB bestiary corpus, e.g.
 # UNDEAD_GHOST_HSB.hdc — Sight+Hearing+Smell):
