@@ -1347,8 +1347,41 @@ def _build_attack_power(
     Melee attacks carry the attacker's effective reach (2m + Stretching);
     ranged attacks carry 0.0 for reach_m.
     """
+    # Lazy import — hero_designer is an optional dep; stub-based tests don't have it.
+    try:
+        from hero_designer.io.framework_access import framework_kind, avad_alternate_defense
+        _fw_access = True
+    except ImportError:
+        _fw_access = False
+
     xmlid = (getattr(power, "xmlid", None) or "").upper()
     name = (getattr(power, "name", None) or "").strip() or xmlid
+
+    # Framework slot identity — slots are top-level powers whose .parent is a framework.
+    parent = getattr(power, "parent", None)
+    if _fw_access and parent is not None:
+        try:
+            fw_kind = framework_kind(parent)
+        except Exception:
+            fw_kind = None
+    else:
+        fw_kind = None
+    framework_xmlid = (getattr(parent, "xmlid", "") or "") if fw_kind else ""
+    if fw_kind:
+        raw_id = str(getattr(power, "id", "") or "")
+        slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+    else:
+        slot_id = ""
+
+    # AVAD / NND detection — uses the Task-1 accessor which reads assigned_modifiers[].input.
+    if _fw_access:
+        try:
+            avad_def = avad_alternate_defense(power)
+        except Exception:
+            avad_def = ""
+    else:
+        avad_def = ""
+
     full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
     damage_type = _damage_type_for_power(xmlid)
     defense_type = _defense_type_for_power(xmlid)
@@ -1396,4 +1429,8 @@ def _build_attack_power(
         increased_stun_mult=0,
         is_ranged=is_ranged,
         reach_m=reach_m_val,
+        avad=bool(avad_def),
+        avad_defense=(avad_def or ""),
+        framework_xmlid=framework_xmlid,
+        slot_id=slot_id,
     )
