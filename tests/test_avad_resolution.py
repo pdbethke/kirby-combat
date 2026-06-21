@@ -138,3 +138,35 @@ def test_avad_tag_lacks_in_defense_tags():
     assert "avad:lacks" in prof.defense_tags, (
         f"Expected 'avad:lacks' in defense_tags; got {prof.defense_tags}"
     )
+
+
+# ---------------------------------------------------------------------------
+# AVAD does STUN only (6E1 p328) unless it bought Does BODY (+1)
+# ---------------------------------------------------------------------------
+import dataclasses
+from kirby_combat.actions import resolve_attack
+from kirby_combat.models import AttackInput, DiceValues
+from kirby_combat.template import RAW_SUPERHEROIC
+
+
+def _resolve_nnd(*, does_body: bool):
+    attacker = synthetic_combatant(id="atk", name="Attacker")
+    target = synthetic_combatant(id="tgt", name="Target", ed=5, power_defense=0)
+    ap = dataclasses.replace(_nnd("Power Defense"), avad_does_body=does_body)
+    dice = DiceValues(to_hit=[3, 3, 3], damage=[6] * 12, stun_multiplier=[], knockback=[3, 3])
+    return resolve_attack(
+        AttackInput(attacker=attacker, target=target, power=ap, dice=dice, aim=None,
+                    distance_m=10),
+        template=RAW_SUPERHEROIC,
+    )
+
+
+def test_avad_does_stun_only_by_default():
+    res = _resolve_nnd(does_body=False)
+    assert res.hit and res.stun_dealt > 0   # bypasses normal defense → full STUN
+    assert res.body_dealt == 0              # but STUN only — no BODY
+
+
+def test_avad_with_does_body_advantage_does_body():
+    res = _resolve_nnd(does_body=True)
+    assert res.hit and res.body_dealt > 0   # Does BODY (+1) restores BODY

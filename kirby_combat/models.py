@@ -37,6 +37,7 @@ class AttackPower:
     reach_m: float = 0.0         # effective melee reach in metres (0.0 for ranged)
     avad: bool = False              # Attack Versus Alternate Defense / NND
     avad_defense: str = ""          # the named alternate defense (free text); "" when avad is False
+    avad_does_body: bool = False    # AVAD does STUN only (6E1 p328) unless it bought Does BODY (+1)
     framework_xmlid: str = ""       # owning Multipower/EC/VPP xmlid ("" for a top-level power)
     slot_id: str = ""               # stable per-slot id ("" for a top-level power)
 

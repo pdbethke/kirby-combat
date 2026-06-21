@@ -1432,6 +1432,8 @@ def _build_attack_power(
             avad_def = ""
     else:
         avad_def = ""
+    # AVAD/NND does STUN only (6E1 p328) unless it bought the Does BODY (+1) Advantage.
+    avad_does_body = _has_modifier(power, "DOESBODY")
 
     full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
     damage_type = _damage_type_for_power(xmlid)
@@ -1482,6 +1484,7 @@ def _build_attack_power(
         reach_m=reach_m_val,
         avad=bool(avad_def),
         avad_defense=(avad_def or ""),
+        avad_does_body=avad_does_body,
         framework_xmlid=framework_xmlid,
         slot_id=slot_id,
     )

@@ -123,6 +123,15 @@ class AttackAction:
             stun_dealt = max(0, damage.stun - defense.total_defense)
             body_dealt = max(0, damage.body - defense.total_defense)
 
+        # AVAD/NND attacks do STUN only (6E1 p328) unless they bought Does BODY (+1).
+        if (getattr(effective_power, "avad", False)
+                and not getattr(effective_power, "avad_does_body", False)):
+            if body_dealt:
+                audit_trail.append(
+                    f"AVAD/NND does STUN only (no Does BODY adder): BODY {body_dealt}→0"
+                )
+            body_dealt = 0
+
         audit_trail.append(
             f"Damage after defenses: STUN={stun_dealt}, BODY={body_dealt}"
         )
