@@ -208,3 +208,43 @@ def _compute_killing(
     audit.append(f"Killing STUN: {body} BODY × {stun_mult} multiplier = {stun}")
 
     return stun, body, stun_mult
+
+
+# ---------------------------------------------------------------------------
+# Variable Multipower slot dice scaling (6E1 p405)
+# ---------------------------------------------------------------------------
+
+def scale_variable_slot_dice(
+    *,
+    base_dice: int,
+    active_points: int,
+    assigned_points: int,
+) -> int:
+    """Scale a variable Multipower slot's dice by the fraction of reserve assigned.
+
+    6E1 p405: a variable slot that is assigned fewer reserve points than its
+    Active Point cost has its dice reduced proportionally (floor to whole dice).
+    Fixed slots always run at full power; this helper is only called for
+    variable-type slots.
+
+    Parameters
+    ----------
+    base_dice:
+        The slot's full-power dice count (at full active_points).
+    active_points:
+        The slot's Active Point cost (cost at full power).  If 0 or unknown,
+        the function returns base_dice unchanged — safe default.
+    assigned_points:
+        Reserve points currently allocated to this slot.  If >= active_points
+        the slot runs at full power.
+
+    Returns
+    -------
+    int
+        Scaled dice count, floored to the nearest whole die.  Minimum 0.
+    """
+    if not active_points or assigned_points >= active_points:
+        return base_dice
+    return max(0, int(base_dice * assigned_points / active_points))
+
+    return stun, body, stun_mult
