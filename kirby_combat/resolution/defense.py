@@ -3,6 +3,8 @@
 compute_defense(target, power) → DefenseProfile
 
 Aggregation order:
+  0. AVAD/NND short-circuit: if power.avad is True, apply all-or-nothing logic
+     (6E1 p328) before the normal map lookup.
   1. Base (non-resistant) defense from target characteristics by defense_type.
   2. Resistant defense from target characteristics.
   3. Defense items: add applicable pd/ed/md/power_defense/flash_defense and
@@ -27,6 +29,70 @@ _DEFENSE_MAP: dict[str, tuple[str, str, str, str]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# AVAD / NND support (6E1 p328)
+# ---------------------------------------------------------------------------
+
+# Simple token → combatant attribute mapping for named alternate defenses that
+# the engine tracks as numeric values. The token is the upper-cased, space-
+# collapsed name. A target "has" the defense when the attribute is > 0.
+_AVAD_SIMPLE_ATTR: dict[str, str] = {
+    "POWERDEFENSE": "power_defense",
+    "MENTALDEFENSE": "md",
+    "FLASHDEFENSE": "flash_defense",
+}
+
+
+def _target_has_named_defense(target, avad_defense: str) -> bool:
+    """Return True if the target possesses the AVAD's named alternate defense.
+
+    ``avad_defense`` is **free text** from the HDC / power definition.  The
+    strategy is:
+
+    1. Normalise to upper-case and strip spaces, then check against the small
+       set of simple defenses the engine tracks as numeric attributes on the
+       combatant/combat-stats object (Power Defense, Mental Defense, Flash
+       Defense).  We match both the compact form ("POWERDEFENSE") and the
+       spaced form ("POWER DEFENSE") to cope with varied HDC wording.
+    2. Walk the target's ``defenses`` list (DefenseItem objects) and look for
+       any item whose name shares a meaningful word with the avad_defense text
+       (≥ 4 chars, avoiding stop-word false-positives like "with", "that").
+    3. Default **False** — the exotic defense is almost always absent, which is
+       the NND "full damage" path and the safest fallback.
+    """
+    text = (avad_defense or "").upper()
+    text_nospace = text.replace(" ", "")
+
+    for token, attr in _AVAD_SIMPLE_ATTR.items():
+        # Build the spaced form from the compact token, e.g.
+        # "POWERDEFENSE" → "POWER DEFENSE"
+        if token.endswith("DEFENSE"):
+            spaced = token[:-7] + " DEFENSE"
+        else:
+            spaced = token
+
+        if (token in text_nospace or spaced in text):
+            # Check the live combat-stats object (the patched path in
+            # synthetic_combatant forwards rPD/rED/MD/POWD/FLASHD there).
+            combat_stats = getattr(target, "combat_stats", None)
+            if callable(combat_stats):
+                stats = combat_stats()
+                if getattr(stats, attr, 0):
+                    return True
+            # Fallback: check the attr directly on the target (future-proofing
+            # for a flat Combatant shim or other duck-typed implementation).
+            elif getattr(target, attr, 0):
+                return True
+
+    # Walk defense items (powers / armor / force fields) for keyword match.
+    for d in (getattr(target, "defenses", None) or []):
+        nm = (getattr(d, "name", "") or "").upper()
+        if nm and any(w for w in nm.split() if len(w) > 3 and w in text):
+            return True
+
+    return False
+
+
 def compute_defense(target: Combatant, power: AttackPower) -> DefenseProfile:
     """Return a DefenseProfile for *target* against *power*.
 
@@ -43,6 +109,29 @@ def compute_defense(target: Combatant, power: AttackPower) -> DefenseProfile:
     DefenseProfile
         Fully aggregated defense totals with audit trail.
     """
+    # ------------------------------------------------------------------
+    # 0. AVAD / NND — all-or-nothing short-circuit (6E1 p328)
+    # ------------------------------------------------------------------
+    if getattr(power, "avad", False):
+        named = getattr(power, "avad_defense", "") or ""
+        has = _target_has_named_defense(target, named)
+        _BIG = 10_000
+        return DefenseProfile(
+            total_defense=(_BIG if has else 0),
+            resistant_defense=(_BIG if has else 0),
+            non_resistant_defense=0,
+            damage_reduction_pct=0,
+            damage_negation=0,
+            knockback_resistance=target.knockback_resistance,
+            defense_tags=["avad:" + ("has" if has else "lacks")],
+            audit=[
+                "AVAD/NND vs "
+                + (named or "?")
+                + ": target "
+                + ("HAS it → no damage" if has else "LACKS it → full damage, normal PD/ED ignored")
+            ],
+        )
+
     audit: list[str] = []
     defense_tags: list[str] = []
 
