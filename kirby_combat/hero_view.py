@@ -741,6 +741,7 @@ class HeroCombatant:
         """
         from hero_designer.io.framework_access import (  # lazy
             framework_kind, framework_slots, reserve_or_pool, slot_is_variable,
+            vpp_pool,
         )
         from kirby_combat.models import FrameworkView, SlotView
 
@@ -773,7 +774,10 @@ class HeroCombatant:
                 name=(getattr(p, "name", None) or
                       getattr(p, "alias", "") or "Framework"),
                 kind=kind,
-                reserve_or_pool=reserve_or_pool(p),
+                # A VPP's pool lives on ``levels`` (base_cost is 0 for a VPP),
+                # so read it via vpp_pool; Multipower/EC reserve is base_cost.
+                reserve_or_pool=(vpp_pool(p) if kind == "vpp"
+                                 else reserve_or_pool(p)),
                 slots=slots,
             ))
         return out

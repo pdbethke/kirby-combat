@@ -17,3 +17,16 @@ def test_framework_view_exposes_multipower_reserve_and_typed_slots():
     assert any(s.attack is not None and s.attack.avad for s in mp.slots)
     # attack slots are classified as kind="attack"
     assert any(s.kind == "attack" for s in mp.slots)
+
+
+ARTHON = str(pathlib.Path(__file__).parent / "fixtures" / "ARTHON-CV1.hdc")
+
+
+def test_framework_view_vpp_pool_from_levels_not_basecost():
+    """A VPP's pool lives on ``levels`` (base_cost is 0 for a VPP); the
+    FrameworkView must report the real pool, not 0."""
+    fws = HeroCombatant.from_hdc(ARTHON).framework_view()
+    vpp = next(f for f in fws if f.kind == "vpp")
+    assert vpp.reserve_or_pool == 80, (
+        f"expected VPP pool 80 (levels), got {vpp.reserve_or_pool}"
+    )
