@@ -42,6 +42,32 @@ class AttackPower:
 
 
 @dataclass
+class SlotView:
+    """One slot in a framework (Multipower / Elemental Control / VPP)."""
+
+    slot_id: str
+    name: str
+    active_points: int
+    variable: bool
+    kind: str                       # "attack" | "defense" | "movement" | "other"
+    attack: "AttackPower | None" = None
+
+
+@dataclass
+class FrameworkView:
+    """A power framework (Multipower / Elemental Control / VPP) with its
+    reserve/pool size and typed slots. Populated by
+    ``HeroCombatant.framework_view()``; consumed by kirby-api to enumerate
+    available slots and enforce the reserve."""
+
+    xmlid: str
+    name: str
+    kind: str                       # "multipower" | "elemental_control" | "vpp"
+    reserve_or_pool: int
+    slots: list[SlotView]
+
+
+@dataclass
 class DefenseItem:
     """A single piece of armor, force field, or defensive ability."""
 

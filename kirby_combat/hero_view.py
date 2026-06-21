@@ -727,6 +727,57 @@ class HeroCombatant:
             ))
         return out
 
+    def framework_view(self) -> "list[FrameworkView]":
+        """Power frameworks (Multipower / Elemental Control / VPP) with
+        reserve/pool + typed slots, each attack slot linked to its
+        AttackPower. Pure read over the build model. Empty for combatants
+        with no framework.
+
+        The slot_id formula mirrors ``_build_attack_power`` exactly:
+          raw_id = str(getattr(power, "id", "") or "")
+          slot_id = raw_id or f'{xmlid.upper()}#{id(power)}'
+        Both paths run in the same process call, so id(power) is stable
+        across self.attacks and this loop (same object in hero.powers).
+        """
+        from hero_designer.io.framework_access import (  # lazy
+            framework_kind, framework_slots, reserve_or_pool, slot_is_variable,
+        )
+        from kirby_combat.models import FrameworkView, SlotView
+
+        attack_by_slot: dict[str, "AttackPower"] = {
+            a.slot_id: a for a in self.attacks if a.slot_id
+        }
+        out: list[FrameworkView] = []
+        for p in (self.hero.powers or []):
+            kind = framework_kind(p)
+            if kind is None:
+                continue
+            slots: list[SlotView] = []
+            for child in framework_slots(self.hero, p):
+                cx = (getattr(child, "xmlid", "") or "").upper()
+                # Exact same formula as _build_attack_power so attack_by_slot links.
+                raw_id = str(getattr(child, "id", "") or "")
+                sid = raw_id or f"{cx}#{id(child)}"
+                atk = attack_by_slot.get(sid)
+                slots.append(SlotView(
+                    slot_id=sid,
+                    name=(getattr(child, "name", None) or
+                          getattr(child, "alias", "") or cx),
+                    active_points=int(getattr(child, "active_cost", 0) or 0),
+                    variable=slot_is_variable(p, child),
+                    kind=("attack" if atk is not None else "other"),
+                    attack=atk,
+                ))
+            out.append(FrameworkView(
+                xmlid=(getattr(p, "xmlid", "") or ""),
+                name=(getattr(p, "name", None) or
+                      getattr(p, "alias", "") or "Framework"),
+                kind=kind,
+                reserve_or_pool=reserve_or_pool(p),
+                slots=slots,
+            ))
+        return out
+
     def has_self_contained_breathing(self) -> bool:
         """True if a Life Support power grants Self-Contained Breathing / no need
         to breathe — immune to suffocation. Walks hero.powers (the engine reads
