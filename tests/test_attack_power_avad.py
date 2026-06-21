@@ -1,8 +1,9 @@
+import pathlib
 import pytest
 
 from kirby_combat.hero_view import HeroCombatant
 
-HELIOS = "/home/pdbethke/PycharmProjects/Kirby/hero-designer-python/tests/fixtures/HELIOS-CV1.hdc"
+HELIOS = str(pathlib.Path(__file__).parent / "fixtures" / "HELIOS-CV1.hdc")
 
 
 def test_attacks_surface_avad_and_slot_identity():

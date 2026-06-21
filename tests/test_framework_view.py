@@ -1,8 +1,9 @@
+import pathlib
 import pytest
 pytest.importorskip("hero_designer")
 from kirby_combat.hero_view import HeroCombatant
 
-HELIOS = "/home/pdbethke/PycharmProjects/Kirby/hero-designer-python/tests/fixtures/HELIOS-CV1.hdc"
+HELIOS = str(pathlib.Path(__file__).parent / "fixtures" / "HELIOS-CV1.hdc")
 
 
 def test_framework_view_exposes_multipower_reserve_and_typed_slots():
