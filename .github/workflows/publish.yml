@@ -95,10 +95,13 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: [self-hosted, hetzner]
     # The cross-repo dispatch needs a real PAT (the default GITHUB_TOKEN
-    # is scoped to its own repo). Without GH_DISPATCH_TOKEN set, this
-    # step soft-fails — publish still succeeds; user can manually
-    # \`gh workflow run -R pdbethke/kirby-api\` to redeploy with the
-    # new wheel, or set GH_DISPATCH_TOKEN to enable auto-cascade.
+    # is scoped to its own repo). \`continue-on-error\` keeps a dispatch
+    # failure from failing the publish — the wheel is already on PyPI and
+    # re-running would 400 on "already exists". But the job itself MUST go
+    # red so the skip is visible: from the workflow's creation until
+    # 2026-07-24 this step exited 0 on a missing token, so every
+    # kirby-combat release published green while never redeploying
+    # kirby-api. Silence is the bug; loud-but-non-blocking is the fix.
     continue-on-error: true
     steps:
       - name: Trigger kirby-api redeploy (requires GH_DISPATCH_TOKEN)
@@ -107,9 +110,9 @@ jobs:
           NEW_VERSION: ${{ needs.publish.outputs.version }}
         run: |
           if [ -z "${GH_DISPATCH_TOKEN:-}" ]; then
-            echo "::warning::GH_DISPATCH_TOKEN secret not set — skipping kirby-api cascade."
-            echo "::warning::Manually run: gh workflow run -R pdbethke/kirby-api 'Test & Deploy'"
-            exit 0
+            echo "::error::GH_DISPATCH_TOKEN secret not set — kirby-api was NOT redeployed."
+            echo "::error::Manually run: gh workflow run -R pdbethke/kirby-api 'Test & Deploy'"
+            exit 1
           fi
           curl -fsS -X POST \
             -H "Authorization: Bearer $GH_DISPATCH_TOKEN" \
