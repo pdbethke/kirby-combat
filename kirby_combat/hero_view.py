@@ -878,6 +878,46 @@ _MOVE_MODE_PARAMS: dict[str, tuple[int, int]] = {
     "tunneling":    (1, 1),
 }
 
+# Per-mode vertical capability, as a fraction of combat_m.
+#
+# vertical_m is consumed downstream as `vertical_reach` (see
+# scene/visibility.py: a vantage candidate over a wall only qualifies when
+# `observer.z + vertical_reach >= wall_top`). A zero here means the mode can
+# never be offered a point above ground, so every value must reflect what the
+# mode can actually do in RAW terms:
+#
+#   running       0.0  — ground movement only (movement_reach._running gates
+#                        on same elevation).
+#   leaping       0.5  — 6E: vertical leap is half the horizontal distance;
+#                        matches movement_reach._leaping's vertical_cap.
+#   flight        1.0  — flight is full movement in ANY direction, straight up
+#                        included; movement_reach._flight is a 3D range check
+#                        (capped by the scene ceiling), not a horizontal one.
+#   swimming      0.0  — only legal toward a water surface, and
+#                        movement_reach._swimming requires the destination to
+#                        be IN water at that surface's elevation; a vertical
+#                        vantage in open air is never a legal swim landing.
+#   teleportation 1.0  — you arrive anywhere within range, altitude included.
+#                        movement_reach._teleportation still requires a
+#                        *supported* landing, so unsupported mid-air arrivals
+#                        remain refused — this only stops the vantage search
+#                        being pruned before that guard ever runs.
+#   tunneling     1.0  — tunneling moves through material in any direction,
+#                        including up. NOTE: movement_reach._tunneling is a v1
+#                        simplification (same elevation only, material DEF
+#                        deferred), so a raised tunneling destination is still
+#                        refused at resolution time today; this value describes
+#                        the mode's capability, and is inert until that
+#                        resolver grows vertical support.
+_MOVE_VERTICAL_FRACTION: dict[str, float] = {
+    "running":       0.0,
+    "leaping":       0.5,
+    "flight":        1.0,
+    "swimming":      0.0,
+    "teleportation": 1.0,
+    "tunneling":     1.0,
+}
+
 # Map power xmlid → canonical mode name
 _MOVE_XMLID_TO_MODE: dict[str, str] = {
     "FLIGHT":        "flight",
@@ -908,7 +948,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         if combat_m <= 0:
             continue
         end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
-        vertical_m = combat_m / 2.0 if mode == "leaping" else 0.0
+        vertical_m = combat_m * _MOVE_VERTICAL_FRACTION[mode]
         out.append(MovementCapability(
             mode=mode,
             combat_m=combat_m,
@@ -932,7 +972,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
             end_per_10m=end_per_10m,
-            vertical_m=0.0,
+            vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
         ))
 
     return out

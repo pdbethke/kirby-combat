@@ -140,12 +140,145 @@ def test_leaping_vertical_is_half_combat():
     assert modes["leaping"].vertical_m == 4.0
 
 
-def test_vertical_zero_for_non_leaping_modes():
-    """Only leaping gets a non-zero vertical_m; all others are 0.0."""
+def test_vertical_zero_for_ground_modes():
+    """Running and swimming have no vertical capability."""
     c = _combatant(
         cv={"RUNNING": 12, "LEAPING": 4},
-        powers=[_Pow("FLIGHT", levels=15)],
+        powers=[_Pow("SWIMMING", levels=10)],
     )
     modes = {m.mode: m for m in c.movement_view()}
     assert modes["running"].vertical_m == 0.0
-    assert modes["flight"].vertical_m == 0.0
+    assert modes["swimming"].vertical_m == 0.0
+
+
+def test_flight_vertical_equals_horizontal():
+    """FLIGHT is full movement in any direction — vertical == combat_m, not 0."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 4},
+        powers=[_Pow("FLIGHT", levels=16)],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    assert modes["flight"].combat_m == 16.0
+    assert modes["flight"].vertical_m == 16.0
+
+
+def test_teleport_vertical_equals_range():
+    """TELEPORTATION arrives anywhere in range, altitude included."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 16},
+        powers=[_Pow("TELEPORTATION", levels=30), _Pow("TELEPORTATION", levels=10)],
+    )
+    caps = [m for m in c.movement_view() if m.mode == "teleportation"]
+    assert sorted(m.vertical_m for m in caps) == [10.0, 30.0]
+    assert all(m.vertical_m == m.combat_m for m in caps)
+
+
+def test_tunneling_vertical_equals_range():
+    """TUNNELING moves through material in any direction, up included."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 4},
+        powers=[_Pow("TUNNELING", levels=8)],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    assert modes["tunneling"].vertical_m == 8.0
+
+
+def test_every_mode_has_the_expected_vertical_fraction():
+    """Pin the whole table so a refactor can't silently flatten any mode."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 6},
+        powers=[
+            _Pow("FLIGHT", levels=20),
+            _Pow("TELEPORTATION", levels=10),
+            _Pow("SWIMMING", levels=5),
+            _Pow("TUNNELING", levels=4),
+        ],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    assert modes["running"].vertical_m == 0.0
+    assert modes["leaping"].vertical_m == 3.0        # 6 / 2
+    assert modes["flight"].vertical_m == 20.0
+    assert modes["teleportation"].vertical_m == 10.0
+    assert modes["swimming"].vertical_m == 0.0
+    assert modes["tunneling"].vertical_m == 4.0
+
+
+# --- the load-bearing one: vertical_m feeds the vantage search --------------
+
+def test_flier_finds_a_vantage_over_a_wall_that_a_runner_cannot():
+    """End-to-end: movement_view().vertical_m -> nearest_visible_point's
+    vertical_reach. An 8m wall, too long to flank within either character's
+    movement budget. The runner (leap 4 -> 2m vertical) finds nothing; the
+    flier (16m -> 16m vertical) rises over the top. This is the Cheshire /
+    Gorgon symptom: with vertical_m hardcoded to 0 the flier got None too."""
+    from kirby_combat.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Wall,
+    )
+    from kirby_combat.scene.geometry import line_of_sight_clear
+    from kirby_combat.scene.visibility import nearest_visible_point
+
+    wall = Wall(
+        id="w", name="Brick",
+        segment=(Position(10, -100, 0.0), Position(10, 100, 0.0)),
+        height_m=8.0, blocks_los=True, blocks_movement=True,
+        cover_level=4, body=6,
+    )
+    scene = Scene(
+        id="s", name="Arena",
+        bounds=SceneBounds(-200, -200, -50, 200, 200, 50),
+        surfaces=[], walls=[wall], hazards=[],
+        ambient=AmbientConditions(), combatant_positions={},
+    )
+    obs, tgt = Position(0, 0, 1.5), Position(20, 0, 1.5)
+
+    runner = _combatant(cv={"RUNNING": 12, "LEAPING": 4})
+    r_modes = {m.mode: m for m in runner.movement_view()}
+    r_best = None
+    for m in r_modes.values():
+        p = nearest_visible_point(obs, tgt, scene,
+                                  radius=m.combat_m, vertical_reach=m.vertical_m)
+        if p is not None:
+            r_best = p
+    assert r_best is None                       # wall too long to flank, too tall to leap
+
+    flier = _combatant(cv={"RUNNING": 12, "LEAPING": 4},
+                       powers=[_Pow("FLIGHT", levels=16)])
+    f = {m.mode: m for m in flier.movement_view()}["flight"]
+    p = nearest_visible_point(obs, tgt, scene,
+                              radius=f.combat_m, vertical_reach=f.vertical_m)
+    assert p is not None
+    assert p.z > 8.0                            # above the wall top
+    assert line_of_sight_clear(p, tgt, [wall]) is True
+
+
+def test_teleporter_finds_a_vantage_over_the_same_wall():
+    """Cheshire's 30m teleport clears the same 8m wall the leap could not."""
+    from kirby_combat.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Wall,
+    )
+    from kirby_combat.scene.visibility import nearest_visible_point
+
+    wall = Wall(
+        id="w", name="Brick",
+        segment=(Position(10, -100, 0.0), Position(10, 100, 0.0)),
+        height_m=8.0, blocks_los=True, blocks_movement=True,
+        cover_level=4, body=6,
+    )
+    scene = Scene(
+        id="s", name="Arena",
+        bounds=SceneBounds(-200, -200, -50, 200, 200, 50),
+        surfaces=[], walls=[wall], hazards=[],
+        ambient=AmbientConditions(), combatant_positions={},
+    )
+    obs, tgt = Position(0, 0, 1.5), Position(20, 0, 1.5)
+
+    cheshire = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 16},
+        powers=[_Pow("TELEPORTATION", levels=30)],
+    )
+    tp = {m.mode: m for m in cheshire.movement_view()}["teleportation"]
+    assert tp.vertical_m == 30.0
+    p = nearest_visible_point(obs, tgt, scene,
+                              radius=tp.combat_m, vertical_reach=tp.vertical_m)
+    assert p is not None
+    assert p.z > 8.0

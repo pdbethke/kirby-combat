@@ -279,8 +279,13 @@ class MovementCapability:
         combat_m     — full-phase combat movement distance in metres
         noncombat_m  — noncombat distance (combat_m × NCM per mode)
         end_per_10m  — END cost per 10 metres moved (1 or 2)
-        vertical_m   — maximum vertical distance in metres; leaping only
-                       (= combat_m / 2 per 6E); 0.0 for all other modes
+        vertical_m   — maximum vertical distance in metres this mode can
+                       gain. Per mode: flight / teleportation / tunneling =
+                       combat_m (full movement in any direction); leaping =
+                       combat_m / 2 (6E); running / swimming = 0.0.
+                       Consumed downstream as `vertical_reach` by the vantage
+                       search (scene/visibility.py) — a zero here means the
+                       mode can never be offered a point above ground.
     """
 
     mode: str
