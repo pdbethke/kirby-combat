@@ -76,3 +76,37 @@ def test_a_clear_flank_is_actually_found():
     cands = _shadow_candidates(OBSERVER, TARGET, WALL, vertical_reach=0.0)
     clear = [c for c in cands if line_of_sight_clear(c, TARGET, [WALL])]
     assert clear, "the flank generator must find at least one clear vantage"
+
+
+def test_inward_shadow_candidates_find_cover_from_the_threat():
+    """`nearest_hidden_point` needs the OPPOSITE of `nearest_visible_point`:
+    candidates that land INSIDE a wall's shadow, so a character can duck
+    behind cover. This must be requested explicitly via
+    `outside_shadow=False` — it isolates the shadow-candidate family from
+    `nearest_hidden_point`'s radial-away fallback, which can coincidentally
+    land behind the same wall and mask a regression here.
+
+    Fails against the commit that fixed Task 12's outward-only bug: that
+    commit pushes every flank candidate OUTSIDE the shadow unconditionally,
+    with no `outside_shadow` parameter at all, so this call would raise
+    TypeError; even a same-signature version that always pushes outward
+    would find zero candidates hidden from the threat here."""
+    # Threat looking north along x=0 at the observer; wall sits just north
+    # of the observer, casting a shadow back toward the threat.
+    threat = Position(0.0, -20.0, 1.5)
+    observer = Position(0.0, 0.0, 1.5)
+    wall = Wall(
+        id="cover", name="cover_wall",
+        segment=(Position(-6.0, 4.0, 0.0), Position(6.0, 4.0, 0.0)),
+        height_m=8.0,
+    )
+    cands = _shadow_candidates(observer, threat, wall, vertical_reach=0.0,
+                               outside_shadow=False)
+    flanks = [c for c in cands if abs(c.z - observer.z) < 1e-9]
+    assert flanks, "the generator must still emit ground-level flanks"
+    hidden = [c for c in flanks if not line_of_sight_clear(threat, c, [wall])]
+    assert hidden, (
+        "at least one inward shadow candidate must be hidden from the "
+        "threat — nearest_hidden_point's only geometrically-motivated "
+        "source of cover"
+    )
