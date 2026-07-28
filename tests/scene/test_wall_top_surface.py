@@ -76,3 +76,19 @@ def test_fall_lands_on_the_strip_rather_than_the_ground():
     fall = resolve_fall("c1", Position(-9.0, -5.0, 12.0), sc)
     assert fall.landed_at.z == 8.0
     assert fall.fall_distance_m == 4.0
+
+
+def test_derived_strip_polygon_winds_counter_clockwise():
+    """Surface.polygon_xy is documented ("CCW vertex list"); the derived
+    strip must honor its own model's contract even though every in-engine
+    consumer today is winding-independent (point_in_polygon_xy is
+    even-odd) — a downstream consumer (renderer, geometry writer) may not
+    be. Shoelace signed area is positive for a CCW polygon."""
+    strip = wall_top_surface(_wall(width=1.0, height=8.0))
+    poly = strip.polygon_xy
+    area2 = sum(
+        poly[i][0] * poly[(i + 1) % len(poly)][1]
+        - poly[(i + 1) % len(poly)][0] * poly[i][1]
+        for i in range(len(poly))
+    )
+    assert area2 > 0, "wall_top_surface polygon must wind CCW (positive shoelace area)"

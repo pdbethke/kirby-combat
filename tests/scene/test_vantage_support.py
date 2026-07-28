@@ -139,3 +139,39 @@ def test_hidden_point_also_honours_require_support():
     )
     if dest is not None and dest != open_ground:
         assert is_supported_at(dest, sc) is True
+
+
+# ── vertical_reach=0.0 (running/swimming) must never offer a drop ───────
+#
+# `_surface_candidates`'s elevation gate ("a drop is always within reach")
+# is true for flight/leaping/teleportation but false for running/swimming,
+# which movement_legality gates on same_z. Offering a lower-elevation
+# candidate to a runner lets it silently displace a legal same-elevation
+# candidate (nearest_visible_point/nearest_hidden_point return only ONE
+# candidate) — movement_reach then refuses it and the caller's fail-open
+# drops the vantage offer entirely, leaving a runner worse off than before
+# wall tops became standable.
+
+def test_zero_vertical_reach_never_yields_a_drop_to_a_lower_surface():
+    """Observer stands on the rooftop (z=6.0). A runner (vertical_reach=0.0)
+    cannot change elevation at all, so the ground surface at z=0.0 — a
+    drop — must never be offered as a candidate, even though the ground is
+    always "supported" once you're on it."""
+    sc = _scene()   # ground z=0.0, rooftop z=6.0
+    observer = CHESHIRE   # (0.0, 13.0, 6.0), on the rooftop
+    cands = _surface_candidates(observer, sc, vertical_reach=0.0, radius=30.0)
+    assert cands, "expected at least the same-elevation candidate(s)"
+    for c in cands:
+        assert c.z == pytest.approx(observer.z), (
+            f"a zero-vertical-reach mode must never be offered a drop, got z={c.z}"
+        )
+
+
+def test_zero_vertical_reach_still_offers_same_elevation_vantage():
+    """A runner must still be able to reach a legal same-elevation
+    candidate (the rooftop surface itself) when one is within radius —
+    the fix must not remove same-elevation candidates along with drops."""
+    sc = _scene()
+    observer = CHESHIRE
+    cands = _surface_candidates(observer, sc, vertical_reach=0.0, radius=30.0)
+    assert any(c.z == pytest.approx(observer.z) for c in cands)

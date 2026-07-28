@@ -92,9 +92,9 @@ def wall_top_surface(wall: Wall) -> Surface | None:
     h = wall.walkable_width_m / 2.0
     polygon = [
         (a.x + nx * h, a.y + ny * h),
-        (b.x + nx * h, b.y + ny * h),
-        (b.x - nx * h, b.y - ny * h),
         (a.x - nx * h, a.y - ny * h),
+        (b.x - nx * h, b.y - ny * h),
+        (b.x + nx * h, b.y + ny * h),
     ]
     return Surface(
         id=f"{wall.id}:top",

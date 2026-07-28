@@ -98,11 +98,14 @@ def wall_height_blocks(target_z: float, wall: Wall) -> bool:
 
     wall_base_z = min(segment[0].z, segment[1].z)
     wall_top_z  = wall_base_z + wall.height_m
-    Blocks when wall_base_z <= target_z <= wall_top_z.
+    Blocks when wall_base_z <= target_z < wall_top_z. Strict upper bound —
+    matching first_blocking_wall's `shooter_z < wall_top_z` — so a wall
+    with a walkable top (supported-vantages) does not also trap movement
+    (and knockback) for someone standing exactly on it.
     """
     base = min(wall.segment[0].z, wall.segment[1].z)
     top = base + wall.height_m
-    return base <= target_z <= top
+    return base <= target_z < top
 
 
 def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) -> "Wall | None":

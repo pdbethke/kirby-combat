@@ -100,14 +100,23 @@ def _surface_candidates(observer: Position, scene: Scene,
     This is the candidate family that makes "blink onto the roof edge"
     exist at all: `_shadow_candidates` emits only mid-air points, which
     every non-hovering mode is rejected from. A surface higher than
-    `observer.z + vertical_reach` cannot be reached; a drop always can.
+    `observer.z + vertical_reach` cannot be reached. A drop is always
+    within reach EXCEPT for a mode with `vertical_reach == 0.0` (running,
+    swimming) — those cannot change elevation at all, so a lower surface
+    is just as unreachable as a higher one. (Leaping's descent is
+    deliberately NOT capped by its rise limit — that asymmetry lives in
+    movement_legality._leaping, which caps `rise` only — so this stays a
+    one-sided gate, not `abs(delta) <= vertical_reach`.)
     """
     out: list[Position] = []
     for surf in scene.supporting_surfaces():
         if not surf.is_supporting:
             continue
-        if surf.elevation_m > observer.z + vertical_reach + _EPS:
-            continue
+        delta = surf.elevation_m - observer.z
+        if delta > vertical_reach + _EPS:
+            continue        # cannot climb that high
+        if delta < -_EPS and vertical_reach <= _EPS:
+            continue        # cannot change elevation at all, so cannot drop either
         for x, y in _surface_points(observer, surf):
             cand = Position(x, y, surf.elevation_m)
             if _dist(observer, cand) > radius:

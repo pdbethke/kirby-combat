@@ -235,3 +235,49 @@ def test_movement_reach_combatant_id_threads_to_fall():
                          scene=scene, combatant_id="hero_1")
     assert out.fall is not None
     assert out.fall.combatant_id == "hero_1"
+
+
+# ── walkable wall-top strip: standing on it must not trap movement ──────
+#
+# URBAN_ROOFTOP's stone wall, verbatim (supported-vantages spec §1),
+# widened with walkable_width_m so its top is a standable strip. A path
+# that traverses the strip (not exactly collinear with the wall segment)
+# still crosses the wall's own xy line, so _first_blocking_wall_xy must not
+# treat exactly-at-the-top (target_z == wall_top_z) as blocked, or a
+# character standing on the strip could never move along it.
+
+def _rooftop_walkable_wall_scene() -> Scene:
+    return Scene(
+        id="s", name="urban_rooftop",
+        bounds=SceneBounds(-25.0, -25.0, -5.0, 25.0, 25.0, 15.0),
+        surfaces=[
+            Surface("g", "ground",
+                    [(-25.0, -25.0), (25.0, -25.0), (25.0, 25.0), (-25.0, 25.0)],
+                    0.0, "ground"),
+        ],
+        walls=[
+            Wall(id="stone", name="stone_wall",
+                 segment=(Position(-16.0, -5.0, 0.0), Position(-2.0, -5.0, 0.0)),
+                 height_m=8.0, walkable_width_m=1.0),
+        ],
+        hazards=[], ambient=AmbientConditions(),
+    )
+
+
+def test_running_along_a_walkable_wall_top_is_not_blocked_by_its_own_wall():
+    scene = _rooftop_walkable_wall_scene()
+    out = movement_reach(
+        "running", Position(-9.0, -4.8, 8.0), Position(-4.0, -5.2, 8.0),
+        distance_m=10.0, scene=scene,
+    )
+    assert out.reachable is True
+
+
+def test_knockback_below_the_wall_top_is_still_stopped_by_it():
+    """Regression pin for the shared wall_height_blocks: an elevation
+    strictly below the wall top must still be blocked."""
+    from kirby_combat.scene.geometry import wall_height_blocks
+    scene = _rooftop_walkable_wall_scene()
+    wall = scene.walls[0]
+    assert wall_height_blocks(7.9, wall) is True
+    assert wall_height_blocks(8.0, wall) is False

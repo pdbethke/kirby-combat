@@ -122,3 +122,20 @@ def test_first_blocking_wall_picks_nearest_and_respects_height():
     assert first_blocking_wall(a, b, [low]).id == "low"
     assert line_of_sight_clear(a, b, [low]) is False
     assert line_of_sight_clear(Position(-10, 0, 5), Position(10, 0, 5), [low]) is True
+
+
+def test_wall_height_blocks_is_strict_at_the_top_matching_first_blocking_wall():
+    """A wall whose top is walkable (supported-vantages) must not still
+    block movement/knockback AT its own top — mirrors first_blocking_wall's
+    strict `<` so a character standing on a wall top can move/be knocked
+    across it instead of being trapped by the wall he's standing on."""
+    from kirby_combat.scene.geometry import wall_height_blocks
+    wall = Wall(
+        id="w", name="w",
+        segment=(Position(0, 0, 0), Position(0, 10, 0)),
+        height_m=8.0, blocks_los=True, blocks_movement=True,
+        cover_level=4, body=6,
+    )
+    assert wall_height_blocks(8.0, wall) is False   # exactly at the top: not blocked
+    assert wall_height_blocks(7.9, wall) is True    # just below the top: still blocked
+    assert wall_height_blocks(0.0, wall) is True    # base: blocked

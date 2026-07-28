@@ -267,3 +267,42 @@ def test_cover_ocv_modifier_clamps_out_of_range_inputs():
     """Negative or >100 inputs are clamped to [0, 100]."""
     assert cover_ocv_modifier(-50) == 0
     assert cover_ocv_modifier(150) == -8
+
+
+# ---- wall-top parity with geometry.first_blocking_wall (supported-vantages) ----
+#
+# cover._wall_blocks_los is a hand-copy of geometry.first_blocking_wall's
+# height predicate (see its docstring). geometry uses strict `<` (standing
+# exactly on the wall top sees over it); cover used `<=`. Making wall tops
+# standable makes shooter_z == wall_top_z reachable, so the divergence is
+# no longer inert: a shooter standing on the wall top must NOT be told the
+# wall behind him grants cover.
+
+_ROOFTOP_WALL = Wall(
+    id="stone", name="stone_wall",
+    segment=(Position(-16.0, -5.0, 0.0), Position(-2.0, -5.0, 0.0)),
+    height_m=8.0,
+)
+_GORGON = Position(-10.0, -15.0, 0.0)
+
+
+def test_shooter_exactly_at_wall_top_gets_no_cover_from_that_wall():
+    s = _scene_with_wall(_ROOFTOP_WALL)
+    level = compute_cover_level(
+        shooter_pos=Position(-9.0, -4.8, 8.0),
+        target_pos=_GORGON,
+        target_is_prone_or_diving=False,
+        scene=s,
+    )
+    assert level == 0
+
+
+def test_shooter_just_below_the_wall_top_still_gets_cover_from_it():
+    s = _scene_with_wall(_ROOFTOP_WALL)
+    level = compute_cover_level(
+        shooter_pos=Position(-9.0, -4.8, 7.9),
+        target_pos=_GORGON,
+        target_is_prone_or_diving=False,
+        scene=s,
+    )
+    assert level == 4
