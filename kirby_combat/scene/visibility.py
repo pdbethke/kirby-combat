@@ -35,17 +35,32 @@ def _shadow_candidates(observer: Position, target: Position, wall: Wall,
     top = _wall_top(wall) + _EPS
     if observer.z + vertical_reach >= top:
         out.append(Position(observer.x, observer.y, top))
-    # (b) flank each end — step PAST the endpoint, away from the target,
-    #     at the observer's z (go around the end on the ground). Emit a range
-    #     of step multiples so a longer flank is available when a short one
-    #     still grazes the wall.
-    for end in (wall.segment[0], wall.segment[1]):
+    # (b) flank each end — step PAST the endpoint, away from the target, AND
+    #     perpendicular away from the wall, so the candidate lands strictly
+    #     OUTSIDE the wall's shadow rather than exactly on its boundary.
+    #
+    #     Without the perpendicular component every candidate is collinear
+    #     with the target and the endpoint, so the sightline back to the
+    #     target grazes the corner and `segments_intersect_xy`'s strict-CCW
+    #     test decides it by floating-point rounding. Measured before this
+    #     fix, stepping further around a corner gave LoS verdicts
+    #     True, True, False, True, False — coin flips, not geometry.
+    a, b = wall.segment
+    for end, other in ((a, b), (b, a)):
         dx, dy = end.x - target.x, end.y - target.y
         n = (dx * dx + dy * dy) ** 0.5 or 1.0
         ux, uy = dx / n, dy / n
+        # Unit vector along the wall, pointing from `end` toward the other
+        # end. Stepping AWAY from it (negated) leaves the wall's shadow.
+        wx, wy = other.x - end.x, other.y - end.y
+        wn = (wx * wx + wy * wy) ** 0.5 or 1.0
+        px, py = -wx / wn, -wy / wn
         for steps in (1.0, 2.0, 4.0, 8.0, 16.0):
-            out.append(Position(end.x + steps * _EPS * ux,
-                                end.y + steps * _EPS * uy, observer.z))
+            out.append(Position(
+                end.x + steps * _EPS * ux + _EPS * px,
+                end.y + steps * _EPS * uy + _EPS * py,
+                observer.z,
+            ))
     return out
 
 
