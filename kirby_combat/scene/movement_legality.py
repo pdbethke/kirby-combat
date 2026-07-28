@@ -42,6 +42,22 @@ from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingRes
 _EPS = 1e-6
 _FALL_COMBATANT_ID = "mover"   # default; overridden by movement_reach(combatant_id=)
 
+# Modes that sustain themselves in mid-air. `_flight` never falls and can
+# hold a position with nothing underneath it; nothing else can.
+_HOVERING_MODES = frozenset({"flight"})
+
+
+def mode_requires_support(mode: str) -> bool:
+    """Does `mode` need a supporting surface under its destination?
+
+    False for ``"flight"`` alone. True for running, leaping, teleportation,
+    tunneling and swimming — swimming additionally keeps its own
+    ``_point_in_water`` gate. An unknown mode conservatively requires
+    support: we never propose a mid-air destination for a mode we do not
+    model.
+    """
+    return mode not in _HOVERING_MODES
+
 
 @dataclass
 class MovementOutcome:
