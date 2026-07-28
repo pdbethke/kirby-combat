@@ -251,6 +251,44 @@ def test_flier_finds_a_vantage_over_a_wall_that_a_runner_cannot():
     assert line_of_sight_clear(p, tgt, [wall]) is True
 
 
+def test_power_derived_modes_carry_active_cost():
+    """Pushing needs points-per-metre, and it must come from the cost
+    engine rather than a constant in a consumer."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 4},
+        powers=[_Pow("TELEPORTATION", levels=15, active_cost=45.0)],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    tp = modes["teleportation"]
+    assert tp.active_cost is not None
+    assert tp.active_cost > 0
+    # metres_per_point is what the push math divides out.
+    assert tp.combat_m / tp.active_cost > 0
+
+
+def test_characteristic_derived_modes_have_no_active_cost():
+    """RUNNING/LEAPING are characteristics, not powers — there is no
+    active_cost to read, and guessing one would be hand-rolled cost math."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 4},
+        powers=[_Pow("TELEPORTATION", levels=15, active_cost=45.0)],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    assert modes["running"].active_cost is None
+    assert modes["leaping"].active_cost is None
+
+
+def test_power_derived_mode_with_unusable_active_cost_becomes_none():
+    """A bound-method or non-numeric active_cost must not leak through or
+    be substituted with a default — it becomes None, an honest gap."""
+    c = _combatant(
+        cv={"RUNNING": 12, "LEAPING": 4},
+        powers=[_Pow("FLIGHT", levels=20, active_cost=None)],
+    )
+    modes = {m.mode: m for m in c.movement_view()}
+    assert modes["flight"].active_cost is None
+
+
 def test_teleporter_finds_a_vantage_over_the_same_wall():
     """Cheshire's 30m teleport clears the same 8m wall the leap could not."""
     from kirby_combat.scene import (

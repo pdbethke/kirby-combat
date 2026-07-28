@@ -81,3 +81,15 @@ def test_place_combatant_out_of_bounds_raises():
     )
     with pytest.raises(ValueError, match="out of bounds"):
         s.place_combatant("alice", Position(x=20, y=0, z=0))
+
+
+def test_wall_top_surface_and_mode_requires_support_are_exported_from_scene_package():
+    """The branch's main public API — the two symbols kirby-api actually
+    needs to call — must be importable from `kirby_combat.scene`, matching
+    every other scene symbol's export."""
+    import kirby_combat.scene as scene_pkg
+
+    assert "wall_top_surface" in scene_pkg.__all__
+    assert "mode_requires_support" in scene_pkg.__all__
+    assert callable(scene_pkg.wall_top_surface)
+    assert callable(scene_pkg.mode_requires_support)

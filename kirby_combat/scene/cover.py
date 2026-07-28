@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from kirby_combat.scene.scene import Position, Scene, Wall, Surface
 from kirby_combat.scene.geometry import (
-    distance_3d, point_in_polygon_xy, segments_intersect_xy,
+    distance_3d, first_blocking_wall, point_in_polygon_xy,
 )
 
 
@@ -59,22 +59,16 @@ def cover_ocv_modifier(percent_covered: int) -> int:
 def _wall_blocks_los(shooter: Position, target: Position, wall: Wall) -> bool:
     """True if this single wall blocks the LoS between shooter and target.
 
-    Mirrors the height-aware logic in geometry.line_of_sight_clear, but for one
-    specific wall — needed because we want to identify WHICH wall is providing
-    cover, not just whether ANY wall does.
+    Delegates to geometry.first_blocking_wall — the single shared height-aware
+    predicate — rather than hand-copying its logic, so this can never diverge
+    from it again (see supported-vantages whole-branch review: a prior
+    hand-copy used `<=` where first_blocking_wall uses strict `<`, which was
+    unreachable before wall tops became standable and inverted cover for
+    anyone standing exactly on a wall top once they did).
     """
     if not wall.blocks_los:
         return False
-    w_a = (wall.segment[0].x, wall.segment[0].y)
-    w_b = (wall.segment[1].x, wall.segment[1].y)
-    if not segments_intersect_xy(
-        (shooter.x, shooter.y), (target.x, target.y), w_a, w_b
-    ):
-        return False
-    wall_base_z = min(wall.segment[0].z, wall.segment[1].z)
-    wall_top_z = wall_base_z + wall.height_m
-    shooter_z = max(shooter.z, target.z)
-    return shooter_z <= wall_top_z
+    return first_blocking_wall(shooter, target, [wall]) is not None
 
 
 def _wall_midpoint(wall: Wall) -> Position:

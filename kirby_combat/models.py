@@ -286,6 +286,15 @@ class MovementCapability:
                        Consumed downstream as `vertical_reach` by the vantage
                        search (scene/visibility.py) — a zero here means the
                        mode can never be offered a point above ground.
+        active_cost  — the cost engine's Active Points for this mode, for
+                       power-derived modes only (FLIGHT / TELEPORTATION /
+                       SWIMMING / TUNNELING). None for the characteristic-
+                       derived modes (RUNNING / LEAPING), which have no
+                       power to read a cost from. Consumed downstream to
+                       turn a Push's +10 Active Points into metres
+                       (metres_per_point = combat_m / active_cost); None
+                       there means "this mode cannot be pushed", never a
+                       guessed constant.
     """
 
     mode: str
@@ -293,3 +302,4 @@ class MovementCapability:
     noncombat_m: float
     end_per_10m: int
     vertical_m: float = 0.0
+    active_cost: float | None = None

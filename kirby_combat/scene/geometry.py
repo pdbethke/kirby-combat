@@ -98,11 +98,14 @@ def wall_height_blocks(target_z: float, wall: Wall) -> bool:
 
     wall_base_z = min(segment[0].z, segment[1].z)
     wall_top_z  = wall_base_z + wall.height_m
-    Blocks when wall_base_z <= target_z <= wall_top_z.
+    Blocks when wall_base_z <= target_z < wall_top_z. Strict upper bound —
+    matching first_blocking_wall's `shooter_z < wall_top_z` — so a wall
+    with a walkable top (supported-vantages) does not also trap movement
+    (and knockback) for someone standing exactly on it.
     """
     base = min(wall.segment[0].z, wall.segment[1].z)
     top = base + wall.height_m
-    return base <= target_z <= top
+    return base <= target_z < top
 
 
 def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) -> "Wall | None":
@@ -112,8 +115,11 @@ def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) ->
     Blocking predicate (identical to the original line_of_sight_clear):
       - wall.blocks_los is True, AND
       - the wall's segment intersects the from_->to segment in xy, AND
-      - max(from_.z, to.z) <= wall_base_z + wall.height_m
+      - max(from_.z, to.z) < wall_base_z + wall.height_m
         where wall_base_z = min(segment[0].z, segment[1].z).
+    At or above the wall top you see over it — a character standing
+    ON a wall is not screened by that wall. Strict `<`: only exact
+    ties change, and a tie means standing on the top.
     Nearest is determined by distance from `from_` to the wall's midpoint.
     """
     blockers: list[Wall] = []
@@ -127,7 +133,7 @@ def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) ->
         wall_base_z = min(w.segment[0].z, w.segment[1].z)
         wall_top_z = wall_base_z + w.height_m
         shooter_z = max(from_.z, to.z)
-        if shooter_z <= wall_top_z:
+        if shooter_z < wall_top_z:
             blockers.append(w)
     if not blockers:
         return None

@@ -23,13 +23,13 @@ class FallingResult:
 
 
 def is_supported_at(pos: Position, scene: Scene) -> bool:
-    """True if any supporting surface exists at pos.z within the combatant's xy-footprint.
+    """True if any supporting surface — authored or a derived wall top — exists at pos.z within the combatant's xy-footprint.
 
     Simplified: a combatant's footprint is just its xy point. A surface supports
     iff point_in_polygon_xy(pos.xy, surface.polygon_xy) AND surface.elevation_m == pos.z
     AND surface.is_supporting.
     """
-    for surf in scene.surfaces:
+    for surf in scene.supporting_surfaces():
         if not surf.is_supporting:
             continue
         if abs(surf.elevation_m - pos.z) > 1e-6:
@@ -54,7 +54,7 @@ def _highest_supporting_surface_below(pos: Position, scene: Scene) -> Surface | 
     - is_supporting is True
     """
     candidates = [
-        s for s in scene.surfaces
+        s for s in scene.supporting_surfaces()
         if s.is_supporting
         and s.elevation_m < pos.z
         and point_in_polygon_xy((pos.x, pos.y), s.polygon_xy)

@@ -1,6 +1,7 @@
 """Scene — engine-authoritative 3D terrain + environment model."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal
 
@@ -48,6 +49,7 @@ class Surface:
     ]
     cover_level: int = 0                    # 0 (none) — 4 (full)
     is_supporting: bool = True              # False = combatants fall through
+    is_precarious: bool = False             # narrow footing — see footing rules
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,48 @@ class Wall:
     cover_level: int = 4                    # partial cover granted to those behind
     body: int = 6                           # BODY to break through
     def_value: int | None = None            # resistant DEF an attack must beat (None = legacy/indestructible)
+    walkable_width_m: float = 0.0           # 0 = nothing to stand on
+
+
+# A walkway narrower than this is precarious footing.
+_PRECARIOUS_WIDTH_M = 2.0
+
+
+def wall_top_surface(wall: Wall) -> Surface | None:
+    """The standable strip on top of `wall`, or None when the wall has no
+    walkable width (a chain-link fence, a force wall, a low parapet).
+
+    Derived rather than authored: walls are destructible, and kirby-api's
+    hydration simply stops emitting a destroyed wall — so a derived strip
+    disappears with its wall and can never desync from `height_m`.
+    """
+    if wall.walkable_width_m <= 0.0:
+        return None
+    a, b = wall.segment
+    dx, dy = b.x - a.x, b.y - a.y
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return None                     # degenerate wall: no strip
+    # Unit normal to the segment in xy; the strip extends half the walkable
+    # width to each side.
+    nx, ny = -dy / length, dx / length
+    h = wall.walkable_width_m / 2.0
+    polygon = [
+        (a.x + nx * h, a.y + ny * h),
+        (a.x - nx * h, a.y - ny * h),
+        (b.x - nx * h, b.y - ny * h),
+        (b.x + nx * h, b.y + ny * h),
+    ]
+    return Surface(
+        id=f"{wall.id}:top",
+        name=f"{wall.name} top",
+        polygon_xy=polygon,
+        elevation_m=min(a.z, b.z) + wall.height_m,
+        surface_type="rooftop",
+        cover_level=0,
+        is_supporting=True,
+        is_precarious=wall.walkable_width_m < _PRECARIOUS_WIDTH_M,
+    )
 
 
 @dataclass(frozen=True)
@@ -101,6 +145,21 @@ class Scene:
     ambient: AmbientConditions
     combatant_positions: dict[str, Position] = field(default_factory=dict)
     constructs: list["Construct"] = field(default_factory=list)
+
+    def supporting_surfaces(self) -> list[Surface]:
+        """Authored surfaces plus derived wall-top strips — THE support
+        authority for this scene.
+
+        Every "can something stand here" question routes through this, so
+        movement legality, teleport legality, and fall resolution all agree
+        about wall tops without any of them learning what a wall is.
+        """
+        out = list(self.surfaces)
+        for wall in self.walls:
+            strip = wall_top_surface(wall)
+            if strip is not None:
+                out.append(strip)
+        return out
 
     def place_combatant(self, combatant_id: str, position: Position) -> "Scene":
         """Return a new Scene with the combatant positioned.

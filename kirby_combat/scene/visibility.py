@@ -6,8 +6,9 @@ are derived analytically from occluder shadow geometry, then VERIFIED with the
 real LoS test — exact, not sampled."""
 from __future__ import annotations
 
-from kirby_combat.scene.scene import Position, Scene, Wall
+from kirby_combat.scene.scene import Position, Scene, Surface, Wall
 from kirby_combat.scene.geometry import first_blocking_wall, line_of_sight_clear
+from kirby_combat.scene.falling import is_supported_at
 
 _EPS = 0.5  # metres past a shadow edge / above a wall top
 
@@ -48,24 +49,110 @@ def _shadow_candidates(observer: Position, target: Position, wall: Wall,
     return out
 
 
+def _nearest_point_on_segment(px: float, py: float, ax: float, ay: float,
+                              bx: float, by: float) -> tuple[float, float]:
+    """Closest point to (px, py) on the segment ab, in xy."""
+    dx, dy = bx - ax, by - ay
+    len_sq = dx * dx + dy * dy
+    if len_sq < 1e-12:
+        return (ax, ay)
+    t = ((px - ax) * dx + (py - ay) * dy) / len_sq
+    t = max(0.0, min(1.0, t))
+    return (ax + t * dx, ay + t * dy)
+
+
+def _surface_points(observer: Position,
+                    surf: Surface) -> list[tuple[float, float]]:
+    """Candidate xy points on `surf`: the point nearest the observer, the
+    centroid, and every vertex.
+
+    The vertices carry this feature. A surface's nearest point is very
+    often still inside the blocking wall's shadow while one of its corners
+    is outside it — in URBAN_ROOFTOP the ONLY vantage a teleporter can
+    reach on a half-move is the rooftop's south-east vertex, and the
+    nearest rooftop point to him is where he already stands.
+    """
+    poly = surf.polygon_xy
+    if not poly:
+        return []
+    out: list[tuple[float, float]] = list(poly)
+    out.append((sum(p[0] for p in poly) / len(poly),
+                sum(p[1] for p in poly) / len(poly)))
+    best, best_d2 = None, float("inf")
+    for i in range(len(poly)):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % len(poly)]
+        q = _nearest_point_on_segment(observer.x, observer.y, ax, ay, bx, by)
+        d2 = (q[0] - observer.x) ** 2 + (q[1] - observer.y) ** 2
+        if d2 < best_d2:
+            best, best_d2 = q, d2
+    if best is not None:
+        out.append(best)
+    return out
+
+
+def _surface_candidates(observer: Position, scene: Scene,
+                        vertical_reach: float,
+                        radius: float) -> list[Position]:
+    """Reachable points on the scene's supporting surfaces — authored
+    surfaces and derived wall tops alike.
+
+    This is the candidate family that makes "blink onto the roof edge"
+    exist at all: `_shadow_candidates` emits only mid-air points, which
+    every non-hovering mode is rejected from. A surface higher than
+    `observer.z + vertical_reach` cannot be reached. A drop is always
+    within reach EXCEPT for a mode with `vertical_reach == 0.0` (running,
+    swimming) — those cannot change elevation at all, so a lower surface
+    is just as unreachable as a higher one. (Leaping's descent is
+    deliberately NOT capped by its rise limit — that asymmetry lives in
+    movement_legality._leaping, which caps `rise` only — so this stays a
+    one-sided gate, not `abs(delta) <= vertical_reach`.)
+    """
+    out: list[Position] = []
+    for surf in scene.supporting_surfaces():
+        if not surf.is_supporting:
+            continue
+        delta = surf.elevation_m - observer.z
+        if delta > vertical_reach + _EPS:
+            continue        # cannot climb that high
+        if delta < -_EPS and vertical_reach <= _EPS:
+            continue        # cannot change elevation at all, so cannot drop either
+        for x, y in _surface_points(observer, surf):
+            cand = Position(x, y, surf.elevation_m)
+            if _dist(observer, cand) > radius:
+                continue
+            out.append(cand)
+    return out
+
+
 def nearest_visible_point(observer: Position, target: Position, scene: Scene, *,
-                          radius: float, vertical_reach: float = 0.0
+                          radius: float, vertical_reach: float = 0.0,
+                          require_support: bool = False,
                           ) -> Position | None:
     """Closest point to `observer`, within `radius`, with a clear line of fire
     to `target`. Returns `observer` when already clear; None when no analytic
-    candidate within radius has LoS. (The caller validates reachability + a
-    supported landing per movement mode via movement_reach.)"""
+    candidate within radius has LoS.
+
+    `require_support=True` drops candidates with nothing underneath them, so
+    a mode that cannot hover (see `movement_legality.mode_requires_support`)
+    is never offered a destination it would be rejected from. (The caller
+    still validates reachability per movement mode via movement_reach.)
+    """
     walls = [w for w in scene.walls if getattr(w, "blocks_los", True)]
     if line_of_sight_clear(observer, target, walls):
         return observer
     wall = first_blocking_wall(observer, target, walls)
     if wall is None:
         return None
+    candidates = _shadow_candidates(observer, target, wall, vertical_reach)
+    candidates += _surface_candidates(observer, scene, vertical_reach, radius)
     best: Position | None = None
     best_d = float("inf")
-    for c in _shadow_candidates(observer, target, wall, vertical_reach):
+    for c in candidates:
         d = _dist(observer, c)
         if d > radius:
+            continue
+        if require_support and not is_supported_at(c, scene):
             continue
         if not line_of_sight_clear(c, target, walls):  # VERIFY vs ALL walls
             continue
@@ -93,7 +180,8 @@ def _radial_away_candidates(observer: Position, threat: Position,
 
 
 def nearest_hidden_point(observer: Position, threat: Position, scene: Scene, *,
-                         radius: float, vertical_reach: float = 0.0
+                         radius: float, vertical_reach: float = 0.0,
+                         require_support: bool = False,
                          ) -> Position | None:
     """Break contact: the nearest point, within `radius`, that the `threat`
     cannot see (behind cover) — else, if no cover is reachable, the point that
@@ -114,6 +202,10 @@ def nearest_hidden_point(observer: Position, threat: Position, scene: Scene, *,
       4. If no candidate breaks LoS (no reachable cover), return the candidate
          that **maximises distance from the threat** within `radius` — open
          range, the best available when cover isn't an option.
+
+    `require_support=True` drops candidates with nothing underneath them,
+    so a mode that cannot hover is never offered a destination it would be
+    rejected from.
 
     Pure geometry: candidates are analytic, the cover test is the exact
     `line_of_sight_clear`. The caller validates reachability + a supported
@@ -136,6 +228,8 @@ def nearest_hidden_point(observer: Position, threat: Position, scene: Scene, *,
         candidates.extend(
             _shadow_candidates(observer, threat, wall, vertical_reach))
     candidates.extend(_radial_away_candidates(observer, threat, radius))
+    candidates.extend(
+        _surface_candidates(observer, scene, vertical_reach, radius))
 
     best_cover: Position | None = None
     best_cover_d = float("inf")
@@ -143,6 +237,8 @@ def nearest_hidden_point(observer: Position, threat: Position, scene: Scene, *,
     best_open_far = -1.0
     for c in candidates:
         if _dist(observer, c) > radius:
+            continue
+        if require_support and not is_supported_at(c, scene):
             continue
         if not line_of_sight_clear(threat, c, walls):
             # (3) behind cover — prefer the nearest such point.

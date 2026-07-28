@@ -967,12 +967,19 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             continue
         mode = _MOVE_XMLID_TO_MODE[xmlid]
         end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        try:
+            active_cost = float(getattr(p, "active_cost", None))
+        except (TypeError, ValueError):
+            active_cost = None
+        if active_cost is not None and active_cost <= 0:
+            active_cost = None      # unusable as a points-per-metre divisor
         out.append(MovementCapability(
             mode=mode,
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
             end_per_10m=end_per_10m,
             vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
+            active_cost=active_cost,
         ))
 
     return out
