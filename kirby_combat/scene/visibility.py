@@ -22,30 +22,61 @@ def _wall_top(w: Wall) -> float:
 
 
 def _shadow_candidates(observer: Position, target: Position, wall: Wall,
-                       vertical_reach: float) -> list[Position]:
-    """Analytic candidate destinations that should clear `wall`'s shadow:
-    over-the-top (vertical) + just past each wall END (flank).
+                       vertical_reach: float, *,
+                       outside_shadow: bool = True) -> list[Position]:
+    """Analytic candidate destinations near `wall`'s shadow: over-the-top
+    (vertical) + just past each wall END (flank).
+
+    `outside_shadow` picks which side of the shadow boundary the flank
+    candidates land on:
+
+    - `True` (default) — candidates land strictly OUTSIDE the wall's
+      shadow, for `nearest_visible_point`: a vantage that restores LoS to
+      `target`.
+    - `False` — candidates land strictly INSIDE the wall's shadow, for
+      `nearest_hidden_point`: a point of cover, behind the wall as seen
+      from `target` (there, `target` is the threat).
+
+    Either way the candidate is pushed a fixed `_EPS` perpendicular to the
+    wall so it never sits exactly on the shadow boundary — a candidate on
+    the boundary is collinear with the target and the endpoint, so the
+    sightline grazes the corner and `segments_intersect_xy`'s strict-CCW
+    test decides it by floating-point rounding rather than geometry.
+    Measured before this was fixed, stepping further around a corner gave
+    LoS verdicts True, True, False, True, False — coin flips.
 
     The candidate set is tunable — the load-bearing correctness gate is the
-    `line_of_sight_clear` verification in `nearest_visible_point`. We emit a
+    `line_of_sight_clear` verification each consumer performs. We emit a
     spread of lateral offsets past each endpoint (and over the top, when
-    vertical reach allows) so the nearest LoS-clear candidate is found."""
+    vertical reach allows) so the nearest matching candidate is found."""
     out: list[Position] = []
     # (a) over-the-top — rise straight up above the wall, if reach allows.
     top = _wall_top(wall) + _EPS
     if observer.z + vertical_reach >= top:
         out.append(Position(observer.x, observer.y, top))
-    # (b) flank each end — step PAST the endpoint, away from the target,
-    #     at the observer's z (go around the end on the ground). Emit a range
-    #     of step multiples so a longer flank is available when a short one
-    #     still grazes the wall.
-    for end in (wall.segment[0], wall.segment[1]):
+    # (b) flank each end — step PAST the endpoint, away from the target, AND
+    #     perpendicular either away from or into the wall's shadow
+    #     (per `outside_shadow`), so the candidate lands strictly off the
+    #     shadow boundary rather than exactly on it.
+    a, b = wall.segment
+    sign = 1.0 if outside_shadow else -1.0
+    for end, other in ((a, b), (b, a)):
         dx, dy = end.x - target.x, end.y - target.y
         n = (dx * dx + dy * dy) ** 0.5 or 1.0
         ux, uy = dx / n, dy / n
+        # Unit vector along the wall, pointing from `end` toward the other
+        # end. Stepping AWAY from it (negated) leaves the wall's shadow;
+        # stepping TOWARD it (positive) stays inside the shadow, behind
+        # cover.
+        wx, wy = other.x - end.x, other.y - end.y
+        wn = (wx * wx + wy * wy) ** 0.5 or 1.0
+        px, py = sign * -wx / wn, sign * -wy / wn
         for steps in (1.0, 2.0, 4.0, 8.0, 16.0):
-            out.append(Position(end.x + steps * _EPS * ux,
-                                end.y + steps * _EPS * uy, observer.z))
+            out.append(Position(
+                end.x + steps * _EPS * ux + _EPS * px,
+                end.y + steps * _EPS * uy + _EPS * py,
+                observer.z,
+            ))
     return out
 
 
@@ -223,10 +254,12 @@ def nearest_hidden_point(observer: Position, threat: Position, scene: Scene, *,
         # consider every blocking wall's shadow geometry.
         for w in walls:
             candidates.extend(
-                _shadow_candidates(observer, threat, w, vertical_reach))
+                _shadow_candidates(observer, threat, w, vertical_reach,
+                                   outside_shadow=False))
     elif wall is not None:
         candidates.extend(
-            _shadow_candidates(observer, threat, wall, vertical_reach))
+            _shadow_candidates(observer, threat, wall, vertical_reach,
+                               outside_shadow=False))
     candidates.extend(_radial_away_candidates(observer, threat, radius))
     candidates.extend(
         _surface_candidates(observer, scene, vertical_reach, radius))
