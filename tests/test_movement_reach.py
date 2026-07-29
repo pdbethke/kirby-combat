@@ -281,3 +281,79 @@ def test_knockback_below_the_wall_top_is_still_stopped_by_it():
     wall = scene.walls[0]
     assert wall_height_blocks(7.9, wall) is True
     assert wall_height_blocks(8.0, wall) is False
+
+
+def _climb_scene(diff=2):
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
+    )
+    wall = Wall(
+        id="w", name="stone wall",
+        segment=(Position(-16.0, -5.0, 0.0), Position(-2.0, -5.0, 0.0)),
+        height_m=8.0, walkable_width_m=1.0, climb_difficulty=diff,
+    )
+    ground = Surface("g", "ground",
+                     [(-25.0, -25.0), (25.0, -25.0), (25.0, 25.0), (-25.0, 25.0)],
+                     0.0, "ground")
+    return Scene("s", "t", SceneBounds(-25.0, -25.0, -5.0, 25.0, 25.0, 15.0),
+                 [ground], [wall], [], AmbientConditions())
+
+
+def test_climb_two_metres_up_a_climbable_face():
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.0, 0.0),
+                         Position(-9.0, -5.0, 2.0), 2.0, sc)
+    assert out.reachable is True
+    assert out.landing.z == 2.0
+    assert out.fall is None, (
+        "a climber mid-face must NOT fall from geometry — the climbing status "
+        "governs that, and falling here would drop everyone on metre one"
+    )
+
+
+def test_climb_to_the_top_is_legal():
+    """The top is where the walkable strip is; reaching it is the point."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.0, 6.0),
+                         Position(-9.0, -5.0, 8.0), 2.0, sc)
+    assert out.reachable is True
+
+
+def test_climb_refused_on_an_unclimbable_face():
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene(diff=None)
+    out = movement_reach("climbing", Position(-9.0, -5.0, 0.0),
+                         Position(-9.0, -5.0, 2.0), 2.0, sc)
+    assert out.reachable is False
+
+
+def test_climb_refused_away_from_any_face():
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(5.0, 5.0, 0.0),
+                         Position(5.0, 5.0, 2.0), 2.0, sc)
+    assert out.reachable is False
+
+
+def test_climb_refused_beyond_the_rate():
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.0, 0.0),
+                         Position(-9.0, -5.0, 6.0), 2.0, sc)
+    assert out.reachable is False
+
+
+def test_climb_refused_above_the_wall_top():
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.0, 8.0),
+                         Position(-9.0, -5.0, 10.0), 2.0, sc)
+    assert out.reachable is False

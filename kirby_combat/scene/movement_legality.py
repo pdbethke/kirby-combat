@@ -42,6 +42,10 @@ from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingRes
 _EPS = 1e-6
 _FALL_COMBATANT_ID = "mover"   # default; overridden by movement_reach(combatant_id=)
 
+# How close (xy, metres) a destination must be to a wall's segment to count as
+# "on that face". A climber hugs the wall; this is not a reach radius.
+CLIMB_FACE_REACH_M = 1.0
+
 # Modes that sustain themselves in mid-air. `_flight` never falls and can
 # hold a position with nothing underneath it; nothing else can.
 _HOVERING_MODES = frozenset({"flight"})
@@ -172,6 +176,8 @@ def movement_reach(
         return _swimming(from_pos, to_pos, distance_m, scene)
     if mode == "tunneling":
         return _tunneling(from_pos, to_pos, distance_m, scene)
+    if mode == "climbing":
+        return _climbing(from_pos, to_pos, distance_m, scene)
     return MovementOutcome(reachable=False, landing=from_pos, fall=None)
 
 
@@ -331,3 +337,50 @@ def _tunneling(
     reachable = same_z and d3 <= distance_m + _EPS
     landing = to_pos if reachable else from_pos
     return MovementOutcome(reachable=reachable, landing=landing, fall=None)
+
+
+def _climbing(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    """Climbing (6E1 p70). Legal only ON a climbable face: within
+    ``CLIMB_FACE_REACH_M`` of a climbable wall's segment in xy, and at a z
+    between that wall's base and its top INCLUSIVE — the top is where the
+    walkable strip is, and reaching it is the point.
+
+    Deliberately never calls ``_maybe_fall``. A climber partway up a face is
+    over open air by the support model; whether they fall is governed by the
+    consumer's ``climbing:`` status (a failed roll, a Stun, knockback), not by
+    geometry. Falling here would drop every climber on their first metre.
+    """
+    from kirby_combat.scene.scene import is_climbable
+
+    d3 = distance_3d(from_pos, to_pos)
+    if d3 > distance_m + _EPS:
+        return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
+    for wall in scene.walls:
+        if not is_climbable(wall):
+            continue
+        a, b = wall.segment
+        near = _nearest_point_on_segment_xy(
+            to_pos.x, to_pos.y, a.x, a.y, b.x, b.y,
+        )
+        if math.hypot(near[0] - to_pos.x, near[1] - to_pos.y) > CLIMB_FACE_REACH_M:
+            continue
+        base = min(a.z, b.z)
+        if base - _EPS <= to_pos.z <= base + wall.height_m + _EPS:
+            return MovementOutcome(reachable=True, landing=to_pos, fall=None)
+
+    return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
+
+def _nearest_point_on_segment_xy(
+    px: float, py: float, ax: float, ay: float, bx: float, by: float,
+) -> tuple[float, float]:
+    """Closest point to (px, py) on segment ab, in xy."""
+    dx, dy = bx - ax, by - ay
+    len_sq = dx * dx + dy * dy
+    if len_sq < 1e-12:
+        return (ax, ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / len_sq))
+    return (ax + t * dx, ay + t * dy)
