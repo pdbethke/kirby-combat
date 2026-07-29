@@ -50,6 +50,9 @@ class Surface:
     cover_level: int = 0                    # 0 (none) — 4 (full)
     is_supporting: bool = True              # False = combatants fall through
     is_precarious: bool = False             # narrow footing — see footing rules
+    # 6E1 p70: None = cannot be climbed; 0 = ordinary (a ladder — no Climbing
+    # Skill needed); > 0 = difficult, and subtracts from the Climbing roll.
+    climb_difficulty: int | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,18 @@ class Wall:
     body: int = 6                           # BODY to break through
     def_value: int | None = None            # resistant DEF an attack must beat (None = legacy/indestructible)
     walkable_width_m: float = 0.0           # 0 = nothing to stand on
+    # 6E1 p70: None = cannot be climbed; 0 = ordinary (a ladder — no Climbing
+    # Skill needed); > 0 = difficult, and subtracts from the Climbing roll.
+    climb_difficulty: int | None = None
+
+
+def is_climbable(obj: "Wall | Surface") -> bool:
+    """True when `obj` declares any climbability at all (6E1 p70).
+
+    `climb_difficulty is None` means no handholds exist — sheer glass, a force
+    wall. Zero is NOT falsy here: it means an ordinary climb needing no Skill.
+    """
+    return getattr(obj, "climb_difficulty", None) is not None
 
 
 # A walkway narrower than this is precarious footing.

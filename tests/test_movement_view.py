@@ -119,7 +119,10 @@ def test_no_zero_distance_modes():
 
 
 def test_all_modes_present_for_full_mover():
-    """A combatant with all six modes has all six in movement_view()."""
+    """A combatant with all seven modes has all seven in movement_view().
+
+    climbing added: 6E1 p70 makes it universal (every hero can climb ordinary
+    things without the Skill), so it now always appears alongside the rest."""
     c = _combatant(
         cv={"RUNNING": 12, "LEAPING": 6},
         powers=[
@@ -130,7 +133,10 @@ def test_all_modes_present_for_full_mover():
         ],
     )
     mode_names = {m.mode for m in c.movement_view()}
-    assert mode_names == {"running", "leaping", "flight", "teleportation", "swimming", "tunneling"}
+    assert mode_names == {
+        "running", "leaping", "flight", "teleportation", "swimming",
+        "tunneling", "climbing",
+    }
 
 
 def test_leaping_vertical_is_half_combat():
@@ -287,6 +293,26 @@ def test_power_derived_mode_with_unusable_active_cost_becomes_none():
     )
     modes = {m.mode: m for m in c.movement_view()}
     assert modes["flight"].active_cost is None
+
+
+def test_every_hero_can_climb():
+    """6E1 p70: most characters can climb ordinary things without the Skill,
+    so the MODE is universal. The Skill gates difficult faces, not the mode."""
+    c = _combatant(powers=[_Pow("TELEPORTATION", levels=15)])
+    caps = {m.mode: m for m in c.movement_view()}
+    climb = caps["climbing"]
+    assert climb.combat_m == 2.0          # 6E1 p70: base speed 2m per Phase
+    assert climb.vertical_m == 2.0        # climbing IS vertical
+    assert climb.noncombat_m == 2.0       # no noncombat sprint up a wall
+    assert climb.end_per_10m == 1
+
+
+def test_climbing_can_never_be_pushed():
+    """No CLIMBING characteristic or power exists, so there is no active_cost
+    to read — and inventing a metres-per-point constant is the forbidden thing."""
+    c = _combatant(powers=[_Pow("TELEPORTATION", levels=15)])
+    caps = {m.mode: m for m in c.movement_view()}
+    assert caps["climbing"].active_cost is None
 
 
 def test_teleporter_finds_a_vantage_over_the_same_wall():

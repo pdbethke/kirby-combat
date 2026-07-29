@@ -876,7 +876,15 @@ _MOVE_MODE_PARAMS: dict[str, tuple[int, int]] = {
     "swimming":     (1, 4),
     "teleportation": (2, 1),
     "tunneling":    (1, 1),
+    "climbing":     (1, 1),     # end_per_10m=1; no noncombat climb multiplier
 }
+
+# 6E1 p70: "Climbing speed varies according to the structure being climbed, but
+# the base speed is 2m per Phase (at most)." There is no CLIMBING characteristic
+# and no CLIMBING power — the Skill is not a movement stat — so unlike every
+# other mode this rate cannot be read from the cost engine. It is a rulebook
+# constant, cited, in the same spirit as this module's END/NCM table.
+_CLIMB_BASE_M: float = 2.0
 
 # Per-mode vertical capability, as a fraction of combat_m.
 #
@@ -916,6 +924,7 @@ _MOVE_VERTICAL_FRACTION: dict[str, float] = {
     "swimming":      0.0,
     "teleportation": 1.0,
     "tunneling":     1.0,
+    "climbing":      1.0,       # climbing is vertical by definition
 }
 
 # Map power xmlid → canonical mode name
@@ -981,6 +990,21 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
             active_cost=active_cost,
         ))
+
+    # ── Climbing (6E1 p70) ──────────────────────────────────────────────────
+    # Neither a characteristic nor a power, so it gets its own unconditional
+    # block: EVERY hero can climb ordinary things without the Skill. Having the
+    # Climbing Skill gates DIFFICULT faces (enforced by the consumer against a
+    # face's climb_difficulty), not whether the mode exists.
+    _climb_end, _climb_ncm = _MOVE_MODE_PARAMS["climbing"]
+    out.append(MovementCapability(
+        mode="climbing",
+        combat_m=_CLIMB_BASE_M,
+        noncombat_m=_CLIMB_BASE_M * _climb_ncm,
+        end_per_10m=_climb_end,
+        vertical_m=_CLIMB_BASE_M * _MOVE_VERTICAL_FRACTION["climbing"],
+        active_cost=None,
+    ))
 
     return out
 

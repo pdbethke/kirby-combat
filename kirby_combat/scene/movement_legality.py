@@ -19,6 +19,11 @@ Per-mode rules (spec §2 / Decisions §3):
   - swimming      only toward/within a water surface; otherwise unavailable.
   - tunneling     v1 simple — same/ground elevation within range (material-DEF
                   deferred).
+  - climbing      legal only ALONG a climbable face (6E1 p70): both endpoints
+                  must lie within reach of the same climbable wall's segment,
+                  and the move must not cross through the wall's own plane —
+                  a lateral half-move at ground level is not a climb, it's a
+                  hole. Never falls from geometry (see `_climbing`).
 
 Reuses `scene/falling.py` (`is_supported_at`, `resolve_fall`) and the wall
 geometry helpers from `scene/geometry.py` (`segment_intersection_xy`,
@@ -29,7 +34,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from kirby_combat.scene.scene import Position, Scene, Wall
+from kirby_combat.scene.scene import Position, Scene, Wall, is_climbable
 from kirby_combat.scene.geometry import (
     distance_3d,
     point_in_polygon_xy,
@@ -42,21 +47,36 @@ from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingRes
 _EPS = 1e-6
 _FALL_COMBATANT_ID = "mover"   # default; overridden by movement_reach(combatant_id=)
 
-# Modes that sustain themselves in mid-air. `_flight` never falls and can
-# hold a position with nothing underneath it; nothing else can.
-_HOVERING_MODES = frozenset({"flight"})
+# How close (xy, metres) a destination must be to a wall's segment to count as
+# "on that face". A climber hugs the wall; this is not a reach radius.
+CLIMB_FACE_REACH_M = 1.0
+
+# Modes that do not need a FLOOR under their destination. `_flight` hovers —
+# it sustains itself in mid-air with nothing underneath. `_climbing` holds a
+# face instead of a floor — a climber 2 m up a wall has nothing under them
+# either, and `_climbing` deliberately grants that. In both cases this flag
+# is only a cheap pre-filter for candidate search (e.g. `nearest_visible_point`);
+# `movement_reach` (`_flight`/`_climbing`) remains the real authority and does
+# its own, stricter check (a face for climbing, the ceiling for flight).
+_NO_FLOOR_REQUIRED_MODES = frozenset({"flight", "climbing"})
 
 
 def mode_requires_support(mode: str) -> bool:
     """Does `mode` need a supporting surface under its destination?
 
-    False for ``"flight"`` alone. True for running, leaping, teleportation,
-    tunneling and swimming — swimming additionally keeps its own
-    ``_point_in_water`` gate. An unknown mode conservatively requires
-    support: we never propose a mid-air destination for a mode we do not
-    model.
+    False for ``"flight"`` and ``"climbing"`` — flight hovers, climbing
+    holds a face — since neither needs a floor under the destination point.
+    True for running, leaping, teleportation, tunneling and swimming —
+    swimming additionally keeps its own ``_point_in_water`` gate. An unknown
+    mode conservatively requires support: we never propose a mid-air
+    destination for a mode we do not model.
+
+    This is a pre-filter, not the gate: for climbing in particular, a
+    candidate search with `require_support=False` may still hand `_climbing`
+    a mid-air point, and `_climbing` will reject anything not on a
+    climbable face. `movement_reach` is always the real authority.
     """
-    return mode not in _HOVERING_MODES
+    return mode not in _NO_FLOOR_REQUIRED_MODES
 
 
 @dataclass
@@ -172,6 +192,8 @@ def movement_reach(
         return _swimming(from_pos, to_pos, distance_m, scene)
     if mode == "tunneling":
         return _tunneling(from_pos, to_pos, distance_m, scene)
+    if mode == "climbing":
+        return _climbing(from_pos, to_pos, distance_m, scene)
     return MovementOutcome(reachable=False, landing=from_pos, fall=None)
 
 
@@ -331,3 +353,72 @@ def _tunneling(
     reachable = same_z and d3 <= distance_m + _EPS
     landing = to_pos if reachable else from_pos
     return MovementOutcome(reachable=reachable, landing=landing, fall=None)
+
+
+def _climbing(
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+) -> MovementOutcome:
+    """Climbing (6E1 p70). Legal only ALONG a climbable face, never THROUGH
+    one:
+
+      - both `to_pos` AND `from_pos` must lie within ``CLIMB_FACE_REACH_M``
+        (xy) of the same climbable wall's segment — a destination on the
+        face is not enough; the mover must already be on it. A move whose
+        `from_pos` is nowhere near any climbable face is not a climb, it's
+        a jump-start.
+      - `to_pos.z` must sit between that wall's base and its top INCLUSIVE
+        — the top is where the walkable strip is, and reaching it is the
+        point.
+      - the straight xy path from `from_pos` to `to_pos` must not cross a
+        blocking wall — including this same climbable wall. Without this,
+        a lateral half-move at ground level (both endpoints incidentally
+        within face-reach, on opposite sides of the wall) reads as a legal
+        climb and is really a 2 m hole through the stone.
+
+    Deliberately never calls ``_maybe_fall``. A climber partway up a face is
+    over open air by the support model; whether they fall is governed by the
+    consumer's ``climbing:`` status (a failed roll, a Stun, knockback), not by
+    geometry. Falling here would drop every climber on their first metre.
+    """
+    d3 = distance_3d(from_pos, to_pos)
+    if d3 > distance_m + _EPS:
+        return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
+    for wall in scene.walls:
+        if not is_climbable(wall):
+            continue
+        a, b = wall.segment
+        near_to = _nearest_point_on_segment_xy(
+            to_pos.x, to_pos.y, a.x, a.y, b.x, b.y,
+        )
+        if math.hypot(near_to[0] - to_pos.x, near_to[1] - to_pos.y) > CLIMB_FACE_REACH_M:
+            continue
+        near_from = _nearest_point_on_segment_xy(
+            from_pos.x, from_pos.y, a.x, a.y, b.x, b.y,
+        )
+        if math.hypot(near_from[0] - from_pos.x, near_from[1] - from_pos.y) > CLIMB_FACE_REACH_M:
+            continue
+        base = min(a.z, b.z)
+        if not (base - _EPS <= to_pos.z <= base + wall.height_m + _EPS):
+            continue
+        # A move along a face never crosses through a blocking wall — including
+        # this one. This is what catches the lateral-through-the-wall case:
+        # both endpoints can be within face-reach while the straight path
+        # between them still punches through the wall's own segment.
+        if _first_blocking_wall_xy(from_pos, to_pos, scene, to_pos.z) is not None:
+            continue
+        return MovementOutcome(reachable=True, landing=to_pos, fall=None)
+
+    return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
+
+def _nearest_point_on_segment_xy(
+    px: float, py: float, ax: float, ay: float, bx: float, by: float,
+) -> tuple[float, float]:
+    """Closest point to (px, py) on segment ab, in xy."""
+    dx, dy = bx - ax, by - ay
+    len_sq = dx * dx + dy * dy
+    if len_sq < 1e-12:
+        return (ax, ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / len_sq))
+    return (ax + t * dx, ay + t * dy)
