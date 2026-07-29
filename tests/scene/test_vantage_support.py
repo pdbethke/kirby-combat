@@ -43,14 +43,49 @@ def _scene(walkable: float = 0.0) -> Scene:
 
 # ── mode_requires_support ────────────────────────────────────────────
 
-def test_only_flight_hovers():
+def test_flight_and_climbing_do_not_require_a_floor():
+    """whole-branch review IMPORTANT 2: climbing holds a face, not a floor —
+    mode_requires_support must stop contradicting _climbing, which
+    deliberately grants unsupported mid-face destinations."""
     assert mode_requires_support("flight") is False
+    assert mode_requires_support("climbing") is False
     for mode in ("running", "leaping", "teleportation", "tunneling", "swimming"):
         assert mode_requires_support(mode) is True
 
 
 def test_unknown_mode_conservatively_requires_support():
     assert mode_requires_support("hyperspace_shunt") is True
+
+
+def test_climb_to_a_mid_face_destination_is_not_pre_filtered_by_support():
+    """Consequence of IMPORTANT 2's fix: with require_support=False for
+    climbing, a vantage search may hand climbing mid-air candidates.
+    Pin that a genuine mid-face point (2m up an 8m climbable wall) is not
+    rejected merely because nothing is under it — the real gate is
+    `_climbing`, which requires the point be on a climbable face."""
+    from kirby_combat.scene.falling import is_supported_at
+    wall = Wall(
+        id="stone", name="stone_wall",
+        segment=(Position(-16.0, -5.0, 0.0), Position(-2.0, -5.0, 0.0)),
+        height_m=8.0, climb_difficulty=2,
+    )
+    sc = Scene(
+        id="s", name="urban_rooftop",
+        bounds=SceneBounds(-25.0, -25.0, -5.0, 25.0, 25.0, 15.0),
+        surfaces=[
+            Surface("g", "ground",
+                    [(-25.0, -25.0), (25.0, -25.0), (25.0, 25.0), (-25.0, 25.0)],
+                    0.0, "ground"),
+        ],
+        walls=[wall], hazards=[], ambient=AmbientConditions(),
+    )
+    mid_face = Position(-9.0, -5.0, 2.0)
+    # The point genuinely has nothing under it...
+    assert is_supported_at(mid_face, sc) is False
+    # ...but climbing does not require support, so a consumer following the
+    # documented require_support=mode_requires_support(mode) pattern will
+    # still offer it as a candidate for _climbing to accept or reject.
+    assert mode_requires_support("climbing") is False
 
 
 # ── nearest_visible_point ────────────────────────────────────────────

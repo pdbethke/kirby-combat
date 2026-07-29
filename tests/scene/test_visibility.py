@@ -6,8 +6,18 @@ from kirby_combat.scene import (
 )
 from kirby_combat.scene.geometry import line_of_sight_clear
 from kirby_combat.scene.visibility import (
-    _dist, nearest_hidden_point, nearest_visible_point,
+    _dist, _nearest_point_on_segment, nearest_hidden_point, nearest_visible_point,
 )
+
+
+def test_nearest_point_on_segment_is_the_movement_legality_helper():
+    """whole-branch review MINOR 4: movement_legality._nearest_point_on_segment_xy
+    is the single surviving definition of this projection (a later task
+    imports it from movement_legality by that exact name). visibility must
+    reuse it rather than keep a byte-for-byte duplicate that can drift."""
+    from kirby_combat.scene.movement_legality import _nearest_point_on_segment_xy
+
+    assert _nearest_point_on_segment is _nearest_point_on_segment_xy
 
 
 def _scene(walls=None) -> Scene:

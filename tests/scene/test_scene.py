@@ -93,3 +93,12 @@ def test_wall_top_surface_and_mode_requires_support_are_exported_from_scene_pack
     assert "mode_requires_support" in scene_pkg.__all__
     assert callable(scene_pkg.wall_top_surface)
     assert callable(scene_pkg.mode_requires_support)
+
+
+def test_is_climbable_is_exported_from_scene_package():
+    """whole-branch review MINOR 3: the consuming service needs
+    `is_climbable`, same as `wall_top_surface`/`mode_requires_support`."""
+    import kirby_combat.scene as scene_pkg
+
+    assert "is_climbable" in scene_pkg.__all__
+    assert callable(scene_pkg.is_climbable)

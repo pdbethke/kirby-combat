@@ -9,6 +9,9 @@ from __future__ import annotations
 from kirby_combat.scene.scene import Position, Scene, Surface, Wall
 from kirby_combat.scene.geometry import first_blocking_wall, line_of_sight_clear
 from kirby_combat.scene.falling import is_supported_at
+from kirby_combat.scene.movement_legality import (
+    _nearest_point_on_segment_xy as _nearest_point_on_segment,
+)
 
 _EPS = 0.5  # metres past a shadow edge / above a wall top
 
@@ -78,18 +81,6 @@ def _shadow_candidates(observer: Position, target: Position, wall: Wall,
                 observer.z,
             ))
     return out
-
-
-def _nearest_point_on_segment(px: float, py: float, ax: float, ay: float,
-                              bx: float, by: float) -> tuple[float, float]:
-    """Closest point to (px, py) on the segment ab, in xy."""
-    dx, dy = bx - ax, by - ay
-    len_sq = dx * dx + dy * dy
-    if len_sq < 1e-12:
-        return (ax, ay)
-    t = ((px - ax) * dx + (py - ay) * dy) / len_sq
-    t = max(0.0, min(1.0, t))
-    return (ax + t * dx, ay + t * dy)
 
 
 def _surface_points(observer: Position,

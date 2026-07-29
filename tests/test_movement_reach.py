@@ -357,3 +357,64 @@ def test_climb_refused_above_the_wall_top():
     out = movement_reach("climbing", Position(-9.0, -5.0, 8.0),
                          Position(-9.0, -5.0, 10.0), 2.0, sc)
     assert out.reachable is False
+
+
+# ── CRITICAL 1: a lateral move through the wall's own plane is not a climb ──
+# (whole-branch review, 2026-07-29). _climbing must behave like every other
+# grounded mode and refuse to walk a body through a climbable wall.
+
+def test_climb_refused_straight_through_the_wall_at_ground_level():
+    """(-9,-6,0) -> (-9,-4,0): a 2m lateral move straight across the wall's
+    own y=-5 line, both endpoints incidentally within CLIMB_FACE_REACH_M.
+    This is not climbing along a face — it's walking through stone."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -6.0, 0.0),
+                         Position(-9.0, -4.0, 0.0), 2.0, sc)
+    assert out.reachable is False, (
+        "climbing must not be a 2m hole through a climbable wall"
+    )
+
+
+def test_climb_refused_straight_through_the_wall_face_to_face_at_height():
+    """(-9,-5.6,4) -> (-9,-4.4,4): same defect, mid-face height."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.6, 4.0),
+                         Position(-9.0, -4.4, 4.0), 2.0, sc)
+    assert out.reachable is False
+
+
+def test_running_still_refused_through_the_same_wall_for_comparison():
+    """Sanity: running was never broken; pins the comparison the finding
+    draws between climbing and every other grounded mode."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("running", Position(-9.0, -6.0, 0.0),
+                         Position(-9.0, -4.0, 0.0), 12.0, sc)
+    assert out.reachable is False
+
+
+def test_climb_still_legal_starting_on_the_face():
+    """Control: a real climb (from_pos also on the face) must still work
+    after the fix — this must not become a regression."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -5.0, 2.0),
+                         Position(-9.0, -5.0, 4.0), 2.0, sc)
+    assert out.reachable is True
+
+
+def test_climb_refused_when_from_pos_is_not_on_any_face():
+    """A destination that happens to sit on the face is not enough — the
+    mover must already be on the face too (finding CRITICAL 1)."""
+    from kirby_combat.scene.scene import Position
+    from kirby_combat.scene.movement_legality import movement_reach
+    sc = _climb_scene()
+    out = movement_reach("climbing", Position(-9.0, -10.0, 0.0),
+                         Position(-9.0, -5.0, 0.0), 6.0, sc)
+    assert out.reachable is False
