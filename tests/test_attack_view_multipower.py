@@ -172,29 +172,46 @@ def test_str_strike_view_under_5_str() -> None:
 
 # ── Fix #3b: STR augmentation on HKA / HANDTOHANDATTACK / HA ──────────────
 def test_hka_str_augmentation_doubling_rule() -> None:
-    """1d6 HKA (3 DC base) with STR 60 (12 DC available) is capped at +3 DC.
-    +3 DC killing = +1½d6 → final 2½d6 (= 2 full + half).
+    """STR cannot more than DOUBLE a killing attack's dice (the doubling cap).
 
-    Engine tracks killing in half-die steps; 1d6 = 2 steps, +3 DC = +3 steps,
-    final = 5 steps = 2 full + 1 half.
+    A 1d6 HKA is 3 DC. STR 60 offers 12 DC, far more than the attack can
+    take, so the cap binds: +3 DC killing = +1d6K, final 2d6K.
+
+    The fixture mirrors how the corpus actually stores a killing attack —
+    ``levels`` is the die count, ``level_value=1.0``, ``base_cost=0``. It used
+    to pass ``level_value=1/3, base_cost=15`` and assert 4d6, which described
+    the old half-die-step implementation rather than the rule: measured over
+    the whole corpus, all 1,037 killing attacks (575 HKA + 462 RKA) carry
+    level_cost=15.0 / level_value=1.0 / base_cost=0, matching 6E1 p243
+    ("15 character points for every 1d6 killing attack").
     """
-    powers = [StubPower(xmlid="HKA", name="Claws", levels=2,
-                        level_value=1.0/3, base_cost=15)]
+    powers = [StubPower(xmlid="HKA", name="Claws", levels=1,
+                        level_value=1.0, base_cost=0)]
     c = _make_combatant(str_=60, powers=powers)
     atks = c.attacks
     assert len(atks) == 1
     claws = atks[0]
     assert claws.damage_type == "killing"
-    # base: levels=2 + base_cost≥15 ⇒ steps = 2 + 2 = 4 ⇒ 2 full, no half
-    # So base is 2d6 killing (NOT 1d6 — base_cost=15 means start at 1d6 and
-    # each level adds a step, so 2 levels = 1d6 + 1 step = 1d6 + ½ steps?)
-    # Actually with base_cost≥15: steps = levels + 2 = 4 ⇒ 2 full + 0 half
-    # Doubling rule: 4 base steps ⇒ cap +4 DC from STR
-    # STR 60 = 12 DC, capped to 4 ⇒ +4 steps ⇒ total steps 8 ⇒ 4d6 killing
-    assert claws.damage_dice == 4, (
-        f"expected 4d6 killing (2d6 base + capped 2d6 STR add), got "
+    assert (claws.damage_dice, claws.half_die) == (2, False), (
+        f"1d6 HKA + STR 60 should cap at DOUBLE the base (2d6 killing), got "
         f"{claws.damage_dice}d6{'+½' if claws.half_die else ''}"
     )
+
+
+def test_hka_doubling_cap_scales_with_the_base_attack() -> None:
+    """The cap is relative: a bigger killing attack takes a bigger STR add.
+
+    Guards the rule itself rather than one arithmetic result — if the cap
+    ever became an absolute bonus, 2d6 and 3d6 bases would stop doubling.
+    """
+    for base_dice, expected in ((1, 2), (2, 4), (3, 6)):
+        powers = [StubPower(xmlid="HKA", name="Claws", levels=base_dice,
+                            level_value=1.0, base_cost=0)]
+        atk = _make_combatant(str_=60, powers=powers).attacks[0]
+        assert atk.damage_dice == expected, (
+            f"{base_dice}d6 HKA + STR 60 should double to {expected}d6, "
+            f"got {atk.damage_dice}d6"
+        )
 
 
 def test_handtohandattack_str_augmentation_normal() -> None:

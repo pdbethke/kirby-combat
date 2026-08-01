@@ -40,6 +40,16 @@ class AttackPower:
     avad_does_body: bool = False    # AVAD does STUN only (6E1 p328) unless it bought Does BODY (+1)
     framework_xmlid: str = ""       # owning Multipower/EC/VPP xmlid ("" for a top-level power)
     slot_id: str = ""               # stable per-slot id ("" for a top-level power)
+    # Identity of the power this view was derived from. The xmlid is a TYPE
+    # ("this is an Energy Blast"), not an identity — a character can carry
+    # several of the same type, and consumers that needed to find the source
+    # power again were reduced to matching on xmlid + name. That is fragile in
+    # both directions: two powers sharing a name both match, and a rename
+    # silently detaches a power from its modifiers. It also failed outright
+    # whenever the name was absent, which silently disabled AOE / TRIGGER /
+    # SIDEEFFECTS / INCREASEDEND detection across the whole corpus.
+    # None for synthetic views (the bare STR strike) that have no source power.
+    source_id: int | None = None
 
 
 @dataclass

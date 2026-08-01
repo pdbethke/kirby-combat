@@ -1335,43 +1335,33 @@ def _defense_type_for_power(xmlid: str) -> str:
 def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
     """Return (full_dice, half_die, plus_one) from HD's level fields.
 
-    HD stores ``levels`` as the buy count, ``level_value`` as the
-    dice/level increment, and ``level_cost`` as points/level.
-    For normal attacks (Energy Blast / Blast): level_cost=5,
-    level_value=1.0 → each level = 1 d6.
-    For killing attacks (HKA / RKA): level_cost=5, level_value=⅓
-    in the cost engine — they advance ½d6 per level via a special
-    counter.
+    HD stores ``levels`` as the buy count and ``level_value`` as the
+    dice-per-level increment, so dice = ``levels * level_value`` for every
+    damage type. The cost engine is the authority on both, and its numbers
+    are oracle-verified — trust them rather than hard-coding a rule per
+    damage type.
 
-    We use ``levels * level_value`` for normal/mental and a
-    half-die-step counter for killing.
+    This previously special-cased killing attacks on the belief that they
+    carried ``level_cost=5, level_value=⅓`` and advanced ½d6 per level, so it
+    read ``levels`` as half-die STEPS (3 levels -> 3 // 2 = 1d6+½). That is
+    not what the engine stores. Measured across the whole corpus, all 1,037
+    killing attacks (575 HKA + 462 RKA) carry ``level_cost=15.0,
+    level_value=1.0`` with ``base_cost=0`` — matching 6E1 p243, "15 character
+    points for every 1d6 killing attack". The old formula therefore rendered
+    EVERY killing attack at roughly half its real damage: Drago's 3d6
+    "Dragori Sniper Rifle" came through as 1d6+½, which cannot scratch a
+    DEF 6 wall. The ``base_cost >= 15`` branch never fired either — base_cost
+    is 0 on all of them.
     """
     levels = int(getattr(power, "levels", 0) or 0)
     level_value = float(getattr(power, "level_value", 1.0) or 1.0)
-    damage_type = _damage_type_for_power(xmlid)
 
-    if damage_type == "killing":
-        # Killing attacks step ½d6 every level. 1 lvl = 1 pip / 0,
-        # 2 lvls = ½d6, 3 lvls = 1d6, etc. Inspect base_cost too:
-        # if base_cost ≥ 15 the power starts at 1d6 K and levels add.
-        base_cost = float(getattr(power, "base_cost", 0) or 0)
-        # Total dice expressed as half-d6 steps (5 = 1d6+1, 4 = 1d6, etc.)
-        # Approximation: each level adds 1 step. base_cost 0 starts at 0.
-        steps = levels  # half-die steps
-        if base_cost >= 15:
-            # Power starts at 1d6 (= 2 steps) and levels add on top.
-            steps += 2
-        full = steps // 2
-        half = bool(steps % 2)
-        return full, half, False
-
-    if damage_type == "mental":
-        full = int(levels * level_value)
-        return full, False, False
-
-    # Normal (Energy Blast etc.)
-    full = int(levels * level_value)
-    return full, False, False
+    # A fractional product is a genuine half-die (HD writes 1d6+½ that way);
+    # this keeps working if a template ever does use a fractional increment.
+    raw = levels * level_value
+    full = int(raw)
+    half = (raw - full) >= 0.5
+    return full, half, False
 
 
 def _find_power(hero: "LoadedHero", power_xmlid: str, *,
@@ -1542,6 +1532,9 @@ def _build_attack_power(
     reach_m_val = 0.0 if is_ranged else (_base_reach_m(hero) if hero is not None else 0.0)
 
     return AttackPower(
+        # Identity, so consumers can find this power again without guessing
+        # from xmlid + name. See AttackPower.source_id.
+        source_id=getattr(power, "id", None),
         xmlid=xmlid,
         name=name,
         damage_dice=full_dice,
