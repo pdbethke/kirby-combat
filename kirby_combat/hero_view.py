@@ -558,7 +558,17 @@ class HeroCombatant:
         stats = self.combat_stats()
         full_dice = stats.str_ // 5
         half_die = (stats.str_ % 5) >= 3
+        # The bare Strike IS the character's STR, so its identity is the STR
+        # characteristic's object id. This was the one view carrying no id at
+        # all, and a single identity-less view is enough to force every
+        # consumer to keep a string fallback beside the id path.
+        str_obj = next(
+            (c for c in (getattr(self.hero, "characteristics", None) or [])
+             if (getattr(c, "xmlid", "") or "").upper() == "STR"),
+            None,
+        )
         return AttackPower(
+            source_id=getattr(str_obj, "id", None),
             xmlid="STR",
             name="Strike",
             damage_dice=full_dice,
@@ -709,7 +719,11 @@ class HeroCombatant:
 
             name = str(getattr(m, "display", "") or getattr(m, "_alias", "") or "Maneuver")
             out.append(MartialManeuverView(
-                maneuver_id=f"{getattr(m, 'xmlid', 'MANEUVER')}:{name}",
+                # The maneuver object's own id. It was "{xmlid}:{name}", which
+                # collided in 110 corpus cases (every maneuver shares the
+                # xmlid "MANEUVER", so the name was carrying the whole burden)
+                # and forced callers into a colon-delimited parse.
+                maneuver_id=str(getattr(m, "id", "") or ""),
                 name=name,
                 ocv=ocv,
                 dcv=dcv,
@@ -770,6 +784,10 @@ class HeroCombatant:
                     attack=atk,
                 ))
             out.append(FrameworkView(
+                # The framework's identity. Consumers matched on xmlid, which
+                # is ambiguous for the 113 corpus characters carrying two or
+                # more frameworks; xmlid stays for display and rules.
+                framework_id=str(getattr(p, "id", "") or ""),
                 xmlid=(getattr(p, "xmlid", "") or ""),
                 name=(getattr(p, "name", None) or
                       getattr(p, "alias", "") or "Framework"),

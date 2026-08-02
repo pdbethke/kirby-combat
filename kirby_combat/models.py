@@ -71,6 +71,10 @@ class FrameworkView:
     ``HeroCombatant.framework_view()``; consumed by kirby-api to enumerate
     available slots and enforce the reserve."""
 
+    # The framework object's id — what consumers index on. The xmlid below is
+    # a TYPE and is ambiguous for the 113 corpus characters carrying two or
+    # more frameworks; it stays for display and rules, never as a key.
+    framework_id: str
     xmlid: str
     name: str
     kind: str                       # "multipower" | "elemental_control" | "vpp"
