@@ -116,3 +116,31 @@ class TestAttackIdentity:
         """
         hc = _cheshire()
         assert hc.str_strike_view().source_id is not None
+
+
+class TestFrameworkSlotLinkage:
+    def test_a_framework_slot_carries_its_framework_id(self):
+        """The reserve gate keys slot allocation by framework.
+
+        It keyed on framework_xmlid, which is a type: two Multipowers on one
+        character share it, so their reserves were pooled under one key.
+        """
+        hc = HeroCombatant.from_hdc(HELIOS)
+        slotted = [a for a in hc.attacks if a.slot_id]
+        assert slotted, "HELIOS carries a multipower with attack slots"
+        for ap in slotted:
+            assert ap.framework_id, (
+                f"{ap.xmlid}/{ap.name} is in a framework but names it only by "
+                f"xmlid {ap.framework_xmlid!r}"
+            )
+            assert str(ap.framework_id).isdigit()
+
+    def test_the_slot_framework_id_matches_the_framework_view(self):
+        """Both sides must agree, or the gate silently finds no allocation."""
+        hc = HeroCombatant.from_hdc(HELIOS)
+        fw_ids = {f.framework_id for f in hc.framework_view()}
+        for ap in (a for a in hc.attacks if a.slot_id):
+            assert ap.framework_id in fw_ids, (
+                f"slot names framework {ap.framework_id!r}, "
+                f"framework_view offers {sorted(fw_ids)}"
+            )

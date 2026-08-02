@@ -1501,6 +1501,7 @@ def _build_attack_power(
     else:
         fw_kind = None
     framework_xmlid = (getattr(parent, "xmlid", "") or "") if fw_kind else ""
+    framework_id = (str(getattr(parent, "id", "") or "") if fw_kind else "")
     if fw_kind:
         raw_id = str(getattr(power, "id", "") or "")
         slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
@@ -1572,5 +1573,6 @@ def _build_attack_power(
         avad_defense=(avad_def or ""),
         avad_does_body=avad_does_body,
         framework_xmlid=framework_xmlid,
+        framework_id=framework_id,
         slot_id=slot_id,
     )

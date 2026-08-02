@@ -38,8 +38,12 @@ class AttackPower:
     avad: bool = False              # Attack Versus Alternate Defense / NND
     avad_defense: str = ""          # the named alternate defense (free text); "" when avad is False
     avad_does_body: bool = False    # AVAD does STUN only (6E1 p328) unless it bought Does BODY (+1)
-    framework_xmlid: str = ""       # owning Multipower/EC/VPP xmlid ("" for a top-level power)
-    slot_id: str = ""               # stable per-slot id ("" for a top-level power)
+    framework_xmlid: str = ""       # owning framework's TYPE (display / rules only)
+    # The owning framework's object id — what consumers key on. The xmlid above
+    # is a type and is ambiguous for the 113 corpus characters carrying two or
+    # more frameworks. "" for a top-level power.
+    framework_id: str = ""
+    slot_id: str = ""               # the slot power's own object id ("" for a top-level power)
     # Identity of the power this view was derived from. The xmlid is a TYPE
     # ("this is an Energy Blast"), not an identity — a character can carry
     # several of the same type, and consumers that needed to find the source
