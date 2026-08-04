@@ -41,6 +41,21 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 
+
+#: The Mental Powers, per 6E1 p150. Owning any one of these is what makes a
+#: character a mentalist for the purposes of the mental resolvers.
+#: Deliberately excludes MENTALDEFENSE (a Defence Power) and MENTALAWARENESS
+#: / CLAIRSENTIENCE (Senses) — those let you resist or perceive, not attack.
+MENTAL_POWER_XMLIDS = frozenset({
+    "EGOATTACK",        # Mental Blast
+    "MENTALILLUSIONS",
+    "MINDCONTROL",
+    "MINDLINK",
+    "MINDSCAN",
+    "TELEPATHY",
+})
+
+
 if TYPE_CHECKING:
     # Avoid forcing hero-designer-python import at module load time;
     # callers that don't use the new path won't pay the dep.
@@ -365,7 +380,33 @@ class HeroCombatant:
 
     @property
     def is_mentalist(self) -> bool:
-        return False
+        """Does this character own a Mental Power (6E1 p150)?
+
+        Every mental resolver gates on this — mental_blast, mental_illusion,
+        mental_entangle and telepathy all open with
+        ``if not attacker.is_mentalist``. It was hardcoded ``return False``
+        from faa9c65 ("step 6 partial"), so no character could use a Mental
+        Power at all; a corpus villain holding TELEPATHY with OMCV 6 could
+        not use it.
+
+        6E1 p150 MENTAL POWERS lists exactly six. Note what is NOT on that
+        list: MENTALDEFENSE is a Defence Power and MENTALAWARENESS a Sense.
+        Resisting a mental attack is not making one, and MENTALDEFENSE is the
+        single most common 'mental' xmlid in the corpus (230 instances), so
+        counting it would make half the roster mentalists.
+
+        Frameworks are walked, because mentalists routinely buy their powers
+        as multipower slots.
+        """
+        def _any_mental(powers) -> bool:
+            for p in powers or ():
+                if (getattr(p, "xmlid", None) or "").upper() in MENTAL_POWER_XMLIDS:
+                    return True
+                if _any_mental(getattr(p, "sub_powers", None)):
+                    return True
+            return False
+
+        return _any_mental(getattr(self.hero, "powers", None))
 
     @property
     def csls(self) -> list:
