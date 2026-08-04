@@ -47,13 +47,27 @@ def test_presence_attack_reduced_by_target_pre_defense():
 
 
 def test_presence_effect_ladder_thresholds():
-    # Sanity-check the table itself; margins are relative to target PRE
-    assert presence_attack_effect(9, 10) == "no_effect"     # margin -1
-    assert presence_attack_effect(10, 10) == "no_effect"    # margin 0
-    assert presence_attack_effect(20, 10) == "hesitation"   # margin 10
-    assert presence_attack_effect(30, 10) == "impressed"    # margin 20
-    assert presence_attack_effect(40, 10) == "fear"         # margin 30
-    assert presence_attack_effect(50, 10) == "cower"        # margin 40
+    """The 6E2 p138 Presence Attack Table, keyed on (roll - target PRE).
+
+    6E2 p139, "attack equal to presence": "If the total on the Presence
+    Attack dice AT LEAST EQUALS the target's PRE, the target is impressed."
+    A margin of 0 is a LANDED attack, not a miss — this file previously
+    asserted `no_effect` there, which put every tier 10 points too high and
+    meant an attacker needed PRE+10 to buy the effect RAW grants at PRE+0.
+    """
+    assert presence_attack_effect(9, 10) == "no_effect"        # margin -1
+    assert presence_attack_effect(10, 10) == "impressed"       # margin 0
+    assert presence_attack_effect(19, 10) == "impressed"       # margin +9
+    assert presence_attack_effect(20, 10) == "very_impressed"  # margin +10
+    assert presence_attack_effect(30, 10) == "awed"            # margin +20
+    assert presence_attack_effect(40, 10) == "cowed"           # margin +30
+    assert presence_attack_effect(50, 10) == "overwhelmed"     # margin +40
+
+
+def test_a_presence_attack_that_falls_short_does_nothing():
+    # Below the target's PRE there is no entry on the table at all.
+    assert presence_attack_effect(0, 20) == "no_effect"
+    assert presence_attack_effect(19, 20) == "no_effect"
 
 
 def test_presence_attack_bonus_dice_from_appropriate_situation():
@@ -76,6 +90,13 @@ def test_presence_attack_no_direct_damage():
 
 
 def test_targets_cower_result_cannot_act_this_turn():
-    assert can_act_after("cower") is False
-    assert can_act_after("fear") is True
-    assert can_act_after("hesitation") is True
+    # NOTE: this preserves the pre-existing MEANING (only the worst tier
+    # stops the target acting) under the corrected names. RAW 6E2 p139 is
+    # stricter — at PRE+20 "awed" the target "will not act for 1 Full
+    # Phase" — but wiring the table's mechanical consequences is a separate
+    # piece of work from correcting the table itself.
+    assert can_act_after("overwhelmed") is False
+    assert can_act_after("cowed") is False
+    assert can_act_after("awed") is True
+    assert can_act_after("very_impressed") is True
+    assert can_act_after("impressed") is True

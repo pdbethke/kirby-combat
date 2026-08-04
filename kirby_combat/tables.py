@@ -238,17 +238,41 @@ def mental_illusion_degree(effect_roll_total: int, target_ego: int) -> str:
 # 6E2 p139.
 # ---------------------------------------------------------------------------
 
-#: 6E2 p139 Presence Attack effect tiers.
+#: The 6E2 p138 Presence Attack Table, keyed on (roll total - target's PRE).
+#:
+#: 6E2 p139 is explicit that a roll which merely EQUALS the target's PRE has
+#: already landed: "If the total on the Presence Attack dice at least equals
+#: the target's PRE, the target is impressed." This table previously started
+#: at ``(0, "no_effect")``, which shifted every tier 10 points high and meant
+#: an attacker needed PRE+10 to buy the effect RAW grants at PRE+0 — a high
+#: PRE was a Characteristic you could pay for and not cash in.
+#:
+#: Names follow the book rather than paraphrasing it, because the old set
+#: ("impressed" sitting at +20) is what made the off-by-one-tier plausible in
+#: the first place.
 PRESENCE_ATTACK_EFFECTS: list[tuple[int, str]] = [
-    (0,  "no_effect"),
-    (10, "hesitation"),             # target pauses one phase
-    (20, "impressed"),              # target compliant for one scene
-    (30, "fear"),                   # target flees / submits
-    (40, "cower"),                  # target incapacitated this turn
+    # margin, effect          6E2 p139 combat consequence
+    (0,  "impressed"),        # attacker may act before him this Phase
+    (10, "very_impressed"),   # + only a Half Phase Action next Phase
+    (20, "awed"),             # will not act for 1 Full Phase; 1/2 DCV
+    (30, "cowed"),            # 0 DCV; may surrender, run away, or faint
+    (40, "overwhelmed"),      # GM option: as cowed, far severer mentally
 ]
+
+#: Tiers at which the target is too far gone to act. NOTE: RAW is stricter —
+#: at "awed" (PRE+20) the target "will not act for 1 Full Phase" — but
+#: consuming the table's mechanical consequences is separate work from
+#: getting the table itself right, so this preserves the previous meaning
+#: (only the worst tiers stop a target) under the corrected names.
+_CANNOT_ACT = frozenset({"cowed", "overwhelmed"})
 
 
 def presence_attack_effect(roll_total: int, target_pre: int) -> str:
+    """The 6E2 p138 table entry for this roll against this target.
+
+    Below the target's PRE there is no entry on the table at all, so a roll
+    that falls short returns ``"no_effect"``.
+    """
     margin = roll_total - target_pre
     effect = "no_effect"
     for threshold, name in PRESENCE_ATTACK_EFFECTS:

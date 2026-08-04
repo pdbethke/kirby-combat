@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from kirby_combat.models import Combatant
-from kirby_combat.tables import presence_attack_effect
+from kirby_combat.tables import _CANNOT_ACT, presence_attack_effect
 
 
 @dataclass
@@ -26,7 +26,8 @@ class PresenceAttackResult:
     effective_dice: int              # max(0, total_dice - PRE def in dice equivalent)
     roll_total: int                  # sum of dice values
     target_pre: int
-    effect: str                      # no_effect | hesitation | impressed | fear | cower
+    effect: str                      # 6E2 p138 table: no_effect | impressed |
+    #                                very_impressed | awed | cowed | overwhelmed
     audit: list[str] = field(default_factory=list)
 
 
@@ -73,5 +74,12 @@ def resolve_presence_attack(
 
 
 def can_act_after(effect: str) -> bool:
-    """Cower result: target cannot act this turn. Other tiers: target acts but with penalties."""
-    return effect != "cower"
+    """Whether the target can still act after this Presence Attack result.
+
+    Preserves the previous MEANING under the corrected 6E2 p138 names: only
+    the worst tiers stop a target outright. RAW is stricter — at "awed"
+    (PRE+20) the target "will not act for 1 Full Phase" (6E2 p139) — but
+    consuming the table's mechanical consequences is separate work from
+    correcting the table.
+    """
+    return effect not in _CANNOT_ACT
