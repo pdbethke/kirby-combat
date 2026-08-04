@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.3.24"
+version = "0.3.25"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 license = {text = "MIT"}
