@@ -20,7 +20,11 @@ even be made?
 """
 from __future__ import annotations
 
-from kirby_combat.scene.geometry import first_blocking_wall, line_of_sight_clear
+from kirby_combat.scene.geometry import (
+    first_blocking_surface,
+    first_blocking_wall,
+    line_of_sight_clear,
+)
 from kirby_combat.scene.scene import Position, Scene, Wall
 
 
@@ -36,13 +40,25 @@ def has_line_of_sight(
     Walls in `scene.walls` with blocks_los=True can break LoS. Wall height is
     respected (per scene.geometry.line_of_sight_clear).
 
+    Supporting surfaces in `scene.surfaces` break LoS too: a floor between
+    the two positions occludes (per scene.geometry.first_blocking_surface).
+
     If `indirect_advantage` is True, LoS is unconditionally True per
     6E1 p339 §Indirect — the attacker may aim around obstacles via an
     altered Source Point.
     """
     if indirect_advantage:
         return True
-    return line_of_sight_clear(attacker_pos, target_pos, scene.walls)
+    if not line_of_sight_clear(attacker_pos, target_pos, scene.walls):
+        return False
+    # A solid floor blocks sight as surely as a wall. Surfaces were never
+    # consulted here, so a combatant under a rooftop could be seen and shot
+    # through it (6E1 p150 -- LOS is "direct perception ... with a Targeting
+    # Sense"). Checked after walls so the cheaper, far more common wall gate
+    # short-circuits first.
+    return first_blocking_surface(
+        attacker_pos, target_pos, getattr(scene, "surfaces", None),
+    ) is None
 
 
 def gate_ranged_attack(

@@ -11,7 +11,8 @@ from dataclasses import dataclass, field
 from kirby_combat.dice import RandomRoller
 from kirby_combat.resolution.line_of_sight import has_line_of_sight
 from kirby_combat.scene.geometry import (
-    first_blocking_wall, path_crosses_polygon, point_in_polygon_xy,
+    first_blocking_surface, first_blocking_wall, path_crosses_polygon,
+    point_in_polygon_xy,
 )
 
 # Sense-group names — MUST match actions/flash.py's sense_group strings
@@ -343,9 +344,14 @@ def _sight_los(observer, target, scene, sense) -> tuple[bool, str | None]:
     clear = has_line_of_sight(scene, o, t)
     if clear:
         return True, None
-    # Recover the actual blocking wall's id (not the sentinel "occluded").
+    # Recover the actual occluder's id (not the sentinel "occluded") so the
+    # GUI can name it. A wall wins when both apply -- it is the nearer, more
+    # specific answer; a floor is the fallback ("the rooftop blocks it").
     wall = first_blocking_wall(o, t, getattr(scene, "walls", None) or [])
-    return False, (getattr(wall, "id", None) if wall is not None else None)
+    if wall is not None:
+        return False, getattr(wall, "id", None)
+    surface = first_blocking_surface(o, t, getattr(scene, "surfaces", None))
+    return False, (getattr(surface, "id", None) if surface is not None else None)
 
 
 def _point_in_zone(p, zone) -> bool:

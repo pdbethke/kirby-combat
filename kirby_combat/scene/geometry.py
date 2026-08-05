@@ -4,7 +4,7 @@ from __future__ import annotations
 from math import atan2, sqrt
 from typing import Iterable
 
-from kirby_combat.scene.scene import Position, Wall
+from kirby_combat.scene.scene import Position, Wall, Surface
 
 
 def distance_3d(a: Position, b: Position) -> float:
@@ -144,6 +144,64 @@ def first_blocking_wall(from_: Position, to: Position, walls: Iterable[Wall]) ->
         return (mx - from_.x) ** 2 + (my - from_.y) ** 2
 
     return min(blockers, key=_d2)
+
+
+def first_blocking_surface(
+    from_: Position, to: Position, surfaces: "Iterable[Surface] | None",
+) -> "Surface | None":
+    """Return a solid floor that the from_->to ray passes through, or None.
+
+    Surfaces were never consulted for LoS: `has_line_of_sight` passed only
+    `scene.walls`, so every floor, rooftop and platform was transparent to
+    sight. A combatant standing under a rooftop could be seen, targeted and
+    shot through six metres of concrete -- a vertical hole in the perception
+    gate that exists to stop an AI acting on what it cannot perceive.
+
+    6E1 p150: "LOS means the character has direct perception of or can
+    perceive any part of the target with a Targeting Sense." APG p66, on
+    breaking a mentalist's LOS: "all the victim has to do is move to a
+    position where there's an obstacle (a wall, a large [object])". A solid
+    floor defeats direct perception exactly as a wall does.
+
+    Blocking predicate:
+      - surface.is_supporting  (False means combatants fall through it, so a
+        ray passes too), AND
+      - min(z) < elevation_m <= max(z), AND
+      - the ray's crossing point at that elevation lies inside polygon_xy.
+
+    The asymmetric `<` / `<=` is deliberate. Positions are FOOT positions, so
+    a combatant standing on a surface has z == elevation_m. The asymmetry is
+    what makes the real cases come out right without an eye-height model:
+
+      under the roof (0) vs on it (6), roof 6  -> 0 < 6 <= 6   blocked
+      both on the same roof (6, 6),    roof 6  -> 6 < 6 false  clear
+      both on the ground (0, 0),     ground 0  -> 0 < 0 false  clear
+      on the roof (6) vs a flier (12), roof 6  -> 6 < 6 false  clear
+      ground (0) vs flier (12),        roof 6  -> 0 < 6 <= 12  blocked
+
+    Fail-open on bad data: a degenerate polygon never blinds the board.
+    """
+    if not surfaces:
+        return None
+    lo_z, hi_z = (from_.z, to.z) if from_.z <= to.z else (to.z, from_.z)
+    if lo_z == hi_z:
+        return None                      # nothing can sit strictly between
+    for s in surfaces:
+        if not getattr(s, "is_supporting", True):
+            continue
+        poly = getattr(s, "polygon_xy", None)
+        if not poly or len(poly) < 3:
+            continue                     # degenerate -> never blocks
+        elev = s.elevation_m
+        if not (lo_z < elev <= hi_z):
+            continue
+        # Where does the ray cross this elevation in xy?
+        t = (elev - from_.z) / (to.z - from_.z)
+        cx = from_.x + t * (to.x - from_.x)
+        cy = from_.y + t * (to.y - from_.y)
+        if point_in_polygon_xy((cx, cy), poly):
+            return s
+    return None
 
 
 def line_of_sight_clear(from_: Position, to: Position, walls: Iterable[Wall]) -> bool:
