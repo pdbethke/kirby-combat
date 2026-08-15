@@ -7,7 +7,7 @@ HELIOS = str(pathlib.Path(__file__).parent / "fixtures" / "HELIOS-CV1.hdc")
 
 
 def test_attacks_surface_avad_and_slot_identity():
-    pytest.importorskip("hero_designer")
+    pytest.importorskip("kirby_cost")
     hc = HeroCombatant.from_hdc(HELIOS)
     atks = hc.attacks
     nnd = [a for a in atks if a.avad]
@@ -21,7 +21,7 @@ def test_attacks_surface_avad_and_slot_identity():
 
 
 def test_non_framework_attack_has_empty_framework_fields():
-    pytest.importorskip("hero_designer")
+    pytest.importorskip("kirby_cost")
     # a plain top-level attack (no framework parent) keeps empty framework identity + avad False
     hc = HeroCombatant.from_hdc(HELIOS)
     plain = [a for a in hc.attacks if not a.framework_xmlid]

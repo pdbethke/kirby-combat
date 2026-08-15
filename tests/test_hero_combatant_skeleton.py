@@ -226,10 +226,10 @@ def test_attack_input_accepts_hero_combatant():
 
 def test_inferna_loads_from_in_repo_hdc():
     """Sanity: committed HDC fixture loads cleanly."""
-    # from_hdc() parses via the hero_designer cost engine, which is an
+    # from_hdc() parses via the kirby_cost cost engine, which is an
     # optional integration dep — not part of kirby-combat's zero-dep
     # core. Skip (don't fail) where it isn't installed, e.g. CI.
-    pytest.importorskip("hero_designer")
+    pytest.importorskip("kirby_cost")
     c = HeroCombatant.from_hdc(INFERNA_HDC)
     assert c.hero is not None
     assert c.hero.name  # any non-empty name
@@ -248,7 +248,7 @@ def test_inferna_attack_resolves_through_engine():
     shape via a minimal attacker / target Combatant built from the
     HeroCombatant's combat_stats().
     """
-    pytest.importorskip("hero_designer")  # optional integration dep — see above
+    pytest.importorskip("kirby_cost")  # optional integration dep — see above
     from kirby_combat.actions import RangedAttackAction, AttackInput
     from kirby_combat.models import Combatant, DiceValues
     from kirby_combat.template import CombatTemplate
@@ -368,7 +368,7 @@ def test_compute_stats_coerces_engine_floats_to_int():
 def test_canon_hdc_combatant_stats_are_int_and_rollable():
     """End-to-end: a real HDC-loaded combatant feeds integer dice
     counts to RandomRoller (PRE dice, STR strike dice)."""
-    pytest.importorskip("hero_designer")
+    pytest.importorskip("kirby_cost")
     _need(INFERNA_HDC)
 
     from kirby_combat.dice import RandomRoller

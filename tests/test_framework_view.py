@@ -1,6 +1,6 @@
 import pathlib
 import pytest
-pytest.importorskip("hero_designer")
+pytest.importorskip("kirby_cost")
 from kirby_combat.hero_view import HeroCombatant
 
 HELIOS = str(pathlib.Path(__file__).parent / "fixtures" / "HELIOS-CV1.hdc")

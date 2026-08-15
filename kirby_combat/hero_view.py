@@ -1,4 +1,4 @@
-"""HD-shaped Combatant — wraps a hero-designer-python LoadedHero.
+"""HD-shaped Combatant — wraps a kirby-cost LoadedHero.
 
 This is the "Phase 2 redesign" Combatant that supersedes the flat
 ``models.Combatant``. See spec at
@@ -20,7 +20,7 @@ Why this exists alongside ``models.Combatant``:
   characters can't be represented losslessly.
 - HDC round-trip fidelity is a hard requirement (see kirby skill).
   The flat shape can't produce an equivalent HDC on export.
-- The cost engine (``hero_designer.io.hdc_loader.LoadedHero``) is
+- The cost engine (``kirby_cost.io.hdc_loader.LoadedHero``) is
   already the canonical HD-shaped model. The combat engine should
   consume it directly.
 
@@ -57,9 +57,9 @@ MENTAL_POWER_XMLIDS = frozenset({
 
 
 if TYPE_CHECKING:
-    # Avoid forcing hero-designer-python import at module load time;
+    # Avoid forcing kirby-cost import at module load time;
     # callers that don't use the new path won't pay the dep.
-    from hero_designer.io.hdc_loader import LoadedHero
+    from kirby_cost.io.hdc_loader import LoadedHero
     # Resolve the forward-ref on senses() -> list["SenseCapability"] (mirrors
     # how MovementCapability is imported, but lazily under TYPE_CHECKING —
     # perception imports hero_view at runtime, so a top-level import would
@@ -422,12 +422,12 @@ class HeroCombatant:
     def from_hdc(cls, path: str | Path, *, id: Optional[str] = None) -> "HeroCombatant":
         """Load a HeroCombatant from an HDC file on disk.
 
-        Uses ``hero_designer.io.hdc_loader.HDCLoader`` to parse the
+        Uses ``kirby_cost.io.hdc_loader.HDCLoader`` to parse the
         file, then constructs initial CombatState with full vitals.
         ``id`` defaults to the hero's name (lowercased, spaces →
         underscores) — caller can override for session-unique IDs.
         """
-        from hero_designer.io.hdc_loader import HDCLoader
+        from kirby_cost.io.hdc_loader import HDCLoader
 
         loader = HDCLoader()
         hero = loader.load_file(str(path))
@@ -794,7 +794,7 @@ class HeroCombatant:
         Both paths run in the same process call, so id(power) is stable
         across self.attacks and this loop (same object in hero.powers).
         """
-        from hero_designer.io.framework_access import (  # lazy
+        from kirby_cost.io.framework_access import (  # lazy
             framework_kind, framework_slots, reserve_or_pool, slot_is_variable,
             vpp_pool,
         )
@@ -1382,7 +1382,7 @@ def _defense_type_for_power(xmlid: str) -> str:
     if xmlid in {"EGOATTACK", "MENTALBLAST"}:
         return "mental"
     # Energy Blast / RKA / HKA typically alternate by SFX. Without a
-    # reliable signal in hero-designer-python's parse we default to
+    # reliable signal in kirby-cost's parse we default to
     # PD for HKA/HTH and ED for ranged blasts. Refined in step 4
     # when SFX-aware modifiers land.
     if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK",
@@ -1522,9 +1522,9 @@ def _build_attack_power(
     Melee attacks carry the attacker's effective reach (2m + Stretching);
     ranged attacks carry 0.0 for reach_m.
     """
-    # Lazy import — hero_designer is an optional dep; stub-based tests don't have it.
+    # Lazy import — kirby_cost is an optional dep; stub-based tests don't have it.
     try:
-        from hero_designer.io.framework_access import framework_kind, avad_alternate_defense
+        from kirby_cost.io.framework_access import framework_kind, avad_alternate_defense
         _fw_access = True
     except ImportError:
         _fw_access = False
