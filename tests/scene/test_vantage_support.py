@@ -16,8 +16,8 @@ from kirby_combat.scene.visibility import (
     _surface_candidates, nearest_hidden_point, nearest_visible_point,
 )
 
-CHESHIRE = Position(0.0, 13.0, 6.0)     # rooftop
-GORGON = Position(-10.0, -15.0, 0.0)    # ground, behind the wall
+ROOFTOP = Position(0.0, 13.0, 6.0)     # rooftop
+GROUND_TARGET = Position(-10.0, -15.0, 0.0)    # ground, behind the wall
 
 
 def _scene(walkable: float = 0.0) -> Scene:
@@ -94,32 +94,32 @@ def test_the_start_position_really_is_occluded():
     """Guards the premise of every test below."""
     sc = _scene()
     assert nearest_visible_point(
-        CHESHIRE, GORGON, sc, radius=15.0, vertical_reach=30.0,
-    ) != CHESHIRE
+        ROOFTOP, GROUND_TARGET, sc, radius=15.0, vertical_reach=30.0,
+    ) != ROOFTOP
 
 
 def test_teleporter_gets_a_supported_vantage_within_a_half_move():
-    """Cheshire: teleport 30 -> 15 m half-move, 30 m vertical reach. The
+    """A teleporter: 30 -> 15 m half-move, 30 m vertical reach. The
     rooftop's south-east vertex (10, 5, 6) is 12.81 m away, supported, and
     LoS-clear. This is THE case the spec exists to fix."""
     sc = _scene()
     dest = nearest_visible_point(
-        CHESHIRE, GORGON, sc, radius=15.0, vertical_reach=30.0,
+        ROOFTOP, GROUND_TARGET, sc, radius=15.0, vertical_reach=30.0,
         require_support=True,
     )
     assert dest is not None
     assert is_supported_at(dest, sc) is True
-    assert line_of_sight_clear(dest, GORGON, sc.walls) is True
+    assert line_of_sight_clear(dest, GROUND_TARGET, sc.walls) is True
 
 
 def test_require_support_never_returns_an_unsupported_point():
     sc = _scene()
     for radius in (5.0, 15.0, 30.0):
         dest = nearest_visible_point(
-            CHESHIRE, GORGON, sc, radius=radius, vertical_reach=30.0,
+            ROOFTOP, GROUND_TARGET, sc, radius=radius, vertical_reach=30.0,
             require_support=True,
         )
-        if dest is not None and dest != CHESHIRE:
+        if dest is not None and dest != ROOFTOP:
             assert is_supported_at(dest, sc) is True
 
 
@@ -128,11 +128,11 @@ def test_flight_may_still_take_a_mid_air_vantage():
     available to a hovering mode."""
     sc = _scene()
     dest = nearest_visible_point(
-        CHESHIRE, GORGON, sc, radius=30.0, vertical_reach=30.0,
+        ROOFTOP, GROUND_TARGET, sc, radius=30.0, vertical_reach=30.0,
         require_support=False,
     )
     assert dest is not None
-    assert line_of_sight_clear(dest, GORGON, sc.walls) is True
+    assert line_of_sight_clear(dest, GROUND_TARGET, sc.walls) is True
 
 
 def test_a_walkable_wall_top_enters_the_candidate_set():
@@ -141,7 +141,7 @@ def test_a_walkable_wall_top_enters_the_candidate_set():
     ground-level flank around the wall's end is nearer (9.67 m vs 12.42 m)
     and beating it would be the wrong answer."""
     walkable = _scene(walkable=1.0)
-    cands = _surface_candidates(GORGON, walkable, vertical_reach=30.0, radius=30.0)
+    cands = _surface_candidates(GROUND_TARGET, walkable, vertical_reach=30.0, radius=30.0)
     tops = [c for c in cands if c.z == pytest.approx(8.0)]
     assert tops, "a walkable wall top must be offered as a candidate"
     assert all(is_supported_at(c, walkable) for c in tops)
@@ -149,7 +149,7 @@ def test_a_walkable_wall_top_enters_the_candidate_set():
 
 def test_a_wall_with_no_walkable_width_contributes_no_candidate():
     plain = _scene(walkable=0.0)
-    cands = _surface_candidates(GORGON, plain, vertical_reach=30.0, radius=30.0)
+    cands = _surface_candidates(GROUND_TARGET, plain, vertical_reach=30.0, radius=30.0)
     assert not [c for c in cands if c.z == pytest.approx(8.0)]
 
 
@@ -158,7 +158,7 @@ def test_no_vantage_within_a_short_radius_returns_none():
     smashing through the wall is the correct answer for him."""
     sc = _scene()
     assert nearest_visible_point(
-        GORGON, CHESHIRE, sc, radius=3.0, vertical_reach=0.0,
+        GROUND_TARGET, ROOFTOP, sc, radius=3.0, vertical_reach=0.0,
         require_support=True,
     ) is None
 
@@ -169,7 +169,7 @@ def test_hidden_point_also_honours_require_support():
     sc = _scene()
     open_ground = Position(5.0, -15.0, 0.0)     # no wall between them
     dest = nearest_hidden_point(
-        open_ground, GORGON, sc, radius=12.0, vertical_reach=0.0,
+        open_ground, GROUND_TARGET, sc, radius=12.0, vertical_reach=0.0,
         require_support=True,
     )
     if dest is not None and dest != open_ground:
@@ -193,7 +193,7 @@ def test_zero_vertical_reach_never_yields_a_drop_to_a_lower_surface():
     drop — must never be offered as a candidate, even though the ground is
     always "supported" once you're on it."""
     sc = _scene()   # ground z=0.0, rooftop z=6.0
-    observer = CHESHIRE   # (0.0, 13.0, 6.0), on the rooftop
+    observer = ROOFTOP   # (0.0, 13.0, 6.0), on the rooftop
     cands = _surface_candidates(observer, sc, vertical_reach=0.0, radius=30.0)
     assert cands, "expected at least the same-elevation candidate(s)"
     for c in cands:
@@ -207,6 +207,6 @@ def test_zero_vertical_reach_still_offers_same_elevation_vantage():
     candidate (the rooftop surface itself) when one is within radius —
     the fix must not remove same-elevation candidates along with drops."""
     sc = _scene()
-    observer = CHESHIRE
+    observer = ROOFTOP
     cands = _surface_candidates(observer, sc, vertical_reach=0.0, radius=30.0)
     assert any(c.z == pytest.approx(observer.z) for c in cands)

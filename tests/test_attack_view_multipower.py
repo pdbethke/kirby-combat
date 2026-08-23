@@ -67,7 +67,7 @@ def _make_combatant(*, str_=10, dex=10, con=10, ego=10, pre=10,
 
 # ── Fix #1: attacks returns ALL same-xmlid instances ─────────────────────
 def test_attacks_returns_all_same_xmlid_eb_instances() -> None:
-    """Cheshire Cat shape: 1d6 unnamed EB + 6d6 'Teleportation Boxing' EB.
+    """Duplicate-xmlid shape: a 1d6 unnamed EB + a larger named EB.
     Both must be addressable through .attacks.
     """
     powers = [
@@ -85,7 +85,7 @@ def test_attacks_returns_all_same_xmlid_eb_instances() -> None:
 
 
 def test_attacks_returns_all_same_xmlid_hka_instances() -> None:
-    """GORGON shape: HKA Claws (L2) + HKA Fangs (L1) — both surface."""
+    """Two same-xmlid HKAs bought separately (Claws L2 + Fangs L1) — both surface."""
     powers = [
         StubPower(xmlid="HKA", name="Claws", levels=2, level_value=1.0/3),
         StubPower(xmlid="HKA", name="Fangs", levels=1, level_value=1.0/3),

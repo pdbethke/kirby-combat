@@ -19,54 +19,35 @@ import pytest
 
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState, HeroCombatStats
 
-
-# Committed in-repo fixture — runs in CI with no host-path
-# dependency. ``Inferna.hdc`` is a built superhero (originally from
-# the kirby-api tests dir) used for both end-to-end loading and
-# resolution-engine integration tests.
-FIXTURES = Path(__file__).parent / "fixtures"
-INFERNA_HDC = FIXTURES / "Inferna.hdc"
-
-# Optional larger character set on the host machine (PCs, CV1, etc.)
-# for richer integration testing. Tests using these are skipif-guarded
-# so CI doesn't fail when they're absent.
-PC_DIR = Path(
-    "/home/pdbethke/Documents/Champions/Pcs"
-)
-CV1_DIR = Path(
-    "/home/pdbethke/Documents/Champions/Docs/CV1HDFiles"
-)
+from tests.corpus import require_authored
 
 
-def _need(path: Path) -> Path:
-    """Skip the calling test if the HDC fixture isn't available."""
-    if not path.exists():
-        pytest.skip(f"HDC fixture not present: {path}")
-    return path
+# Real HD character files come from the authored corpus, never from the
+# repository and never from a path into a maintainer's home. See
+# tests/corpus.py for why, and what to set to run these.
 
 
-def test_loads_stone_cold():
-    """from_hdc() builds a HeroCombatant from Stone_Cold.hdc."""
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+def test_loads_a_character_from_hdc():
+    """from_hdc() builds a HeroCombatant from a real HD file."""
+    hdc = require_authored("Ravel")
 
     combatant = HeroCombatant.from_hdc(hdc)
 
     assert combatant.hero is not None
-    assert combatant.hero.name == "Stone Cold"
-    assert combatant.id == "stone_cold"
-    # Power list is loaded from HD's framework-aware loader.
-    # Stone Cold has 16 powers including the Elemental Control: Ice
-    # multipower.
+    assert combatant.hero.name.startswith("Ravel")
+    assert combatant.id.startswith("ravel")
+    # Power list is loaded from HD's framework-aware loader, so framework
+    # slots arrive as powers too.
     assert len(combatant.hero.powers) >= 10, (
-        f"expected ~16 powers on Stone Cold, got {len(combatant.hero.powers)}"
+        f"expected a framework-bearing build, got {len(combatant.hero.powers)} powers"
     )
 
 
-def test_loads_gyre():
-    hdc = _need(PC_DIR / "Gyre.hdc")
+def test_loads_a_second_distinct_character():
+    hdc = require_authored("Bokor")
     c = HeroCombatant.from_hdc(hdc)
-    assert c.hero.name == "Gyre"
-    assert c.id == "gyre"
+    assert c.hero.name == "Bokor"
+    assert c.id == "bokor"
 
 
 def test_state_is_isolated_per_combatant():
@@ -75,7 +56,7 @@ def test_state_is_isolated_per_combatant():
     Locked decision §7 #1 — hero is owned, not shared. (LoadedHero is
     shared from disk, but each combatant has its own state.)
     """
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+    hdc = require_authored("Ravel")
     a = HeroCombatant.from_hdc(hdc, id="stone_cold_alpha")
     b = HeroCombatant.from_hdc(hdc, id="stone_cold_beta")
 
@@ -85,7 +66,7 @@ def test_state_is_isolated_per_combatant():
 
 
 def test_combat_state_is_blank_at_load():
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+    hdc = require_authored("Ravel")
     c = HeroCombatant.from_hdc(hdc)
 
     assert c.state.statuses == set()
@@ -99,9 +80,9 @@ def test_combat_state_is_blank_at_load():
 
 def test_combat_stats_returns_sane_values():
     """combat_stats() reads cost-engine characteristic values from the
-    LoadedHero. Stone Cold is a built superhero — assert sane
+    LoadedHero. The character is a built superhero — assert sane
     integers, not specific pinned numbers."""
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+    hdc = require_authored("Ravel")
     c = HeroCombatant.from_hdc(hdc)
 
     s = c.combat_stats()
@@ -117,7 +98,7 @@ def test_combat_stats_returns_sane_values():
 
 def test_attack_view_returns_attack_power():
     """attack_view() builds an AttackPower record from a hero power."""
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+    hdc = require_authored("Ravel")
     c = HeroCombatant.from_hdc(hdc)
 
     atk = c.attack_view("ENERGYBLAST")
@@ -130,7 +111,7 @@ def test_attack_view_returns_attack_power():
 
 def test_defense_view_returns_list():
     """defense_view() returns a list of DefenseItem (possibly empty)."""
-    hdc = _need(PC_DIR / "Stone_Cold.hdc")
+    hdc = require_authored("Ravel")
     c = HeroCombatant.from_hdc(hdc)
 
     items = c.defense_view()
@@ -218,25 +199,25 @@ def test_attack_input_accepts_hero_combatant():
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 5 — committed-fixture integration tests
-# Use ``INFERNA_HDC`` (in-repo) so these run in CI without host-path
+# Use ``require_authored("Bokor")`` (in-repo) so these run in CI without host-path
 # dependencies. Exercises the full HD-shaped path: from_hdc → views →
 # AttackInput → engine.resolve_attack → AttackResult.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_inferna_loads_from_in_repo_hdc():
+def test_loads_from_the_authored_corpus():
     """Sanity: committed HDC fixture loads cleanly."""
     # from_hdc() parses via the kirby_cost cost engine, which is an
     # optional integration dep — not part of kirby-combat's zero-dep
     # core. Skip (don't fail) where it isn't installed, e.g. CI.
     pytest.importorskip("kirby_cost")
-    c = HeroCombatant.from_hdc(INFERNA_HDC)
+    c = HeroCombatant.from_hdc(require_authored("Bokor"))
     assert c.hero is not None
     assert c.hero.name  # any non-empty name
     assert c.state.current_stun == c.combat_stats().max_stun
 
 
-def test_inferna_attack_resolves_through_engine():
+def test_attack_resolves_through_engine_end_to_end():
     """End-to-end: load Inferna twice, build AttackInput from her own
     Energy Blast view, run RangedAttackAction.resolve() — expect the
     audit trail to carry concrete to_hit / damage / defense lines.
@@ -253,10 +234,13 @@ def test_inferna_attack_resolves_through_engine():
     from kirby_combat.models import Combatant, DiceValues
     from kirby_combat.template import CombatTemplate
 
-    inferna = HeroCombatant.from_hdc(INFERNA_HDC, id="inferna_a")
-    target = HeroCombatant.from_hdc(INFERNA_HDC, id="inferna_b")
+    # Ravel carries a dice-bearing Energy Blast; the character used here has
+    # to actually have an attack with damage, or the assertions below pass
+    # vacuously on a 0-dice power.
+    attacker = HeroCombatant.from_hdc(require_authored("Ravel"), id="attacker")
+    target = HeroCombatant.from_hdc(require_authored("Ravel"), id="defender")
 
-    s_a = inferna.combat_stats()
+    s_a = attacker.combat_stats()
     s_b = target.combat_stats()
 
     # Build a minimal legacy Combatant per side so the existing
@@ -277,21 +261,21 @@ def test_inferna_attack_resolves_through_engine():
             current_end=hc.state.current_end,
         )
 
-    a = _flat(inferna, s_a)
+    a = _flat(attacker, s_a)
     t = _flat(target, s_b)
 
-    # Find an attack power on inferna via attack_view
+    # Find an attack power on attacker via attack_view
     atk = None
-    for p in inferna.hero.powers:
+    for p in attacker.hero.powers:
         x = (getattr(p, "xmlid", None) or "").upper()
         if x in {"ENERGYBLAST", "RKA", "HKA"}:
             try:
-                atk = inferna.attack_view(p.xmlid)
+                atk = attacker.attack_view(p.xmlid)
                 break
             except ValueError:
                 continue
 
-    assert atk is not None, "Inferna should have at least one attack power"
+    assert atk is not None, "the character should have at least one dice attack"
     assert atk.damage_dice >= 1
 
     # Deterministic dice — produces a known result
@@ -369,12 +353,12 @@ def test_canon_hdc_combatant_stats_are_int_and_rollable():
     """End-to-end: a real HDC-loaded combatant feeds integer dice
     counts to RandomRoller (PRE dice, STR strike dice)."""
     pytest.importorskip("kirby_cost")
-    _need(INFERNA_HDC)
+    require_authored("Bokor")
 
     from kirby_combat.dice import RandomRoller
     from kirby_combat.pre_attacks.presence import base_pre_dice
 
-    c = HeroCombatant.from_hdc(INFERNA_HDC)
+    c = HeroCombatant.from_hdc(require_authored("Bokor"))
     stats = c.combat_stats()
     assert type(stats.ocv) is int and type(stats.pre) is int
 

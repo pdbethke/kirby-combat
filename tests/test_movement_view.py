@@ -215,8 +215,8 @@ def test_flier_finds_a_vantage_over_a_wall_that_a_runner_cannot():
     """End-to-end: movement_view().vertical_m -> nearest_visible_point's
     vertical_reach. An 8m wall, too long to flank within either character's
     movement budget. The runner (leap 4 -> 2m vertical) finds nothing; the
-    flier (16m -> 16m vertical) rises over the top. This is the Cheshire /
-    Gorgon symptom: with vertical_m hardcoded to 0 the flier got None too."""
+    flier (16m -> 16m vertical) rises over the top. This is the teleporter /
+    The symptom: with vertical_m hardcoded to 0 the flier got None too."""
     from kirby_combat.scene import (
         AmbientConditions, Position, Scene, SceneBounds, Wall,
     )
@@ -316,7 +316,7 @@ def test_climbing_can_never_be_pushed():
 
 
 def test_teleporter_finds_a_vantage_over_the_same_wall():
-    """Cheshire's 30m teleport clears the same 8m wall the leap could not."""
+    """A 30m teleport clears the same 8m wall the leap could not."""
     from kirby_combat.scene import (
         AmbientConditions, Position, Scene, SceneBounds, Wall,
     )
@@ -336,11 +336,11 @@ def test_teleporter_finds_a_vantage_over_the_same_wall():
     )
     obs, tgt = Position(0, 0, 1.5), Position(20, 0, 1.5)
 
-    cheshire = _combatant(
+    teleporter = _combatant(
         cv={"RUNNING": 12, "LEAPING": 16},
         powers=[_Pow("TELEPORTATION", levels=30)],
     )
-    tp = {m.mode: m for m in cheshire.movement_view()}["teleportation"]
+    tp = {m.mode: m for m in teleporter.movement_view()}["teleportation"]
     assert tp.vertical_m == 30.0
     p = nearest_visible_point(obs, tgt, scene,
                               radius=tp.combat_m, vertical_reach=tp.vertical_m)

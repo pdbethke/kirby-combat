@@ -1,17 +1,13 @@
-import pathlib
-import pytest
-
 from kirby_combat.hero_view import HeroCombatant
 
-HELIOS = str(pathlib.Path(__file__).parent / "fixtures" / "HELIOS-CV1.hdc")
+from tests.corpus import require_authored
 
 
 def test_attacks_surface_avad_and_slot_identity():
-    pytest.importorskip("kirby_cost")
-    hc = HeroCombatant.from_hdc(HELIOS)
+    hc = HeroCombatant.from_hdc(require_authored("Bokor"))
     atks = hc.attacks
     nnd = [a for a in atks if a.avad]
-    assert nnd, "Helios's NND slot should surface avad=True"
+    assert nnd, "the AVAD attack should surface avad=True"
     assert nnd[0].avad_defense            # the named alternate defense (free text)
     assert nnd[0].framework_xmlid         # belongs to a framework
     assert nnd[0].slot_id                 # has a stable slot id
@@ -21,10 +17,11 @@ def test_attacks_surface_avad_and_slot_identity():
 
 
 def test_non_framework_attack_has_empty_framework_fields():
-    pytest.importorskip("kirby_cost")
-    # a plain top-level attack (no framework parent) keeps empty framework identity + avad False
-    hc = HeroCombatant.from_hdc(HELIOS)
+    # A plain top-level attack (no framework parent) keeps empty framework
+    # identity and avad False. This character HAS one, so the loop is not
+    # vacuous — the old fixture only might have, and the test said so.
+    hc = HeroCombatant.from_hdc(require_authored("Bokor"))
     plain = [a for a in hc.attacks if not a.framework_xmlid]
-    # at least assert the fields exist and default cleanly (don't assume Helios has a plain attack)
+    assert plain, "expected at least one non-framework attack"
     for a in plain:
         assert a.avad is False and a.framework_xmlid == "" and a.slot_id == ""

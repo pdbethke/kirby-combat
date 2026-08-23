@@ -13,15 +13,15 @@ def test_construct_damaged_event_shape():
     e = ConstructDamaged(id="e1", session_id="s", sequence=5, timestamp=_ts(),
                          author=make_author_engine(), construct_id="w3",
                          body_through=4, body_after=4, destroyed=False,
-                         by_combatant="gorgon")
+                         by_combatant="defender")
     assert e.kind == "ConstructDamaged" and e.construct_id == "w3"
-    assert e.destroyed is False and e.by_combatant == "gorgon"
+    assert e.destroyed is False and e.by_combatant == "defender"
 
 
 def test_construct_spawned_event_shape():
     e = ConstructSpawned(id="e2", session_id="s", sequence=6, timestamp=_ts(),
                          author=make_author_engine(), construct_id="fw1",
                          construct_kind="force_wall", def_value=5, body=4,
-                         source_combatant="cheshire")
+                         source_combatant="hider")
     assert e.kind == "ConstructSpawned" and e.construct_kind == "force_wall"
-    assert e.def_value == 5 and e.source_combatant == "cheshire"
+    assert e.def_value == 5 and e.source_combatant == "hider"

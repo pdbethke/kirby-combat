@@ -7,42 +7,39 @@ import pytest
 
 from kirby_combat.hero_view import HeroCombatant
 
-# Committed in-repo fixture (same one test_hero_combatant_skeleton uses).
-INFERNA_HDC = Path(__file__).parent / "fixtures" / "Inferna.hdc"
+from tests.corpus import require_authored
 
 
-def _inferna() -> HeroCombatant:
-    # kirby_cost is an OPTIONAL integration dep — kirby-combat CI does not
-    # install it (the engine consumes a LoadedHero supplied by the consumer).
-    # Guard like test_hero_combatant_skeleton's from_hdc tests so the module's
-    # HDC-loading tests skip cleanly in CI; the pure-synthetic perception tests
-    # (Mind Scan, surprise, contests) carry no HDC dep and still run.
-    pytest.importorskip("kirby_cost")
-    if not INFERNA_HDC.exists():
-        pytest.skip(f"HDC fixture not present: {INFERNA_HDC}")
-    return HeroCombatant.from_hdc(str(INFERNA_HDC))
+
+def _real_character() -> HeroCombatant:
+    # The HDC-loading perception tests need a real character; the synthetic
+    # ones (Mind Scan, surprise, the Stealth contest) carry no such dep and
+    # run everywhere. See tests/corpus.py for why no .hdc is committed.
+    return HeroCombatant.from_hdc(require_authored("Bokor"))
 
 
 def test_every_character_has_normal_sight():
-    senses = _inferna().senses()
+    senses = _real_character().senses()
     sight = [s for s in senses if s.xmlid == "NORMALSIGHT"]
     assert len(sight) == 1
     assert sight[0].group == "sight"
     assert sight[0].is_targeting is True
 
 
-def test_inferna_has_infrared_in_the_sight_group():
-    # Inferna.hdc carries INFRAREDPERCEPTION (a Sight-Group targeting sense).
-    senses = _inferna().senses()
+def test_infrared_perception_lands_in_the_sight_group_as_targeting():
+    # IR is bought into the Sight Group and is a targeting sense. Stated
+    # synthetically: which senses a given character happens to own is not
+    # what this asserts.
+    senses = _hero_with_sense("INFRAREDPERCEPTION").senses()
     ir = [s for s in senses if s.xmlid == "INFRAREDPERCEPTION"]
     assert len(ir) == 1
-    assert ir[0].group == "sight"          # IR is bought into the Sight Group
+    assert ir[0].group == "sight"
     assert ir[0].is_targeting is True
 
 
 def test_senses_are_targeting_only_set():
     # senses() returns only Targeting senses (the combat-relevant ones).
-    for s in _inferna().senses():
+    for s in _real_character().senses():
         assert s.is_targeting is True
 
 
@@ -53,14 +50,14 @@ from kirby_combat.dice import RandomRoller
 
 
 def test_per_target_is_9_plus_int_over_5():
-    hc = _inferna()
+    hc = _real_character()
     int_val = int(hc.hero.characteristic_value("INT"))
     assert per_roll_target(hc) == 9 + int_val // 5
 
 
 def test_skill_roll_value_returns_none_when_absent():
     # A character without STEALTH returns None (caller treats as auto-perceived).
-    hc = _inferna()
+    hc = _real_character()
     val = hc.skill_roll_value("DEFINITELY_NOT_A_SKILL")
     assert val is None
 
@@ -80,7 +77,15 @@ from kirby_combat.perception import invisibility_groups, SIGHT, HEARING, SMELL
 
 
 def test_no_invisibility_power_means_no_groups():
-    assert invisibility_groups(_inferna().hero) == frozenset()
+    # A hero carrying no INVISIBILITY yields the empty set. Synthetic, so it
+    # asserts the derivation rather than one character's power list — a real
+    # character that later gains Invisibility would silently invert this.
+    class _NoPowers:
+        powers: list = []
+        skills: list = []
+        talents: list = []
+
+    assert invisibility_groups(_NoPowers()) == frozenset()
 
 
 def test_invisibility_defaults_to_sight_group():
@@ -153,7 +158,7 @@ def _two_combatant_scene(observer, target, *, wall: bool = False) -> Scene:
 
 
 def test_perceive_clear_los_is_targetable_via_sight():
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=False)
     p = perceive(obs, tgt, scene)
     assert p.targetable_physical is True
@@ -161,7 +166,7 @@ def test_perceive_clear_los_is_targetable_via_sight():
 
 
 def test_perceive_occluded_by_wall_is_not_physically_targetable():
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=True)
     p = perceive(obs, tgt, scene)
     assert p.targetable_physical is False
@@ -170,7 +175,7 @@ def test_perceive_occluded_by_wall_is_not_physically_targetable():
 
 def test_occluded_perception_carries_real_wall_id():
     # Fix I2: occluder_id must be the blocking wall's real id, not "occluded".
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=True)
     # The wall helper builds a wall with id="w".
     p = perceive(obs, tgt, scene)
@@ -180,7 +185,7 @@ def test_occluded_perception_carries_real_wall_id():
 
 def test_no_scene_means_no_occluder_id():
     # Fix I2: scene-less / no-position call → occluder_id is None (no gate).
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     p = perceive(obs, tgt, None)
     assert p.occluder_id is None
 
@@ -246,7 +251,7 @@ def _two_combatant_scene_adjacent(observer, target, *, gap_m: float = 1.0) -> Sc
 
 
 def test_sight_invisible_target_not_seen_by_sight_but_seen_by_radar():
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=False)
     # obs has only Sight-group senses → sight-invisible target is unperceived
     # (20m apart, so the Fringe doesn't apply).
@@ -264,7 +269,7 @@ def test_sight_invisible_target_not_seen_by_sight_but_seen_by_radar():
 
 def test_fringe_perceivable_within_2m():
     # An Invisible target within 2m is perceivable via the Fringe (PER roll).
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene_adjacent(obs, tgt, gap_m=1.0)  # ≤2m apart
     # seed=2 → 3d6 = 3 ≤ PER target 11 → Fringe spotted.
     p = perceive(obs, tgt, scene, target_invisible=True, roller=RandomRoller(seed=2))
@@ -274,7 +279,7 @@ def test_fringe_perceivable_within_2m():
 
 def test_no_fringe_invisibility_is_not_spotted_within_2m():
     # An Invisibility with the No Fringe adder gives no Fringe to perceive.
-    obs = _inferna()
+    obs = _real_character()
 
     class _Inv:
         xmlid = "INVISIBILITY"
@@ -310,7 +315,7 @@ def test_no_fringe_invisibility_is_not_spotted_within_2m():
 
 
 def test_hidden_target_runs_stealth_contest():
-    obs, tgt = _inferna(), _inferna()
+    obs, tgt = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=False)
     # target hidden; if no STEALTH skill → auto-perceived (no contest to win)
     p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
@@ -358,7 +363,7 @@ def _hero_with_talent(xmlid: str) -> HeroCombatant:
 
 def test_mind_scan_perceives_through_a_wall_mentally():
     obs = _hero_with_sense("MINDSCAN")
-    tgt = _inferna()
+    tgt = _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=True)   # sight blocked
     obs.id = "observer"
     scene.combatant_positions["observer"] = Position(0, 5, 1.5)
@@ -369,31 +374,63 @@ def test_mind_scan_perceives_through_a_wall_mentally():
 
 
 def test_is_surprised_true_when_unperceived_and_no_danger_sense():
-    obs, attacker = _inferna(), _inferna()
+    obs, attacker = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, attacker, wall=True)  # observer can't see attacker
     assert is_surprised(observer=obs, attacker=attacker, scene=scene) is True
 
 
 def test_danger_sense_negates_surprise():
     obs = _hero_with_talent("DANGER_SENSE")
-    attacker = _inferna()
+    attacker = _real_character()
     scene = _two_combatant_scene(obs, attacker, wall=True)
     obs.id = "observer"
     scene.combatant_positions["observer"] = Position(0, 5, 1.5)
     assert is_surprised(observer=obs, attacker=attacker, scene=scene) is False
 
 
-def test_hidden_cheshire_runs_real_stealth_contest():
-    # Cheshire HAS Stealth (roll target 11) → a real opposed 3d6 contest runs
-    # and the rolls are surfaced in detail.
-    obs = _inferna()
-    cheshire_hdc = Path(
-        "/home/pdbethke/Documents/Champions/Docs/Champions_Villain_Teams_"
-        "Character_Pack/Champions Villains 2 6E ƒ/GRAB/CHESHIRE_CAT-CV2.hdc"
+class _SkillStub:
+    """One skill exposing the ``roll_value`` that ``skill_roll_value`` reads."""
+
+    def __init__(self, xmlid: str, roll_value: int):
+        self.xmlid = xmlid
+        self.roll_value = roll_value
+
+
+class _StubStealthyHero:
+    """A LoadedHero stand-in carrying Stealth at a known roll target.
+
+    DEX 25 gives Stealth 14- by the standard formula, base skill roll =
+    9 + (CHAR/5) (6E1 p57). Stated as data rather than loaded from a
+    character file so the test asserts the CONTEST, not a third party's
+    published statistics.
+    """
+
+    def __init__(self, *, dex: int = 25):
+        self.name = "StealthyStub"
+        self.powers: list = []
+        self.talents: list = []
+        self.skills = [_SkillStub("STEALTH", 9 + dex // 5)]
+        self._dex = dex
+
+    def characteristic_value(self, xmlid: str) -> int:
+        return {"DEX": self._dex}.get(xmlid.upper(), 0)
+
+
+def _stealthy_hero(*, dex: int = 25) -> HeroCombatant:
+    from kirby_combat.hero_view import HeroCombatState
+
+    return HeroCombatant(
+        id="target",
+        hero=_StubStealthyHero(dex=dex),  # type: ignore[arg-type]
+        state=HeroCombatState(current_stun=20, current_body=10, current_end=20),
     )
-    if not cheshire_hdc.exists():
-        pytest.skip(f"Cheshire HDC not present: {cheshire_hdc}")
-    tgt = HeroCombatant.from_hdc(str(cheshire_hdc))
+
+
+def test_a_hidden_target_with_stealth_runs_a_real_opposed_contest():
+    # A target that HAS Stealth forces a real opposed 3d6 contest, and both
+    # rolls are surfaced in detail. DEX 25 -> Stealth 14- (9 + 25/5, 6E1 p57).
+    obs = _hero_with_sense("NORMALSIGHT")
+    tgt = _stealthy_hero(dex=25)
     obs.id, tgt.id = "observer", "target"
     scene = Scene(
         id="s3", name="StealthContest",
@@ -407,7 +444,23 @@ def test_hidden_cheshire_runs_real_stealth_contest():
     )
     p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
     assert "stealth" in p.detail
-    assert p.detail["stealth"] == 11
+    assert p.detail["stealth"] == 14
+    # The contest actually ran: both 3d6 rolls are surfaced, not just targets.
+    assert 3 <= p.detail["per_roll"] <= 18
+    assert 3 <= p.detail["stealth_roll"] <= 18
+
+
+def test_the_targets_own_stealth_roll_reaches_the_contest():
+    # The engine does not COMPUTE the roll (kirby-cost does, 9 + CHAR/5,
+    # 6E1 p57) — it must carry whatever the character actually has into the
+    # contest. Three different targets, three different numbers arriving.
+    for dex, expected in ((10, 11), (25, 14), (30, 15)):
+        obs = _hero_with_sense("NORMALSIGHT")
+        tgt = _stealthy_hero(dex=dex)
+        obs.id, tgt.id = "observer", "target"
+        sc = _two_combatant_scene_adjacent(obs, tgt, gap_m=2.0)
+        p = perceive(obs, tgt, sc, target_hidden=True, roller=RandomRoller(seed=3))
+        assert p.detail["stealth"] == expected, f"DEX {dex}"
 
 
 # --- Fix I3: Combat Sense seam ------------------------------------------------
@@ -423,8 +476,8 @@ def test_has_combat_sense_true_for_a_combat_sense_hero():
     assert hc.has_combat_sense() is True
 
 
-def test_has_combat_sense_false_for_inferna():
-    hc = _inferna()
+def test_has_combat_sense_false_for_real_character():
+    hc = _real_character()
     assert has_combat_sense(hc.hero) is False
     assert hc.has_combat_sense() is False
 
@@ -436,7 +489,7 @@ def test_is_surprised_true_for_invisible_attacker():
     # An Invisible attacker the observer can't otherwise perceive (Sight-only
     # observer, no wall) → surprised, because is_surprised now threads the
     # attacker's Invisibility into perceive().
-    obs, attacker = _inferna(), _inferna()
+    obs, attacker = _real_character(), _real_character()
     scene = _two_combatant_scene(obs, attacker, wall=False)
     assert is_surprised(
         observer=obs, attacker=attacker, scene=scene,
@@ -448,7 +501,7 @@ def test_is_surprised_false_when_nonsight_sense_perceives_invisible_attacker():
     # Same Invisible (Sight-group) attacker, but the observer has Radar (a
     # non-Sight sense) → perceives → not surprised.
     obs_radar = _hero_with_sense("RADAR")
-    attacker = _inferna()
+    attacker = _real_character()
     obs_radar.id, attacker.id = "observer", "target"
     scene = Scene(
         id="s4", name="SurpriseInvisible",
@@ -546,7 +599,7 @@ def test_penetrative_sense_perceives_through_a_wall():
     # Confirm the Penetrative adder parsed onto the sense.
     spatial = [s for s in obs.senses() if s.xmlid == "SPATIALAWARENESS"]
     assert spatial and spatial[0].penetrative is True
-    tgt = _inferna()
+    tgt = _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=True)   # Sight is blocked
     obs.id = "observer"
     scene.combatant_positions["observer"] = Position(0, 5, 1.5)

@@ -283,14 +283,14 @@ _ROOFTOP_WALL = Wall(
     segment=(Position(-16.0, -5.0, 0.0), Position(-2.0, -5.0, 0.0)),
     height_m=8.0,
 )
-_GORGON = Position(-10.0, -15.0, 0.0)
+_GROUND_TARGET = Position(-10.0, -15.0, 0.0)
 
 
 def test_shooter_exactly_at_wall_top_gets_no_cover_from_that_wall():
     s = _scene_with_wall(_ROOFTOP_WALL)
     level = compute_cover_level(
         shooter_pos=Position(-9.0, -4.8, 8.0),
-        target_pos=_GORGON,
+        target_pos=_GROUND_TARGET,
         target_is_prone_or_diving=False,
         scene=s,
     )
@@ -301,7 +301,7 @@ def test_shooter_just_below_the_wall_top_still_gets_cover_from_it():
     s = _scene_with_wall(_ROOFTOP_WALL)
     level = compute_cover_level(
         shooter_pos=Position(-9.0, -4.8, 7.9),
-        target_pos=_GORGON,
+        target_pos=_GROUND_TARGET,
         target_is_prone_or_diving=False,
         scene=s,
     )

@@ -74,10 +74,10 @@ def test_construct_from_spawn_spec_builds_force_wall():
     c = construct_from_spawn_spec(
         obj_id="fw1", kind="force_wall",
         segment=(Position(0, 0, 0), Position(0, 4, 0)), height_m=3.0,
-        def_value=5, body=4, source_combatant_id="cheshire", created_at_seq=12)
+        def_value=5, body=4, source_combatant_id="hider", created_at_seq=12)
     assert c.kind == "force_wall" and c.blocks_los and c.blocks_movement
     assert c.permeability == "impermeable" and c.def_value == 5 and c.body == 4
-    assert c.source_combatant_id == "cheshire" and c.destructible
+    assert c.source_combatant_id == "hider" and c.destructible
 
 
 def test_construct_darkness_zone_carries_sense_group_and_creator_immune():

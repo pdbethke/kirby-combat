@@ -4,8 +4,12 @@ version = "0.3.28"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 license = {text = "MIT"}
+readme = "README.md"
 authors = [{name = "PeterB"}]
 dependencies = []
+
+[project.urls]
+Repository = "https://github.com/pdbethke/kirby-combat"
 
 [project.optional-dependencies]
 dev = [

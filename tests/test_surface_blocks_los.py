@@ -4,7 +4,7 @@ has_line_of_sight passed only scene.walls; scene.surfaces was never consulted,
 so every floor, rooftop and platform in the game was transparent to sight.
 
 Found by PeterB watching the demo replay once the terrain rendered correctly:
-GORGON stands at (0,13,0) and Cheshire at (0,13,6) on the URBAN_ROOFTOP whose
+A ground observer stands at (0,13,0) and a rooftop figure at (0,13,6) on the URBAN_ROOFTOP whose
 polygon covers (0,13). Six metres of concrete between them, and the engine
 said they could see each other.
 
@@ -50,13 +50,13 @@ def _roof(**kw) -> Surface:
                    surface_type="rooftop", polygon_xy=ROOF_POLY, **kw)
 
 
-def test_the_demo_case_gorgon_cannot_see_cheshire_through_the_roof() -> None:
+def test_a_ground_observer_cannot_see_through_the_roof_above() -> None:
     """The regression that prompted this, with its real coordinates."""
     scene = _scene(_ground(), _roof())
-    gorgon = Position(x=0.0, y=13.0, z=0.0)    # under the roof
-    cheshire = Position(x=0.0, y=13.0, z=6.0)  # on it, directly above
-    assert not has_line_of_sight(scene, gorgon, cheshire)
-    assert not has_line_of_sight(scene, cheshire, gorgon), "symmetric"
+    ground_observer = Position(x=0.0, y=13.0, z=0.0)    # under the roof
+    rooftop_figure = Position(x=0.0, y=13.0, z=6.0)  # on it, directly above
+    assert not has_line_of_sight(scene, ground_observer, rooftop_figure)
+    assert not has_line_of_sight(scene, rooftop_figure, ground_observer), "symmetric"
 
 
 def test_two_combatants_on_the_same_roof_see_each_other() -> None:
@@ -99,9 +99,9 @@ def test_a_flier_cannot_see_through_the_roof_to_the_ground() -> None:
 def test_a_fall_through_surface_does_not_block() -> None:
     """is_supporting=False means you fall through it — so can a ray."""
     scene = _scene(_ground(), _roof(is_supporting=False))
-    gorgon = Position(x=0.0, y=13.0, z=0.0)
-    cheshire = Position(x=0.0, y=13.0, z=6.0)
-    assert has_line_of_sight(scene, gorgon, cheshire)
+    ground_observer = Position(x=0.0, y=13.0, z=0.0)
+    rooftop_figure = Position(x=0.0, y=13.0, z=6.0)
+    assert has_line_of_sight(scene, ground_observer, rooftop_figure)
 
 
 def test_a_degenerate_surface_never_blocks() -> None:
@@ -117,6 +117,6 @@ def test_a_degenerate_surface_never_blocks() -> None:
 def test_indirect_still_bypasses_everything() -> None:
     """6E1 p339 Indirect aims around obstacles; that gate precedes this one."""
     scene = _scene(_ground(), _roof())
-    gorgon = Position(x=0.0, y=13.0, z=0.0)
-    cheshire = Position(x=0.0, y=13.0, z=6.0)
-    assert has_line_of_sight(scene, gorgon, cheshire, indirect_advantage=True)
+    ground_observer = Position(x=0.0, y=13.0, z=0.0)
+    rooftop_figure = Position(x=0.0, y=13.0, z=6.0)
+    assert has_line_of_sight(scene, ground_observer, rooftop_figure, indirect_advantage=True)

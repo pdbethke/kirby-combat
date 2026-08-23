@@ -192,7 +192,7 @@ class MartialManeuverView:
     MartialArtsModifiers (actions/martial_arts.py) → resolve_attack.
 
     The boolean flags (is_attack/is_block/is_dodge/target_falls) are derived
-    from the maneuver's raw EFFECT string — grounded in Cheshire's real data
+    from the maneuver's raw EFFECT string — grounded in real character data
     (e.g. Martial Dodge effect="Dodge, Affects All Attacks, Abort";
     Martial Throw effect="[NORMALDC] +v/10, Target Falls").
     """
@@ -229,7 +229,7 @@ class HeroCombatant:
 
     Usage:
 
-        combatant = HeroCombatant.from_hdc("/path/to/Stone_Cold.hdc")
+        combatant = HeroCombatant.from_hdc("/path/to/character.hdc")
         combatant.combat_stats()                 # → HeroCombatStats
         combatant.attack_view("CONEOFCOLD",      # → AttackPower
                               target=other,
@@ -332,9 +332,9 @@ class HeroCombatant:
         instance per source power; **no deduplication by xmlid**.
 
         Many characters carry multiple powers of the same xmlid
-        (Cheshire Cat: a 1d6 ENERGYBLAST + a 6d6 "Teleportation
-        Boxing" ENERGYBLAST; multipower batteries with several EB
-        slots; HKA Claws + HKA Fangs). Callers must be able to
+        (a small unnamed ENERGYBLAST alongside a larger themed one;
+        multipower batteries with several EB slots; two HKAs bought
+        separately for different limbs). Callers must be able to
         address each one — disambiguate by `AttackPower.name`,
         damage_dice, or position. Use ``attack_view(xmlid, name=...)``
         to fetch a specific instance.
@@ -536,8 +536,8 @@ class HeroCombatant:
         resolution layer consumes.
 
         Disambiguation: when a combatant has multiple powers of the
-        same xmlid (common — Cheshire Cat carries a 1d6 unnamed EB
-        plus a 6d6 "Teleportation Boxing" EB), pass ``name=`` to
+        same xmlid (common — an unnamed low-dice EB alongside a larger
+        named one), pass ``name=`` to
         select a specific one. Without ``name``, returns the first
         match in walk order (top-level before sub_powers). Raises
         ``ValueError`` if no power matches.
@@ -695,7 +695,7 @@ class HeroCombatant:
         hide" / auto-perceived). Same source kirby-api's throw ``_roll_skill``
         reads.
 
-        Verified against a real STEALTH-bearing hero (Cheshire): ``roll_value``
+        Verified against a real STEALTH-bearing character: ``roll_value``
         is the correct attribute and is an ``int`` for roll-based skills. Some
         skills (e.g. PROFESSIONAL_SKILL variants) expose ``roll_value`` as an
         unbound method rather than a computed value — guard against non-numeric
@@ -726,7 +726,7 @@ class HeroCombatant:
         which are not declarable maneuvers and are filtered out.
 
         Flag heuristics are grounded in the maneuvers' actual EFFECT strings
-        (Cheshire's real data), not the display names:
+        (real character data), not the display names:
           - is_dodge:  "dodge" in effect  (Martial Dodge: "Dodge, ...")
           - is_block:  "block" in effect  (Defensive Block: "Block, Abort")
           - target_falls: "target falls" in effect (Throws: "...; Target Falls")
@@ -908,7 +908,7 @@ def _base_reach_m(hero) -> float:
 # Movement capability view (movement spec §1)
 #
 # _MOVE_M_PER_LEVEL: each level of a movement power adds 1 metre of combat
-#   speed. Verified against Gyre.hdc: FLIGHT LEVELS="15" → 15m flight
+#   speed. Verified against a real character: FLIGHT LEVELS="15" → 15m flight
 #   (characteristic_value("FLIGHT") returns 0.0 — FLIGHT is a power, not a
 #   characteristic; levels map 1:1 to metres). Applies equally to
 #   TELEPORTATION, SWIMMING, and TUNNELING.
