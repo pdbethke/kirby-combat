@@ -57,8 +57,8 @@ def test_state_is_isolated_per_combatant():
     shared from disk, but each combatant has its own state.)
     """
     hdc = require_authored("Ravel")
-    a = HeroCombatant.from_hdc(hdc, id="stone_cold_alpha")
-    b = HeroCombatant.from_hdc(hdc, id="stone_cold_beta")
+    a = HeroCombatant.from_hdc(hdc, id="character_alpha")
+    b = HeroCombatant.from_hdc(hdc, id="character_beta")
 
     assert a is not b
     assert a.state is not b.state

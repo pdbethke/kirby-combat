@@ -4,13 +4,13 @@ from kirby_combat.models import AttackInput, DiceValues
 
 
 class TestEnergyBlastHitAndDamage:
-    """Gyre fires 10d6 EB at Bulldozer at 20 m — hit, normal damage."""
+    """Blaster fires 10d6 EB at Brick at 20 m — hit, normal damage."""
 
-    def test_hit_and_damage(self, gyre, bulldozer, superhero_template):
+    def test_hit_and_damage(self, blaster, brick, superhero_template):
         attack = AttackInput(
-            attacker=gyre,
-            target=bulldozer,
-            power=gyre.attacks[0],  # Energy Blast 10d6 normal/ed
+            attacker=blaster,
+            target=brick,
+            power=blaster.attacks[0],  # Energy Blast 10d6 normal/ed
             distance_m=20,
             aim=None,
             dice=DiceValues(
@@ -27,7 +27,7 @@ class TestEnergyBlastHitAndDamage:
         # Damage: normal 10d6 -> STUN = sum = 36, BODY per die rules
         assert result.damage.stun == 36
 
-        # Defense: Bulldozer ED = 15, rED = 5, plus no defense items.
+        # Defense: Brick ED = 15, rED = 5, plus no defense items.
         # Normal attack: total ED = 15 applies to both STUN and BODY.
         assert result.defense.total_defense == 15
 
@@ -45,13 +45,13 @@ class TestEnergyBlastHitAndDamage:
 
 
 class TestEnergyBlastMiss:
-    """Gyre fires EB at Bulldozer — roll 18, always miss."""
+    """Blaster fires EB at Brick — roll 18, always miss."""
 
-    def test_miss(self, gyre, bulldozer, superhero_template):
+    def test_miss(self, blaster, brick, superhero_template):
         attack = AttackInput(
-            attacker=gyre,
-            target=bulldozer,
-            power=gyre.attacks[0],
+            attacker=blaster,
+            target=brick,
+            power=blaster.attacks[0],
             distance_m=20,
             aim=None,
             dice=DiceValues(
@@ -66,13 +66,13 @@ class TestEnergyBlastMiss:
 
 
 class TestKillingAttack:
-    """Gyre fires 3d6+1 RKA at Bulldozer at 10 m — hit, killing damage."""
+    """Blaster fires 3d6+1 RKA at Brick at 10 m — hit, killing damage."""
 
-    def test_killing_hit(self, gyre, bulldozer, superhero_template):
+    def test_killing_hit(self, blaster, brick, superhero_template):
         attack = AttackInput(
-            attacker=gyre,
-            target=bulldozer,
-            power=gyre.attacks[1],  # RKA 3d6+1 killing/ed
+            attacker=blaster,
+            target=brick,
+            power=blaster.attacks[1],  # RKA 3d6+1 killing/ed
             distance_m=10,
             aim=None,
             dice=DiceValues(
@@ -91,7 +91,7 @@ class TestKillingAttack:
         assert result.damage.body == 13
         assert result.damage.stun == 26
 
-        # Defense: Bulldozer ED=15, rED=5.
+        # Defense: Brick ED=15, rED=5.
         # Killing: STUN dealt = max(0, raw_stun - total_defense) = max(0, 26-15) = 11
         # BODY dealt = raw_body - resistant_defense = 13 - 5 = 8
         assert result.stun_dealt == 11

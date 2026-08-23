@@ -8,7 +8,7 @@ END/NCM confirmed from movement class sources:
   teleportation:                       end_per_10m=2, noncombat_multiplier=1
   tunneling:                           end_per_10m=1, noncombat_multiplier=1
 
-_MOVE_M_PER_LEVEL=1.0 verified against Gyre.hdc: FLIGHT LEVELS="15" → 15m flight
+_MOVE_M_PER_LEVEL=1.0 verified against a real character: FLIGHT LEVELS="15" → 15m flight
 (characteristic_value("FLIGHT") returns 0.0 — FLIGHT is a power, not a characteristic).
 RUNNING/LEAPING come straight from characteristic_value() which returns metres.
 """
