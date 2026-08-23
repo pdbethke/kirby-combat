@@ -1,9 +1,11 @@
 [project]
 name = "kirby-combat"
-version = "0.3.28"
+version = "0.4.0"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
-license = {text = "MIT"}
+# Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
+# MIT grants on 0.3.x are irrevocable; this binds 0.4.0 onward.
+license = {text = "PolyForm Noncommercial License 1.0.0"}
 readme = "README.md"
 authors = [{name = "PeterB"}]
 dependencies = []

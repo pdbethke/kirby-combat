@@ -107,5 +107,15 @@ backs this — values are verified against the corpus rather than memory.
 
 ## License
 
-MIT. The combat-mechanics derivation is independent NDA-clean work — no
-proprietary HERO Designer source enters this repo. See `LICENSE`.
+PolyForm Noncommercial License 1.0.0 — the same terms as
+[kirby-cost](https://github.com/pdbethke/kirby-cost) and
+[kirby-sheet](https://github.com/pdbethke/kirby-sheet). Source-available and
+free for personal, non-commercial use; not OSI-approved open source.
+
+Relicensed from MIT at **0.4.0**. Versions 0.3.x were published under MIT and
+those grants stand — MIT cannot be withdrawn from a release already made. This
+applies from 0.4.0 onward.
+
+The combat-mechanics derivation is independent work: no proprietary HERO
+Designer source enters this repository. Not affiliated with or endorsed by
+DOJ, Inc. d/b/a Hero Games; **HERO System™** is their trademark.
