@@ -1,0 +1,28 @@
+name: Tests
+
+# The publish and cascade jobs that used to live here are gone: they carried
+# private-index credentials and a dispatch token, and neither belongs in a
+# public repository. What is left is the gate a reader can actually run.
+#
+# Real-character tests skip here by design — they read KIRBY_COMBAT_AUTHORED,
+# which is not set in CI and never will be. See tests/corpus.py.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package + dev deps
+        run: pip install -e .[dev]
+      - name: Run tests
+        run: pytest -q --tb=short
