@@ -10,51 +10,86 @@ commit.
 
 ## Status
 
-- **Phase 1** (v0.1.0): Attack pipeline (to-hit / damage / defense /
-  knockback / status). 107 tests.
-- **Phase 2 Plan 1** (v0.2.0): Engine foundation. CombatSession + event
-  log + rewind, reactive defenses, tactical modifiers, movement, AoE,
-  Scene data model, falling, cover, line-of-sight, hazards, recovery,
-  adjustments, entangle, flash, martial arts, triggers, held actions.
-  450 tests passing. 96% coverage on `session/`, `scene/`, `resolution/`.
-- **Phase 2 Plan 2** (v0.3.0): Engine advanced. Mental combat pipeline
-  (Mind Control / Telepathy / Mental Illusion / Mental Blast / Mental
-  Entangle), vehicles (HDC-shaped Combatant subtype with passengers,
-  ramming, driving rolls), mass combat (Unit aggregation + morale
-  cycling), breakables (objects + structure cascade), Presence attacks,
-  GM tooling engine layer (Tier 1/2/3 overrides, GM-on-behalf-of
-  attacks, spawn/despawn), serialization (to_dict / from_dict with
-  round-trip parity). 569 tests, 96% coverage.
+Working, and tested at 898 tests. It is a **library**: no server, no I/O, no
+API layer — kirby-api depends on this package, never the other way round.
 
-### engine-advanced subsystems
+**What it resolves**
 
-| Module | Purpose |
-|---|---|
-| `kirby_combat/mental/` | OMCV/DMCV pipeline + the five mental powers |
-| `kirby_combat/vehicles/` | Vehicle (Combatant subtype), passengers, ramming, controls |
-| `kirby_combat/masscombat/` | Unit (pack-of-N) and aggregate resolution |
-| `kirby_combat/breakables/` | ObjectCombatant + structure integrity cascade |
-| `kirby_combat/pre_attacks/` | Presence attacks with effects ladder |
-| `kirby_combat/gm/` | Tier 1/2/3 GMOverride helpers + GM attack + spawn/despawn |
-| `kirby_combat/serialization/` | `to_dict` / `from_dict` for full session round-trip |
+- **Attacks** — strike, killing, ranged, haymaker, autofire, rapid fire,
+  multiple attack, sweep, area of effect, pulling a punch
+- **Grappling** — grab, throw, entangle
+- **Tactics** — brace, set, dive for cover, held actions, triggers
+- **Reactions** — abort, block, dodge
+- **Movement** — running, leaping, flight, swimming, teleportation,
+  tunnelling, and knockback as its own resolver
+- **Mental combat** — the OMCV/DMCV pipeline: Mental Blast, Mind Control,
+  Telepathy, Mental Illusion, Mental Entangle
+- **The scene** — surfaces with their own PD/ED, walls, hazards, cover,
+  line of sight, elevation, falling
+- **Vehicles** — passengers, ramming, driving rolls
+- **Mass combat** — a mob as one Unit with a shared BODY pool and morale
+- **Breakables** — scenery with BODY, and structural collapse that cascades
+- **Presence attacks** — intimidation as a mechanic, on an effects ladder
+- **GM tooling** — three override tiers, attacks on behalf of, spawn/despawn
+
+**The session layer** adds a SPD-chart timeline, an event log, per-action
+rewind, and `to_dict` / `from_dict` round-trip for a whole encounter.
 
 ## Usage
 
-```python
-from kirby_combat.session import CombatSession
-from kirby_combat.template import CombatTemplate
-from kirby_combat.dice import RandomRoller
+Combatants are plain objects — nothing here needs a character file. This
+snippet runs as-is:
 
-session = CombatSession.create(
-    id="encounter-1",
-    combatants=[hero, villain],
-    scene=warehouse_scene,
-    template=CombatTemplate.default_6e_superheroic(),
-    dice_roller=RandomRoller(),
-).start()
+```python
+from kirby_combat.models import AttackInput, AttackPower, Combatant, DiceValues
+from kirby_combat.resolution.to_hit import resolve_to_hit
+from kirby_combat.template import RAW_SUPERHEROIC
+
+def fighter(id_, name, **over):
+    """A combatant with workable defaults; override what matters."""
+    base = dict(ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10, str_=15,
+                con=20, pre=15, rec=8, pd=8, ed=8, rpd=0, red=0, md=0,
+                power_defense=0, flash_defense=0, max_stun=40, max_body=12,
+                max_end=40, current_stun=40, current_body=12, current_end=40)
+    return Combatant(id=id_, name=name, **{**base, **over})
+
+blast = AttackPower(
+    xmlid="ENERGYBLAST", name="Energy Blast",
+    damage_dice=10, half_die=False, plus_one=False,
+    damage_type="normal", defense_type="ed",
+    range_m=200, uses_str=False, str_min=0,
+    armor_piercing=0, penetrating=0, increased_stun_mult=0,
+)
+
+result = resolve_to_hit(AttackInput(
+    attacker=fighter("hero", "Hero", ocv=9),
+    target=fighter("villain", "Villain", dcv=7),
+    power=blast,
+    distance_m=20.0,
+    aim=None,
+    dice=DiceValues(to_hit=[2, 3, 3], damage=[3] * 10,
+                    hit_location=[], stun_multiplier=[], knockback=[]),
+), RAW_SUPERHEROIC)
+print(result.hit, result.margin)   # True 1  — a hit, by 1
 ```
 
-See `examples/` for runnable demos.
+`CombatSession` sits on top when you want a timeline, an event log and
+rewind rather than one-shot resolution — see `examples/rooftop_brawl.py`.
+
+## Examples
+
+Four runnable demos, none of which need anything installed beyond the package:
+
+| | |
+|---|---|
+| `examples/rooftop_brawl.py` | a narrated fight — SPD phases, abort to Dodge, knockback off a roof, falling damage, Post-Segment 12 recovery, and a rewind |
+| `examples/mental_duel.py` | the OMCV/DMCV pipeline — mental to-hit, Mental Blast against Mental Defense, Mind Control measured against EGO |
+| `examples/bring_the_house_down.py` | scenery as combatants — destroy a support column and watch the collapse cascade and drop everyone standing above it |
+| `examples/hold_the_line.py` | Presence attacks on the effects ladder, and twenty thugs resolved as one Unit with morale |
+
+```bash
+.venv/bin/python examples/rooftop_brawl.py
+```
 
 ## RAW alignment
 
