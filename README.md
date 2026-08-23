@@ -14,8 +14,9 @@ commit.
 
 ## Status
 
-Working, and tested at 898 tests. It is a **library**: no server, no I/O, no
-API layer — kirby-api depends on this package, never the other way round.
+Working, and tested at 905 tests. It is a **library**: no server, no I/O, no
+API layer. The virtual tabletop consumes it as a dependency, never the other
+way round — nothing here reaches back up.
 
 **What it resolves**
 
