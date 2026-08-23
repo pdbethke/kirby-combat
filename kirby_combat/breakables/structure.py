@@ -18,15 +18,32 @@ class StructuralLink:
 
 @dataclass
 class StructuralGraph:
-    """Mutable graph of supporter -> supported relationships."""
+    """Mutable graph of supporter -> supported relationships.
+
+    Support is REDUNDANT: an element stands while enough of its supporters
+    remain intact. `required_supporters` names how many an element needs;
+    anything unlisted needs one, so a lone column holding a floor behaves as
+    it always did, while two columns sharing that floor now share the load.
+    """
     links: list[StructuralLink] = field(default_factory=list)
     load_bearing_ids: set[str] = field(default_factory=set)
+    #: element_id -> how many intact supporters it needs to stand (default 1).
+    #: A GM wanting "the dome needs all three pillars" sets it to 3.
+    required_supporters: dict[str, int] = field(default_factory=dict)
 
     def is_load_bearing(self, element_id: str) -> bool:
         return element_id in self.load_bearing_ids
 
     def supported_by(self, supporter_id: str) -> list[str]:
         return [l.supported_id for l in self.links if l.supporter_id == supporter_id]
+
+    def supporters_of(self, supported_id: str) -> list[str]:
+        """Every element holding `supported_id` up."""
+        return [l.supporter_id for l in self.links if l.supported_id == supported_id]
+
+    def required_support(self, element_id: str) -> int:
+        """How many intact supporters `element_id` needs. Defaults to one."""
+        return self.required_supporters.get(element_id, 1)
 
 
 @dataclass
@@ -50,11 +67,22 @@ def cascade_destruction(
     graph: StructuralGraph,
     destroyed_id: str,
     combatants_on_surfaces: dict[str, list[str]] | None = None,
+    already_destroyed: Iterable[str] | None = None,
 ) -> CascadeResult:
     """Compute the cascade of collapses triggered by destroying `destroyed_id`.
 
     Only load-bearing destructions cascade. Non-load-bearing destructions
     just register the destruction with no cascade events.
+
+    A supported element collapses only when its INTACT supporters fall below
+    what it requires (`StructuralGraph.required_support`, one by default).
+    Two columns holding a mezzanine therefore share the load: dropping one
+    leaves it standing, and dropping the second brings it down.
+
+    `already_destroyed` carries the elements a previous attack removed, so a
+    structure worn down across several phases converges. Without it every call
+    starts from an intact building and the second column would never finish
+    the job.
 
     `combatants_on_surfaces` maps surface_id -> list of combatant ids on that
     surface; combatants on collapsed surfaces are returned in
@@ -84,7 +112,9 @@ def cascade_destruction(
             audit=audit,
         )
 
-    # BFS through the support graph
+    # BFS through the support graph. `gone` is everything no longer holding
+    # anything up — what a previous attack removed, plus what this one does.
+    gone: set[str] = set(already_destroyed or ()) | {destroyed_id}
     queue = [destroyed_id]
     visited: set[str] = {destroyed_id}
     while queue:
@@ -92,9 +122,21 @@ def cascade_destruction(
         for supported in graph.supported_by(cur):
             if supported in visited:
                 continue
+            intact = [s for s in graph.supporters_of(supported) if s not in gone]
+            needed = graph.required_support(supported)
+            if len(intact) >= needed:
+                audit.append(
+                    f"{supported} stands: {len(intact)} intact supporter(s) "
+                    f"({', '.join(sorted(intact))}), needs {needed}"
+                )
+                continue
             visited.add(supported)
+            gone.add(supported)
             events.append(CollapseEvent(element_id=supported, reason="supporter_lost"))
-            audit.append(f"{supported} collapsed (supporter {cur} lost)")
+            audit.append(
+                f"{supported} collapsed: {len(intact)} intact supporter(s), "
+                f"needs {needed} (lost {cur})"
+            )
             if supported in combatants_on_surfaces:
                 for cid in combatants_on_surfaces[supported]:
                     affected.append(cid)

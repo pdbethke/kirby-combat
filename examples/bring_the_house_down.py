@@ -7,8 +7,10 @@ standing on it.
 
 Exercises:
   - ObjectCombatant   (scenery with BODY, defences and a material)
-  - StructuralGraph   (what holds up what, and which parts are load-bearing)
-  - cascade_destruction (recursive collapse + who starts falling)
+  - StructuralGraph   (what holds up what, which parts bear load, and how
+                       many supporters each element needs to stand)
+  - cascade_destruction (redundant support, recursive collapse, and who
+                       starts falling)
 
 No dependencies beyond the package.
 
@@ -103,19 +105,30 @@ def main() -> None:
     print("  → the crates were holding nothing up, so the cascade stops at")
     print("    the crates themselves. The building shrugs.")
 
-    # ── 2. Take out one column ───────────────────────────────────────────────
-    rule("2. Destroy ONE column — and the whole stack comes down")
+    # ── 2. Take out one column — the load is shared ──────────────────────────
+    rule("2. Destroy ONE column — the mezzanine still has the other")
     one = cascade_destruction(STRUCTURE, "column_a", STANDING_ON)
     print(f"  destroyed: {one.initial_destroyed_id}")
     for e in one.cascade_events:
         print(f"     collapsed: {PARTS[e.element_id].name}  ({e.reason})")
     print(f"  combatants dropped:  {one.triggered_falling_for or 'none'}")
-    print("\n  Note what the engine does NOT model: the mezzanine had a second")
-    print("  column still standing, and it fell anyway. Losing ANY supporter")
-    print("  collapses the supported element — support is not redundant here.")
-    print("  If a GM wants two columns to share a load, that is a rule the")
-    print("  engine does not have yet, and this example says so rather than")
-    print("  pretending otherwise.")
+    for line in one.audit:
+        print(f"     · {line}")
+    print("  → support is redundant: the mezzanine needs one intact column")
+    print("    and still has east. Nobody falls.")
+
+    # ── 2b. Now take the second one ──────────────────────────────────────────
+    rule("2b. Destroy the OTHER column — now it comes down")
+    both = cascade_destruction(
+        STRUCTURE, "column_b", STANDING_ON,
+        already_destroyed={"column_a"},      # the first one is already gone
+    )
+    print(f"  destroyed: {both.initial_destroyed_id}  (column_a already gone)")
+    for e in both.cascade_events:
+        print(f"     collapsed: {PARTS[e.element_id].name}  ({e.reason})")
+    print(f"  combatants dropped:  {sorted(both.triggered_falling_for)}")
+    print("  → pass `already_destroyed` so a structure worn down across")
+    print("    several phases converges instead of healing between attacks.")
 
     # ── 3. Take out the mezzanine itself ─────────────────────────────────────
     rule("3. Destroy the mezzanine — everything above it comes with it")
@@ -129,6 +142,21 @@ def main() -> None:
     print("  thing holding it up stopped existing. Everyone standing on either")
     print("  surface is handed to the falling rules — which is where the")
     print("  scene's elevation and the falling-damage resolver take over.")
+
+    # ── 4. A GM who wants all three pillars to matter ────────────────────────
+    rule("4. When one spare is not enough — required_supporters")
+    dome = StructuralGraph(
+        links=[StructuralLink(f"pillar_{i}", "dome") for i in (1, 2, 3)],
+        load_bearing_ids={"pillar_1", "pillar_2", "pillar_3"},
+        required_supporters={"dome": 3},     # this dome needs all three
+    )
+    r = cascade_destruction(dome, "pillar_1", {"dome": ["cultist"]})
+    print("  A dome on three pillars, declared to need all three:")
+    for e in r.cascade_events:
+        print(f"     collapsed: {e.element_id}  ({e.reason})")
+    print(f"  combatants dropped: {r.triggered_falling_for}")
+    print("  → one pillar down and the dome goes. The default is 1, so this")
+    print("    is opt-in for the structures a GM wants to be fragile.")
 
     rule("END")
 
