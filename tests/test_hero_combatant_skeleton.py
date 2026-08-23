@@ -218,7 +218,7 @@ def test_loads_from_the_authored_corpus():
 
 
 def test_attack_resolves_through_engine_end_to_end():
-    """End-to-end: load Inferna twice, build AttackInput from her own
+    """End-to-end: load the character twice, build AttackInput from its own
     Energy Blast view, run RangedAttackAction.resolve() — expect the
     audit trail to carry concrete to_hit / damage / defense lines.
 
@@ -294,7 +294,7 @@ def test_attack_resolves_through_engine_end_to_end():
 
     # Audit trail should have at least the to_hit lines and SOME
     # damage line. We're not pinning hit/miss because that depends
-    # on Inferna's actual OCV/DCV which can change with HD fixes.
+    # on the character's actual OCV/DCV, which can change with HD fixes.
     assert len(result.audit_trail) > 0
     assert any("OCV" in line for line in result.audit_trail)
     assert any("DCV" in line for line in result.audit_trail)

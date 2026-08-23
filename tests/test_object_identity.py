@@ -72,7 +72,7 @@ class TestFrameworkIdentity:
 class TestManeuverIdentity:
     def test_maneuver_id_is_the_maneuver_object_id(self):
         mvs = _martial_artist().maneuver_view()
-        assert mvs, "Cheshire fights with his art — he must have maneuvers"
+        assert mvs, "the martial artist must have maneuvers"
         for mv in mvs:
             assert ":" not in str(mv.maneuver_id), (
                 f"maneuver_id {mv.maneuver_id!r} still encodes xmlid:name"

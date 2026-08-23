@@ -140,7 +140,7 @@ def _wall(x: float = 10.0, height: float = 3.0) -> Wall:
 def _two_combatant_scene(observer, target, *, wall: bool = False) -> Scene:
     # Observer at (0,5,1.5), target at (20,5,1.5); optional wall at x=10
     # (same geometry test_attack_los.py uses to (un)block LoS).
-    # Two Inferna loads share the HDC-derived id "inferna"; give them distinct
+    # Two loads of one character share the HDC-derived id; give them distinct
     # session ids so combatant_positions doesn't collapse to one entry.
     observer.id, target.id = "observer", "target"
     return Scene(
@@ -319,7 +319,7 @@ def test_hidden_target_runs_stealth_contest():
     scene = _two_combatant_scene(obs, tgt, wall=False)
     # target hidden; if no STEALTH skill → auto-perceived (no contest to win)
     p = perceive(obs, tgt, scene, target_hidden=True, roller=RandomRoller(seed=3))
-    assert p.targetable_physical is True   # Inferna has no STEALTH → can't actually hide
+    assert p.targetable_physical is True   # no STEALTH → can't actually hide
 
 
 # --- Task 6: Mind Scan / mental-LOS gate + is_surprised -----------------------

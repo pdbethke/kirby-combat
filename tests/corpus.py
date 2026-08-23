@@ -2,7 +2,7 @@
 
 kirby-combat commits no `.hdc` files. A character file is a machine-readable
 build, and the ones this suite used to carry were published Hero Games
-characters from the Champions Villains packs — committing those redistributes
+characters from a commercial character pack — committing those redistributes
 stat blocks, however useful they are as test data. kirby-cost settled the same
 question the same way; see its `tests/corpus.py` and `.gitignore`.
 

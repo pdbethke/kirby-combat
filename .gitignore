@@ -22,3 +22,4 @@ dist/
 # Real-file tests read KIRBY_COMBAT_AUTHORED and skip when it is unset.
 # See tests/corpus.py.
 tests/fixtures/*.hdc
+.movement-*.md
