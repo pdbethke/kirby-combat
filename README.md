@@ -5,7 +5,7 @@
 # kirby-combat
 
 Pure-Python combat engine for the HERO System 6th Edition, designed as the
-authoritative back-end for [Kirby](https://kirby.productbinder.io) — the
+authoritative back-end for [Kirby](https://kirbyvtt.org) — the
 HERO System VTT in the Kirby product line.
 
 Zero runtime dependencies (stdlib only). Strict TDD. RAW-aligned against
@@ -108,6 +108,26 @@ backs this — values are verified against the corpus rather than memory.
 .venv/bin/pytest tests/ -q
 .venv/bin/pytest tests/ --cov=kirby_combat --cov-report=term-missing
 ```
+
+## Where this is going
+
+This is one of three engines behind [Kirby](https://kirbyvtt.org), a virtual
+tabletop for the HERO System:
+
+- **[kirby-cost](https://github.com/pdbethke/kirby-cost)** — reads a HERO 6E
+  build and costs it, validated against Hero Designer
+- **[kirby-sheet](https://github.com/pdbethke/kirby-sheet)** — renders a
+  character to JSON, text, HTML, PDF, or back to `.hdc`
+- **[kirby-combat](https://github.com/pdbethke/kirby-combat)** — the combat
+  engine: attacks, movement, mental combat, vehicles, mass combat,
+  destructible terrain
+
+What's still to come is the table itself — terrain with its own PD and ED,
+elevation and concealment that move OCV and DCV, and line of sight worked out
+from where a character is actually standing. Kirby plays characters; it does
+not create them. Character creation stays in Hero Designer.
+
+Progress and notes at [kirbyvtt.org](https://kirbyvtt.org).
 
 ## License
 
