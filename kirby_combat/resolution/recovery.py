@@ -87,6 +87,9 @@ def compute_recovery(
         raise ValueError(f"unknown recovery_type: {recovery_type!r}")
 
     current_stun, current_end, rec, max_stun, max_end = _vitals(combatant)
+    # Raw int in hand (unpacked from _vitals, not a participant object), so
+    # this stays a literal comparison rather than reading `.is_ko`. The rule
+    # itself is defined once, on kirby_combat.participant.CombatParticipant.is_ko.
     is_ko = current_stun <= 0
 
     if recovery_type == "full_recovery":
