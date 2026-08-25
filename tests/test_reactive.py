@@ -2,7 +2,7 @@
 import pytest
 from datetime import datetime, timezone
 
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_combat.dice import FakeRoller
 from kirby_combat.session import CombatSession
@@ -11,8 +11,8 @@ from kirby_combat.actions.reactive.dodge import Dodge
 from kirby_combat.actions.reactive.block import Block, BlockResult
 
 
-def _c(id_: str, ocv: int = 8, dcv: int = 8, dex: int = 20) -> Combatant:
-    return Combatant(
+def _c(id_: str, ocv: int = 8, dcv: int = 8, dex: int = 20) -> "HeroCombatant":
+    return synthetic_combatant(
         id=id_, name=id_, ocv=ocv, dcv=dcv, omcv=5, dmcv=5,
         spd=4, dex=dex, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,

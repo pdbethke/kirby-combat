@@ -1,7 +1,7 @@
 """Concrete movement power tests — thin subclasses over MovementAction."""
 import pytest
 
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_combat.dice import FakeRoller
 from kirby_combat.session import CombatSession
@@ -11,8 +11,8 @@ from kirby_combat.actions.movement import (
 )
 
 
-def _c(end: int = 30) -> Combatant:
-    return Combatant(
+def _c(end: int = 30) -> "HeroCombatant":
+    return synthetic_combatant(
         id="alice", name="alice", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -21,7 +21,7 @@ def _c(end: int = 30) -> Combatant:
     )
 
 
-def _session(c: Combatant) -> CombatSession:
+def _session(c: "HeroCombatant") -> CombatSession:
     return CombatSession.create(
         id="s1", combatants=[c], scene=None,
         template=CombatTemplate.default_6e_superheroic(),
