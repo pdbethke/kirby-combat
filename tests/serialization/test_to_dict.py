@@ -3,7 +3,7 @@ import pytest
 
 from kirby_combat.serialization import to_dict
 from kirby_combat.scene import Scene, SceneBounds, Position, AmbientConditions
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.vehicles import Vehicle
 
 
@@ -33,7 +33,10 @@ def test_scene_to_dict_includes_type_tag():
 
 
 def test_combatant_to_dict_has_all_fields():
-    c = Combatant(
+    # NOT synthetic: this asserts the stable wire tag `"Combatant"` that
+    # to_dict pins for StatBlockCombatant specifically (see
+    # kirby_combat/serialization/to_dict.py _STABLE_WIRE_TAGS).
+    c = StatBlockCombatant(
         id="a", name="a", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,

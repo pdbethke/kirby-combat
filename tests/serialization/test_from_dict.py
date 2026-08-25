@@ -3,7 +3,7 @@ import pytest
 
 from kirby_combat.serialization import to_dict, from_dict
 from kirby_combat.scene import Position, Scene, SceneBounds, AmbientConditions
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.vehicles import Vehicle
 
 
@@ -13,7 +13,7 @@ def test_round_trip_position():
 
 
 def test_round_trip_combatant():
-    c = Combatant(
+    c = StatBlockCombatant(
         id="a", name="a", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -22,7 +22,7 @@ def test_round_trip_combatant():
     )
     restored = from_dict(to_dict(c))
     assert restored == c
-    assert isinstance(restored, Combatant)
+    assert isinstance(restored, StatBlockCombatant)
 
 
 def test_round_trip_vehicle_preserves_subclass():
@@ -66,7 +66,7 @@ def test_from_dict_tolerates_a_payload_persisted_before_the_rename():
         "is_mentalist": False, "is_npc": False, "knockback_resistance": 0,
     }
     restored = from_dict(d)
-    assert isinstance(restored, Combatant)  # Combatant IS StatBlockCombatant
+    assert isinstance(restored, StatBlockCombatant)  # "Combatant" tag resolves to StatBlockCombatant
     assert restored.ocv == 8
     assert restored.current_stun == 30
 
@@ -87,7 +87,7 @@ def test_round_trip_combatant_tagged_with_the_new_class_name():
         "is_mentalist": False, "is_npc": False, "knockback_resistance": 0,
     }
     restored = from_dict(d)
-    assert isinstance(restored, Combatant)  # Combatant IS StatBlockCombatant
+    assert isinstance(restored, StatBlockCombatant)
     assert restored.ocv == 8
     assert restored.current_stun == 30
 
