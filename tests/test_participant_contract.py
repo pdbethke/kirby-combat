@@ -15,6 +15,22 @@ import pytest
 from kirby_combat.participant import CombatParticipant
 
 
+def test_the_base_declares_no_state_of_its_own():
+    """A bare `state` annotation (or attribute) directly on
+    CombatParticipant makes the __init_subclass__ guard vacuous: the MRO
+    walk in participant.py finds "state" in vars(CombatParticipant), so
+    EVERY subclass looks like it already provides one, whether it does or
+    not. This is not hypothetical -- it is exactly the bug hit while
+    building that guard: a `state: Any` annotation left on the base made
+    `MissingState` (below) satisfy the check trivially, and only surfaced
+    because a human re-ran test_an_incomplete_participant_cannot_be_
+    constructed by hand. Pin it here so the next accidental re-add fails
+    the suite instead of waiting for another manual catch."""
+    own = vars(CombatParticipant)
+    assert "state" not in own
+    assert "state" not in own.get("__annotations__", {})
+
+
 def test_an_incomplete_participant_cannot_be_constructed():
     """The whole point of the ABC. A Protocol would accept this silently."""
     class MissingState(CombatParticipant):
