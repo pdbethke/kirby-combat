@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from kirby_combat.participant import CombatParticipant
+from kirby_combat.participant import CombatParticipant, Stunnable
 
 
 @dataclass
@@ -127,7 +127,7 @@ class CombatSkillLevel:
 
 
 @dataclass
-class StatBlockCombatant(CombatParticipant):
+class StatBlockCombatant(Stunnable, CombatParticipant):
     """A character or NPC participating in combat, described by a flat stat
     block rather than a build (HDC/LoadedHero). Vehicles and breakable
     objects (a stone wall, a door) subclass this: they have BODY/DEF from a

@@ -62,6 +62,36 @@ class ObjectCombatant(StatBlockCombatant):
             hdc_source_xml=hdc_source_xml,
         )
 
+    # ── objects have no STUN behaviour at all (6E2 p152) ──────────────
+    #
+    # ``StatBlockCombatant`` mixes in ``Stunnable``; an object inherits from
+    # it for the stat-block fields, not for the STUN track. ``make()`` above
+    # hardcodes ``current_stun=0`` because there is no track -- so the
+    # inherited ``current_stun <= 0`` rule read an undamaged object as
+    # unconscious. Measured 2026-08-25, before this opt-out::
+    #
+    #     ObjectCombatant.make(material='wood')   # an intact door
+    #     -> current_stun=0  is_ko=True  is_conscious=False  is_destroyed=False
+    #
+    # Raising AttributeError (rather than returning False) is what actually
+    # removes the member: ``hasattr(door, "is_ko")`` is then False and
+    # ``getattr(door, "is_ko", default)`` takes the default, so shape-dispatch
+    # code cannot be fooled into treating a door as a knock-out-able thing.
+    # ``is_destroyed()`` is the question to ask an object.
+
+    _NO_STUN = (
+        "ObjectCombatant has no STUN track (6E2 p152: objects take BODY and "
+        "break, they are never knocked out) -- ask is_destroyed() instead"
+    )
+
+    @property
+    def is_ko(self) -> bool:
+        raise AttributeError(self._NO_STUN)
+
+    @property
+    def is_conscious(self) -> bool:
+        raise AttributeError(self._NO_STUN)
+
     def is_destroyed(self) -> bool:
         return self.current_body <= 0
 

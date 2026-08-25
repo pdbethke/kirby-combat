@@ -98,13 +98,42 @@ class CombatParticipant(ABC):
             )
         return super().__new__(cls)
 
-    # ── behaviour every participant shares ────────────────────────────
-    #
-    # These live here because they were living in THREE places: the KO rule
-    # was written in mental/mental_blast.py, again in resolution/recovery.py,
-    # and a third time in that file's docstring. Resolving an attack and
-    # resolving a recovery are different jobs; neither of them is "define
-    # what unconscious means".
+    # NOTE: `is_ko` / `is_conscious` deliberately do NOT live here. They are
+    # on the `Stunnable` mixin below, because they are true of only part of
+    # the hierarchy. See that class for the measurement that proved it.
+
+
+class Stunnable:
+    """Mixin: a participant with a STUN track, which can be knocked out.
+
+    The KO rule is defined here, once. It was previously written in THREE
+    places -- mental/mental_blast.py, resolution/recovery.py, and that file's
+    docstring. Resolving an attack and resolving a recovery are different
+    jobs; neither of them is "define what unconscious means".
+
+    Why a mixin and not a member of CombatParticipant: it WAS on the shared
+    base, and that was measured wrong for the breakable third of the
+    hierarchy. Running it on 2026-08-25, before the fix::
+
+        ObjectCombatant.make(material='wood')   # an undamaged door
+        -> current_stun=0  is_ko=True  is_conscious=False  is_destroyed=False
+
+        Vehicle.make(..., max_stun=0)           # an undamaged van
+        -> current_stun=0  is_ko=True
+
+    An intact door reported itself unconscious. ``ObjectCombatant.make``
+    hardcodes ``current_stun=0`` because, per 6E2 p152 and ``Breakable``'s own
+    docstring below, objects "take BODY and break; they have no STUN behaviour
+    at all" -- so ``current_stun <= 0`` is its permanent resting state, not a
+    condition. Nothing had caught fire only because ``is_ko`` had no
+    production caller; ``resolution/recovery.py`` became the first one in the
+    same change, which is why this had to be fixed before that was wired up.
+
+    ``StatBlockCombatant`` and ``HeroCombatant`` mix this in.
+    ``ObjectCombatant`` deliberately does not (it opts back out -- see
+    ``breakables/object_combatant.py``) and ``Vehicle`` narrows it for the
+    no-STUN-track case.
+    """
 
     @property
     def is_ko(self) -> bool:

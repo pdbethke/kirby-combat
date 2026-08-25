@@ -82,6 +82,27 @@ class Vehicle(StatBlockCombatant):
             passengers=list(passengers),
         )
 
+    @property
+    def is_ko(self) -> bool:
+        """A vehicle with no STUN track is never "knocked out".
+
+        Unlike ObjectCombatant, a Vehicle MAY have STUN -- ``make()`` takes
+        ``max_stun`` -- so it keeps ``Stunnable`` and narrows it here instead
+        of opting out. But ``make(..., max_stun=0)`` sets
+        ``current_stun=max_stun=0``, and the inherited ``current_stun <= 0``
+        rule then read an undamaged vehicle as unconscious. Measured
+        2026-08-25, before this override::
+
+            Vehicle.make(..., max_stun=0)   # an undamaged van
+            -> current_stun=0  is_ko=True
+
+        Same defect as the intact door in ObjectCombatant; different fix,
+        because the capability is per-instance here, not per-type.
+        """
+        if self.max_stun <= 0:
+            return False
+        return super().is_ko
+
     def add_passenger(self, passenger: "Passenger") -> "Vehicle":
         if len(self.passengers) >= max_passengers_for_size(self.size):
             raise ValueError(
