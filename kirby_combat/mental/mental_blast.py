@@ -40,7 +40,7 @@ def resolve_mental_blast(
     # Raw int in hand: this is the PROJECTED post-damage STUN, not yet
     # written back onto `target.state`, so there is no participant object
     # to read `.is_ko` from here. The rule itself is defined once, on
-    # kirby_combat.participant.CombatParticipant.is_ko.
+    # kirby_combat.participant.Stunnable.is_ko.
     target_ko = new_current_stun <= 0
     target_stunned = stun_dealt > target.con
 

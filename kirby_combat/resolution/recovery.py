@@ -8,7 +8,7 @@ per HERO 6E1:
 - Full Recovery (out of combat, ~20 minutes rest) restores STUN, END, and BODY
   to max. This function handles only STUN + END; BODY recovery is separate.
 
-A KO'd character (see kirby_combat.participant.CombatParticipant.is_ko for
+A KO'd character (see kirby_combat.participant.Stunnable.is_ko for
 the threshold definition) cannot take a Recovery Action (phase_12) but still
 benefits from Post-Segment 12 Recovery and Full Recovery.
 
@@ -88,10 +88,6 @@ def compute_recovery(
         raise ValueError(f"unknown recovery_type: {recovery_type!r}")
 
     current_stun, current_end, rec, max_stun, max_end = _vitals(combatant)
-    # Raw int in hand (unpacked from _vitals, not a participant object), so
-    # this stays a literal comparison rather than reading `.is_ko`. The rule
-    # itself is defined once, on kirby_combat.participant.CombatParticipant.is_ko.
-    is_ko = current_stun <= 0
 
     if recovery_type == "full_recovery":
         stun_delta = max(0, max_stun - current_stun)
@@ -99,7 +95,17 @@ def compute_recovery(
         return stun_delta, end_delta
 
     if recovery_type == "phase_12":
-        if is_ko:
+        # Read the rule, do not restate it. `_vitals` unpacks current_stun to
+        # a raw int for the arithmetic below, but we still hold the
+        # participant, and `Stunnable.is_ko` computes from
+        # `combatant.state.current_stun` -- the same value `_vitals` just
+        # read. Duplicating `current_stun <= 0` here is how the KO threshold
+        # came to be written in three places at once.
+        #
+        # Read inside this branch, not above it: it is the only branch that
+        # asks the question, and a participant with no STUN track (an
+        # ObjectCombatant) has no `is_ko` to read at all.
+        if combatant.is_ko:
             # 6E: KO'd characters cannot take a Recovery Action.
             return 0, 0
         # Fall through to standard REC recovery, capped at max.
