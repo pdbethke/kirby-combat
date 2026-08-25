@@ -24,7 +24,7 @@ import pytest
 
 from tests.corpus import require_authored
 
-from kirby_cost.campaign import CampaignRules, campaign_rules
+from kirby_cost.campaign import CampaignRules, use_campaign_rules
 from kirby_cost.core.context import EngineContext
 from kirby_cost.io.hdc_loader import HDCLoader
 from kirby_combat.hero_view import _damage_type_for_power
@@ -42,9 +42,19 @@ def _rka_of(path: str):
     EngineContext.set_active_hero(hero)
     found = [o for o in _walk(hero.powers) if (o.xmlid or "") == "RKA"]
     if not found:
-        # A silent skip here would prove nothing -- report exactly what did
-        # not hold rather than let the test quietly pass or vanish.
-        pytest.skip("this character has no RKA to measure")
+        # FAIL, not skip. This module's own docstring argues that a silent
+        # skip proves nothing, and a skip here would have let the whole
+        # acceptance test VANISH the day Ravel's RKA was renamed or removed
+        # -- green, with the feature unproven. The character-unavailable case
+        # is still a skip (`require_authored`, above): a corpus that is not
+        # configured is unrunnable, whereas a configured character that no
+        # longer has the power this test measures is a real change that
+        # someone must look at.
+        pytest.fail(
+            f"{path} has no RKA. The corpus character this acceptance test "
+            f"measures has changed; re-point the test at a killing attack "
+            f"and re-measure, do not delete the assertion."
+        )
     return found[0]
 
 
@@ -62,7 +72,7 @@ def test_a_heroic_campaign_makes_killing_attacks_normal():
     # campaign. Set once in kirby-cost, nothing told to kirby-combat.
     rules = CampaignRules()
     rules.set("RKA", "killing", False)
-    with campaign_rules(rules):
+    with use_campaign_rules(rules):
         housed = _rka_of(path)
         assert housed.killing is False
         # Same helper, same code path, unmodified -- it now reports "normal"
