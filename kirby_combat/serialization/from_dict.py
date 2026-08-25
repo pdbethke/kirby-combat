@@ -23,7 +23,7 @@ def _ensure_registry() -> None:
         Surface, Wall, Hazard, HazardEffect,
     )
     from kirby_combat.models import (
-        Combatant, AttackPower, DefenseItem, CombatSkillLevel,
+        StatBlockCombatant, AttackPower, DefenseItem, CombatSkillLevel,
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
     )
@@ -43,7 +43,7 @@ def _ensure_registry() -> None:
     for cls in [
         Scene, SceneBounds, Position, AmbientConditions,
         Surface, Wall, Hazard, HazardEffect,
-        Combatant, AttackPower, DefenseItem, CombatSkillLevel,
+        StatBlockCombatant, AttackPower, DefenseItem, CombatSkillLevel,
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
         Vehicle, Passenger, Unit, ObjectCombatant,
@@ -58,6 +58,14 @@ def _ensure_registry() -> None:
         _register(cls)
     # Enums register too so we can rehydrate enum-valued fields if needed.
     _TYPE_REGISTRY["UnitMorale"] = UnitMorale  # type: ignore[assignment]
+    # `to_dict` still tags a StatBlockCombatant "Combatant" on the wire (a
+    # pinned tag -- see to_dict.py -- so already-persisted sessions written
+    # before the combatant-redesign rename keep loading). Accept BOTH tags
+    # here so nothing written by either version fails: a fresh dict tagged
+    # "StatBlockCombatant" already resolves via `_register` above (its
+    # __name__); this line adds the old tag as a second name for the same
+    # class.
+    _TYPE_REGISTRY["Combatant"] = StatBlockCombatant
 
 
 def _coerce_field(field_type: Any, value: Any) -> Any:

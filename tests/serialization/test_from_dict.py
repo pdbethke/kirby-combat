@@ -39,6 +39,31 @@ def test_round_trip_vehicle_preserves_subclass():
     assert restored.size == 2
 
 
+def test_round_trip_combatant_tagged_with_the_new_class_name():
+    """to_dict pins StatBlockCombatant's wire tag to "Combatant" so
+    already-persisted sessions keep loading (see to_dict.py's
+    _STABLE_WIRE_TAGS). This test pins the OTHER direction: from_dict must
+    also accept "StatBlockCombatant" -- the class's real __name__ post
+    rename -- so nothing written by some future code path that emits the
+    new name (or a hand-built payload, or a test) is left stranded either.
+    The tolerance is deliberate, not incidental -- this is what pins it."""
+    d = {
+        "__type__": "StatBlockCombatant",
+        "id": "a", "name": "a", "ocv": 8, "dcv": 8, "omcv": 5, "dmcv": 5,
+        "spd": 4, "dex": 20, "ego": 15, "str_": 15, "con": 15, "pre": 15,
+        "rec": 5, "pd": 5, "ed": 5, "rpd": 0, "red": 0, "md": 5,
+        "power_defense": 0, "flash_defense": 0,
+        "max_stun": 30, "max_body": 15, "max_end": 30,
+        "current_stun": 30, "current_body": 15, "current_end": 30,
+        "attacks": [], "defenses": [], "csls": [],
+        "is_mentalist": False, "is_npc": False, "knockback_resistance": 0,
+    }
+    restored = from_dict(d)
+    assert isinstance(restored, Combatant)  # Combatant IS StatBlockCombatant
+    assert restored.ocv == 8
+    assert restored.current_stun == 30
+
+
 def test_unknown_type_raises():
     with pytest.raises(TypeError, match="unknown type"):
         from_dict({"__type__": "NotAThing", "x": 1})

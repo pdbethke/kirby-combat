@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
+from kirby_combat.participant import CombatParticipant
 
 
 #: The Mental Powers, per 6E1 p150. Owning any one of these is what makes a
@@ -220,7 +221,7 @@ class MartialManeuverView:
 
 
 @dataclass
-class HeroCombatant:
+class HeroCombatant(CombatParticipant):
     """A character/NPC in combat, sourced from a HD model.
 
     ``hero`` is the source of truth (LoadedHero, full HD fidelity,

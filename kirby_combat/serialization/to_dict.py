@@ -11,6 +11,20 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from kirby_combat.models import StatBlockCombatant
+
+# The wire tag is a contract with PERSISTED data (payload_jsonb rows already
+# written to combat_session), not a mirror of the Python class name. When
+# StatBlockCombatant was renamed from `Combatant` (combatant-redesign step
+# 6), `type(obj).__name__` changed out from under every already-recorded
+# session -- so this ONE type's tag is pinned explicitly rather than
+# derived, keyed on the exact type (not `isinstance`) so Vehicle and
+# ObjectCombatant, which subclass StatBlockCombatant but were never called
+# "Combatant" on the wire, are untouched.
+_STABLE_WIRE_TAGS: dict[type, str] = {
+    StatBlockCombatant: "Combatant",
+}
+
 
 def to_dict(obj: Any) -> Any:
     """Recursively convert to JSON-safe shape."""
@@ -68,13 +82,15 @@ def to_dict(obj: Any) -> Any:
         }
 
     if is_dataclass(obj):
-        result: dict[str, Any] = {"__type__": type(obj).__name__}
+        type_tag = _STABLE_WIRE_TAGS.get(type(obj), type(obj).__name__)
+        result: dict[str, Any] = {"__type__": type_tag}
         for f in fields(obj):
             result[f.name] = to_dict(getattr(obj, f.name))
         return result
     # Fallback: try vars()
     if hasattr(obj, "__dict__"):
-        result = {"__type__": type(obj).__name__}
+        type_tag = _STABLE_WIRE_TAGS.get(type(obj), type(obj).__name__)
+        result = {"__type__": type_tag}
         for k, v in vars(obj).items():
             if not k.startswith("_"):
                 result[k] = to_dict(v)

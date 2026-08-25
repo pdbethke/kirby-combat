@@ -37,10 +37,66 @@ class CombatParticipant(ABC):
         HD-shaped types diverge, and is what the no-op shim was hiding.
         """
 
-    @property
-    @abstractmethod
-    def state(self) -> Any:
-        """Run-time condition: current STUN/BODY/END and status flags."""
+    # `state` -- run-time condition: current STUN/BODY/END and status
+    # flags -- is deliberately NOT an `@abstractmethod @property` here.
+    # The mechanical reason:
+    #
+    # HeroCombatant satisfies "I have a state" with a required dataclass
+    # FIELD (`state: HeroCombatState`, no default). ABCMeta computes
+    # `__abstractmethods__` at class-body-execution time -- before the
+    # `@dataclass` decorator ever runs -- and a bare annotation with no
+    # assignment never lands in the class's `__dict__`. So if `state` were
+    # an `@abstractmethod @property` here, `getattr(HeroCombatant, "state")`
+    # would still resolve to THIS class's abstract property at the moment
+    # ABCMeta checks, HeroCombatant would stay permanently abstract, and
+    # every call site that constructs one (~330 tests) would raise
+    # `TypeError: Can't instantiate abstract class HeroCombatant without an
+    # implementation for abstract method 'state'`. That is not hypothetical
+    # -- it is what happened the first time this was tried.
+    #
+    # A dataclass field WITH a default would dodge that, but giving `state`
+    # a default makes it optional in the constructor -- a real behaviour
+    # change to paper over a typing problem, which is worse than the
+    # problem.
+    #
+    # So enforcement moves to `__init_subclass__` (records whether a
+    # concrete subclass provides `state`, by ANY means -- a property, like
+    # StatBlockCombatant's, or a plain/dataclass field, like
+    # HeroCombatant's) plus `__new__` (raises at INSTANTIATION, matching
+    # the ordinary ABC experience -- and keeping `combat_stats` a real
+    # `@abstractmethod`, whose own instantiation-time TypeError this
+    # deliberately mirrors in wording). Do NOT "simplify" this back into
+    # `@abstractmethod @property def state` -- see above; it silently
+    # breaks the first subclass shaped like HeroCombatant.
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # A subclass that is itself still abstract (missing `combat_stats`,
+        # or an intermediate mixin never meant to be instantiated) is not
+        # yet obligated to provide `state` -- only a class someone can
+        # actually try to instantiate is checked.
+        if getattr(cls, "__abstractmethods__", None):
+            return
+        has_state = any(
+            "state" in vars(klass).get("__annotations__", {})
+            or "state" in vars(klass)
+            for klass in cls.__mro__
+            if klass is not object
+        )
+        # Recorded on the class itself (not raised here) so that a missing
+        # `state` fails at INSTANTIATION with the word "abstract" in the
+        # message, exactly like a genuine `@abstractmethod` would -- class
+        # DEFINITION must still succeed, the way `class Foo(ABC): ...`
+        # with a missing abstractmethod succeeds and only `Foo()` fails.
+        cls._combat_participant_missing_state = not has_state
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "CombatParticipant":
+        if getattr(cls, "_combat_participant_missing_state", False):
+            raise TypeError(
+                f"Can't instantiate abstract class {cls.__name__} without "
+                f"an implementation for abstract method 'state'"
+            )
+        return super().__new__(cls)
 
     # ── behaviour every participant shares ────────────────────────────
     #
