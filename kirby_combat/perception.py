@@ -93,8 +93,15 @@ def _sense_capabilities(hero) -> list["SenseCapability"]:
 
 
 def per_roll_target(observer) -> int:
-    """PER roll target = 9 + INT/5 (6E1). ``observer`` is a HeroCombatant."""
-    return 9 + int(observer.hero.characteristic_value("INT")) // 5
+    """PER roll target for an observer, from kirby-cost.
+
+    Was `9 + INT // 5`. Truncation is not the rule: an INT of 13 rolls 12-,
+    and this reported 11- for it.
+    """
+    from kirby_cost.engine.rolls import characteristic_roll, roll_constants
+    base, denominator = roll_constants(observer.hero)
+    return characteristic_roll(observer.hero.characteristic_value("INT"),
+                               base=base, denominator=denominator)
 
 
 def range_modifier(distance_m: float) -> int:

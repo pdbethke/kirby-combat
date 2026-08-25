@@ -81,7 +81,8 @@ def attempt_mental_escape(
     if len(ego_roll_dice) != 3:
         raise ValueError(f"EGO roll needs 3d6, got {len(ego_roll_dice)}")
     roll = sum(ego_roll_dice)
-    target_number = 9 + target.ego // 5
+    from kirby_cost.engine.rolls import characteristic_roll
+    target_number = characteristic_roll(target.ego)
     success = roll <= target_number
     body_reduced = (target.ego // 5) if success else 0
     audit = [

@@ -83,7 +83,8 @@ def attempt_disbelief(
             audit=audit,
         )
     roll = sum(ego_roll_dice)
-    base_tn = 9 + target.ego // 5
+    from kirby_cost.engine.rolls import characteristic_roll
+    base_tn = characteristic_roll(target.ego)
     illusion_margin = max(0, illusion_effect_total - target.ego)
     target_number = base_tn - illusion_margin
     success = roll <= target_number

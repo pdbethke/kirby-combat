@@ -49,10 +49,27 @@ from kirby_combat.perception import per_roll_target, _roll_3d6_succeeds
 from kirby_combat.dice import RandomRoller
 
 
-def test_per_target_is_9_plus_int_over_5():
+def test_per_target_is_the_engine_s_characteristic_roll():
+    """Was `9 + INT // 5`, asserted here in those words -- so the test agreed
+    with the code and both were wrong. Truncation is not the rule: an INT of
+    13 rolls 12-, and this reported 11-.
+
+    Compared against kirby-cost rather than restated, so the formula has one
+    home and this only checks that combat uses it."""
+    from kirby_cost.engine.rolls import characteristic_roll
     hc = _real_character()
-    int_val = int(hc.hero.characteristic_value("INT"))
-    assert per_roll_target(hc) == 9 + int_val // 5
+    int_val = hc.hero.characteristic_value("INT")
+    assert per_roll_target(hc) == characteristic_roll(int_val)
+
+
+def test_per_target_rounds_rather_than_truncates():
+    """The distinction the old test could not see. Pinned on values, not on a
+    character, so it cannot go quiet if the fixture's INT changes."""
+    from kirby_cost.engine.rolls import characteristic_roll
+    assert characteristic_roll(13) == 12      # 9 + round(2.6); truncation gives 11
+    assert characteristic_roll(18) == 13      # 9 + round(3.6); truncation gives 12
+    assert characteristic_roll(15) == 12      # exact multiples agree
+    assert characteristic_roll(10) == 11
 
 
 def test_skill_roll_value_returns_none_when_absent():
