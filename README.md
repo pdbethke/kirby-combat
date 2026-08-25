@@ -53,7 +53,9 @@ Combatants are plain objects — nothing here needs a character file. This
 snippet runs as-is:
 
 ```python
-from kirby_combat.models import AttackInput, AttackPower, Combatant, DiceValues
+from kirby_combat.models import (
+    AttackInput, AttackPower, DiceValues, StatBlockCombatant,
+)
 from kirby_combat.resolution.to_hit import resolve_to_hit
 from kirby_combat.template import RAW_SUPERHEROIC
 
@@ -63,7 +65,7 @@ def fighter(id_, name, **over):
                 con=20, pre=15, rec=8, pd=8, ed=8, rpd=0, red=0, md=0,
                 power_defense=0, flash_defense=0, max_stun=40, max_body=12,
                 max_end=40, current_stun=40, current_body=12, current_end=40)
-    return Combatant(id=id_, name=name, **{**base, **over})
+    return StatBlockCombatant(id=id_, name=name, **{**base, **over})
 
 blast = AttackPower(
     xmlid="ENERGYBLAST", name="Energy Blast",

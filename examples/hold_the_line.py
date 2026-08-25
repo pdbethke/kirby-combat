@@ -26,7 +26,7 @@ from kirby_combat.masscombat.resolution import (
     unit_attack_dc_bonus,
 )
 from kirby_combat.masscombat.unit import Unit, UnitMorale
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.pre_attacks.presence import (
     base_pre_dice, can_act_after, resolve_presence_attack,
 )
@@ -38,7 +38,7 @@ def rule(title: str) -> None:
     print("═" * 70)
 
 
-HERO = Combatant(
+HERO = StatBlockCombatant(
     id="hero", name="The Bulwark",
     ocv=9, dcv=8, omcv=4, dmcv=4,
     spd=5, dex=20, ego=15, str_=50, con=28, pre=40, rec=12,
@@ -49,7 +49,7 @@ HERO = Combatant(
     attacks=[], defenses=[],
 )
 
-THUG = Combatant(
+THUG = StatBlockCombatant(
     id="thug", name="Street Thug",
     ocv=5, dcv=5, omcv=3, dmcv=3,
     spd=3, dex=13, ego=10, str_=13, con=13, pre=10, rec=5,
