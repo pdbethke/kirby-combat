@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import ClassVar
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass(frozen=True)
@@ -34,10 +34,10 @@ def max_passengers_for_size(size: int) -> int:
 
 
 @dataclass
-class Vehicle(Combatant):
-    """A vehicle is a Combatant with additional HDC-shaped fields.
+class Vehicle(StatBlockCombatant):
+    """A vehicle is a StatBlockCombatant with additional HDC-shaped fields.
 
-    New fields beyond Combatant:
+    New fields beyond StatBlockCombatant:
         size               HDC SIZE (1-10)
         movement_inches    dict of movement mode -> inches (1" = 2m)
         passengers         list[Passenger]

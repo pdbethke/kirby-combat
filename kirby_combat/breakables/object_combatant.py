@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 # Material -> typical (DEF, BODY) ranges per 6E2 p152.
@@ -25,8 +25,8 @@ MATERIAL_DEFAULTS: dict[str, tuple[int, int]] = {
 
 
 @dataclass
-class ObjectCombatant(Combatant):
-    """An inanimate object as a Combatant. BODY/DEF, no STUN behavior."""
+class ObjectCombatant(StatBlockCombatant):
+    """An inanimate object as a StatBlockCombatant. BODY/DEF, no STUN behavior."""
     material: str = "wood"
     # Round-trip: HDC sometimes encodes equipment/object as raw XML; we store
     # the source string so a future serializer can re-emit it byte-for-byte.

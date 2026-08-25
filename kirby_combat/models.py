@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from kirby_combat.participant import CombatParticipant
+
 
 @dataclass
 class DiceValues:
@@ -125,8 +127,11 @@ class CombatSkillLevel:
 
 
 @dataclass
-class Combatant:
-    """A character or NPC participating in combat."""
+class StatBlockCombatant(CombatParticipant):
+    """A character or NPC participating in combat, described by a flat stat
+    block rather than a build (HDC/LoadedHero). Vehicles and breakable
+    objects (a stone wall, a door) subclass this: they have BODY/DEF from a
+    material table, not a LoadedHero to wrap."""
 
     id: str
     name: str
@@ -161,25 +166,22 @@ class Combatant:
     is_npc: bool = False
     knockback_resistance: int = 0
 
-    # ── HeroCombatant-compatible access (combatant-redesign step 4) ──
-    # The HD-shaped HeroCombatant exposes computed stats via
-    # ``combat_stats()`` and vitals via ``.state.current_*``. Adding
-    # the same interface here as a no-op shim lets the resolution
-    # layer (to_hit / damage / defense / status / actions) read
-    # uniformly from EITHER shape without per-file dispatch.
-    #
-    # legacy.combat_stats().ocv == legacy.ocv  (same field, same value)
-    # legacy.state.current_stun == legacy.current_stun
-    #
-    # This goes away in step 6 when LegacyCombatant is deleted.
+    # ── CombatParticipant contract, for a stat block ──────────────────
+    # CombatParticipant.combat_stats() / .state are abstract: every
+    # participant must say where its stats and vitals live. Here they
+    # live as plain fields on self, so both members are satisfied by
+    # returning self -- "my stats are me" and "my state is me" are this
+    # type's correct implementation, not a placeholder standing in for
+    # one. The HD-shaped HeroCombatant satisfies the same contract by
+    # computing from a LoadedHero instead.
 
-    def combat_stats(self) -> "Combatant":
+    def combat_stats(self) -> "StatBlockCombatant":
         """Return self — flat fields ARE the stats. Mirrors
         :meth:`HeroCombatant.combat_stats` for uniform access."""
         return self
 
     @property
-    def state(self) -> "Combatant":
+    def state(self) -> "StatBlockCombatant":
         """Return self — flat ``current_*`` fields ARE the state.
         Mirrors :attr:`HeroCombatant.state` for uniform access."""
         return self
@@ -189,17 +191,15 @@ class Combatant:
 class AttackInput:
     """All inputs needed to resolve a single attack.
 
-    ``attacker`` / ``target`` may be either a flat ``Combatant`` or
-    the HD-shaped ``HeroCombatant``. Both expose ``.combat_stats()``
-    and ``.state.current_*`` as a uniform interface (the legacy
-    ``Combatant`` does so via the no-op shim added for combatant-
-    redesign step 4 — see ``Combatant.combat_stats``). Resolution
-    code reads through that interface and works on either shape
-    without per-call dispatch.
+    ``attacker`` / ``target`` may be either a flat ``StatBlockCombatant`` or
+    the HD-shaped ``HeroCombatant``. Both are ``CombatParticipant``s and
+    expose ``.combat_stats()`` and ``.state.current_*`` as a uniform
+    interface. Resolution code reads through that interface and works on
+    either shape without per-call dispatch.
     """
 
-    attacker: Any  # Combatant | HeroCombatant
-    target: Any    # Combatant | HeroCombatant
+    attacker: Any  # StatBlockCombatant | HeroCombatant
+    target: Any    # StatBlockCombatant | HeroCombatant
     power: AttackPower
     distance_m: float | None
     aim: str | None
@@ -321,3 +321,9 @@ class MovementCapability:
     end_per_10m: int
     vertical_m: float = 0.0
     active_cost: float | None = None
+
+
+#: Deprecated alias. The flat type was called `Combatant` when it was the only
+#: kind; it is one of three now (see kirby_combat.participant). Kept for one
+#: release so external callers do not break on the rename.
+Combatant = StatBlockCombatant
