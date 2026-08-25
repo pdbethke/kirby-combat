@@ -39,10 +39,16 @@ class Timeline:
 
 
 def _combatant_int(c: Combatant) -> int:
-    """HERO characters don't have INT as a first-class field in our model today.
-    We use EGO as the DEX-tie breaker per 6E convention (EGO tiebreak when INT
-    unset); if both match, stable order by combatant_id."""
-    return getattr(c, "int_", getattr(c, "ego", 10))
+    """HERO characters don't have INT as a first-class field in our model
+    today. We use EGO as the DEX-tie breaker per 6E convention (EGO tiebreak
+    when INT unset); if both match, stable order by combatant_id.
+
+    Read through combat_stats(), never off the participant: the flat shape
+    answered `.ego` directly and the HD-shaped one does not, which is the
+    difference the no-op shim was hiding.
+    """
+    stats = c.combat_stats()
+    return getattr(stats, "int_", getattr(stats, "ego", 10))
 
 
 def build_acting_order_for_segment(
@@ -57,12 +63,17 @@ def build_acting_order_for_segment(
     """
     slots: list[ActingSlot] = []
     for c in combatants:
-        if segment in segments_for_spd(c.spd):
+        # Read via combat_stats() once per combatant, not `.dex`/`.spd`
+        # directly: those flat attributes only exist on the old Combatant
+        # shape, and reading them here is exactly the no-op shim this task
+        # removes (session/ must work for the HD-shaped participant too).
+        stats = c.combat_stats()
+        if segment in segments_for_spd(stats.spd):
             slots.append(
                 ActingSlot(
                     combatant_id=c.id,
                     segment=segment,
-                    dex_at_phase=c.dex,
+                    dex_at_phase=stats.dex,
                     int_tiebreak=_combatant_int(c),
                     has_acted=False,
                 )
