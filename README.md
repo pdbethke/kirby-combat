@@ -8,13 +8,20 @@ Pure-Python combat engine for the HERO System 6th Edition, designed as the
 authoritative back-end for [Kirby](https://kirbyvtt.org) — the
 HERO System VTT in the Kirby product line.
 
-Zero runtime dependencies (stdlib only). Strict TDD. RAW-aligned against
-the official 6E2 / 6E1 books, with per-rule citations on every behavioral
-commit.
+One runtime dependency, [kirby-cost](https://github.com/pdbethke/kirby-cost),
+and that is deliberate: anything deriving a cost, a number of dice or a roll
+belongs there, and this package acts on the numbers it is given rather than
+deriving its own. It was optional once, imported behind `try`/`except`, and
+that optionality is exactly what let the same dice arithmetic grow a second
+home here — three copies of "5 STR to the die" across two repositories,
+agreeing only by luck.
+
+Strict TDD. RAW-aligned against the official 6E2 / 6E1 books, with per-rule
+citations on every behavioral commit.
 
 ## Status
 
-Working, and tested at 905 tests. It is a **library**: no server, no I/O, no
+Working, and tested at 980 tests. It is a **library**: no server, no I/O, no
 API layer. The virtual tabletop consumes it as a dependency, never the other
 way round — nothing here reaches back up.
 
