@@ -1368,9 +1368,29 @@ _PTS_PER_DIE_KILLING = 15
 _PTS_PER_DIE_MENTAL = 10
 
 
-def _damage_type_for_power(xmlid: str) -> str:
-    """Return AttackPower.damage_type ('normal'|'killing'|'mental')
-    based on the source power xmlid."""
+def _damage_type_for_power(power, xmlid: str) -> str:
+    """AttackPower.damage_type ('normal'|'killing'|'mental'), FROM THE POWER.
+
+    Main6E states both facts on the power itself -- `KILLING="Yes"` and
+    `DEFENSE="MENTAL"` -- and kirby-cost now carries them, so the xmlid lists
+    this used to keep are gone. They were a second copy of the template.
+
+    The xmlid is still taken for the fallback, but ONLY for an object that
+    carries no such attribute at all -- a stub in this package's own tests.
+    ABSENT and FALSE are different answers and the fallback must not confuse
+    them: a campaign whose .hdt sets `KILLING="No"` on the killing attacks is
+    SAYING no, and an xmlid list that overrode that would put the house rule
+    back. That is the whole point of the facts coming from the template.
+    """
+    killing = getattr(power, "killing", None)
+    defense = getattr(power, "defense", None)
+    if killing is not None or defense is not None:
+        if killing:
+            return "killing"
+        if (defense or "").upper() == "MENTAL":
+            return "mental"
+        return "normal"
+    # Stub-shaped objects with no template behind them.
     if xmlid in {"RKA", "HKA", "KILLINGATTACK", "KILLINGATTACKRANGED",
                  "KILLINGATTACKHTH"}:
         return "killing"
@@ -1379,15 +1399,22 @@ def _damage_type_for_power(xmlid: str) -> str:
     return "normal"
 
 
-def _defense_type_for_power(xmlid: str) -> str:
-    """Return AttackPower.defense_type ('pd'|'ed'|'mental') for which
-    defense category the attack tests against."""
-    if xmlid in {"EGOATTACK", "MENTALBLAST"}:
+def _defense_type_for_power(power, xmlid: str) -> str:
+    """AttackPower.defense_type ('pd'|'ed'|'mental').
+
+    MENTAL comes from the power: Main6E states `DEFENSE="MENTAL"` and
+    kirby-cost now carries it.
+
+    THE PD/ED SPLIT DOES NOT, and that is not an engine gap. Main6E says
+    `DEFENSE="NORMAL"` for an HKA and for an Energy Blast alike -- the
+    distinction is special effect, which the build does not record. So the
+    heuristic below stays, and stays labelled: it is combat's guess, not a
+    fact the engine declined to publish.
+    """
+    if (getattr(power, "defense", "") or "").upper() == "MENTAL":
         return "mental"
-    # Energy Blast / RKA / HKA typically alternate by SFX. Without a
-    # reliable signal in kirby-cost's parse we default to
-    # PD for HKA/HTH and ED for ranged blasts. Refined in step 4
-    # when SFX-aware modifiers land.
+    if xmlid in {"EGOATTACK", "MENTALBLAST"}:      # stub fallback
+        return "mental"
     if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK",
                  "HANDTOHAND"}:
         return "pd"
@@ -1549,8 +1576,8 @@ def _build_attack_power(
     avad_does_body = _has_modifier(power, "DOESBODY")
 
     full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
-    damage_type = _damage_type_for_power(xmlid)
-    defense_type = _defense_type_for_power(xmlid)
+    damage_type = _damage_type_for_power(power, xmlid)
+    defense_type = _defense_type_for_power(power, xmlid)
 
     uses_str = xmlid in _STR_USING_XMLIDS
     if uses_str and str_for_augmentation > 0:
