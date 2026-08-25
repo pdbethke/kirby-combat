@@ -207,10 +207,6 @@ def test_attack_input_accepts_hero_combatant():
 
 def test_loads_from_the_authored_corpus():
     """Sanity: committed HDC fixture loads cleanly."""
-    # from_hdc() parses via the kirby_cost cost engine, which is an
-    # optional integration dep — not part of kirby-combat's zero-dep
-    # core. Skip (don't fail) where it isn't installed, e.g. CI.
-    pytest.importorskip("kirby_cost")
     c = HeroCombatant.from_hdc(require_authored("Bokor"))
     assert c.hero is not None
     assert c.hero.name  # any non-empty name
@@ -229,7 +225,6 @@ def test_attack_resolves_through_engine_end_to_end():
     shape via a minimal attacker / target Combatant built from the
     HeroCombatant's combat_stats().
     """
-    pytest.importorskip("kirby_cost")  # optional integration dep — see above
     from kirby_combat.actions import RangedAttackAction, AttackInput
     from kirby_combat.models import Combatant, DiceValues
     from kirby_combat.template import CombatTemplate

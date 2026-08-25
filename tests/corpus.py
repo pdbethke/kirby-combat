@@ -59,7 +59,6 @@ def require_authored(name: str) -> str:
     Skips rather than fails: the file is the maintainer's own and is not in
     the repository, so its absence is a configuration state, not a defect.
     """
-    pytest.importorskip("kirby_cost")
     path = authored_hdc(name)
     if path is None:
         pytest.skip(

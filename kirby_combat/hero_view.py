@@ -597,8 +597,11 @@ class HeroCombatant:
         baseline.
         """
         stats = self.combat_stats()
-        full_dice = stats.str_ // 5
-        half_die = (stats.str_ % 5) >= 3
+        # The engine's numbers, not a second copy of its arithmetic. These
+        # two lines agreed with kirby-cost on all 61 STR values when this was
+        # written, which is the point: nothing was keeping them that way.
+        from kirby_cost.engine.damage import strike_dice
+        full_dice, half_die = strike_dice(stats.str_)
         # The bare Strike IS the character's STR, so its identity is the STR
         # characteristic's object id. This was the one view carrying no id at
         # all, and a single identity-less view is enough to force every
@@ -1475,29 +1478,18 @@ _STR_USING_XMLIDS = frozenset({
 def _str_augment_dice(
     full_dice: int, half_die: bool, damage_type: str, str_: int,
 ) -> tuple[int, bool]:
-    """Apply HERO 6E STR augmentation to an attack's damage dice.
+    """Add STR to an attack's dice -- delegated to kirby-cost.
 
-    Rules (6E1 p137 — adding STR to a STR-using attack):
-      * Each 5 STR adds 1 Damage Class.
-      * Normal damage: 1 DC = 1d6.
-      * Killing damage: 1 DC = ½d6.
-      * Doubling Rule: a character may add no more DCs from STR
-        than the attack's base DCs. So a 1d6 (3 DC) HKA accepts at
-        most 3 DC of STR → max augmented = 1d6 + 1½d6 ≈ 2½d6.
+    The arithmetic lived here and is now
+    ``kirby_cost.engine.damage.augment_with_str``, unchanged: deriving dice
+    is the build engine's province, and a second copy of it here is a
+    divergence waiting to be found by someone who does not know it exists.
+
+    Kept as a thin wrapper rather than inlined at the call sites so the
+    module's own tests keep a name to reach for.
     """
-    if str_ <= 0 or damage_type not in ("normal", "killing"):
-        return full_dice, half_die
-    str_dc = str_ // 5
-    if damage_type == "normal":
-        base_dc = full_dice  # half_die on normal = +1 STUN, not a DC
-        added_dc = min(str_dc, base_dc)
-        return full_dice + added_dc, half_die
-    # killing: track in half-die steps; 1 DC = 1 step (½d6 = 5 AP)
-    steps = full_dice * 2 + (1 if half_die else 0)
-    base_dc = steps  # 1 DC == 1 step for killing
-    added_dc = min(str_dc, base_dc)
-    new_steps = steps + added_dc
-    return new_steps // 2, bool(new_steps % 2)
+    from kirby_cost.engine.damage import augment_with_str
+    return augment_with_str(full_dice, half_die, damage_type, str_)
 
 
 def _build_attack_power(
@@ -1522,12 +1514,8 @@ def _build_attack_power(
     Melee attacks carry the attacker's effective reach (2m + Stretching);
     ranged attacks carry 0.0 for reach_m.
     """
-    # Lazy import — kirby_cost is an optional dep; stub-based tests don't have it.
-    try:
-        from kirby_cost.io.framework_access import framework_kind, avad_alternate_defense
-        _fw_access = True
-    except ImportError:
-        _fw_access = False
+    from kirby_cost.io.framework_access import framework_kind, avad_alternate_defense
+    _fw_access = True
 
     xmlid = (getattr(power, "xmlid", None) or "").upper()
     name = (getattr(power, "name", None) or "").strip() or xmlid

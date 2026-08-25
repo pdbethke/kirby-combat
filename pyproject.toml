@@ -8,7 +8,14 @@ requires-python = ">=3.12"
 license = {text = "PolyForm Noncommercial License 1.0.0"}
 readme = "README.md"
 authors = [{name = "PeterB"}]
-dependencies = []
+dependencies = [
+    # NOT optional. Anything that derives a cost or a number of dice is
+    # kirby-cost's province; this package acts on the numbers it is given.
+    # It was undeclared and imported lazily behind try/except, which let the
+    # same dice arithmetic grow a second home here -- three copies of "5 STR
+    # to the die" across two repositories, agreeing only by luck.
+    "kirby-cost>=0.3.0",
+]
 
 [project.urls]
 Repository = "https://github.com/pdbethke/kirby-combat"
