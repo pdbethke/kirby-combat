@@ -8,8 +8,9 @@ per HERO 6E1:
 - Full Recovery (out of combat, ~20 minutes rest) restores STUN, END, and BODY
   to max. This function handles only STUN + END; BODY recovery is separate.
 
-KO'd = current_stun <= 0. A KO'd character cannot take a Recovery Action (phase_12)
-but still benefits from Post-Segment 12 Recovery and Full Recovery.
+A KO'd character (see kirby_combat.participant.CombatParticipant.is_ko for
+the threshold definition) cannot take a Recovery Action (phase_12) but still
+benefits from Post-Segment 12 Recovery and Full Recovery.
 
 Step 2 of the combatant-redesign migration
 (kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md

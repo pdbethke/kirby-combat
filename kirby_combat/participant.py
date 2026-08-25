@@ -67,8 +67,19 @@ class Breakable:
     the first mixin rather than a field on the base precisely to establish the
     line -- a hero is not Breakable, and CombatParticipant should not grow a
     `material` attribute that only walls use.
+
+    ``is_destroyed`` is a METHOD, not a property, deliberately matching the
+    two pre-existing implementations it will later sit alongside:
+    ``kirby_combat/breakables/object_combatant.py:65`` and
+    ``kirby_combat/masscombat/unit.py:75`` are both methods, and their call
+    sites (``o.is_destroyed()``, ``u.is_destroyed()``) already use the
+    method convention. A property here would be a silent landmine for the
+    re-parenting task -- MRO would pick a winner without complaint, and if
+    the property won, ``o.is_destroyed()`` would evaluate the bool and then
+    try to call it (``TypeError: 'bool' object is not callable``). Matching
+    the existing shape makes inheriting this mixin later a no-op instead of
+    a breaking change.
     """
 
-    @property
     def is_destroyed(self) -> bool:
         return int(self.state.current_body) <= 0
