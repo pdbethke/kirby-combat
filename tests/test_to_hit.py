@@ -9,14 +9,14 @@ from kirby_combat.models import (
 )
 from kirby_combat.template import CombatTemplate, RAW_SUPERHEROIC, RAW_HEROIC
 from kirby_combat.resolution.to_hit import resolve_to_hit
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_combatant(ocv: int = 6, dcv: int = 6, **kwargs) -> "Combatant":
+def make_combatant(ocv: int = 6, dcv: int = 6, **kwargs) -> "HeroCombatant":
     defaults = dict(
         id="test",
         name="Tester",
@@ -46,7 +46,7 @@ def make_combatant(ocv: int = 6, dcv: int = 6, **kwargs) -> "Combatant":
         current_end=30,
     )
     defaults.update(kwargs)
-    return Combatant(**defaults)
+    return synthetic_combatant(**defaults)
 
 
 def make_power(range_m: float | None = None) -> AttackPower:
@@ -68,8 +68,8 @@ def make_power(range_m: float | None = None) -> AttackPower:
 
 
 def make_attack(
-    attacker: "Combatant | None" = None,
-    target: "Combatant | None" = None,
+    attacker: "HeroCombatant | None" = None,
+    target: "HeroCombatant | None" = None,
     power: AttackPower | None = None,
     dice_to_hit: list[int] | None = None,
     distance_m: float | None = None,
