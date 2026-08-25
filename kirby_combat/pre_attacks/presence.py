@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.tables import _CANNOT_ACT, presence_attack_effect
 
 
@@ -31,14 +31,14 @@ class PresenceAttackResult:
     audit: list[str] = field(default_factory=list)
 
 
-def base_pre_dice(attacker: Combatant) -> int:
+def base_pre_dice(attacker: StatBlockCombatant) -> int:
     """PRE/5 dice (round normally) per 6E2 p138."""
     return attacker.pre // 5
 
 
 def resolve_presence_attack(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     dice_values: list[int],
     bonus_dice_from_situation: int = 0,
     target_pre_defense: int = 0,

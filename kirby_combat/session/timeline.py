@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.tables import segments_for_spd
 
 
@@ -38,7 +38,7 @@ class Timeline:
     aborted_this_phase: set[str] = field(default_factory=set)
 
 
-def _combatant_int(c: Combatant) -> int:
+def _combatant_int(c: StatBlockCombatant) -> int:
     """HERO characters don't have INT as a first-class field in our model
     today. We use EGO as the DEX-tie breaker per 6E convention (EGO tiebreak
     when INT unset); if both match, stable order by combatant_id.
@@ -52,7 +52,7 @@ def _combatant_int(c: Combatant) -> int:
 
 
 def build_acting_order_for_segment(
-    combatants: Iterable[Combatant],
+    combatants: Iterable[StatBlockCombatant],
     segment: int,
 ) -> list[ActingSlot]:
     """Build the acting order for one segment.
@@ -64,9 +64,10 @@ def build_acting_order_for_segment(
     slots: list[ActingSlot] = []
     for c in combatants:
         # Read via combat_stats() once per combatant, not `.dex`/`.spd`
-        # directly: those flat attributes only exist on the old Combatant
-        # shape, and reading them here is exactly the no-op shim this task
-        # removes (session/ must work for the HD-shaped participant too).
+        # directly: those flat attributes only exist on the
+        # StatBlockCombatant shape, and reading them here is exactly the
+        # no-op shim this task removes (session/ must work for the HD-shaped
+        # participant too).
         stats = c.combat_stats()
         if segment in segments_for_spd(stats.spd):
             slots.append(

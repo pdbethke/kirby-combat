@@ -2,12 +2,12 @@
 import pytest
 
 from kirby_combat.breakables import ObjectCombatant
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 def test_object_combatant_has_body_def_no_stun():
     o = ObjectCombatant.make(id="door1", name="Wooden Door", material="wood")
-    assert isinstance(o, Combatant)
+    assert isinstance(o, StatBlockCombatant)
     assert o.max_body == 4
     assert o.rpd == 3
     assert o.red == 3

@@ -14,7 +14,7 @@ Aggregation order:
 """
 from __future__ import annotations
 
-from kirby_combat.models import AttackPower, Combatant, DefenseProfile
+from kirby_combat.models import AttackPower, StatBlockCombatant, DefenseProfile
 
 
 # Maps defense_type string → (base_attr, resistant_attr, item_base_attr, item_resistant_attr)
@@ -80,7 +80,7 @@ def _target_has_named_defense(target, avad_defense: str) -> bool:
                 if getattr(stats, attr, 0):
                     return True
             # Fallback: check the attr directly on the target (future-proofing
-            # for a flat Combatant shim or other duck-typed implementation).
+            # for a duck-typed implementation from outside the hierarchy).
             elif getattr(target, attr, 0):
                 return True
 
@@ -93,7 +93,7 @@ def _target_has_named_defense(target, avad_defense: str) -> bool:
     return False
 
 
-def compute_defense(target: Combatant, power: AttackPower) -> DefenseProfile:
+def compute_defense(target: StatBlockCombatant, power: AttackPower) -> DefenseProfile:
     """Return a DefenseProfile for *target* against *power*.
 
     Parameters

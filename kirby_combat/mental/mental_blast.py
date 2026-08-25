@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MentalBlastResult:
 
 
 def resolve_mental_blast(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     damage_dice_values: list[int],
 ) -> MentalBlastResult:
     if not attacker.is_mentalist:

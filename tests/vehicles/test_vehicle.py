@@ -1,8 +1,8 @@
-"""Vehicle (Combatant subtype) — HDC-shaped."""
+"""Vehicle (StatBlockCombatant subtype) — HDC-shaped."""
 import pytest
 
 from kirby_combat.vehicles import Vehicle, Passenger
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 def test_vehicle_is_a_combatant():
@@ -14,7 +14,7 @@ def test_vehicle_is_a_combatant():
         movement_inches={"ground": 20, "flight": 60},
         passengers=[],
     )
-    assert isinstance(v, Combatant)
+    assert isinstance(v, StatBlockCombatant)
     assert v.id == "v1"
     assert v.size == 6
 

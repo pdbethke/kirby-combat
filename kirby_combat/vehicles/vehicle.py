@@ -1,10 +1,10 @@
-"""Vehicle = Combatant subtype. HDC-shaped fields only.
+"""Vehicle = StatBlockCombatant subtype. HDC-shaped fields only.
 
 HDC alignment note: HDC treats vehicles via the same `<CHARACTER>` XML
 shape as PCs, with `<CHARACTER_INFO>` fields like CHARACTER_TYPE indicating
 type. Fields here mirror the canonical HD vehicle fields:
 NAME, SIZE, BODY, DEF (rPD/rED), PD, ED, STUN, SPD, DEX, STR, MOVEMENT.
-Combat-only state (passengers, current STUN/BODY) lives on the Combatant
+Combat-only state (passengers, current STUN/BODY) lives on the StatBlockCombatant
 parent fields established in Phase 1.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ class Vehicle(StatBlockCombatant):
     passengers: list[Passenger] = field(default_factory=list)
 
     # Class-level marker so apply_event and serialization can distinguish
-    # Vehicle from base Combatant.
+    # Vehicle from a base StatBlockCombatant.
     kind: ClassVar[str] = "vehicle"
 
     @classmethod
@@ -60,7 +60,7 @@ class Vehicle(StatBlockCombatant):
         movement_inches: dict[str, int],
         passengers: list[Passenger],
     ) -> "Vehicle":
-        """Factory building a Vehicle with Combatant-compatible defaults."""
+        """Factory building a Vehicle with StatBlockCombatant-compatible defaults."""
         if len(passengers) > max_passengers_for_size(size):
             raise ValueError(
                 f"Vehicle {id}: {len(passengers)} passengers exceeds capacity "

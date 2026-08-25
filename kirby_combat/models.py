@@ -324,6 +324,17 @@ class MovementCapability:
 
 
 #: Deprecated alias. The flat type was called `Combatant` when it was the only
-#: kind; it is one of three now (see kirby_combat.participant). Kept for one
-#: release so external callers do not break on the rename.
+#: kind; it is one of three now (see kirby_combat.participant).
+#:
+#: It is kept for kirby-api, which is the only remaining importer:
+#: ``kirby/combat/services/entity_service.py`` and
+#: ``kirby/builds/combatant_loader.py``. Retiring it is therefore a cross-repo
+#: change -- update those two call sites first, then delete this line.
+#:
+#: This deliberately does NOT say "kept for one release". It used to, and that
+#: was untrue: 15 modules INSIDE this package imported and annotated with the
+#: alias, so the deprecation clock measured nothing and "delete it next
+#: release" would have broken the package itself. Those 15 were swept to
+#: `StatBlockCombatant`; nothing in kirby-combat imports this name any more.
+#: Verified 2026-08-25 by grep over kirby_combat/ and tests/.
 Combatant = StatBlockCombatant

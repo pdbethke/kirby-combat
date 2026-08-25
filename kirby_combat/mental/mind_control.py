@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.tables import mind_control_degree
 
 
@@ -34,8 +34,8 @@ class MindControlState:
 
 
 def resolve_mind_control(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     effect_dice_values: list[int],
 ) -> MindControlResult:
     """Roll effect dice; classify against target's EGO via degree ladder."""
@@ -57,7 +57,7 @@ def resolve_mind_control(
     )
 
 
-def can_break_out_with_ego_roll(target: Combatant, ego_roll_dice: list[int]) -> bool:
+def can_break_out_with_ego_roll(target: StatBlockCombatant, ego_roll_dice: list[int]) -> bool:
     """Target rolls 3d6 against (9 + EGO/5). Roll <= TN succeeds.
 
     6E1 pg 41 — Characteristic Rolls are made on 3d6, and the target number is

@@ -1,4 +1,4 @@
-"""Vehicles — HDC-shaped Combatant subtype."""
+"""Vehicles — HDC-shaped StatBlockCombatant subtype."""
 from kirby_combat.vehicles.vehicle import (
     Vehicle, Passenger, max_passengers_for_size,
 )
