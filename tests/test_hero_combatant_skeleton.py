@@ -143,9 +143,12 @@ def test_dataclasses_are_constructible():
 
 def test_legacy_combatant_has_combat_stats_shim():
     """Legacy Combatant.combat_stats() returns self — uniform read path."""
-    from kirby_combat.models import Combatant
+    # NOT synthetic: this test asserts the flat StatBlockCombatant's own
+    # combat_stats()/state shim (identity: `c.combat_stats() is c`), which
+    # is specific to the flat shape.
+    from kirby_combat.models import StatBlockCombatant
 
-    c = Combatant(
+    c = StatBlockCombatant(
         id="t", name="Test", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4,
         dex=20, ego=10, str_=20, con=20, pre=15, rec=8,
         pd=10, ed=10, rpd=0, red=0, md=0,
@@ -226,7 +229,7 @@ def test_attack_resolves_through_engine_end_to_end():
     HeroCombatant's combat_stats().
     """
     from kirby_combat.actions import RangedAttackAction, AttackInput
-    from kirby_combat.models import Combatant, DiceValues
+    from kirby_combat.models import StatBlockCombatant, DiceValues
     from kirby_combat.template import CombatTemplate
 
     # Ravel carries a dice-bearing Energy Blast; the character used here has
@@ -242,8 +245,10 @@ def test_attack_resolves_through_engine_end_to_end():
     # action+resolution layer (which reads .ocv/.dcv/.pd/.ed/etc.)
     # has the fields it expects. The shim makes both shapes
     # interchangeable in step 4.
+    # NOT synthetic: this deliberately builds the flat shape to prove
+    # HeroCombatant's stats can be projected into it (the step-4 bridge).
     def _flat(hc, sst):
-        return Combatant(
+        return StatBlockCombatant(
             id=hc.id, name=hc.hero.name or hc.id,
             ocv=sst.ocv, dcv=sst.dcv, omcv=sst.omcv, dmcv=sst.dmcv,
             spd=sst.spd, dex=sst.dex, ego=sst.ego, str_=sst.str_,
