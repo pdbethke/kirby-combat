@@ -47,8 +47,17 @@ def _vitals(combatant) -> tuple[int, int, int, int, int]:
     both return ``self``. The fallback below is for duck-typed callers from
     outside the CombatParticipant hierarchy only (see the note there).
     """
+    # This guard no longer discriminates within the hierarchy: `state` and
+    # `combat_stats` are both guaranteed by CombatParticipant (the ABC's
+    # `__init_subclass__`/`__new__` refuse to instantiate a subclass missing
+    # either), so EVERY participant -- HeroCombatant, StatBlockCombatant,
+    # Vehicle, ObjectCombatant -- takes this branch and the flat fallback
+    # below is unreachable for them.
+    #
+    # Kept, not deleted: it predates the hierarchy and duck-typed callers
+    # from outside it may still exist. Whoever removes it later: the ABC
+    # guarantee is what makes that safe.
     if hasattr(combatant, "state") and hasattr(combatant, "combat_stats"):
-        # HeroCombatant
         s = combatant.combat_stats()
         return (
             int(combatant.state.current_stun),

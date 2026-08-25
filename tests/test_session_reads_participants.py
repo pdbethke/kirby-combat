@@ -1,7 +1,7 @@
 """session/ must read participants through the shared interface.
 
 Measured 2026-08-25: session/ made zero combat_stats() calls and worked only
-because the flat Combatant answered `.dex` and `.spd` directly. That is the
+because the flat StatBlockCombatant answered `.dex` and `.spd` directly. That is the
 no-op shim doing load-bearing work, and it is why step 3 of the April
 migration looked done and was not.
 
@@ -18,13 +18,14 @@ from kirby_combat.session.timeline import build_acting_order_for_segment
 
 @dataclass
 class _StatsOnly:
-    """A participant that exposes stats ONLY via combat_stats()."""
-    id: str
-    _dex: int
-    _spd: int
+    """A participant that exposes stats ONLY via combat_stats().
 
-    def combat_stats(self):
-        return self
+    `combat_stats` is attached per-instance in `_participant()` below, so
+    there is deliberately no method here to shadow it, and no `_dex`/`_spd`
+    fields -- the stat values live on the `_Stats` object that closure
+    returns. Reading `.dex`/`.spd` off the participant raises instead.
+    """
+    id: str
 
     @property
     def dex(self) -> int:
@@ -47,8 +48,8 @@ class _Stats:
 
 
 def _participant(id_: str, dex: int, spd: int):
-    p = _StatsOnly(id=id_, _dex=dex, _spd=spd)
-    object.__setattr__(p, "combat_stats", lambda: _Stats(dex, spd))
+    p = _StatsOnly(id=id_)
+    p.combat_stats = lambda: _Stats(dex, spd)
     return p
 
 

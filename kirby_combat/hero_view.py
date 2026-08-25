@@ -1,7 +1,7 @@
-"""HD-shaped Combatant — wraps a kirby-cost LoadedHero.
+"""HD-shaped participant — wraps a kirby-cost LoadedHero.
 
-This is the "Phase 2 redesign" Combatant that supersedes the flat
-``models.Combatant``. See spec at
+This is the "Phase 2 redesign" participant that stands alongside the flat
+``models.StatBlockCombatant``. See spec at
 ``kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md``.
 
 Status (2026-08-25): the dataclasses, ``from_hdc()``, ``combat_stats()``,
@@ -31,9 +31,9 @@ architecture, belongs to kirby-cost rather than the combat engine.
 Moving it is deliberately out of scope here; it is tracked as §3c of
 ``kirby/docs/superpowers/specs/2026-08-25-combatant-redesign-addendum.md``.
 
-Why this exists alongside ``models.Combatant``:
+Why this exists alongside ``models.StatBlockCombatant``:
 
-- The flat Combatant lops off power frameworks (Multipower / VPP /
+- The flat stat block lops off power frameworks (Multipower / VPP /
   Elemental Control), modifiers (Reduced Endurance, Penetrating,
   AP, etc.), adders, and Compound power decomposition. Real HD
   characters can't be represented losslessly.
@@ -235,7 +235,7 @@ class MartialManeuverView:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HeroCombatant — the HD-shaped Combatant
+# HeroCombatant — the participant that wraps a LoadedHero
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -272,22 +272,23 @@ class HeroCombatant(Stunnable, CombatParticipant):
     knockback_resistance: int = 0
 
     # ─────────────────────────────────────────────────────────────────────
-    # Legacy-Combatant-shaped read API (combatant-redesign step 6)
+    # Stat-block-shaped read API
     #
     # The resolution layer (to_hit / damage / defense / knockback /
-    # status / adjustments) was written against the flat Combatant
-    # and reads ``attacker.ocv``, ``target.pd``, ``c.current_stun``,
-    # etc. directly. To let HeroCombatant flow into those code paths
-    # WITHOUT rewriting every resolution call site, expose the same
-    # fields as read-only properties — derived live from
+    # status / adjustments) was written against the flat
+    # ``StatBlockCombatant`` and reads ``attacker.ocv``, ``target.pd``,
+    # ``c.current_stun``, etc. directly. To let HeroCombatant flow into
+    # those code paths WITHOUT rewriting every resolution call site,
+    # expose the same fields as read-only properties — derived live from
     # ``combat_stats()`` and ``state``.
     #
-    # These are the inverse of the no-op shims on legacy Combatant
-    # (which had the fields and added ``combat_stats()``/``state``
-    # accessors). Together, both shapes expose the same surface.
-    # When LegacyCombatant deletes, the no-op shims go but these
-    # properties stay — callers permanently use ``c.ocv`` /
-    # ``c.combat_stats().ocv`` interchangeably.
+    # These are the mirror image of ``StatBlockCombatant``'s
+    # ``combat_stats()``/``state`` (which return ``self``, because its flat
+    # fields ARE its stats and state). Together, both shapes expose the same
+    # surface, so callers use ``c.ocv`` and ``c.combat_stats().ocv``
+    # interchangeably on either. Both halves are permanent — the flat type
+    # was renamed, not deleted, because Vehicle and ObjectCombatant subclass
+    # it and have no LoadedHero to wrap.
     # ─────────────────────────────────────────────────────────────────────
 
     @property
@@ -388,7 +389,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     @property
     def defenses(self) -> list[DefenseItem]:
-        """Alias for ``defense_view()`` — read like a legacy Combatant."""
+        """Alias for ``defense_view()`` — read like a flat stat block."""
         return self.defense_view()
 
     @property

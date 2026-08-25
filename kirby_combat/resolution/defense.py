@@ -79,8 +79,16 @@ def _target_has_named_defense(target, avad_defense: str) -> bool:
                 stats = combat_stats()
                 if getattr(stats, attr, 0):
                     return True
-            # Fallback: check the attr directly on the target (future-proofing
-            # for a duck-typed implementation from outside the hierarchy).
+            # Fallback: check the attr directly on the target.
+            #
+            # UNREACHABLE for anything in the CombatParticipant hierarchy:
+            # `combat_stats()` is an @abstractmethod on the ABC, so every
+            # participant satisfies the `callable` test above and this branch
+            # is skipped. It is kept, not deleted, because it predates the
+            # hierarchy and duck-typed callers from outside it may still
+            # exist. Whoever removes it later: the ABC guarantee is what
+            # makes that safe -- confirm no non-participant reaches here
+            # first.
             elif getattr(target, attr, 0):
                 return True
 

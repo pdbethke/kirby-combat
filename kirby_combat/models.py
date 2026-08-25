@@ -183,7 +183,20 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
     @property
     def state(self) -> "StatBlockCombatant":
         """Return self — flat ``current_*`` fields ARE the state.
-        Mirrors :attr:`HeroCombatant.state` for uniform access."""
+        Mirrors :attr:`HeroCombatant.state` for uniform access.
+
+        Returning ``self`` — the same object, not an equal one — is
+        load-bearing, not incidental. ``actions/movement/base.py``
+        (``_decrement_end``) dispatches on ``combatant.state is not
+        combatant`` to decide whether END lives on a separate state object.
+        Returning a copy would make that identity check false for every
+        stat block, routing every stat-block END spend into the
+        HeroCombatant branch, which does
+        ``dataclasses.replace(combatant, state=...)`` — and
+        ``StatBlockCombatant`` has no ``state`` FIELD to replace, so it
+        would raise ``TypeError``. Pinned by
+        ``tests/test_no_shim_remains.py``.
+        """
         return self
 
 

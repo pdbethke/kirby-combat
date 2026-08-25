@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from kirby_combat.models import StatBlockCombatant
+from kirby_combat.participant import Breakable
 
 
 # Material -> typical (DEF, BODY) ranges per 6E2 p152.
@@ -25,8 +26,17 @@ MATERIAL_DEFAULTS: dict[str, tuple[int, int]] = {
 
 
 @dataclass
-class ObjectCombatant(StatBlockCombatant):
-    """An inanimate object as a StatBlockCombatant. BODY/DEF, no STUN behavior."""
+class ObjectCombatant(Breakable, StatBlockCombatant):
+    """An inanimate object as a StatBlockCombatant. BODY/DEF, no STUN behavior.
+
+    ``Breakable`` supplies ``is_destroyed()``. This class used to carry its
+    own identical copy (``self.current_body <= 0``), which made four
+    statements of the same rule across the package. Inheriting it was a
+    no-op: ``Breakable.is_destroyed`` is a plain METHOD (deliberately matched
+    to the call convention here), and ``Breakable.state.current_body`` reads
+    through ``StatBlockCombatant.state``, which returns ``self`` — so it sees
+    the same ``current_body`` field the old copy read directly.
+    """
     material: str = "wood"
     # Round-trip: HDC sometimes encodes equipment/object as raw XML; we store
     # the source string so a future serializer can re-emit it byte-for-byte.
@@ -91,9 +101,6 @@ class ObjectCombatant(StatBlockCombatant):
     @property
     def is_conscious(self) -> bool:
         raise AttributeError(self._NO_STUN)
-
-    def is_destroyed(self) -> bool:
-        return self.current_body <= 0
 
     def can_dodge(self) -> bool:
         return False
