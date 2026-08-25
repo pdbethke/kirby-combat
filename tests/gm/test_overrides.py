@@ -10,11 +10,14 @@ from kirby_combat.gm.overrides import (
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import GMOverride
 from kirby_combat.template import CombatTemplate
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
-def _ct(id_: str, current_stun: int = 30) -> Combatant:
-    return Combatant(
+def _ct(id_: str, current_stun: int = 30) -> StatBlockCombatant:
+    # NOT synthetic: apply_tier1_override uses dataclasses.replace(combatant,
+    # current_stun=...), which requires current_stun as a top-level field —
+    # only the flat StatBlockCombatant shape has that.
+    return StatBlockCombatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=3,
         spd=4, dex=15, ego=10, str_=15, con=15, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
