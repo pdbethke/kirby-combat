@@ -4,13 +4,32 @@ This is the "Phase 2 redesign" Combatant that supersedes the flat
 ``models.Combatant``. See spec at
 ``kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md``.
 
-Status: STEP 1 LIVE (2026-05-02). The dataclasses, ``from_hdc()``,
-``combat_stats()``, ``attack_view()``, and ``defense_view()`` are
-implemented and verified end-to-end against the kirby-combat
-resolution engine via a to_legacy() bridge — see commit message for
-the demo. Refinements pending in steps 2-4: framework slot lookup,
-modifier-aware modifier accumulation, defense-power adder split for
-PD vs ED.
+Status (2026-08-25): the dataclasses, ``from_hdc()``, ``combat_stats()``,
+``attack_view()``, ``defense_view()``, and ``movement_view()`` are all
+implemented. Stat derivation (``_compute_stats_from_hero``) reads
+characteristics straight from the cost engine and walks HD powers for
+resistant/mental/power/flash defenses; ``combat_stats()`` layers live
+Drain/Aid deltas and the rPD/rED cap on top of that. There is no
+``to_legacy()`` bridge any more — the resolution layer is driven
+directly from these views.
+
+Two things flagged in earlier commits as pending are still genuinely
+open, not just stale text:
+- Framework slot lookup (``_find_power`` / ``attack_view(slot_xmlid=...)``)
+  finds a named slot under its parent framework, but there is no
+  session-driven active-slot allocation yet.
+- ``_compute_stats_from_hero`` splits FORCEFIELD/ARMOR/RESISTANTPROTECTION
+  levels between PD and ED by assuming an even half-and-half split,
+  because per-adder PD/ED parsing isn't wired up.
+
+A known, tracked (not accidental) issue: a large share of this file
+(``_compute_damage_dice``, ``_build_attack_power``,
+``_power_to_defense_item``, ``_damage_type_for_power``,
+``_modifier_levels``, ``_movement_capabilities``, and similar) derives
+build facts from HD powers — work that, per the platform's stated
+architecture, belongs to kirby-cost rather than the combat engine.
+Moving it is deliberately out of scope here; it is tracked as §3c of
+``kirby/docs/superpowers/specs/2026-08-25-combatant-redesign-addendum.md``.
 
 Why this exists alongside ``models.Combatant``:
 
@@ -437,10 +456,13 @@ class HeroCombatant(CombatParticipant):
             hero.name.lower().replace(" ", "_") if hero.name else "unnamed"
         )
 
-        # Compute CombatStats once to derive the initial vitals.
-        # combat_stats() will be filled in by a subsequent commit; for
-        # now we plug in placeholder zeros so the from_hdc() path is at
-        # least round-trippable through the dataclass shell.
+        # Compute CombatStats once to derive the initial vitals via
+        # _compute_stats_from_hero (real: characteristics from the cost
+        # engine + defense powers walked and summed). The
+        # NotImplementedError fallback below is defensive only —
+        # _compute_stats_skeleton doesn't currently raise it — kept so a
+        # future skeleton failure degrades to zeros instead of raising
+        # out of from_hdc().
         try:
             stats = cls._compute_stats_skeleton(hero)
             initial_stun = stats.max_stun
