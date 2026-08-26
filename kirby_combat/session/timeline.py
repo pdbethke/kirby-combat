@@ -195,7 +195,7 @@ def resolve_acting_order(
     intents: dict[str, "ActionIntent"],
     *,
     tie_rule: TieRule = TieRule.INT_THEN_PRE,
-    roller: Callable[[], int] | None = None,
+    roller: Callable[[], int | list[int] | tuple[int, ...]] | None = None,
     acts_first: Mapping[str, str] | None = None,
 ) -> list[ActingSlot]:
     """Resolve a provisional order into the final acting order for a segment.
@@ -250,12 +250,18 @@ def resolve_acting_order(
     exists -- `Encounter.acting_order` (encounter.py) resolves a
     CombatTemplate (via a Campaign, or `self.template`/DEFAULT_TEMPLATE
     standalone) and passes its `tie_rule` in here, overriding this
-    parameter's default. Direct callers of this function -- including
-    `build_acting_order_for_segment` and `CombatSession`'s own
-    timeline/acting-order path -- still pass their own `tie_rule` (or
-    accept this parameter's INT_THEN_PRE default) and so still bypass any
-    CombatTemplate; see the WIRED/STILL UNWIRED note on
-    `CombatTemplate.tie_rule` for the current boundary.
+    parameter's default. Other direct callers of this function --
+    including `build_acting_order_for_segment` -- still pass their own
+    `tie_rule` (or accept this parameter's INT_THEN_PRE default) and so
+    still bypass any CombatTemplate. `CombatSession` itself is not among
+    those callers: nothing in this codebase currently calls
+    `build_acting_order_for_segment`/`resolve_acting_order` from
+    `CombatSession`'s own timeline/acting-order path, or writes a resolved
+    order back onto `session.timeline.acting_order` during a live combat
+    -- see `session/apply.py`'s `_enforce_lightning_reflexes_phase_
+    restriction` docstring for the honest account of that gap, and the
+    WIRED/STILL UNWIRED note on `CombatTemplate.tie_rule` for the current
+    boundary.
 
     For TieRule.DEX_ROLL / TieRule.RANDOM, `roller` is called exactly once
     per combatant, in input order -- not once per sort comparison. A
@@ -335,7 +341,7 @@ def build_acting_order_for_segment(
     combatants: Iterable[StatBlockCombatant],
     segment: int,
     tie_rule: TieRule = TieRule.INT_THEN_PRE,
-    roller: Callable[[], int] | None = None,
+    roller: Callable[[], int | list[int] | tuple[int, ...]] | None = None,
     acts_first: Mapping[str, str] | None = None,
 ) -> list[ActingSlot]:
     """Thin wrapper: provisional order, then resolve with no declared intents.
