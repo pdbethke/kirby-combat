@@ -254,14 +254,15 @@ def resolve_acting_order(
     including `build_acting_order_for_segment` -- still pass their own
     `tie_rule` (or accept this parameter's INT_THEN_PRE default) and so
     still bypass any CombatTemplate. `CombatSession` itself is not among
-    those callers: nothing in this codebase currently calls
-    `build_acting_order_for_segment`/`resolve_acting_order` from
-    `CombatSession`'s own timeline/acting-order path, or writes a resolved
-    order back onto `session.timeline.acting_order` during a live combat
-    -- see `session/apply.py`'s `_enforce_lightning_reflexes_phase_
-    restriction` docstring for the honest account of that gap, and the
-    WIRED/STILL UNWIRED note on `CombatTemplate.tie_rule` for the current
-    boundary.
+    those callers, but `Encounter.run_segment` (encounter.py) IS: it
+    resolves a CombatTemplate the same way `acting_order` does, calls
+    `resolve_acting_order`, and writes each session's slice of the result
+    onto that session's `Timeline.acting_order` during a live combat --
+    this is the driver this docstring used to say did not exist. See
+    `session/apply.py`'s `_enforce_lightning_reflexes_phase_restriction`
+    docstring, "STILL INERT, precisely" paragraph, for what genuinely
+    remains unwired around that driver, and the WIRED/ALSO WIRED note on
+    `CombatTemplate.tie_rule` for the current boundary.
 
     For TieRule.DEX_ROLL / TieRule.RANDOM, `roller` is called exactly once
     per combatant, in input order -- not once per sort comparison. A

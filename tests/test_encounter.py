@@ -57,10 +57,6 @@ def _encounter(*, acts_first, segment):
     )
 
 
-def _order_ids(encounter):
-    return _scene_order_ids(encounter)
-
-
 def test_advancing_within_a_turn_increments_the_segment():
     e = Encounter(id="e1", turn=1, segment=3)
     assert e.advance_segment().segment == 4
@@ -281,7 +277,7 @@ def test_a_recorded_block_priority_orders_the_blocker_first():
     25 -- the LOWER DEX -- so a pass cannot be ordinary DEX ordering."""
     enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
     out = enc.run_segment(roller=_scripted_roller())
-    assert _order_ids(out)[0] == "blocker"
+    assert _scene_order_ids(out)[0] == "blocker"
 
 
 def test_the_priority_is_consumed_after_the_shared_segment():
@@ -290,7 +286,7 @@ def test_the_priority_is_consumed_after_the_shared_segment():
     enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
     after = enc.run_segment(roller=_scripted_roller())
     again = after.run_segment(roller=_scripted_roller())
-    assert _order_ids(again)[0] == "attacker"  # back to DEX order
+    assert _scene_order_ids(again)[0] == "attacker"  # back to DEX order
 
 
 def test_acts_first_defaults_to_an_empty_mapping():
@@ -302,7 +298,7 @@ def test_acts_first_defaults_to_an_empty_mapping():
 def test_run_segment_falls_back_to_self_acts_first_when_none_is_passed():
     enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
     out = enc.run_segment(roller=_scripted_roller())  # no acts_first= kwarg
-    assert _order_ids(out)[0] == "blocker"
+    assert _scene_order_ids(out)[0] == "blocker"
 
 
 def test_an_explicit_acts_first_argument_overrides_the_carried_field():
@@ -310,7 +306,7 @@ def test_an_explicit_acts_first_argument_overrides_the_carried_field():
     `self.acts_first` rather than merging with it."""
     enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
     out = enc.run_segment(roller=_scripted_roller(), acts_first={})
-    assert _order_ids(out)[0] != "blocker"
+    assert _scene_order_ids(out)[0] != "blocker"
 
 
 def _session_with_vitals(session_id, *, current_stun, current_end, rec=4,

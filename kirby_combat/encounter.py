@@ -15,7 +15,7 @@ so advancing past Segment 12 wraps to Segment 1 of the next Turn.
 Post-Segment 12 Recovery (6E2 p.131: "After Segment 12 each Turn, all
 characters (even Stunned ones) get a free Post-Segment 12 Recovery") is
 implemented here, in `advance_segment`, on the wrap step -- the acting
-order (`run_segment`, above) now puts the participants in play, so the
+order (`run_segment`, below) now puts the participants in play, so the
 Recovery this docstring used to defer "until the acting-order work"
 lands with it.
 """
@@ -97,11 +97,16 @@ def _apply_post_12_recovery(
     "post_12" has no such check and falls straight through to `stun_delta
     = min(rec, max_stun - current_stun)`. So the "even Stunned ones"
     carve-out is already honored one layer down; duplicating a filter
-    here would contradict the rule, not implement it. (This engine has
-    no status distinct from the KO threshhold for 6E's separate
-    "Stunned" condition -- `Stunnable.is_ko`, kirby_combat/participant.py,
-    is the only consciousness-adjacent state modeled -- so "even Stunned
-    ones" is exercised here via a KO'd/0-STUN combatant.)
+    here would contradict the rule, not implement it. (This engine DOES
+    compute a Stunned condition distinct from KO -- `resolution/
+    status.py`'s `determine_status_changes`: `stun_dealt > con`,
+    independent of the `stun_after <= 0` Knocked Out check; also
+    `mental/mental_blast.py`'s `target_stunned` -- but neither call site
+    ever persists it: nothing constructs a `StatusChanged` event or
+    writes "stunned" into `HeroCombatState.statuses`. So there is no
+    state-level hook to build a "Stunned-but-conscious" combatant here,
+    and "even Stunned ones" is exercised here via a KO'd/0-STUN
+    combatant instead.)
 
     Applied by mutating combatant state directly, THEN logging via
     `apply_event` -- not by routing the stat change through `apply_event`
@@ -182,7 +187,11 @@ class Encounter:
     #: applies Post-Segment 12 Recovery to combatants) -- it does not touch
     #: any session's `Timeline.turn`/`segment` at all. So between an
     #: `advance_segment` call and the NEXT `run_segment` call, a session's
-    #: Timeline still lags one step behind the Encounter it belongs to; the
+    #: Timeline lags the Encounter it belongs to by however many
+    #: `advance_segment` calls have happened since that last `run_segment`
+    #: -- not by a fixed "one step" (measured: `run_segment@3` then three
+    #: `advance_segment` calls leaves `enc.segment=6` against
+    #: `tl.segment=3`, still carrying segment 3's resolved order); the
     #: two are only back in agreement once `run_segment` runs again. And
     #: `session/apply.py`'s own `SegmentAdvanced` handler remains a wholly
     #: separate path: a caller can advance a `CombatSession`'s Timeline
@@ -192,6 +201,13 @@ class Encounter:
     #: with `Encounter.advance_segment`'s. Collapsing these into one clock
     #: remains later work (see this plan's sequencing note), not something
     #: this fix attempted.
+    #:
+    #: This is precisely why kirby-api's live clock path (`apply_event`'s
+    #: `SegmentAdvanced` branch, above, is its ONLY clock path) re-inerts
+    #: the Lightning Reflexes Phase-restriction guard one segment after
+    #: every `run_segment` call -- see `session/apply.py`'s
+    #: `_enforce_lightning_reflexes_phase_restriction` docstring, "STILL
+    #: INERT, precisely" paragraph, case 2, for the measured sequence.
     current_slot_index: int = 0
     #: HAZARD -- CAN GO STALE. `Scene.encounter -> Encounter.sessions ->
     #: CombatSession.scene` is a reference cycle. `Scene` and `Encounter`
@@ -203,8 +219,9 @@ class Encounter:
     #: package enforces that the two ever agree; a caller that walks
     #: `encounter.sessions[i].scene` after replacing the owning Scene can
     #: read stale data. Kept (per spec: `Encounter -> CombatSession` is the
-    #: named containment link) rather than deleted, pending the follow-up
-    #: that wires acting order through here.
+    #: named containment link) rather than deleted -- the follow-up that
+    #: wires acting order through here is `run_segment`, below, in this
+    #: same file; it does not touch this hazard.
     sessions: list["CombatSession"] = field(default_factory=list)
     template: "CombatTemplate | None" = None
     #: The scene-wide acting order for `self.segment`, as last built by
@@ -215,7 +232,14 @@ class Encounter:
     #: list that belongs to that session's own combatants (a session's
     #: timeline describes that fight); this field is where the scene-wide
     #: order itself is kept so it is not lost once it has been sliced up.
-    #: Empty until `run_segment` is called.
+    #: `run_segment` copies each `ActingSlot` (`replace(slot)`) when it
+    #: builds a session's slice, so this list and every session's
+    #: `Timeline.acting_order` hold independent `ActingSlot` objects --
+    #: mutating `has_acted` (or anything else) on one slot is NOT visible
+    #: through the other, deliberately, since `ActingSlot` is an unfrozen
+    #: dataclass and a cursor walking `Timeline.acting_order` marking
+    #: slots acted is the expected future caller. Empty until
+    #: `run_segment` is called.
     scene_acting_order: list["ActingSlot"] = field(default_factory=list)
     #: Carried Block "acts first" priority (6E2 p.60, "ACTING FIRST"):
     #: blocker_id -> attacker_id, as produced by
@@ -233,6 +257,23 @@ class Encounter:
     #: directly, and a required field here would break every existing
     #: caller.
     acts_first: "Mapping[str, str]" = field(default_factory=dict)
+
+    def _resolve_template(self, campaign: "Campaign | None") -> "CombatTemplate":
+        """Resolve the CombatTemplate this Encounter should use right now.
+
+        Shared by `advance_segment`, `acting_order`, and `run_segment`:
+        when `campaign` is given, the template is resolved via
+        `campaign.resolve_template` (encounter-level override, else the
+        campaign's default); otherwise `self.template` is used if set,
+        else the module-level `DEFAULT_TEMPLATE`. Pure refactor -- see
+        each caller's own docstring for why this resolution order is the
+        right one for that caller.
+        """
+        if campaign is not None:
+            from kirby_combat.campaign import resolve_template
+
+            return resolve_template(campaign, self)
+        return self.template or DEFAULT_TEMPLATE
 
     def advance_segment(self, *, campaign: "Campaign | None" = None) -> "Encounter":
         """Return a new Encounter one Segment later.
@@ -262,12 +303,7 @@ class Encounter:
         of whichever template happened to be passed.)
         """
         if self.segment >= SEGMENTS_PER_TURN:
-            if campaign is not None:
-                from kirby_combat.campaign import resolve_template
-
-                template = resolve_template(campaign, self)
-            else:
-                template = self.template or DEFAULT_TEMPLATE
+            template = self._resolve_template(campaign)
 
             new_sessions = [
                 _apply_post_12_recovery(session, template)
@@ -311,12 +347,7 @@ class Encounter:
         includes the engine-wide default template) must pass a roller;
         this method does not silently substitute a rule that needs none.
         """
-        if campaign is not None:
-            from kirby_combat.campaign import resolve_template
-
-            template = resolve_template(campaign, self)
-        else:
-            template = self.template or DEFAULT_TEMPLATE
+        template = self._resolve_template(campaign)
 
         return build_acting_order_for_segment(
             combatants, self.segment, tie_rule=template.tie_rule, roller=roller,
@@ -392,12 +423,7 @@ class Encounter:
         (one or both had no Phase this Segment) is carried forward
         untouched.
         """
-        if campaign is not None:
-            from kirby_combat.campaign import resolve_template
-
-            template = resolve_template(campaign, self)
-        else:
-            template = self.template or DEFAULT_TEMPLATE
+        template = self._resolve_template(campaign)
 
         intents = intents or {}
 
@@ -425,8 +451,19 @@ class Encounter:
 
         new_sessions = []
         for session_index, session in enumerate(self.sessions):
+            # `replace(slot)` copies each slot rather than reusing the
+            # same `ActingSlot` instance kept whole on `scene_acting_order`
+            # below: `ActingSlot` is an unfrozen dataclass with a mutable
+            # `has_acted` field, so without this copy, a future caller
+            # doing `session.timeline.acting_order[0].has_acted = True`
+            # (the natural cursor operation) would silently mutate
+            # `self.scene_acting_order` too, since both lists would be
+            # holding the very same object. Nothing mutates slots today,
+            # so this was latent, not live -- but it is the same shape as
+            # shared-mutable Criticals shipped on preceding branches, so
+            # it is closed here rather than left to bite a later caller.
             own_slots = [
-                slot for slot in resolved
+                replace(slot) for slot in resolved
                 if owner_of[slot.combatant_id] == session_index
             ]
             # Bring the session's own Timeline.segment/turn into step
