@@ -15,7 +15,7 @@ meant to avoid.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from kirby_combat.template import DEFAULT_TEMPLATE, CombatTemplate
@@ -37,9 +37,14 @@ class Campaign:
     name: str
     # CombatTemplate is a plain (non-frozen, non-hashable) @dataclass, so
     # `dataclasses` treats a bare instance as a mutable default and refuses
-    # it. `default_factory` returning the same DEFAULT_TEMPLATE singleton
-    # sidesteps that without giving every Campaign its own copy.
-    template: CombatTemplate = field(default_factory=lambda: DEFAULT_TEMPLATE)
+    # it -- `default_factory` is required. It must return a FRESH copy each
+    # time (`replace(DEFAULT_TEMPLATE)`), not the DEFAULT_TEMPLATE singleton
+    # itself: CombatTemplate is mutable, so handing every Campaign the same
+    # object would let mutating one campaign's template silently rewrite
+    # every other campaign's default, and poison the module-level
+    # DEFAULT_TEMPLATE / RAW_SUPERHEROIC constant for the rest of the
+    # process. (Reviewer finding, task 4.)
+    template: CombatTemplate = field(default_factory=lambda: replace(DEFAULT_TEMPLATE))
     worlds: "list[World]" = field(default_factory=list)
 
 
