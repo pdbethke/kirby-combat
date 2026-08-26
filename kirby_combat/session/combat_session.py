@@ -21,6 +21,7 @@ from kirby_combat.session.events import (
 )
 
 if TYPE_CHECKING:
+    from kirby_combat.scene.scene import Scene
     from kirby_combat.template import CombatTemplate
     from kirby_combat.dice.roller import DiceRoller
 
@@ -36,7 +37,13 @@ class CombatSession:
     """Stateful combat session. Hybrid mutable snapshot + append-only event log."""
     id: str
     combatants: dict[str, CombatantLike]
-    scene: object | None
+    #: The place this fight happens in. Typed as of 2026-08-26; it was `object`
+    #: for no structural reason -- nothing in scene/ imports from session/, and
+    #: session/ does not import scene at runtime, so no cycle ever forced it.
+    #: Its partner field `combatants` was properly typed the whole time, so one
+    #: half of the pair described itself and the other did not, and readers were
+    #: left with `getattr(self.scene, "id", "")` standing in for a type.
+    scene: "Scene | None"
     template: "CombatTemplate"
     timeline: Timeline
     event_log: list[CombatEvent] = field(default_factory=list)
@@ -50,7 +57,7 @@ class CombatSession:
         cls,
         id: str,
         combatants: list[CombatantLike],
-        scene: object | None,
+        scene: "Scene | None",
         template: "CombatTemplate",
         dice_roller: Optional["DiceRoller"] = None,
     ) -> "CombatSession":
