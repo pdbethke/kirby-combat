@@ -51,18 +51,18 @@ class CombatTemplate:
     # still resolves a tie rule. A GM changing `tie_rule` on a template
     # now reaches the sort through that path.
     #
-    # STILL UNWIRED: `Encounter.acting_order()` is, as of this change, the
-    # ONLY caller anywhere in this codebase that resolves a CombatTemplate
-    # and passes its `tie_rule` in. `CombatSession` itself does not call
-    # `build_acting_order_for_segment`/`resolve_acting_order` at all --
-    # nothing in this codebase currently writes a resolved acting order
-    # onto `session.timeline.acting_order` during a live combat (see
-    # `session/apply.py`'s `_enforce_lightning_reflexes_phase_restriction`
-    # docstring for the honest account of that gap). The driver that would
-    # call `resolve_acting_order` and store its output on a session's
-    # timeline is external to this package (kirby-api); wiring that driver
-    # to also resolve and pass a CombatTemplate's `tie_rule` is a follow-up,
-    # not this change.
+    # ALSO WIRED: `Encounter.run_segment()` (kirby_combat/encounter.py)
+    # resolves a CombatTemplate the same way and passes its `tie_rule`
+    # into `resolve_acting_order`, then writes each session's slice of
+    # the resolved order onto that session's `Timeline.acting_order` --
+    # `Encounter.acting_order()` is NOT the only caller that does this.
+    # `run_segment` is also the driver that writes a resolved acting
+    # order back onto a session's Timeline during a live combat, and it
+    # lives in THIS package, not kirby-api -- see `session/apply.py`'s
+    # `_enforce_lightning_reflexes_phase_restriction` docstring, "STILL
+    # INERT, precisely" paragraph, for what remains genuinely unwired
+    # around that driver (including a second inert case beyond a
+    # never-run session).
     tie_rule: TieRule = TieRule.DEX_ROLL
 
     # One-Hit Wonder optional rule

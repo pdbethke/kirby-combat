@@ -80,14 +80,22 @@ class Block:
         `build_acting_order_for_segment`, and spent via
         `consume_block_priority`), or `{}` if the Block failed.
 
-        DORMANT: nothing in kirby_combat currently calls this from a live
-        session path. `Block.resolve` has no caller today that wires a
-        `BlockResult` back onto `CombatSession`/`Timeline` -- there is no
-        `BlockResolved`-shaped event, and `apply_event` derives no session
-        state from a Block outcome. This method is the recording point,
-        so that wiring is a single, well-named call once a live caller
-        exists; it does not itself make Block priority take effect in a
-        running session.
+        DORMANT RECORDING POINT, WIRED CONSUMPTION: the priority this
+        method returns, once it exists on `Encounter.acts_first`, now
+        flows through the driver correctly -- `Encounter.run_segment`
+        forwards it into `resolve_acting_order` (so the blocker really
+        does act first, 6E2 p.60) and spends it via
+        `consume_block_priority` once the blocker and the named attacker
+        have shared a Segment (see `Encounter.acts_first`'s field
+        docstring). What remains unwired is getting a `BlockResult` to
+        this method in the first place: `Block.resolve` still has no live
+        caller in kirby_combat -- there is no `BlockResolved`-shaped
+        event, and `apply_event` derives no session state from a Block
+        outcome. So in a real fight today, nothing ever calls this method
+        to produce an entry for `Encounter.acts_first` to carry; the
+        moment a live caller starts calling `Block.resolve` and this
+        method, the priority it records will already flow correctly
+        through `run_segment` with no further wiring needed here.
         """
         if not result.success:
             return {}

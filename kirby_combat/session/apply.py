@@ -100,16 +100,49 @@ def _enforce_lightning_reflexes_phase_restriction(
     the timeline) and, if one exists and `restriction_for_slot` says it is
     restricted, raises when ``event.action_type`` disagrees.
 
-    HONEST LIMIT: nothing in this codebase currently writes a resolved
-    order onto ``session.timeline.acting_order`` during a live combat (no
-    driver wires ``resolve_acting_order``'s output back onto the
-    session) -- so in today's actual call paths this check is always a
-    no-op (the loop below finds no matching slot and returns silently).
-    The mechanism is real and is exercised directly in
-    ``tests/session/test_apply.py`` by constructing a session whose
-    timeline already carries a resolved slot, which is the shape a future
-    driver would produce; wiring a driver to populate ``acting_order`` is
-    out of this task's scope.
+    HONEST LIMIT (WIRED -- was a documented no-op): ``Encounter.
+    run_segment`` (``kirby_combat/encounter.py``) is now the "whoever" this
+    docstring used to say did not exist -- it resolves one scene-wide
+    order via ``resolve_acting_order`` and writes each session's slice of
+    it onto that session's ``Timeline.acting_order``. A ``CombatSession``
+    that has been through ``Encounter.run_segment`` for the current
+    Segment therefore DOES carry a matching resolved slot here, and this
+    check fires for real, through that path --
+    ``tests/session/test_apply.py::
+    test_lightning_reflexes_restriction_fires_through_driver_built_session``
+    proves it by building its session with ``run_segment`` rather than by
+    hand.
+
+    STILL INERT, precisely -- two cases, not one:
+
+    1. A session that has never been run through ``Encounter.run_segment``
+    (or any other future caller that populates ``acting_order``) still
+    starts with an empty ``acting_order``, so the loop below finds no
+    matching slot and this remains a silent no-op for it --
+    ``test_lightning_reflexes_restriction_is_inert_without_the_driver``
+    proves that half too, with the identical scenario.
+
+    2. THE ONE THAT MATTERS IN PRODUCTION: kirby-api's only clock path is
+    ``apply_event``'s own ``SegmentAdvanced`` branch (above), not
+    ``Encounter.advance_segment``. That branch moves
+    ``session.timeline.segment`` forward but leaves ``acting_order``
+    holding the PREVIOUS segment's slots (only ``Encounter.run_segment``
+    ever rebuilds ``acting_order``, and it is not called on a plain
+    segment advance). So once kirby-api advances the segment, every slot
+    in ``acting_order`` fails ``slot.segment != session.timeline.segment``
+    and the loop finds nothing, even though the guard fired correctly one
+    segment earlier. Measured:
+
+        run_segment @ seg 3                  -> tl.segment=3, order=[('a',3)]  guard FIRES
+        apply_event(SegmentAdvanced to 4)    -> tl.segment=4, order=[('a',3)]  guard SILENT
+
+    So in the live product the guard wakes for exactly one segment after
+    each ``run_segment`` call, then goes back to sleep on the very next
+    segment advance until ``run_segment`` runs again. The mechanism was
+    always real; what changed with ``run_segment`` is that a real call
+    path now feeds it -- but that path is not kept in step with kirby-api's
+    clock advance, so this guard is live in production for one segment at
+    a time, not continuously.
     """
     for slot in session.timeline.acting_order:
         if slot.combatant_id != event.combatant_id:
