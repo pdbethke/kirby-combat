@@ -22,10 +22,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Callable, Iterable
 
-from kirby_combat.session.timeline import build_acting_order_for_segment
+from kirby_combat.session.timeline import (
+    ActionIntent,
+    build_acting_order_for_segment,
+    build_provisional_order_for_segment,
+    resolve_acting_order,
+)
 from kirby_combat.template import DEFAULT_TEMPLATE
 
 if TYPE_CHECKING:
+    from typing import Mapping
+
     from kirby_combat.campaign import Campaign
     from kirby_combat.models import StatBlockCombatant
     from kirby_combat.session.combat_session import CombatSession
@@ -77,6 +84,16 @@ class Encounter:
     #: that wires acting order through here.
     sessions: list["CombatSession"] = field(default_factory=list)
     template: "CombatTemplate | None" = None
+    #: The scene-wide acting order for `self.segment`, as last built by
+    #: `run_segment`. 6E2 p.18 counts DEX among the characters who have a
+    #: Phase in a Segment -- it does not partition by fight -- so this is
+    #: the ONE order `run_segment` resolves for the whole Encounter. Each
+    #: session's `Timeline.acting_order` only ever gets the slice of this
+    #: list that belongs to that session's own combatants (a session's
+    #: timeline describes that fight); this field is where the scene-wide
+    #: order itself is kept so it is not lost once it has been sliced up.
+    #: Empty until `run_segment` is called.
+    scene_acting_order: list["ActingSlot"] = field(default_factory=list)
 
     def advance_segment(self) -> "Encounter":
         """Return a new Encounter one Segment later.
@@ -130,4 +147,95 @@ class Encounter:
 
         return build_acting_order_for_segment(
             combatants, self.segment, tie_rule=template.tie_rule, roller=roller,
+        )
+
+    def run_segment(
+        self,
+        *,
+        campaign: "Campaign | None" = None,
+        intents: dict[str, "ActionIntent"] | None = None,
+        roller: Callable[[], int | list[int] | tuple[int, ...]] | None = None,
+        acts_first: "Mapping[str, str] | None" = None,
+    ) -> "Encounter":
+        """Resolve the acting order for ``self.segment``, scene-wide, and
+        write it onto every session's timeline.
+
+        This is the "whoever" `session/apply.py`'s Lightning Reflexes Phase
+        restriction and `actions/reactive/block.py` have both been waiting
+        on: nothing else in this codebase writes a resolved order onto
+        `Timeline.acting_order`, which is why both of those guards have
+        stood as documented no-ops.
+
+        6E2 p.18, "SEGMENT": "Characters who can perform an Action in a
+        Segment (i.e., who have a Phase in that Segment) do so in order of
+        their DEX values" -- counting DEX among the characters PRESENT, not
+        characters-in-your-fight. So the order below is built ONCE across
+        every combatant in every one of `self.sessions`, exactly like
+        `acting_order` builds one order for whatever combatants it is
+        handed -- an Encounter holding two sessions produces one
+        interleaved order, not two independent ones.
+
+        The resulting scene-wide order is kept whole on
+        `self.scene_acting_order` (so the ordering itself is never lost),
+        while each session's own `Timeline.acting_order` receives only the
+        slots for that session's own combatants -- a session's timeline
+        describes that fight, not the whole scene.
+
+        Does NOT advance the clock: this resolves the order for the
+        CURRENT `self.segment`. Advancing to the next Segment/Turn is
+        `advance_segment`'s job (6E2 p.18's Segment-12 wrap); composing the
+        two is later work.
+
+        `current_slot_index` finally becomes meaningful once an order
+        exists to index into -- both the returned Encounter's and every
+        returned session's `Timeline.current_slot_index` are reset to 0,
+        since a freshly-built order has nothing yet marked as acted.
+
+        Template resolution and the `roller`/`DEX_ROLL` requirement are
+        identical to `acting_order` (see that method's docstring) -- this
+        method resolves the template once, the same way, before building
+        the provisional order.
+        """
+        if campaign is not None:
+            from kirby_combat.campaign import resolve_template
+
+            template = resolve_template(campaign, self)
+        else:
+            template = self.template or DEFAULT_TEMPLATE
+
+        intents = intents or {}
+
+        # Scene-wide: every combatant from every session, not partitioned
+        # by fight (6E2 p.18 -- see docstring above). `owner_of` remembers
+        # which session each combatant_id came from so the resolved order
+        # can be sliced back apart below.
+        all_combatants: list["StatBlockCombatant"] = []
+        owner_of: dict[str, int] = {}
+        for session_index, session in enumerate(self.sessions):
+            for combatant in session.combatants.values():
+                all_combatants.append(combatant)
+                owner_of[combatant.id] = session_index
+
+        provisional = build_provisional_order_for_segment(all_combatants, self.segment)
+        resolved = resolve_acting_order(
+            provisional, intents, tie_rule=template.tie_rule, roller=roller,
+            acts_first=acts_first,
+        )
+
+        new_sessions = []
+        for session_index, session in enumerate(self.sessions):
+            own_slots = [
+                slot for slot in resolved
+                if owner_of[slot.combatant_id] == session_index
+            ]
+            new_timeline = replace(
+                session.timeline, acting_order=own_slots, current_slot_index=0,
+            )
+            new_sessions.append(replace(session, timeline=new_timeline))
+
+        return replace(
+            self,
+            sessions=new_sessions,
+            scene_acting_order=resolved,
+            current_slot_index=0,
         )
