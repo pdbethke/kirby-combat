@@ -28,5 +28,6 @@ from kirby_cost.engine import damage as _damage  # noqa: F401,E402
 from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 
 from kirby_combat.encounter import Encounter  # noqa: E402
+from kirby_combat.world import World  # noqa: E402
 
-__all__ = ["Encounter"]
+__all__ = ["Encounter", "World"]
