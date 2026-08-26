@@ -344,11 +344,19 @@ def test_leaving_segment_12_gives_every_combatant_a_recovery():
     assert combatant.state.current_end > 10
 
 
-def test_a_stunned_combatant_still_recovers():
+def test_a_ko_d_combatant_still_recovers():
     """6E2 p.131 says "even Stunned ones" explicitly, so do not filter on
-    consciousness. This engine has no separate "Stunned" status distinct
-    from the KO threshhold (`Stunnable.is_ko`, kirby_combat/participant.py
-    -- 0 STUN or below), so that threshold is what this test exercises."""
+    consciousness. The engine DOES compute a Stunned condition distinct
+    from KO (`resolution/status.py`'s `determine_status_changes`:
+    `stun_dealt > con`, independent of the `stun_after <= 0` Knocked Out
+    check; also `mental/mental_blast.py`'s `target_stunned`) -- but
+    neither call site ever persists it: nothing constructs a
+    `StatusChanged` event or writes "stunned" into
+    `HeroCombatState.statuses`. So there is no state-level hook to build
+    a "Stunned-but-conscious" combatant here, and this test exercises a
+    KO'd (0-STUN) combatant instead -- the rule is still satisfied,
+    since `compute_recovery`'s "post_12" branch applies REC unfiltered
+    regardless of which of the two conditions (or neither) applies."""
     session = _session_with_vitals("s", current_stun=0, current_end=10)
     enc = Encounter(id="e1", segment=12, sessions=[session])
 
