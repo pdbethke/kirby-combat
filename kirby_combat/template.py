@@ -39,14 +39,30 @@ class CombatTemplate:
     # `randomize_dex_ties` if you're looking for the old flag -- this is
     # where it went, widened to name the GM's stated alternative too.
     #
-    # DORMANT: nothing in kirby_combat currently reads this field. No
-    # caller plumbs `CombatTemplate` into `session.timeline.
-    # resolve_acting_order` / `build_acting_order_for_segment` -- those
-    # functions take their own `tie_rule` argument (defaulted to
-    # `TieRule.INT_THEN_PRE` for deterministic existing callers/tests, NOT
-    # this field's `TieRule.DEX_ROLL`), and nothing copies this value into
-    # it. A GM changing `tie_rule` on a template today has no effect until
-    # a session driver wires the two together.
+    # WIRED (was DORMANT): `Encounter.acting_order()` (kirby_combat/
+    # encounter.py) resolves this field and passes it into
+    # `session.timeline.build_acting_order_for_segment` as its `tie_rule`
+    # argument, in place of that function's own `TieRule.INT_THEN_PRE`
+    # default. When a `Campaign` is supplied, resolution goes through
+    # `campaign.resolve_template` (an Encounter's own `template`, when
+    # set, overrides the Campaign's); with no Campaign, `Encounter.
+    # acting_order` falls back to `self.template or DEFAULT_TEMPLATE`
+    # so a standalone Encounter (no Campaign/World hierarchy built yet)
+    # still resolves a tie rule. A GM changing `tie_rule` on a template
+    # now reaches the sort through that path.
+    #
+    # STILL UNWIRED: `Encounter.acting_order()` is, as of this change, the
+    # ONLY caller anywhere in this codebase that resolves a CombatTemplate
+    # and passes its `tie_rule` in. `CombatSession` itself does not call
+    # `build_acting_order_for_segment`/`resolve_acting_order` at all --
+    # nothing in this codebase currently writes a resolved acting order
+    # onto `session.timeline.acting_order` during a live combat (see
+    # `session/apply.py`'s `_enforce_lightning_reflexes_phase_restriction`
+    # docstring for the honest account of that gap). The driver that would
+    # call `resolve_acting_order` and store its output on a session's
+    # timeline is external to this package (kirby-api); wiring that driver
+    # to also resolve and pass a CombatTemplate's `tie_rule` is a follow-up,
+    # not this change.
     tie_rule: TieRule = TieRule.DEX_ROLL
 
     # One-Hit Wonder optional rule
