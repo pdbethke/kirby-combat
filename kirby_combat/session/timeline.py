@@ -15,6 +15,7 @@ class ActingSlot:
     segment: int
     dex_at_phase: int
     int_tiebreak: int
+    pre_tiebreak: int
     has_acted: bool = False
 
 
@@ -38,17 +39,23 @@ class Timeline:
     aborted_this_phase: set[str] = field(default_factory=set)
 
 
-def _combatant_int(c: StatBlockCombatant) -> int:
-    """HERO characters don't have INT as a first-class field in our model
-    today. We use EGO as the DEX-tie breaker per 6E convention (EGO tiebreak
-    when INT unset); if both match, stable order by combatant_id.
+def _tie_key(c: StatBlockCombatant) -> tuple[int, int]:
+    """The 6E2 p.21 tie ladder: highest INT first, then highest PRE.
 
-    Read through combat_stats(), never off the participant: the flat shape
-    answered `.ego` directly and the HD-shaped one does not, which is the
-    difference the no-op shim was hiding.
+    Quoting p.21: "the GM may dispense with the DEX Roll ... the character
+    with the highest INT acts first (if their INTs are also tied, use PRE)".
+
+    Note this is the book's *alternative* to a contested DEX Roll, not the
+    default -- Task 3 adds the roll and makes this one setting of a
+    campaign TieRule. Until then it stays the engine's behaviour, because
+    it is what the engine already did (badly) and a deterministic order is
+    what the test suite depends on.
+
+    Read through combat_stats(): the flat and HD-shaped participants answer
+    differently off the participant itself.
     """
     stats = c.combat_stats()
-    return getattr(stats, "int_", getattr(stats, "ego", 10))
+    return (stats.int_, stats.pre)
 
 
 def build_acting_order_for_segment(
@@ -58,8 +65,10 @@ def build_acting_order_for_segment(
     """Build the acting order for one segment.
 
     Combatants without a phase in this segment (per SPD chart) are excluded.
-    Ordering: highest DEX first; ties broken by higher INT (EGO fallback);
-    remaining ties broken stably by combatant_id.
+    Ordering: highest DEX first; ties broken by higher INT, then by higher
+    PRE (6E2 p.21: "the character with the highest INT acts first (if their
+    INTs are also tied, use PRE)"); remaining ties broken stably by
+    combatant_id.
     """
     slots: list[ActingSlot] = []
     for c in combatants:
@@ -70,15 +79,18 @@ def build_acting_order_for_segment(
         # participant too).
         stats = c.combat_stats()
         if segment in segments_for_spd(stats.spd):
+            int_tiebreak, pre_tiebreak = _tie_key(c)
             slots.append(
                 ActingSlot(
                     combatant_id=c.id,
                     segment=segment,
                     dex_at_phase=stats.dex,
-                    int_tiebreak=_combatant_int(c),
+                    int_tiebreak=int_tiebreak,
+                    pre_tiebreak=pre_tiebreak,
                     has_acted=False,
                 )
             )
-    # Sort by DEX desc, then INT desc, then stable id asc
-    slots.sort(key=lambda s: (-s.dex_at_phase, -s.int_tiebreak, s.combatant_id))
+    # Sort by DEX desc, then INT desc, then PRE desc, then stable id asc
+    slots.sort(key=lambda s: (-s.dex_at_phase, -s.int_tiebreak,
+                             -s.pre_tiebreak, s.combatant_id))
     return slots

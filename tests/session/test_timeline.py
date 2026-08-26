@@ -40,10 +40,28 @@ def test_acting_order_higher_dex_first():
 
 
 def test_acting_order_ties_broken_by_int():
-    a = _c("alice", spd=4, dex=15, int_=10)
-    b = _c("bob", spd=4, dex=15, int_=18)
+    """6E2 p.21: the GM's alternative to a DEX Roll is highest INT first.
+    EGO is set INVERSELY to INT so a passing result cannot be EGO ordering
+    in disguise -- which is what the previous version of this test was."""
+    a = _c("alice", spd=4, dex=15, int_=10, ego=18)
+    b = _c("bob",   spd=4, dex=15, int_=18, ego=10)
     slots = build_acting_order_for_segment([a, b], segment=3)
     assert [s.combatant_id for s in slots] == ["bob", "alice"]
+
+
+def test_equal_int_falls_through_to_pre():
+    """6E2 p.21: "if their INTs are also tied, use PRE"."""
+    a = _c("alice", spd=4, dex=15, int_=12, pre=10)
+    b = _c("bob",   spd=4, dex=15, int_=12, pre=20)
+    slots = build_acting_order_for_segment([a, b], segment=3)
+    assert [s.combatant_id for s in slots] == ["bob", "alice"]
+
+
+def test_equal_int_and_pre_is_stable_by_id():
+    a = _c("bravo", spd=4, dex=15, int_=12, pre=12)
+    b = _c("alpha", spd=4, dex=15, int_=12, pre=12)
+    slots = build_acting_order_for_segment([a, b], segment=3)
+    assert [s.combatant_id for s in slots] == ["alpha", "bravo"]
 
 
 def test_int_is_carried_independently_of_ego():
