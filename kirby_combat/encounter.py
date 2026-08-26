@@ -12,16 +12,23 @@ Combat begins on Segment 12 (6E2 p.20, "BEGINNING COMBAT"), which is why
 ``segment`` defaults to 12. A Turn is 12 Segments (6E2 p.18, "SEGMENT"),
 so advancing past Segment 12 wraps to Segment 1 of the next Turn.
 
-Deliberately NOT implemented here: Post-Segment 12 Recovery (6E2 p.131
-gives every character, even Stunned ones, a free Recovery after Segment
-12). Applying that Recovery needs the participants in play and belongs
-with the acting-order work, not with this clock.
+Post-Segment 12 Recovery (6E2 p.131: "After Segment 12 each Turn, all
+characters (even Stunned ones) get a free Post-Segment 12 Recovery") is
+implemented here, in `advance_segment`, on the wrap step -- the acting
+order (`run_segment`, above) now puts the participants in play, so the
+Recovery this docstring used to defer "until the acting-order work"
+lands with it.
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable, Iterable
 
+from kirby_combat.resolution.recovery import compute_recovery
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.events import RecoveryTaken, make_author_engine
 from kirby_combat.session.timeline import (
     ActionIntent,
     build_acting_order_for_segment,
@@ -42,6 +49,95 @@ if TYPE_CHECKING:
 
 #: 6E2 p.18, "SEGMENT": a Turn consists of 12 Segments.
 SEGMENTS_PER_TURN = 12
+
+
+def _apply_stun_end_recovery(combatant, stun_delta: int, end_delta: int):
+    """Return a NEW combatant with ``stun_delta``/``end_delta`` added to its
+    current STUN/END.
+
+    Mirrors ``actions/movement/base.py``'s ``_decrement_end`` dispatch (the
+    established pattern for this exact StatBlockCombatant/HeroCombatant
+    split): ``StatBlockCombatant.state`` returns ``self`` -- its flat
+    ``current_*`` fields ARE its state -- so ``combatant.state is
+    combatant`` distinguishes it from ``HeroCombatant``, whose vitals live
+    on a separate ``HeroCombatState`` dataclass. See
+    ``StatBlockCombatant.state``'s docstring (models.py) for why that
+    identity check, not an equality check, is load-bearing.
+    """
+    if combatant.state is not combatant:
+        # HeroCombatant: STUN/END live on a separate `state` dataclass.
+        new_state = replace(
+            combatant.state,
+            current_stun=combatant.state.current_stun + stun_delta,
+            current_end=combatant.state.current_end + end_delta,
+        )
+        return replace(combatant, state=new_state)
+    # StatBlockCombatant: current_stun/current_end are fields on self.
+    return replace(
+        combatant,
+        current_stun=combatant.current_stun + stun_delta,
+        current_end=combatant.current_end + end_delta,
+    )
+
+
+def _apply_post_12_recovery(
+    session: "CombatSession", template: "CombatTemplate",
+) -> "CombatSession":
+    """Apply the free Post-Segment 12 Recovery (6E2 p.131) to every
+    combatant in ``session``, emitting one ``RecoveryTaken`` event per
+    combatant onto that same session's own event log.
+
+    6E2 p.131, "POST-SEGMENT 12 RECOVERY": "After Segment 12 each Turn,
+    all characters (even Stunned ones) get a free Post-Segment 12
+    Recovery." This applies to EVERY combatant unconditionally -- no
+    consciousness/status filter belongs here. `compute_recovery`'s
+    "post_12" branch (kirby_combat/resolution/recovery.py) already
+    applies REC unconditionally: unlike its "phase_12" branch, which
+    returns ``(0, 0)`` for a KO'd (``combatant.is_ko``) combatant,
+    "post_12" has no such check and falls straight through to `stun_delta
+    = min(rec, max_stun - current_stun)`. So the "even Stunned ones"
+    carve-out is already honored one layer down; duplicating a filter
+    here would contradict the rule, not implement it. (This engine has
+    no status distinct from the KO threshhold for 6E's separate
+    "Stunned" condition -- `Stunnable.is_ko`, kirby_combat/participant.py,
+    is the only consciousness-adjacent state modeled -- so "even Stunned
+    ones" is exercised here via a KO'd/0-STUN combatant.)
+
+    Applied by mutating combatant state directly, THEN logging via
+    `apply_event` -- not by routing the stat change through `apply_event`
+    itself. `session/apply.py`'s dispatcher treats "RecoveryTaken" (along
+    with ActionResolved/MovementResolved/StatusChanged/...) as log-only by
+    design: see its comment "Recovery / status / movement: resolved at
+    action time, not on apply" -- calling `apply_event` alone would append
+    the event without changing anyone's STUN/END.
+    `actions/movement/base.py`'s `MovementAction.resolve` establishes the
+    identical two-step precedent for an END spend (mutate the combatant
+    first, `apply_event` second, with the comment "apply_event won't do it
+    for us").
+    """
+    new_combatants = dict(session.combatants)
+    for combatant_id, combatant in session.combatants.items():
+        stun_delta, end_delta = compute_recovery(combatant, template, "post_12")
+        new_combatants[combatant_id] = _apply_stun_end_recovery(
+            combatant, stun_delta, end_delta,
+        )
+        evt = RecoveryTaken(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_engine(),
+            combatant_id=combatant_id,
+            stun_recovered=stun_delta,
+            end_recovered=end_delta,
+        )
+        # apply_event only appends to event_log/updated_at (see the
+        # log-only note above) -- it never touches `.combatants`, so
+        # accumulating `new_combatants` separately and writing them onto
+        # the final session below is safe and does not get overwritten.
+        session = apply_event(session, evt)
+
+    return replace(session, combatants=new_combatants)
 
 
 @dataclass
@@ -123,14 +219,48 @@ class Encounter:
     #: caller.
     acts_first: "Mapping[str, str]" = field(default_factory=dict)
 
-    def advance_segment(self) -> "Encounter":
+    def advance_segment(self, *, campaign: "Campaign | None" = None) -> "Encounter":
         """Return a new Encounter one Segment later.
 
         6E2 p.18: a Turn is 12 Segments, so advancing past Segment 12
         wraps to Segment 1 of the next Turn.
+
+        6E2 p.131, "POST-SEGMENT 12 RECOVERY": leaving Segment 12 (i.e.
+        this wrap) additionally gives every combatant in every session a
+        free Recovery -- see `_apply_post_12_recovery`. It fires ONLY on
+        this branch; a plain within-Turn advance (the `else` below) does
+        not touch anyone's STUN/END.
+
+        Template resolution for that Recovery mirrors `acting_order`/
+        `run_segment` above: `campaign`, when given, resolves the
+        Encounter's template via `resolve_template(campaign, self)`
+        (campaign -> encounter override); otherwise `self.template or
+        DEFAULT_TEMPLATE`. The CAMPAIGN/ENCOUNTER-resolved template is
+        used deliberately, NOT any per-`CombatSession`'s own `template`
+        field -- the campaign->encounter hierarchy exists so the campaign
+        owns the rules, and a scene-wide Post-Segment 12 Recovery is an
+        Encounter-level event, not a per-fight one. (`compute_recovery`
+        currently ignores its `template` argument entirely -- see its
+        docstring -- so this choice is not yet observable in any output;
+        it is here so a future house-rule hook has an unambiguous,
+        deliberately-chosen source to read from, rather than an accident
+        of whichever template happened to be passed.)
         """
         if self.segment >= SEGMENTS_PER_TURN:
-            return replace(self, turn=self.turn + 1, segment=1)
+            if campaign is not None:
+                from kirby_combat.campaign import resolve_template
+
+                template = resolve_template(campaign, self)
+            else:
+                template = self.template or DEFAULT_TEMPLATE
+
+            new_sessions = [
+                _apply_post_12_recovery(session, template)
+                for session in self.sessions
+            ]
+            return replace(
+                self, turn=self.turn + 1, segment=1, sessions=new_sessions,
+            )
         return replace(self, segment=self.segment + 1)
 
     def acting_order(

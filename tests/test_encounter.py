@@ -311,3 +311,102 @@ def test_an_explicit_acts_first_argument_overrides_the_carried_field():
     enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
     out = enc.run_segment(roller=_scripted_roller(), acts_first={})
     assert _order_ids(out)[0] != "blocker"
+
+
+def _session_with_vitals(session_id, *, current_stun, current_end, rec=4,
+                          max_stun=20, max_end=20):
+    """One combatant, segment/DEX irrelevant to these tests -- only the
+    vitals `compute_recovery`'s "post_12" branch reads."""
+    combatant = synthetic_combatant(
+        id="only", name="Only", spd=2, dex=10, rec=rec,
+        max_stun=max_stun, max_end=max_end,
+        current_stun=current_stun, current_end=current_end,
+    )
+    return CombatSession.create(
+        id=session_id, combatants=[combatant], scene=None, template=DEFAULT_TEMPLATE,
+    )
+
+
+def _only_combatant(encounter):
+    session = encounter.sessions[0]
+    return session.combatants["only"]
+
+
+def test_leaving_segment_12_gives_every_combatant_a_recovery():
+    """6E2 p.131: all characters get a free Post-Segment 12 Recovery."""
+    session = _session_with_vitals("s", current_stun=10, current_end=10)
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+
+    out = enc.advance_segment()
+
+    combatant = _only_combatant(out)
+    assert combatant.state.current_stun > 10
+    assert combatant.state.current_end > 10
+
+
+def test_a_stunned_combatant_still_recovers():
+    """6E2 p.131 says "even Stunned ones" explicitly, so do not filter on
+    consciousness. This engine has no separate "Stunned" status distinct
+    from the KO threshhold (`Stunnable.is_ko`, kirby_combat/participant.py
+    -- 0 STUN or below), so that threshold is what this test exercises."""
+    session = _session_with_vitals("s", current_stun=0, current_end=10)
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+
+    out = enc.advance_segment()
+
+    assert _only_combatant(out).state.current_stun > 0
+
+
+def test_no_recovery_when_leaving_a_segment_other_than_12():
+    session = _session_with_vitals("s", current_stun=10, current_end=10)
+    enc = Encounter(id="e1", segment=5, sessions=[session])
+
+    out = enc.advance_segment()
+
+    assert _only_combatant(out).state.current_stun == 10
+    assert _only_combatant(out).state.current_end == 10
+
+
+def test_post_12_recovery_does_not_exceed_max():
+    session = _session_with_vitals(
+        "s", current_stun=19, current_end=20, rec=4, max_stun=20, max_end=20,
+    )
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+
+    out = enc.advance_segment()
+
+    assert _only_combatant(out).state.current_stun == 20
+    assert _only_combatant(out).state.current_end == 20
+
+
+def test_post_12_recovery_emits_a_recovery_taken_event_per_combatant():
+    session = _session_with_vitals("s", current_stun=10, current_end=10, rec=4)
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+
+    out = enc.advance_segment()
+
+    events = out.sessions[0].event_log
+    assert len(events) == 1
+    evt = events[0]
+    assert evt.kind == "RecoveryTaken"
+    assert evt.combatant_id == "only"
+    assert evt.stun_recovered == 4
+    assert evt.end_recovered == 4
+
+
+def test_post_12_recovery_uses_the_campaigns_resolved_template():
+    """`advance_segment(campaign=...)` resolves the Encounter's template
+    via `resolve_template(campaign, self)`, mirroring `run_segment`'s
+    campaign path, rather than any per-session `template`. Since
+    `compute_recovery` currently ignores its `template` argument (see its
+    docstring), this only proves the campaign path is exercised without
+    raising -- not yet a distinguishable recovery amount."""
+    from kirby_combat.campaign import Campaign
+
+    session = _session_with_vitals("s", current_stun=10, current_end=10)
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+    campaign = Campaign(id="c1", name="X", template=DEFAULT_TEMPLATE)
+
+    out = enc.advance_segment(campaign=campaign)
+
+    assert _only_combatant(out).state.current_stun > 10
