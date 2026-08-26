@@ -246,10 +246,16 @@ def resolve_acting_order(
     `tie_rule` defaults to INT_THEN_PRE here -- not the campaign's book
     default of DEX_ROLL -- so existing callers/tests that don't pass a
     roller stay deterministic. The campaign-facing default lives on
-    CombatTemplate.tie_rule (template.py); DORMANT -- no caller plumbs that
-    field into this function's `tie_rule` argument today, so a GM changing
-    it on a template has no effect until a session driver wires the two
-    together (see the DORMANT note on that field for detail).
+    CombatTemplate.tie_rule (template.py). A template-resolving caller now
+    exists -- `Encounter.acting_order` (encounter.py) resolves a
+    CombatTemplate (via a Campaign, or `self.template`/DEFAULT_TEMPLATE
+    standalone) and passes its `tie_rule` in here, overriding this
+    parameter's default. Direct callers of this function -- including
+    `build_acting_order_for_segment` and `CombatSession`'s own
+    timeline/acting-order path -- still pass their own `tie_rule` (or
+    accept this parameter's INT_THEN_PRE default) and so still bypass any
+    CombatTemplate; see the WIRED/STILL UNWIRED note on
+    `CombatTemplate.tie_rule` for the current boundary.
 
     For TieRule.DEX_ROLL / TieRule.RANDOM, `roller` is called exactly once
     per combatant, in input order -- not once per sort comparison. A
