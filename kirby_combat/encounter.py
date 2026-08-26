@@ -26,6 +26,7 @@ from kirby_combat.session.timeline import (
     ActionIntent,
     build_acting_order_for_segment,
     build_provisional_order_for_segment,
+    consume_block_priority,
     resolve_acting_order,
 )
 from kirby_combat.template import DEFAULT_TEMPLATE
@@ -105,6 +106,22 @@ class Encounter:
     #: order itself is kept so it is not lost once it has been sliced up.
     #: Empty until `run_segment` is called.
     scene_acting_order: list["ActingSlot"] = field(default_factory=list)
+    #: Carried Block "acts first" priority (6E2 p.60, "ACTING FIRST"):
+    #: blocker_id -> attacker_id, as produced by
+    #: `Block.acts_first_priority`. This is state, not a per-call
+    #: argument, because the rule is explicit the benefit holds "even if
+    #: [the attacker] does not attack again" -- it must survive from the
+    #: successful Block until the blocker and that attacker next share a
+    #: Segment, which can be more than one `run_segment` call away.
+    #: `run_segment` reads this (when no explicit `acts_first=` is passed;
+    #: see that method's docstring for how the two interact), forwards it
+    #: into `resolve_acting_order`, and returns a NEW `Encounter` whose
+    #: `acts_first` has been run through `consume_block_priority` so a
+    #: priority spent this Segment is gone from the result. Defaults to an
+    #: empty mapping -- this is a public shape kirby-api constructs
+    #: directly, and a required field here would break every existing
+    #: caller.
+    acts_first: "Mapping[str, str]" = field(default_factory=dict)
 
     def advance_segment(self) -> "Encounter":
         """Return a new Encounter one Segment later.
@@ -206,6 +223,29 @@ class Encounter:
         identical to `acting_order` (see that method's docstring) -- this
         method resolves the template once, the same way, before building
         the provisional order.
+
+        Block "acts first" priority (6E2 p.60, "ACTING FIRST"): when the
+        caller passes `acts_first=`, that mapping is used for this call
+        and `self.acts_first` is IGNORED -- an explicit argument OVERRIDES
+        the carried field rather than merging with it. This mirrors how
+        `campaign=`/`self.template` already work above (an explicit
+        argument wins outright, no merge with instance state), and it
+        keeps the semantics simple: a caller who passes `acts_first=`
+        explicitly is asserting "this is the priority state for this
+        call", not "add these on top of whatever the Encounter already
+        carries" -- the two mappings could otherwise disagree about the
+        same blocker_id with no defined precedence. A caller who wants to
+        both use and update the carried state should read `self.acts_first`
+        (merging in a new `Block.acts_first_priority` entry themselves if
+        one was just recorded) and pass the merged result in; leaving
+        `acts_first=None` (the default) uses `self.acts_first` as-is. Either
+        way, whichever mapping was actually used is run through
+        `consume_block_priority` below and becomes the returned
+        Encounter's `acts_first` -- a priority spent this Segment (both
+        the blocker and the named attacker had a Phase in `self.segment`)
+        does not survive into the result; one that could not yet be spent
+        (one or both had no Phase this Segment) is carried forward
+        untouched.
         """
         if campaign is not None:
             from kirby_combat.campaign import resolve_template
@@ -227,10 +267,15 @@ class Encounter:
                 all_combatants.append(combatant)
                 owner_of[combatant.id] = session_index
 
+        acts_first_used = acts_first if acts_first is not None else self.acts_first
+
         provisional = build_provisional_order_for_segment(all_combatants, self.segment)
         resolved = resolve_acting_order(
             provisional, intents, tie_rule=template.tie_rule, roller=roller,
-            acts_first=acts_first,
+            acts_first=acts_first_used,
+        )
+        remaining_acts_first = consume_block_priority(
+            acts_first_used, all_combatants, self.segment,
         )
 
         new_sessions = []
@@ -249,4 +294,5 @@ class Encounter:
             sessions=new_sessions,
             scene_acting_order=resolved,
             current_slot_index=0,
+            acts_first=remaining_acts_first,
         )

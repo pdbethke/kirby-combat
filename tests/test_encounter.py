@@ -47,6 +47,20 @@ def _scene_order_ids(encounter):
     return [s.combatant_id for s in encounter.scene_acting_order]
 
 
+def _encounter(*, acts_first, segment):
+    """Blocker DEX 10, attacker DEX 25 -- deliberately the LOWER DEX, so a
+    pass proves Block priority (6E2 p.60) and cannot be ordinary DEX
+    ordering in disguise."""
+    return Encounter(
+        id="e1", segment=segment, acts_first=acts_first,
+        sessions=[_session("s", [("blocker", 10), ("attacker", 25)])],
+    )
+
+
+def _order_ids(encounter):
+    return _scene_order_ids(encounter)
+
+
 def test_advancing_within_a_turn_increments_the_segment():
     e = Encounter(id="e1", turn=1, segment=3)
     assert e.advance_segment().segment == 4
@@ -259,3 +273,41 @@ def test_run_segment_honors_the_campaigns_tie_rule():
     out = enc.run_segment(campaign=campaign, roller=_scripted_roller())
 
     assert _scene_order_ids(out) == ["bob", "alice"]
+
+
+def test_a_recorded_block_priority_orders_the_blocker_first():
+    """6E2 p.60, "ACTING FIRST": a successful Block lets the blocker act
+    first "regardless of relative DEX". Blocker is DEX 10, attacker DEX
+    25 -- the LOWER DEX -- so a pass cannot be ordinary DEX ordering."""
+    enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
+    out = enc.run_segment(roller=_scripted_roller())
+    assert _order_ids(out)[0] == "blocker"
+
+
+def test_the_priority_is_consumed_after_the_shared_segment():
+    """6E2 p.60: the priority buys the ONE shared Segment, not a standing
+    advantage -- `consume_block_priority` must spend it."""
+    enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
+    after = enc.run_segment(roller=_scripted_roller())
+    again = after.run_segment(roller=_scripted_roller())
+    assert _order_ids(again)[0] == "attacker"  # back to DEX order
+
+
+def test_acts_first_defaults_to_an_empty_mapping():
+    """Public shape kirby-api constructs directly -- must not require
+    this field."""
+    assert Encounter(id="e1").acts_first == {}
+
+
+def test_run_segment_falls_back_to_self_acts_first_when_none_is_passed():
+    enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
+    out = enc.run_segment(roller=_scripted_roller())  # no acts_first= kwarg
+    assert _order_ids(out)[0] == "blocker"
+
+
+def test_an_explicit_acts_first_argument_overrides_the_carried_field():
+    """Documented choice: an explicit `acts_first=` argument OVERRIDES
+    `self.acts_first` rather than merging with it."""
+    enc = _encounter(acts_first={"blocker": "attacker"}, segment=3)
+    out = enc.run_segment(roller=_scripted_roller(), acts_first={})
+    assert _order_ids(out)[0] != "blocker"
