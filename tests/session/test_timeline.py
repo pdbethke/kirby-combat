@@ -6,6 +6,7 @@ from kirby_combat.session.tie_rule import TieRule
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,
+    ActionIntent,
     build_acting_order_for_segment,
     build_provisional_order_for_segment,
     resolve_acting_order,
@@ -143,6 +144,44 @@ def test_no_intents_resolve_matches_wrapper_with_ties_and_tie_rule():
     # rolls (a=5, b=9 -> b's higher roll wins)
     assert [s.combatant_id for s in wrapped] == ["c", "b", "a"]
     assert len(wrapped) == 3
+
+
+def test_mental_action_orders_on_ego_not_dex():
+    """APG p.50: mental combat and mental powers "use EGO to determine who
+    acts first". The telepath has the lower DEX and the higher EGO."""
+    brick    = _c("brick",   spd=4, dex=20, ego=8)
+    telepath = _c("telepath", spd=4, dex=10, ego=25)
+    prov = build_provisional_order_for_segment([brick, telepath], segment=3)
+    final = resolve_acting_order(prov, intents={
+        "telepath": ActionIntent(action_type="MINDCONTROL", is_mental=True),
+        "brick": ActionIntent(action_type="STRIKE"),
+    })
+    assert [s.combatant_id for s in final] == ["telepath", "brick"]
+
+
+def test_mental_ordering_is_scoped_to_the_declared_action_not_the_combatant():
+    """APG p.50's EGO ordering applies to the *action*, not the actor: a
+    telepath who throws a punch (a non-mental intent) still orders on DEX,
+    same as anyone else. Without scoping, this would regress to the old
+    'sort everything on EGO' bug the engine used to have (spec history)."""
+    brick    = _c("brick",   spd=4, dex=20, ego=8)
+    telepath = _c("telepath", spd=4, dex=10, ego=25)
+    prov = build_provisional_order_for_segment([brick, telepath], segment=3)
+    final = resolve_acting_order(prov, intents={
+        "telepath": ActionIntent(action_type="STRIKE", is_mental=False),
+        "brick": ActionIntent(action_type="STRIKE"),
+    })
+    assert [s.combatant_id for s in final] == ["brick", "telepath"]
+
+
+def test_no_declared_intent_orders_on_dex_as_before():
+    """A combatant absent from `intents` (or an entirely empty `intents`
+    dict) must behave exactly as it does today: physical, DEX-ordered."""
+    brick    = _c("brick",   spd=4, dex=20, ego=8)
+    telepath = _c("telepath", spd=4, dex=10, ego=25)
+    prov = build_provisional_order_for_segment([brick, telepath], segment=3)
+    final = resolve_acting_order(prov, intents={})
+    assert [s.combatant_id for s in final] == ["brick", "telepath"]
 
 
 def test_timeline_initial_state():

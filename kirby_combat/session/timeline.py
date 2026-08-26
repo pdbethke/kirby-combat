@@ -32,6 +32,7 @@ class ActingSlot:
     dex_at_phase: int
     int_tiebreak: int
     pre_tiebreak: int
+    ego: int
     has_acted: bool = False
     intent: ActionIntent | None = None
 
@@ -124,12 +125,34 @@ def build_provisional_order_for_segment(
                     dex_at_phase=stats.dex,
                     int_tiebreak=int_tiebreak,
                     pre_tiebreak=pre_tiebreak,
+                    ego=stats.ego,
                     has_acted=False,
                 )
             )
 
     slots.sort(key=lambda s: -s.dex_at_phase)
     return slots
+
+
+def ordering_value(slot: "ActingSlot") -> int:
+    """The characteristic a slot's *acting order* is decided on.
+
+    APG p.50: mental combat and mental powers "use EGO to determine who
+    acts first" -- so a mental action orders on EGO, not DEX, even though
+    the same combatant's physical actions in another segment still order
+    on DEX. Whether a given slot is a mental action is per-declared-intent
+    (`ActionIntent.is_mental`), not per-combatant: a telepath throwing a
+    punch still orders on DEX.
+
+    Non-mental (or intent-less) slots order on `dex_at_phase`, which today
+    is always printed DEX. Task 7 will make this branch return *effective*
+    DEX (printed DEX plus Lightning Reflexes) for the specific action it
+    was bought for -- this is the one place that change lands; nothing
+    here anticipates it further.
+    """
+    if slot.intent is not None and slot.intent.is_mental:
+        return slot.ego
+    return slot.dex_at_phase
 
 
 def resolve_acting_order(
@@ -178,6 +201,7 @@ def resolve_acting_order(
             dex_at_phase=s.dex_at_phase,
             int_tiebreak=s.int_tiebreak,
             pre_tiebreak=s.pre_tiebreak,
+            ego=s.ego,
             has_acted=s.has_acted,
             intent=intents.get(s.combatant_id),
         )
@@ -203,11 +227,16 @@ def resolve_acting_order(
             # declared as `template.randomize_dex_ties` and never wired up.
             tie_scores[s.combatant_id] = _sum_roll(roller())
 
+    # Primary ordering: `ordering_value` (APG p.50 -- EGO for a declared
+    # mental action, printed DEX otherwise, see that function's docstring).
+    # DEX-tie tie-breaking (INT/PRE ladder, DEX Roll, RANDOM) is unchanged
+    # by this and still keys off printed DEX/`dex_at_phase` -- APG p.50
+    # only relocates who's compared on what for the *primary* sort.
     if tie_rule is TieRule.INT_THEN_PRE:
-        key = lambda s: (-s.dex_at_phase, -s.int_tiebreak, -s.pre_tiebreak,
+        key = lambda s: (-ordering_value(s), -s.int_tiebreak, -s.pre_tiebreak,
                           s.combatant_id)
     elif tie_rule in (TieRule.DEX_ROLL, TieRule.RANDOM):
-        key = lambda s: (-s.dex_at_phase, -tie_scores[s.combatant_id],
+        key = lambda s: (-ordering_value(s), -tie_scores[s.combatant_id],
                           s.combatant_id)
     else:
         raise ValueError(f"unknown TieRule: {tie_rule!r}")
