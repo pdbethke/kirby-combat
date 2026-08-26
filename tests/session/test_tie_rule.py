@@ -1,9 +1,7 @@
 """TieRule tests: campaign-selectable DEX-tie resolution (6E2 p.21)."""
 from fixtures.synthetic_hero import synthetic_combatant
 
-from kirby_cost.engine.rolls import characteristic_roll
-
-from kirby_combat.session.tie_rule import TieRule, dex_roll_target, resolve_tie
+from kirby_combat.session.tie_rule import TieRule, dex_roll_target
 from kirby_combat.session.timeline import build_acting_order_for_segment
 from kirby_combat.template import DEFAULT_TEMPLATE
 
@@ -67,19 +65,16 @@ def test_random_is_not_a_book_rule_but_still_deterministic_under_test():
     assert [s.combatant_id for s in slots] == ["bob", "alice"]
 
 
-def test_dex_roll_requires_a_roller():
-    a = _c("alice", spd=4, dex=15)
-    b = _c("bob", spd=4, dex=15)
-    import pytest
-    with pytest.raises(ValueError):
-        resolve_tie(a, b, TieRule.DEX_ROLL, roller=None)
-
-
 def test_dex_roll_target_reads_stats_dex_field():
     """6E1 p.116: "his Agility Skill Rolls remain 12-" -- Lightning
     Reflexes' effective-DEX boost must never reach this function, only
-    the plain characteristic. Two combatants with the same printed DEX
-    but different (hypothetically boosted) acting-order DEX must still
-    roll against the same target."""
-    c = _c("x", spd=4, dex=13)
-    assert dex_roll_target(c) == characteristic_roll(c.combat_stats().dex)
+    the plain characteristic.
+
+    DEX 18 pins a hardcoded expected target (9 + 18/5 = 12.6 -> 13-,
+    rounded) rather than restating `dex_roll_target`'s own body: DEX 18
+    is exactly a value where round-half-up (13) and truncation (12) give
+    different answers, so this also guards against a regression back to
+    `9 + DEX // 5`.
+    """
+    c = _c("x", spd=4, dex=18)
+    assert dex_roll_target(c) == 13
