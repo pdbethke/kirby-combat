@@ -12,10 +12,11 @@ Two consequences that shape this module:
   2. 6E1 p.116 continues: taking the bonus is an election that costs the
      rest of the Phase ("he may only execute the specific Action or
      maneuver he purchased Lightning Reflexes for... no movement,
-     acrobatics, or other Actions"). Enforcing that forfeiture is Task 8;
-     this module only makes the *election* (`ActionIntent.
-     elect_lightning_reflexes`) change *ordering* -- it does not restrict
-     what the combatant may then do.
+     acrobatics, or other Actions"). `phase_restricted_to`/
+     `restriction_for_slot` below enforce that forfeiture; the election
+     itself (`ActionIntent.elect_lightning_reflexes`) changes *ordering*
+     via `timeline.ordering_value`, and the restriction is what then
+     narrows what the combatant may declare that Phase.
 
 The central trap this module exists to avoid (see `lightning_reflexes_bonus`
 docstring): every real Lightning Reflexes instance sampled from character
@@ -28,7 +29,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from kirby_combat.participant import CombatParticipant
     from kirby_combat.session.timeline import ActingSlot, ActionIntent
 
 # The two XMLIDs kirby-cost's HDC loader can produce for this Talent.
@@ -101,14 +101,13 @@ def _is_ranged_action_type(action_type: str) -> bool:
     ``elect_lightning_reflexes`` -- nothing marks an action as ranged vs.
     HtH at this layer (that lives on ``AttackPower.is_ranged``, which
     ``ActionIntent`` does not reference). Only 2 of 76 real instances are
-    ALLRANGED-scoped, and this task's brief supplies no test for the
-    ranged case, so rather than invent a real classification here (and
-    risk it disagreeing with whatever Task 8/9 or a driver later decides
-    "ranged" means for an ActionIntent), this checks for the literal
-    substring "RANGED" in the declared action_type -- a conservative
-    heuristic that fails closed (no match -> no bonus) until a real
-    ranged/HtH signal reaches ActionIntent. Flagged as a concern in the
-    task report; not a silent gap."""
+    ALLRANGED-scoped, and there is no test coverage yet for the ranged
+    case, so rather than invent a real classification here (and risk it
+    disagreeing with whatever a future driver decides "ranged" means for
+    an ActionIntent), this checks for the literal substring "RANGED" in
+    the declared action_type -- a conservative heuristic that fails
+    closed (no match -> no bonus) until a real ranged/HtH signal reaches
+    ActionIntent. A disclosed gap, not a silent one."""
     return "ranged" in (action_type or "").strip().lower()
 
 
@@ -224,31 +223,6 @@ def lightning_reflexes_bonus(hero: Any, action_type: str) -> int:
     return bonus_for_grants(lightning_reflexes_grants(hero), action_type)
 
 
-def effective_dex(participant: "CombatParticipant", intent: "ActionIntent") -> int:
-    """The DEX to order acting on for ``participant`` taking ``intent``'s
-    action -- printed DEX, plus Lightning Reflexes' bonus when (and only
-    when) the combatant elected it (6E1 p.116(c): electing the bonus costs
-    the rest of the Phase, so it is never applied silently).
-
-    Reads DEX through ``combat_stats()`` (never off the participant
-    directly, per the layering rule that keeps flat and HD-shaped
-    participants answering alike). This is the ONLY DEX this bonus may
-    ever reach: 6E1 p.116 is explicit that Lightning Reflexes changes
-    *initiative* alone -- "his Agility Skill Rolls remain 12-" -- so
-    nothing here must ever flow into ``dex_roll_target`` or any other
-    DEX-based roll target. That contract lives at
-    ``session/tie_rule.dex_roll_target``, which documents it must be fed
-    printed DEX only.
-    """
-    printed_dex = participant.combat_stats().dex
-    if intent is None or not intent.elect_lightning_reflexes:
-        return printed_dex
-    hero = getattr(participant, "hero", None)
-    if hero is None:
-        return printed_dex
-    return printed_dex + lightning_reflexes_bonus(hero, intent.action_type)
-
-
 def phase_restricted_to(intent: "ActionIntent | None") -> str | None:
     """6E1 p.116(c): "When a character uses Lightning Reflexes to increase
     his effective DEX, he may only execute the specific Action or maneuver
@@ -273,33 +247,58 @@ def phase_restricted_to(intent: "ActionIntent | None") -> str | None:
     return intent.action_type
 
 
+def _bonus_applied_by_ordering(slot: "ActingSlot") -> int:
+    """The Lightning Reflexes bonus that ``timeline.ordering_value`` actually
+    added to ``slot``'s acting order -- mirrors that function's rule rather
+    than re-deriving it, so the two can't drift apart.
+
+    This is deliberately NOT the same question as "does a grant on the
+    build cover this action" (``bonus_for_grants``): for a mental intent,
+    ``ordering_value`` orders on EGO (APG p.50) and never looks at
+    Lightning Reflexes at all, so the bonus is 0 here even when a grant
+    would otherwise cover the action. ``restriction_for_slot`` gates 6E1
+    p.116(c)'s forfeiture on THIS -- whether the bonus actually reached
+    ordering -- not on mere scope coverage, because 6E1 p.116(c) forfeits
+    the Phase for a character who "uses Lightning Reflexes to increase his
+    effective DEX"; a mental actor whose ordering ran on EGO increased
+    nothing.
+    """
+    intent = slot.intent
+    if intent is None or not intent.elect_lightning_reflexes:
+        return 0
+    if intent.is_mental:
+        return 0
+    return bonus_for_grants(slot.lightning_reflexes_grants, intent.action_type)
+
+
 def restriction_for_slot(slot: "ActingSlot") -> str | None:
     """The Phase restriction (6E1 p.116(c)) actually enforced for one
     *resolved* ``ActingSlot`` (post-``resolve_acting_order``, so
-    ``slot.intent`` is populated) -- `phase_restricted_to`, corrected two
+    ``slot.intent`` is populated) -- `phase_restricted_to`, corrected three
     ways using ``slot.lightning_reflexes_grants`` (captured at
     provisional-order time, see ``ActingSlot``'s docstring):
 
-      1. If electing produced no actual bonus at all (no grant on the
-         build covers the declared action_type -- ``bonus_for_grants``
-         returns 0), nothing was "used", so 6E1 p.116(c)'s forfeiture,
-         which is tied to *using* the effective DEX, does not apply either.
+      1. If the bonus never reached acting order at all -- because the
+         intent was mental (ordering ran on EGO, per
+         ``timeline.ordering_value``) or no grant on the build covers the
+         declared action_type -- nothing was "used" to increase effective
+         DEX, so 6E1 p.116(c)'s forfeiture does not apply either. See
+         `_bonus_applied_by_ordering`, which mirrors `ordering_value`'s
+         rule for exactly this reason: restricting on mere scope coverage
+         (``bonus_for_grants`` alone) would wrongly restrict a mental
+         actor who elected the bonus but whose ordering never used it.
       2. If the grant that supplies the bonus is ALL-scoped, the
          combatant is not meaningfully restricted: the "specific Action...
          he purchased Lightning Reflexes for" IS every Action, so there is
          nothing to narrow the Phase down to. Only a
          SINGLE/LARGEGROUP/ALLRANGED-scoped grant narrows the Phase to the
          one action/group/category it was bought for.
-
-    Reuses ``bonus_for_grants``/``_bonus_for_grant`` rather than
-    re-deriving scope logic here, so "what bonus applied" and "what
-    restriction applies" can't drift apart.
     """
     intent = slot.intent
     restricted = phase_restricted_to(intent)
     if restricted is None:
         return None
-    if bonus_for_grants(slot.lightning_reflexes_grants, intent.action_type) <= 0:
+    if _bonus_applied_by_ordering(slot) <= 0:
         return None
     for grant in slot.lightning_reflexes_grants:
         if grant.option_id == "ALL" and _bonus_for_grant(

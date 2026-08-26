@@ -8,22 +8,23 @@ this constructs a synthetic ``<TALENT>`` element rather than loading a raw
 tests exercise the same accessors (`levels`, `option_alias()`) production
 code reads off a real loaded character.
 """
+import dataclasses
+
 from lxml import etree
 
-from kirby_cost.engine.rolls import characteristic_roll
 from kirby_cost.objects.talents.lightning_reflexes_all import LightningReflexesAll
 
 from fixtures.synthetic_hero import synthetic_combatant
-from kirby_combat.session.tie_rule import TieRule, dex_roll_target
+from kirby_combat.session.tie_rule import TieRule
 from kirby_combat.session.timeline import (
     ActionIntent,
     build_provisional_order_for_segment,
+    ordering_value,
     resolve_acting_order,
 )
 from kirby_combat.session.timeline import ActingSlot
 from kirby_combat.talents.lightning_reflexes import (
     LightningReflexesGrant,
-    effective_dex,
     lightning_reflexes_bonus,
     phase_restricted_to,
     restriction_for_slot,
@@ -122,11 +123,20 @@ def test_allranged_scope_does_not_apply_to_hth():
 
 def test_bonus_applies_only_when_elected():
     """6E1 p.116(c): taking the bonus forfeits the rest of the Phase, so it
-    is a choice, never applied silently."""
+    is a choice, never applied silently. Exercised through
+    `timeline.ordering_value` -- the function production actually calls to
+    decide acting order -- rather than a since-deleted stand-in
+    (`effective_dex`) that had already diverged from it (no `is_mental`
+    branch) despite being unreachable from any real ordering path."""
     hero = _hero_with_talent(optionid="ALL", levels=6)
     c = _c_with_hero(hero, dex=16)
-    assert effective_dex(c, ActionIntent("STRIKE", elect_lightning_reflexes=False)) == 16
-    assert effective_dex(c, ActionIntent("STRIKE", elect_lightning_reflexes=True)) == 22
+    slot = build_provisional_order_for_segment([c], segment=3)[0]
+    not_elected = dataclasses.replace(
+        slot, intent=ActionIntent("STRIKE", elect_lightning_reflexes=False))
+    elected = dataclasses.replace(
+        slot, intent=ActionIntent("STRIKE", elect_lightning_reflexes=True))
+    assert ordering_value(not_elected) == 16
+    assert ordering_value(elected) == 22
 
 
 def test_effective_dex_beats_higher_printed_dex():
@@ -143,17 +153,12 @@ def test_effective_dex_beats_higher_printed_dex():
     assert [s.combatant_id for s in final] == [quick.id, "rival"]
 
 
-def test_effective_dex_does_not_reach_the_tie_roll():
-    """6E1 p.116(a): "his Agility Skill Rolls remain 12-". A combatant who
-    elects +6 still rolls its tie on printed DEX."""
-    hero = _hero_with_talent(optionid="ALL", levels=6)
-    c = _c_with_hero(hero, dex=16)
-    assert dex_roll_target(c.combat_stats().dex) == characteristic_roll(16)  # not 22
-
-
 def test_dex_roll_tie_break_uses_printed_dex_not_effective():
-    """Integration guard for the same rule, run through the real ordering
-    path instead of calling dex_roll_target directly: electing Lightning
+    """THE guard for 6E1 p.116(a): "his Agility Skill Rolls remain 12-" --
+    a combatant who elects Lightning Reflexes still rolls its DEX-tie roll
+    on PRINTED DEX, never the boosted effective DEX. Run through the real
+    ordering path (not by calling `dex_roll_target` directly, which would
+    only restate the contract, not exercise it): electing Lightning
     Reflexes can make two combatants' EFFECTIVE DEX tie (14+6 == 20) even
     though their printed DEX differs. 6E1 p.116(a) says the DEX Roll must
     still target printed DEX, so the tie-break margin must come out
@@ -238,4 +243,23 @@ def test_restriction_for_slot_is_none_when_no_grant_actually_applies():
 
 def test_restriction_for_slot_is_none_when_not_electing():
     slot = _slot(intent=ActionIntent("Shuriken"))
+    assert restriction_for_slot(slot) is None
+
+
+def test_restriction_for_slot_is_none_for_a_mental_intent():
+    """6E1 p.116(c) forfeits the Phase for a character who "uses Lightning
+    Reflexes to increase his effective DEX". A mental intent orders on EGO
+    (APG p.50, timeline.ordering_value) and never applies the bonus, even
+    when a covering SINGLE grant exists and the intent elects it -- so
+    nothing was increased, and nothing should be forfeited. Reproduces the
+    telepath DEX 10 / EGO 30 scenario: `ordering_value` returns 30 (bonus
+    never applied) while a scope-only check would still see the grant
+    covers "Mind Blast" and wrongly restrict the Phase."""
+    grant = LightningReflexesGrant(levels=6, option_id="SINGLE",
+                                    option_alias="Mind Blast")
+    slot = _slot(
+        intent=ActionIntent("Mind Blast", is_mental=True,
+                             elect_lightning_reflexes=True),
+        grants=(grant,),
+    )
     assert restriction_for_slot(slot) is None

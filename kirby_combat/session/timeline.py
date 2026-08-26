@@ -17,11 +17,10 @@ from kirby_combat.talents.lightning_reflexes import (
 class ActionIntent:
     """What a combatant is about to do, as declared before final ordering.
 
-    Carried but not yet acted on: Task 6 gives `is_mental` meaning (mental
-    actions order on EGO rather than DEX) and Task 7 gives
-    `elect_lightning_reflexes` meaning (Lightning Reflexes raises effective
-    DEX only for the specific action it was bought for). This task only
-    threads the field through.
+    `is_mental` makes a mental action order on EGO rather than DEX (APG
+    p.50, see `ordering_value`); `elect_lightning_reflexes` makes Lightning
+    Reflexes raise effective DEX for the specific action it was bought for
+    (6E1 p.116, see `ordering_value` and `talents/lightning_reflexes.py`).
     """
     action_type: str
     is_mental: bool = False
@@ -74,10 +73,10 @@ def _tie_key(c: StatBlockCombatant) -> tuple[int, int]:
     with the highest INT acts first (if their INTs are also tied, use PRE)".
 
     Note this is the book's *alternative* to a contested DEX Roll, not the
-    default -- Task 3 adds the roll and makes this one setting of a
-    campaign TieRule. Until then it stays the engine's behaviour, because
-    it is what the engine already did (badly) and a deterministic order is
-    what the test suite depends on.
+    default -- `TieRule.DEX_ROLL` implements the roll, and this ladder is
+    one setting of a campaign `TieRule` (`TieRule.INT_THEN_PRE`). This
+    function's return value only matters for that setting; a deterministic
+    order is what the test suite depends on.
 
     Read through combat_stats(): the flat and HD-shaped participants answer
     differently off the participant itself.
@@ -96,8 +95,8 @@ def build_provisional_order_for_segment(
     Combatants without a phase in this segment (per SPD chart) are excluded.
     This is a provisional pass because a final order can depend on what
     action a combatant is about to take -- mental actions order on EGO
-    rather than DEX (Task 6), and Lightning Reflexes raises effective DEX
-    only for the specific action it was bought for (Task 7) -- neither of
+    rather than DEX (APG p.50), and Lightning Reflexes raises effective DEX
+    only for the specific action it was bought for (6E1 p.116) -- neither of
     which is knowable from stats alone. Feed this list's slots, together
     with any declared intents, to `resolve_acting_order` to get the final
     order (DEX ties included).
@@ -173,6 +172,14 @@ def ordering_value(slot: "ActingSlot") -> int:
     This is initiative ONLY -- it must never reach `dex_roll_target`
     (session/tie_rule.py), which 6E1 p.116 requires stay on printed DEX
     ("his Agility Skill Rolls remain 12-").
+
+    A mental intent never gets the Lightning Reflexes bonus applied here,
+    even when elected and even when the build has a matching grant --
+    ordering runs on EGO instead. `talents/lightning_reflexes.py`'s
+    `restriction_for_slot` mirrors this exact rule (via
+    `_bonus_applied_by_ordering`) before enforcing 6E1 p.116(c)'s Phase
+    forfeiture, so a mental actor who elected the bonus is never
+    restricted for a bonus that was never actually applied.
     """
     if slot.intent is not None and slot.intent.is_mental:
         return slot.ego
@@ -203,31 +210,46 @@ def resolve_acting_order(
     `slots` this Segment (that is the "same Segment" condition the rule
     states); an entry naming a combatant absent this Segment is inert here
     -- see `consume_block_priority` for when such an entry is spent.
-    Block priority outranks every characteristic, including the mental
-    EGO ordering and the INT/PRE tie ladder: it is the leading sort key,
-    checked before `ordering_value` is even read.
+    Block priority is implemented here as an ABSOLUTE leading sort key,
+    checked before `ordering_value` is even read -- it outranks the mental
+    EGO ordering and the INT/PRE tie ladder for every combatant with a
+    Phase this Segment, not only against the named attacker. 6E2 p.60 only
+    says the blocker acts "regardless of relative DEX", which reads
+    pairwise against the attacker; the books do not settle whether the
+    priority is pairwise (only leapfrogs the named attacker) or absolute
+    (leapfrogs everyone, including uninvolved third parties). This engine
+    implements the absolute reading -- a true pairwise priority is a
+    partial order, not expressible as a single sort key, and reworking
+    this into one is session-driver work, out of scope here. See
+    `tests/session/test_timeline.py::
+    test_block_priority_leapfrogs_an_uninvolved_third_party` for the
+    concrete case this decision produces.
 
     `intents` maps combatant_id -> ActionIntent for combatants who have
     declared what they're about to do; a combatant absent from `intents`
     sorts exactly as it does today (on printed DEX with `tie_rule` breaking
-    ties). Tasks 6/7 will make `is_mental`/`elect_lightning_reflexes` change
-    the sort key for combatants who *do* have a declared intent; until then
-    an intent's presence changes nothing, so this pass is a true no-op over
-    the provisional order.
+    ties). For a combatant who *does* have a declared intent,
+    `is_mental`/`elect_lightning_reflexes` change the sort key via
+    `ordering_value` -- see that function's docstring.
 
-    Ordering: highest DEX first; DEX ties are broken per `tie_rule` --
-    6E2 p.21's default is a contested DEX Roll (TieRule.DEX_ROLL); the GM's
-    stated alternative is highest INT then PRE (TieRule.INT_THEN_PRE,
-    "the character with the highest INT acts first (if their INTs are also
-    tied, use PRE)"); TieRule.RANDOM is not from the books -- it is the
-    campaign option the engine already declared as
+    Ordering: the leading key is Block priority (above); within that,
+    `ordering_value` decides (printed DEX, or EGO for a declared mental
+    action, plus any applied Lightning Reflexes bonus); DEX ties are then
+    broken per `tie_rule` -- 6E2 p.21's default is a contested DEX Roll
+    (TieRule.DEX_ROLL); the GM's stated alternative is highest INT then PRE
+    (TieRule.INT_THEN_PRE, "the character with the highest INT acts first
+    (if their INTs are also tied, use PRE)"); TieRule.RANDOM is not from
+    the books -- it is the campaign option the engine already declared as
     `template.randomize_dex_ties` and never wired up. Remaining ties fall
     back to stable ordering by combatant_id.
 
     `tie_rule` defaults to INT_THEN_PRE here -- not the campaign's book
     default of DEX_ROLL -- so existing callers/tests that don't pass a
     roller stay deterministic. The campaign-facing default lives on
-    CombatTemplate.tie_rule (template.py), where a GM can see and change it.
+    CombatTemplate.tie_rule (template.py); DORMANT -- no caller plumbs that
+    field into this function's `tie_rule` argument today, so a GM changing
+    it on a template has no effect until a session driver wires the two
+    together (see the DORMANT note on that field for detail).
 
     For TieRule.DEX_ROLL / TieRule.RANDOM, `roller` is called exactly once
     per combatant, in input order -- not once per sort comparison. A
@@ -271,9 +293,10 @@ def resolve_acting_order(
             # declared as `template.randomize_dex_ties` and never wired up.
             tie_scores[s.combatant_id] = _sum_roll(roller())
 
-    # Block priority (6E2 p.60) outranks DEX outright, so it must be the
-    # LEADING sort key -- ahead of `ordering_value` (which is itself ahead
-    # of the INT/PRE tie ladder). 0 sorts before 1, so a combatant with a
+    # Block priority (6E2 p.60), as this engine implements it (absolute,
+    # not pairwise -- see this function's docstring), must be the LEADING
+    # sort key -- ahead of `ordering_value` (which is itself ahead of the
+    # INT/PRE tie ladder). 0 sorts before 1, so a combatant with a
     # live priority against someone also acting this Segment goes first;
     # everyone else (including a blocker whose named attacker has no Phase
     # this Segment) ties at rank 1 and falls through to the normal ladder.
