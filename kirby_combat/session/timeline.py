@@ -7,6 +7,10 @@ from typing import Callable, Iterable
 from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.tie_rule import TieRule, dex_roll_target
 from kirby_combat.tables import segments_for_spd
+from kirby_combat.talents.lightning_reflexes import (
+    bonus_for_grants,
+    lightning_reflexes_grants,
+)
 
 
 @dataclass
@@ -35,6 +39,12 @@ class ActingSlot:
     ego: int
     has_acted: bool = False
     intent: ActionIntent | None = None
+    #: Lightning Reflexes (6E1 p.116), captured from the combatant's BUILD at
+    #: provisional-order time -- not applied yet, because whether any grant
+    #: here actually applies depends on the declared ActionIntent, which
+    #: isn't known until `resolve_acting_order`. See `ordering_value`, which
+    #: is where a matching grant turns into effective DEX.
+    lightning_reflexes_grants: tuple = ()
 
 
 @dataclass
@@ -118,6 +128,13 @@ def build_provisional_order_for_segment(
         stats = c.combat_stats()
         if segment in segments_for_spd(stats.spd):
             int_tiebreak, pre_tiebreak = _tie_key(c)
+            # Lightning Reflexes (6E1 p.116) is BUILD data (levels, bought
+            # scope) -- read it now, while `c` is in hand, so `ordering_value`
+            # doesn't need a participant reference later (see ActingSlot's
+            # `lightning_reflexes_grants` docstring). `hero` is absent on a
+            # flat StatBlockCombatant, so this is a no-op there.
+            hero = getattr(c, "hero", None)
+            grants = lightning_reflexes_grants(hero) if hero is not None else ()
             slots.append(
                 ActingSlot(
                     combatant_id=c.id,
@@ -127,6 +144,7 @@ def build_provisional_order_for_segment(
                     pre_tiebreak=pre_tiebreak,
                     ego=stats.ego,
                     has_acted=False,
+                    lightning_reflexes_grants=grants,
                 )
             )
 
@@ -144,15 +162,25 @@ def ordering_value(slot: "ActingSlot") -> int:
     (`ActionIntent.is_mental`), not per-combatant: a telepath throwing a
     punch still orders on DEX.
 
-    Non-mental (or intent-less) slots order on `dex_at_phase`, which today
-    is always printed DEX. Task 7 will make this branch return *effective*
-    DEX (printed DEX plus Lightning Reflexes) for the specific action it
-    was bought for -- this is the one place that change lands; nothing
-    here anticipates it further.
+    Non-mental slots order on `dex_at_phase` PLUS Lightning Reflexes' bonus
+    (6E1 p.116) when the intent elected it (`ActionIntent.
+    elect_lightning_reflexes`) and the combatant's bought scope covers this
+    action (`ActingSlot.lightning_reflexes_grants`, captured at provisional
+    time -- see `build_provisional_order_for_segment`). An intent-less slot
+    gets no bonus: electing the bonus is the whole point (6E1 p.116(c) --
+    it costs the rest of the Phase), so it is never applied silently.
+
+    This is initiative ONLY -- it must never reach `dex_roll_target`
+    (session/tie_rule.py), which 6E1 p.116 requires stay on printed DEX
+    ("his Agility Skill Rolls remain 12-").
     """
     if slot.intent is not None and slot.intent.is_mental:
         return slot.ego
-    return slot.dex_at_phase
+    bonus = 0
+    if slot.intent is not None and slot.intent.elect_lightning_reflexes:
+        bonus = bonus_for_grants(
+            slot.lightning_reflexes_grants, slot.intent.action_type)
+    return slot.dex_at_phase + bonus
 
 
 def resolve_acting_order(
@@ -204,6 +232,7 @@ def resolve_acting_order(
             ego=s.ego,
             has_acted=s.has_acted,
             intent=intents.get(s.combatant_id),
+            lightning_reflexes_grants=s.lightning_reflexes_grants,
         )
         for s in slots
     ]
