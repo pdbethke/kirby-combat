@@ -11,7 +11,7 @@ from kirby_combat.models import StatBlockCombatant
 def _mentalist(id_: str, omcv: int = 8) -> StatBlockCombatant:
     return StatBlockCombatant(
         id=id_, name=id_, ocv=0, dcv=0, omcv=omcv, dmcv=3,
-        spd=4, dex=15, ego=18, str_=10, con=15, pre=15, rec=5,
+        spd=4, dex=15, ego=18, int_=18, str_=10, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=40,
         current_stun=30, current_body=15, current_end=40,
@@ -22,7 +22,7 @@ def _mentalist(id_: str, omcv: int = 8) -> StatBlockCombatant:
 def _target(id_: str, dmcv: int = 5) -> StatBlockCombatant:
     return StatBlockCombatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=dmcv,
-        spd=3, dex=12, ego=10, str_=15, con=15, pre=10, rec=5,
+        spd=3, dex=12, ego=10, int_=10, str_=15, con=15, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=3, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,

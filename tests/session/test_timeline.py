@@ -9,16 +9,13 @@ from kirby_combat.session.timeline import (
 )
 
 
-def _c(id_: str, spd: int, dex: int, int_: int = 10) -> "HeroCombatant":
-    """Minimal Combatant for timeline tests.
-
-    Combatant has no `int_` field; we use `ego` as the INT proxy per
-    timeline's `_combatant_int` helper. So map the fixture `int_` param
-    to the combatant's `ego` field.
-    """
+def _c(
+    id_: str, spd: int, dex: int, int_: int = 10, ego: int = 10, pre: int = 10,
+) -> "HeroCombatant":
+    """Minimal Combatant for timeline tests."""
     return synthetic_combatant(
         id=id_, name=id_, ocv=0, dcv=0, omcv=0, dmcv=0,
-        spd=spd, dex=dex, ego=int_, str_=10, con=10, pre=10, rec=5,
+        spd=spd, dex=dex, ego=ego, int_=int_, str_=10, con=10, pre=pre, rec=5,
         pd=0, ed=0, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
         max_stun=20, max_body=10, max_end=20,
         current_stun=20, current_body=10, current_end=20,
@@ -47,6 +44,16 @@ def test_acting_order_ties_broken_by_int():
     b = _c("bob", spd=4, dex=15, int_=18)
     slots = build_acting_order_for_segment([a, b], segment=3)
     assert [s.combatant_id for s in slots] == ["bob", "alice"]
+
+
+def test_int_is_carried_independently_of_ego():
+    """INT was never a field on CombatStats, which made timeline's
+    tiebreak branch unreachable (spec 2.1). Distinct values prove INT is
+    its own field and not aliased onto EGO."""
+    c = _c("alice", spd=4, dex=15, int_=18, ego=7)
+    stats = c.combat_stats()
+    assert stats.int_ == 18
+    assert stats.ego == 7
 
 
 def test_acting_order_excludes_combatants_without_phase_in_segment():

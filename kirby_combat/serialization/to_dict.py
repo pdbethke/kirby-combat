@@ -56,7 +56,7 @@ def to_dict(obj: Any) -> Any:
             "id": obj.id,
             "name": obj.name,
             "ocv": s.ocv, "dcv": s.dcv, "omcv": s.omcv, "dmcv": s.dmcv,
-            "spd": s.spd, "dex": s.dex, "ego": s.ego, "str_": s.str_,
+            "spd": s.spd, "dex": s.dex, "ego": s.ego, "int_": s.int_, "str_": s.str_,
             "con": s.con, "pre": s.pre, "rec": s.rec,
             "pd": s.pd, "ed": s.ed, "rpd": s.rpd, "red": s.red,
             "md": s.md,

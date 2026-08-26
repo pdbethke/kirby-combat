@@ -61,7 +61,7 @@ class ObjectCombatant(Breakable, StatBlockCombatant):
         return cls(
             id=id, name=name,
             ocv=0, dcv=0, omcv=0, dmcv=0,
-            spd=0, dex=0, ego=0, str_=0, con=0,
+            spd=0, dex=0, ego=0, int_=0, str_=0, con=0,
             pre=0, rec=0,
             pd=0, ed=0, rpd=actual_def, red=actual_def, md=0,
             power_defense=0, flash_defense=0,

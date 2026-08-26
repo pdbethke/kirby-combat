@@ -142,6 +142,10 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
     spd: int
     dex: int
     ego: int
+    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
+    #: Carried here because timeline sorts on it; it was absent until
+    #: 2026-08-26, which made timeline's INT branch dead code.
+    int_: int
     str_: int
     con: int
     pre: int

@@ -72,7 +72,7 @@ def test_the_stale_names_are_gone_from_hero_view_too():
 def test_it_still_carries_its_own_stats():
     """It is a stat block. Removing the shim must not remove the stats."""
     c = StatBlockCombatant(
-        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10,
+        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10, int_=10,
         str_=15, con=20, pre=15, rec=8, pd=8, ed=8, rpd=0, red=0, md=0,
         power_defense=0, flash_defense=0, max_stun=40, max_body=12,
         max_end=40, current_stun=40, current_body=12, current_end=40,
@@ -97,7 +97,7 @@ def test_state_returns_the_same_object_not_a_copy():
     from dataclasses import replace
 
     c = StatBlockCombatant(
-        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10,
+        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10, int_=10,
         str_=15, con=20, pre=15, rec=8, pd=8, ed=8, rpd=0, red=0, md=0,
         power_defense=0, flash_defense=0, max_stun=40, max_body=12,
         max_end=40, current_stun=40, current_body=12, current_end=40,
@@ -115,7 +115,7 @@ def test_decrement_end_takes_the_flat_branch_for_a_stat_block():
     from kirby_combat.actions.movement.base import _decrement_end
 
     c = StatBlockCombatant(
-        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10,
+        id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10, int_=10,
         str_=15, con=20, pre=15, rec=8, pd=8, ed=8, rpd=0, red=0, md=0,
         power_defense=0, flash_defense=0, max_stun=40, max_body=12,
         max_end=40, current_stun=40, current_body=12, current_end=40,

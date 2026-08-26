@@ -19,7 +19,7 @@ def _ct(id_: str, current_stun: int = 30) -> StatBlockCombatant:
     # only the flat StatBlockCombatant shape has that.
     return StatBlockCombatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=3,
-        spd=4, dex=15, ego=10, str_=15, con=15, pre=10, rec=5,
+        spd=4, dex=15, ego=10, int_=10, str_=15, con=15, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=current_stun, current_body=15, current_end=30,

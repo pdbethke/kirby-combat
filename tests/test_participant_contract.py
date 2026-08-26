@@ -142,7 +142,7 @@ def test_a_stunned_character_is_still_knocked_out():
         return StatBlockCombatant(
             id="f", name="Fighter",
             ocv=8, dcv=8, omcv=3, dmcv=3,
-            spd=4, dex=20, ego=10, str_=20, con=20, pre=15, rec=8,
+            spd=4, dex=20, ego=10, int_=10, str_=20, con=20, pre=15, rec=8,
             pd=8, ed=8, rpd=0, red=0, md=0,
             power_defense=0, flash_defense=0,
             max_stun=40, max_body=12, max_end=40,

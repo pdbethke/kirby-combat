@@ -182,6 +182,10 @@ class HeroCombatStats:
     # Primary characteristics
     dex: int
     ego: int
+    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
+    #: Carried here because timeline sorts on it; it was absent until
+    #: 2026-08-26, which made timeline's INT branch dead code.
+    int_: int
     str_: int
     con: int
     pre: int
@@ -310,6 +314,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
     def dex(self) -> int: return self.combat_stats().dex
     @property
     def ego(self) -> int: return self.combat_stats().ego
+    @property
+    def int_(self) -> int: return self.combat_stats().int_
     @property
     def str_(self) -> int: return self.combat_stats().str_
     @property
@@ -1287,6 +1293,7 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
         spd=cv("SPD"),
         dex=cv("DEX"),
         ego=cv("EGO"),
+        int_=cv("INT"),
         str_=cv("STR"),
         con=cv("CON"),
         pre=cv("PRE"),

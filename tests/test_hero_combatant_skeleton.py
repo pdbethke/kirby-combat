@@ -127,7 +127,7 @@ def test_dataclasses_are_constructible():
 
     stats = HeroCombatStats(
         ocv=9, dcv=8, omcv=4, dmcv=4,
-        spd=5, dex=23, ego=15, str_=20, con=20, pre=20, rec=8,
+        spd=5, dex=23, ego=15, int_=12, str_=20, con=20, pre=20, rec=8,
         pd=10, ed=10, rpd=4, red=4, md=5,
         power_defense=0, flash_defense=0,
         max_stun=40, max_body=14, max_end=40,
@@ -150,7 +150,7 @@ def test_legacy_combatant_has_combat_stats_shim():
 
     c = StatBlockCombatant(
         id="t", name="Test", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4,
-        dex=20, ego=10, str_=20, con=20, pre=15, rec=8,
+        dex=20, ego=10, int_=10, str_=20, con=20, pre=15, rec=8,
         pd=10, ed=10, rpd=0, red=0, md=0,
         power_defense=0, flash_defense=0,
         max_stun=40, max_body=12, max_end=40,
@@ -251,7 +251,7 @@ def test_attack_resolves_through_engine_end_to_end():
         return StatBlockCombatant(
             id=hc.id, name=hc.hero.name or hc.id,
             ocv=sst.ocv, dcv=sst.dcv, omcv=sst.omcv, dmcv=sst.dmcv,
-            spd=sst.spd, dex=sst.dex, ego=sst.ego, str_=sst.str_,
+            spd=sst.spd, dex=sst.dex, ego=sst.ego, int_=sst.int_, str_=sst.str_,
             con=sst.con, pre=sst.pre, rec=sst.rec,
             pd=sst.pd, ed=sst.ed, rpd=sst.rpd, red=sst.red, md=sst.md,
             power_defense=sst.power_defense, flash_defense=sst.flash_defense,
@@ -329,7 +329,7 @@ def test_compute_stats_coerces_engine_floats_to_int():
         def characteristic_value(self, xmlid: str) -> float:
             return {
                 "OCV": 8.0, "DCV": 7.0, "OMCV": 3.0, "DMCV": 3.0,
-                "SPD": 5.0, "DEX": 23.0, "EGO": 14.0, "STR": 60.0,
+                "SPD": 5.0, "DEX": 23.0, "EGO": 14.0, "INT": 18.0, "STR": 60.0,
                 "CON": 28.0, "PRE": 20.0, "REC": 12.0,
                 "PD": 25.0, "ED": 20.0,
                 "STUN": 50.0, "BODY": 15.0, "END": 60.0,
@@ -337,7 +337,7 @@ def test_compute_stats_coerces_engine_floats_to_int():
 
     stats = _compute_stats_from_hero(_FloatHero())
     for field_name in (
-        "ocv", "dcv", "omcv", "dmcv", "spd", "dex", "ego", "str_",
+        "ocv", "dcv", "omcv", "dmcv", "spd", "dex", "ego", "int_", "str_",
         "con", "pre", "rec", "pd", "ed", "rpd", "red", "md",
         "power_defense", "flash_defense", "max_stun", "max_body",
         "max_end",

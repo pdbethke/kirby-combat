@@ -70,7 +70,7 @@ class Vehicle(StatBlockCombatant):
             id=id, name=name,
             ocv=0, dcv=max(0, 6 - size),   # bigger = easier to hit
             omcv=0, dmcv=0,
-            spd=speed, dex=dex, ego=0, str_=str_, con=0,
+            spd=speed, dex=dex, ego=0, int_=0, str_=str_, con=0,
             pre=0, rec=0,
             pd=pd, ed=ed, rpd=def_, red=def_, md=0,
             power_defense=0, flash_defense=0,
