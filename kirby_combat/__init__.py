@@ -26,3 +26,7 @@ except PackageNotFoundError:  # not installed (e.g. a source checkout on sys.pat
 # problem someone can act on, instead of surfacing mid-fight.
 from kirby_cost.engine import damage as _damage  # noqa: F401,E402
 from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
+
+from kirby_combat.encounter import Encounter  # noqa: E402
+
+__all__ = ["Encounter"]
