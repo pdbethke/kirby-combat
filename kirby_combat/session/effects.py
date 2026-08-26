@@ -12,8 +12,8 @@ chronologically. They are intentionally conservative: an unknown event kind
 is ignored.
 
 This module also extends `apply_event` indirectly via the events branch in
-`session/apply.py` — the Task 5 "no-op stub" branch is still where these
-events are appended to the log, but the canonical query helpers live here.
+`session/apply.py` — that branch is still where these events are appended
+to the log unchanged, but the canonical query helpers live here.
 """
 from __future__ import annotations
 

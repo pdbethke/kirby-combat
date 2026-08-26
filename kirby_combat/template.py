@@ -38,6 +38,15 @@ class CombatTemplate:
     # 6E2 p.21's default for a DEX tie is a contested DEX Roll; grep for
     # `randomize_dex_ties` if you're looking for the old flag -- this is
     # where it went, widened to name the GM's stated alternative too.
+    #
+    # DORMANT: nothing in kirby_combat currently reads this field. No
+    # caller plumbs `CombatTemplate` into `session.timeline.
+    # resolve_acting_order` / `build_acting_order_for_segment` -- those
+    # functions take their own `tie_rule` argument (defaulted to
+    # `TieRule.INT_THEN_PRE` for deterministic existing callers/tests, NOT
+    # this field's `TieRule.DEX_ROLL`), and nothing copies this value into
+    # it. A GM changing `tie_rule` on a template today has no effect until
+    # a session driver wires the two together.
     tie_rule: TieRule = TieRule.DEX_ROLL
 
     # One-Hit Wonder optional rule

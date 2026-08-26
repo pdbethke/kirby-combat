@@ -90,10 +90,10 @@ def _enforce_lightning_reflexes_phase_restriction(
     he purchased Lightning Reflexes for... no movement, acrobatics, or
     other Actions" in a Phase where he elects the bonus.
 
-    THE SEAM THIS TASK ADDED: before this task, ``apply_event`` performed
-    no action-legality validation at all -- ``ActionDeclared`` was a pure
-    passthrough (see this module's history / the task-8 report). This is
-    the enforcement point, deliberately as small as the rule requires:
+    THE SEAM THIS ADDED: before this, ``apply_event`` performed no
+    action-legality validation at all -- ``ActionDeclared`` was a pure
+    passthrough (see this module's history). This is the enforcement
+    point, deliberately as small as the rule requires:
     it looks for a *resolved* ``ActingSlot`` (``session.timeline.
     acting_order``, this segment, this combatant -- populated by whoever
     ran ``resolve_acting_order`` for the segment and stored the result on

@@ -1,6 +1,6 @@
 """Swimming — 6E default 4" (1 END/10m, NCM 4×).
 
-Requires water surface; that Scene-aware gating is left to Task 20.
+Requires water surface; that Scene-aware gating is not yet wired in here.
 """
 from __future__ import annotations
 

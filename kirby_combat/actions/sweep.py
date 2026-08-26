@@ -1,7 +1,7 @@
 """Sweep — HTH variant of Multiple Attack against adjacent targets.
 
 Same OCV math as Multiple Attack; same 1/2 DCV. The semantic difference
-(adjacency requirement) is enforced by the caller via Scene checks (Task 17+).
+(adjacency requirement) is enforced by the caller via Scene checks, not here.
 """
 from __future__ import annotations
 

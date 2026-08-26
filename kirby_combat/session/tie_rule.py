@@ -41,9 +41,9 @@ def dex_roll_target(dex: int) -> int:
     Callers MUST pass printed DEX (`stats.dex`), never any effective/boosted
     DEX. 6E1 p.116 is explicit that a power like Lightning Reflexes which
     lets a character act sooner does not touch his Skill Rolls: "his
-    Agility Skill Rolls remain 12-". Task 7 adds Lightning Reflexes'
-    effective-DEX boost to acting order only -- this function must never be
-    handed that boosted value, so it takes the plain characteristic as a
+    Agility Skill Rolls remain 12-". Lightning Reflexes' effective-DEX boost
+    applies to acting order only -- this function must never be handed
+    that boosted value, so it takes the plain characteristic as a
     bare int (not a combatant, so there is nothing to read the wrong field
     off of) and this is the single named home for that contract.
 

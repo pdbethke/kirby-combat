@@ -285,6 +285,29 @@ def test_block_priority_not_yet_consumed_if_named_attacker_has_no_phase_this_seg
     assert state == {}
 
 
+def test_block_priority_leapfrogs_an_uninvolved_third_party():
+    """Pins this engine's chosen reading of 6E2 p.60's "act first
+    (regardless of relative DEX)": ABSOLUTE, not pairwise. The book only
+    says the blocker beats the ATTACKER regardless of DEX -- it does not
+    say anything about a third combatant who isn't part of the Block at
+    all. A pairwise reading would leave the blocker below any higher-DEX
+    bystander; this engine's `_block_priority_rank` is a single leading
+    sort key with no notion of "against whom", so it puts the blocker
+    ahead of EVERYONE with a Phase this Segment, uninvolved bystander
+    included. See `resolve_acting_order`'s docstring for why: a true
+    pairwise priority is a partial order, not expressible as a sort key,
+    and reworking that is out of scope here -- this test exists so the
+    absolute behaviour stays pinned in one direction instead of drifting
+    unnoticed."""
+    blocker = _c("blocker", spd=4, dex=10)
+    attacker = _c("attacker", spd=4, dex=12)
+    bystander = _c("bystander", spd=4, dex=30)
+    slots = build_acting_order_for_segment(
+        [blocker, attacker, bystander], segment=3,
+        acts_first={"blocker": "attacker"})
+    assert [s.combatant_id for s in slots] == ["blocker", "bystander", "attacker"]
+
+
 def test_timeline_initial_state():
     t = Timeline(turn=1, segment=1, acting_order=[], current_slot_index=0,
                  held_actions=[], aborted_this_phase=set())

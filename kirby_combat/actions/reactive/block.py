@@ -84,10 +84,10 @@ class Block:
         session path. `Block.resolve` has no caller today that wires a
         `BlockResult` back onto `CombatSession`/`Timeline` -- there is no
         `BlockResolved`-shaped event, and `apply_event` derives no session
-        state from a Block outcome. This method is the recording point
-        Task 9 adds so that wiring is a single, well-named call once a
-        live caller exists; it does not itself make Block priority take
-        effect in a running session.
+        state from a Block outcome. This method is the recording point,
+        so that wiring is a single, well-named call once a live caller
+        exists; it does not itself make Block priority take effect in a
+        running session.
         """
         if not result.success:
             return {}
