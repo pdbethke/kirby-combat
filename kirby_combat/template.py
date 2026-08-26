@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from kirby_combat.session.tie_rule import TieRule
+
 
 @dataclass
 class CombatTemplate:
@@ -31,7 +33,12 @@ class CombatTemplate:
     manage_endurance_npc: bool = False
 
     # Initiative / DEX ties
-    randomize_dex_ties: bool = False    # True → re-roll DEX ties on a d6
+    # Was `randomize_dex_ties: bool = False`, declared, defaulted in both
+    # templates below, and read by nothing (never wired to acting order).
+    # 6E2 p.21's default for a DEX tie is a contested DEX Roll; grep for
+    # `randomize_dex_ties` if you're looking for the old flag -- this is
+    # where it went, widened to name the GM's stated alternative too.
+    tie_rule: TieRule = TieRule.DEX_ROLL
 
     # One-Hit Wonder optional rule
     one_hit_wonder_enabled: bool = False
@@ -70,11 +77,14 @@ RAW_SUPERHEROIC = CombatTemplate(
     knockback_multiplier=1.0,
     manage_endurance=False,
     manage_endurance_npc=False,
-    randomize_dex_ties=False,
+    tie_rule=TieRule.DEX_ROLL,
     one_hit_wonder_enabled=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
 )
+
+#: The engine's default template when no campaign has chosen one yet.
+DEFAULT_TEMPLATE = RAW_SUPERHEROIC
 
 #: Standard RAW Heroic play (grittier; hit locations and END tracked).
 RAW_HEROIC = CombatTemplate(
@@ -87,7 +97,7 @@ RAW_HEROIC = CombatTemplate(
     knockback_multiplier=1.0,
     manage_endurance=True,
     manage_endurance_npc=True,
-    randomize_dex_ties=False,
+    tie_rule=TieRule.DEX_ROLL,
     one_hit_wonder_enabled=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
