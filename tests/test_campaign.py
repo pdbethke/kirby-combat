@@ -7,7 +7,12 @@ from dataclasses import replace
 from kirby_combat.campaign import Campaign, resolve_template
 from kirby_combat.encounter import Encounter
 from kirby_combat.session.tie_rule import TieRule
-from kirby_combat.template import DEFAULT_TEMPLATE, RAW_HEROIC, RAW_SUPERHEROIC
+from kirby_combat.template import (
+    DEFAULT_TEMPLATE,
+    RAW_HEROIC,
+    RAW_SUPERHEROIC,
+    CombatTemplate,
+)
 
 
 def test_encounter_without_a_template_inherits_the_campaign_default():
@@ -47,3 +52,38 @@ def test_default_template_is_not_a_shared_mutable_singleton():
 
     assert b.template.tie_rule != "MUTATED"
     assert DEFAULT_TEMPLATE.tie_rule != "MUTATED"
+
+
+def test_default_template_does_not_share_mutable_fields_by_identity():
+    """`dataclasses.replace` is a SHALLOW copy -- it re-invokes __init__
+    with the SAME field values, so a `replace(DEFAULT_TEMPLATE)` factory
+    still hands every Campaign the identical `custom_rules` dict and
+    `allowed_hit_locations` list objects DEFAULT_TEMPLATE (and therefore
+    RAW_SUPERHEROIC/RAW_HEROIC, and CombatTemplate.default_6e_superheroic(),
+    which template.py documents as what CombatSession.create callers use)
+    carries. Mutating one campaign's dict/list must not be visible through
+    a sibling campaign or through the module-level constants.
+
+    This must fail against a `field(default_factory=lambda:
+    replace(DEFAULT_TEMPLATE))` factory and pass only once the factory
+    does a deep copy.
+    """
+    a = Campaign(id="a", name="A")
+    b = Campaign(id="b", name="B")
+
+    assert a.template.custom_rules is not b.template.custom_rules
+    assert a.template.custom_rules is not DEFAULT_TEMPLATE.custom_rules
+    assert a.template.allowed_hit_locations is not b.template.allowed_hit_locations
+    assert a.template.allowed_hit_locations is not DEFAULT_TEMPLATE.allowed_hit_locations
+
+    a.template.custom_rules["pwned"] = True
+    a.template.allowed_hit_locations.append("head")
+
+    assert "pwned" not in b.template.custom_rules
+    assert "pwned" not in DEFAULT_TEMPLATE.custom_rules
+    assert "pwned" not in RAW_SUPERHEROIC.custom_rules
+    assert "pwned" not in CombatTemplate.default_6e_superheroic().custom_rules
+
+    assert "head" not in b.template.allowed_hit_locations
+    assert "head" not in DEFAULT_TEMPLATE.allowed_hit_locations
+    assert "head" not in RAW_SUPERHEROIC.allowed_hit_locations
