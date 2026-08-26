@@ -8,24 +8,24 @@ per HERO 6E1:
 - Full Recovery (out of combat, ~20 minutes rest) restores STUN, END, and BODY
   to max. This function handles only STUN + END; BODY recovery is separate.
 
-KO'd = current_stun <= 0. A KO'd character cannot take a Recovery Action (phase_12)
-but still benefits from Post-Segment 12 Recovery and Full Recovery.
+A KO'd character (see kirby_combat.participant.Stunnable.is_ko for
+the threshold definition) cannot take a Recovery Action (phase_12) but still
+benefits from Post-Segment 12 Recovery and Full Recovery.
 
 Step 2 of the combatant-redesign migration
 (kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md
 §4 step 2): this is the only file that reads ``combatant.current_stun /
 max_stun / rec`` directly and the spec calls it out as the first to
-migrate. We accept BOTH legacy ``Combatant`` and the new
-``HeroCombatant`` and dispatch internally — ducks via
-``hasattr(combatant, "state")``. Once steps 3-6 retire the legacy
-type, the dispatch helper goes away.
+migrate. We accept BOTH the flat ``StatBlockCombatant`` and the
+HD-shaped ``HeroCombatant`` and dispatch internally — ducks via
+``hasattr(combatant, "state")``.
 """
 from __future__ import annotations
 
 from typing import Union
 
 from kirby_combat.hero_view import HeroCombatant
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.template import CombatTemplate
 
 
@@ -38,13 +38,26 @@ _VALID_RECOVERY_TYPES: frozenset[str] = frozenset({
 
 def _vitals(combatant) -> tuple[int, int, int, int, int]:
     """Return (current_stun, current_end, rec, max_stun, max_end) regardless
-    of whether ``combatant`` is a legacy ``Combatant`` or a ``HeroCombatant``.
+    of whether ``combatant`` is a ``StatBlockCombatant`` or a
+    ``HeroCombatant``.
 
     HeroCombatant carries vitals on ``state`` (current_*) and computes
-    rec/max_* via ``combat_stats()``. Legacy Combatant is flat.
+    rec/max_* via ``combat_stats()``. StatBlockCombatant is flat — but it
+    satisfies this branch too, because its ``state``/``combat_stats()``
+    both return ``self``. The fallback below is for duck-typed callers from
+    outside the CombatParticipant hierarchy only (see the note there).
     """
+    # This guard no longer discriminates within the hierarchy: `state` and
+    # `combat_stats` are both guaranteed by CombatParticipant (the ABC's
+    # `__init_subclass__`/`__new__` refuse to instantiate a subclass missing
+    # either), so EVERY participant -- HeroCombatant, StatBlockCombatant,
+    # Vehicle, ObjectCombatant -- takes this branch and the flat fallback
+    # below is unreachable for them.
+    #
+    # Kept, not deleted: it predates the hierarchy and duck-typed callers
+    # from outside it may still exist. Whoever removes it later: the ABC
+    # guarantee is what makes that safe.
     if hasattr(combatant, "state") and hasattr(combatant, "combat_stats"):
-        # HeroCombatant
         s = combatant.combat_stats()
         return (
             int(combatant.state.current_stun),
@@ -53,7 +66,7 @@ def _vitals(combatant) -> tuple[int, int, int, int, int]:
             int(s.max_stun),
             int(s.max_end),
         )
-    # Legacy flat Combatant
+    # Duck-typed flat shape from outside the hierarchy.
     return (
         int(combatant.current_stun),
         int(combatant.current_end),
@@ -64,7 +77,7 @@ def _vitals(combatant) -> tuple[int, int, int, int, int]:
 
 
 def compute_recovery(
-    combatant: Union[Combatant, HeroCombatant],
+    combatant: Union[StatBlockCombatant, HeroCombatant],
     template: CombatTemplate,
     recovery_type: str,
 ) -> tuple[int, int]:
@@ -73,8 +86,8 @@ def compute_recovery(
     Deltas are non-negative — apply via ``current_* += delta``.
 
     Arguments:
-        combatant: the character recovering. Accepts either the legacy
-            flat ``Combatant`` or the new HD-shaped ``HeroCombatant``.
+        combatant: the character recovering. Accepts either the flat
+            ``StatBlockCombatant`` or the HD-shaped ``HeroCombatant``.
         template: CombatTemplate — reserved for future house-rule hooks
             (e.g. modified recovery rates). Currently unused but kept in
             the signature so callers don't have to refactor later.
@@ -87,7 +100,6 @@ def compute_recovery(
         raise ValueError(f"unknown recovery_type: {recovery_type!r}")
 
     current_stun, current_end, rec, max_stun, max_end = _vitals(combatant)
-    is_ko = current_stun <= 0
 
     if recovery_type == "full_recovery":
         stun_delta = max(0, max_stun - current_stun)
@@ -95,7 +107,17 @@ def compute_recovery(
         return stun_delta, end_delta
 
     if recovery_type == "phase_12":
-        if is_ko:
+        # Read the rule, do not restate it. `_vitals` unpacks current_stun to
+        # a raw int for the arithmetic below, but we still hold the
+        # participant, and `Stunnable.is_ko` computes from
+        # `combatant.state.current_stun` -- the same value `_vitals` just
+        # read. Duplicating `current_stun <= 0` here is how the KO threshold
+        # came to be written in three places at once.
+        #
+        # Read inside this branch, not above it: it is the only branch that
+        # asks the question, and a participant with no STUN track (an
+        # ObjectCombatant) has no `is_ko` to read at all.
+        if combatant.is_ko:
             # 6E: KO'd characters cannot take a Recovery Action.
             return 0, 0
         # Fall through to standard REC recovery, capped at max.

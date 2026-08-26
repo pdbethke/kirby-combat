@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.scene.scene import Position, Scene
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import GMOverride, make_author_gm
@@ -20,7 +20,7 @@ from kirby_combat.gm.overrides import (
 def spawn_combatant(
     session: CombatSession,
     user_id: str,
-    new_combatant: Combatant,
+    new_combatant: StatBlockCombatant,
     position: Position | None = None,
     justification: str = "GM spawn",
 ) -> tuple[CombatSession, GMOverride]:

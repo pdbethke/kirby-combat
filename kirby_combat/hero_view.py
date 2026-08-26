@@ -1,20 +1,39 @@
-"""HD-shaped Combatant — wraps a kirby-cost LoadedHero.
+"""HD-shaped participant — wraps a kirby-cost LoadedHero.
 
-This is the "Phase 2 redesign" Combatant that supersedes the flat
-``models.Combatant``. See spec at
+This is the "Phase 2 redesign" participant that stands alongside the flat
+``models.StatBlockCombatant``. See spec at
 ``kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md``.
 
-Status: STEP 1 LIVE (2026-05-02). The dataclasses, ``from_hdc()``,
-``combat_stats()``, ``attack_view()``, and ``defense_view()`` are
-implemented and verified end-to-end against the kirby-combat
-resolution engine via a to_legacy() bridge — see commit message for
-the demo. Refinements pending in steps 2-4: framework slot lookup,
-modifier-aware modifier accumulation, defense-power adder split for
-PD vs ED.
+Status (2026-08-25): the dataclasses, ``from_hdc()``, ``combat_stats()``,
+``attack_view()``, ``defense_view()``, and ``movement_view()`` are all
+implemented. Stat derivation (``_compute_stats_from_hero``) reads
+characteristics straight from the cost engine and walks HD powers for
+resistant/mental/power/flash defenses; ``combat_stats()`` layers live
+Drain/Aid deltas and the rPD/rED cap on top of that. There is no
+``to_legacy()`` bridge any more — the resolution layer is driven
+directly from these views.
 
-Why this exists alongside ``models.Combatant``:
+Two things flagged in earlier commits as pending are still genuinely
+open, not just stale text:
+- Framework slot lookup (``_find_power`` / ``attack_view(slot_xmlid=...)``)
+  finds a named slot under its parent framework, but there is no
+  session-driven active-slot allocation yet.
+- ``_compute_stats_from_hero`` splits FORCEFIELD/ARMOR/RESISTANTPROTECTION
+  levels between PD and ED by assuming an even half-and-half split,
+  because per-adder PD/ED parsing isn't wired up.
 
-- The flat Combatant lops off power frameworks (Multipower / VPP /
+A known, tracked (not accidental) issue: a large share of this file
+(``_compute_damage_dice``, ``_build_attack_power``,
+``_power_to_defense_item``, ``_damage_type_for_power``,
+``_modifier_levels``, ``_movement_capabilities``, and similar) derives
+build facts from HD powers — work that, per the platform's stated
+architecture, belongs to kirby-cost rather than the combat engine.
+Moving it is deliberately out of scope here; it is tracked as §3c of
+``kirby/docs/superpowers/specs/2026-08-25-combatant-redesign-addendum.md``.
+
+Why this exists alongside ``models.StatBlockCombatant``:
+
+- The flat stat block lops off power frameworks (Multipower / VPP /
   Elemental Control), modifiers (Reduced Endurance, Penetrating,
   AP, etc.), adders, and Compound power decomposition. Real HD
   characters can't be represented losslessly.
@@ -40,6 +59,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
+from kirby_combat.participant import CombatParticipant, Stunnable
 
 
 #: The Mental Powers, per 6E1 p150. Owning any one of these is what makes a
@@ -215,12 +235,12 @@ class MartialManeuverView:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HeroCombatant — the HD-shaped Combatant
+# HeroCombatant — the participant that wraps a LoadedHero
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 @dataclass
-class HeroCombatant:
+class HeroCombatant(Stunnable, CombatParticipant):
     """A character/NPC in combat, sourced from a HD model.
 
     ``hero`` is the source of truth (LoadedHero, full HD fidelity,
@@ -252,22 +272,23 @@ class HeroCombatant:
     knockback_resistance: int = 0
 
     # ─────────────────────────────────────────────────────────────────────
-    # Legacy-Combatant-shaped read API (combatant-redesign step 6)
+    # Stat-block-shaped read API
     #
     # The resolution layer (to_hit / damage / defense / knockback /
-    # status / adjustments) was written against the flat Combatant
-    # and reads ``attacker.ocv``, ``target.pd``, ``c.current_stun``,
-    # etc. directly. To let HeroCombatant flow into those code paths
-    # WITHOUT rewriting every resolution call site, expose the same
-    # fields as read-only properties — derived live from
+    # status / adjustments) was written against the flat
+    # ``StatBlockCombatant`` and reads ``attacker.ocv``, ``target.pd``,
+    # ``c.current_stun``, etc. directly. To let HeroCombatant flow into
+    # those code paths WITHOUT rewriting every resolution call site,
+    # expose the same fields as read-only properties — derived live from
     # ``combat_stats()`` and ``state``.
     #
-    # These are the inverse of the no-op shims on legacy Combatant
-    # (which had the fields and added ``combat_stats()``/``state``
-    # accessors). Together, both shapes expose the same surface.
-    # When LegacyCombatant deletes, the no-op shims go but these
-    # properties stay — callers permanently use ``c.ocv`` /
-    # ``c.combat_stats().ocv`` interchangeably.
+    # These are the mirror image of ``StatBlockCombatant``'s
+    # ``combat_stats()``/``state`` (which return ``self``, because its flat
+    # fields ARE its stats and state). Together, both shapes expose the same
+    # surface, so callers use ``c.ocv`` and ``c.combat_stats().ocv``
+    # interchangeably on either. Both halves are permanent — the flat type
+    # was renamed, not deleted, because Vehicle and ObjectCombatant subclass
+    # it and have no LoadedHero to wrap.
     # ─────────────────────────────────────────────────────────────────────
 
     @property
@@ -368,7 +389,7 @@ class HeroCombatant:
 
     @property
     def defenses(self) -> list[DefenseItem]:
-        """Alias for ``defense_view()`` — read like a legacy Combatant."""
+        """Alias for ``defense_view()`` — read like a flat stat block."""
         return self.defense_view()
 
     @property
@@ -436,10 +457,13 @@ class HeroCombatant:
             hero.name.lower().replace(" ", "_") if hero.name else "unnamed"
         )
 
-        # Compute CombatStats once to derive the initial vitals.
-        # combat_stats() will be filled in by a subsequent commit; for
-        # now we plug in placeholder zeros so the from_hdc() path is at
-        # least round-trippable through the dataclass shell.
+        # Compute CombatStats once to derive the initial vitals via
+        # _compute_stats_from_hero (real: characteristics from the cost
+        # engine + defense powers walked and summed). The
+        # NotImplementedError fallback below is defensive only —
+        # _compute_stats_skeleton doesn't currently raise it — kept so a
+        # future skeleton failure degrades to zeros instead of raising
+        # out of from_hdc().
         try:
             stats = cls._compute_stats_skeleton(hero)
             initial_stun = stats.max_stun

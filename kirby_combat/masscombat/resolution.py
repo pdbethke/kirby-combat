@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from kirby_combat.masscombat.unit import Unit, UnitMorale
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass

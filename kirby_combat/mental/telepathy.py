@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.tables import telepathy_degree
 
 
@@ -26,8 +26,8 @@ class TelepathyResult:
 
 
 def resolve_telepathy(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     effect_dice_values: list[int],
     target_has_mental_awareness: bool = False,
 ) -> TelepathyResult:

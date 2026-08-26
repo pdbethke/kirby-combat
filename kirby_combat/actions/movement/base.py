@@ -23,26 +23,31 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import MovementResolved, make_author_combatant
 
 
 def _decrement_end(combatant, cost: int):
     """Subtract ``cost`` from ``combatant.current_end`` and return the
-    updated combatant. Handles both legacy flat ``Combatant`` (END is a
-    dataclass field) and ``HeroCombatant`` (END lives on a separate
+    updated combatant. Handles both the flat ``StatBlockCombatant`` (END is
+    a dataclass field) and ``HeroCombatant`` (END lives on a separate
     ``state`` dataclass via ``state.current_end``).
 
-    Detection: legacy Combatant's ``.state`` shim returns ``self``, so
-    ``combatant.state is combatant`` distinguishes the two shapes.
+    Detection: ``StatBlockCombatant.state`` returns ``self`` (its flat
+    ``current_*`` fields ARE its state), so ``combatant.state is combatant``
+    distinguishes the two shapes. That identity is load-bearing here -- see
+    the comment on ``StatBlockCombatant.state`` in models.py; making it
+    return a copy would route every stat-block END spend into the
+    HeroCombatant branch below, which ``dataclasses.replace``s a nonexistent
+    ``state`` field.
     """
     from dataclasses import replace as _replace
     if combatant.state is not combatant:
         # HeroCombatant: state is a separate HeroCombatState dataclass
         new_state = _replace(combatant.state, current_end=combatant.current_end - cost)
         return _replace(combatant, state=new_state)
-    # Legacy flat Combatant
+    # StatBlockCombatant: current_end is a field on the combatant itself.
     return _replace(combatant, current_end=combatant.current_end - cost)
 
 
@@ -89,7 +94,7 @@ class MovementAction:
             return self.base_inches * 2.0 * self.noncombat_multiplier
         return 0.0
 
-    def validate(self, combatant: Combatant) -> list[str]:
+    def validate(self, combatant: StatBlockCombatant) -> list[str]:
         """Return list of validation errors. Empty list = valid."""
         errors: list[str] = []
         if self.move_type not in _VALID_MOVE_TYPES:

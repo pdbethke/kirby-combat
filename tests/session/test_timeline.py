@@ -1,7 +1,7 @@
 """Timeline + SPD chart phase resolution tests."""
 import pytest
 
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,
@@ -9,14 +9,14 @@ from kirby_combat.session.timeline import (
 )
 
 
-def _c(id_: str, spd: int, dex: int, int_: int = 10) -> Combatant:
+def _c(id_: str, spd: int, dex: int, int_: int = 10) -> "HeroCombatant":
     """Minimal Combatant for timeline tests.
 
     Combatant has no `int_` field; we use `ego` as the INT proxy per
     timeline's `_combatant_int` helper. So map the fixture `int_` param
     to the combatant's `ego` field.
     """
-    return Combatant(
+    return synthetic_combatant(
         id=id_, name=id_, ocv=0, dcv=0, omcv=0, dmcv=0,
         spd=spd, dex=dex, ego=int_, str_=10, con=10, pre=10, rec=5,
         pd=0, ed=0, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,

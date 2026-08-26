@@ -2,7 +2,7 @@
 import pytest
 
 from kirby_combat.models import AttackPower, DefenseItem
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 
 
@@ -13,7 +13,7 @@ def superhero_template():
 
 @pytest.fixture
 def blaster():
-    return Combatant(
+    return synthetic_combatant(
         id="blaster", name="Blaster",
         ocv=8, dcv=7, omcv=5, dmcv=5,
         spd=6, dex=26, ego=15, str_=20, con=25, pre=20, rec=10,
@@ -43,7 +43,7 @@ def blaster():
 
 @pytest.fixture
 def brick():
-    return Combatant(
+    return synthetic_combatant(
         id="brick", name="Brick",
         ocv=6, dcv=4, omcv=0, dmcv=0,
         spd=4, dex=18, ego=10, str_=60, con=30, pre=20, rec=15,

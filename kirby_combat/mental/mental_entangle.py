@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass
@@ -44,8 +44,8 @@ class MentalEscapeResult:
 
 
 def apply_mental_entangle(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     body_dice_values: list[int],
 ) -> MentalEntangleResult:
     if not attacker.is_mentalist:
@@ -73,7 +73,7 @@ def apply_mental_entangle(
 
 
 def attempt_mental_escape(
-    target: Combatant,
+    target: StatBlockCombatant,
     state: MentalEntangleState,
     ego_roll_dice: list[int],
 ) -> MentalEscapeResult:

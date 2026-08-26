@@ -2,11 +2,11 @@
 import pytest
 
 from kirby_combat.mental.mental_blast import resolve_mental_blast, MentalBlastResult
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 
 
-def _mentalist(id_: str = "a") -> Combatant:
-    return Combatant(
+def _mentalist(id_: str = "a") -> "HeroCombatant":
+    return synthetic_combatant(
         id=id_, name=id_, ocv=0, dcv=0, omcv=8, dmcv=3,
         spd=4, dex=15, ego=18, str_=10, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -16,8 +16,8 @@ def _mentalist(id_: str = "a") -> Combatant:
     )
 
 
-def _target(id_: str = "t", md: int = 0, con: int = 15, current_stun: int = 30) -> Combatant:
-    return Combatant(
+def _target(id_: str = "t", md: int = 0, con: int = 15, current_stun: int = 30) -> "HeroCombatant":
+    return synthetic_combatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=5,
         spd=3, dex=12, ego=10, str_=15, con=con, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=md, power_defense=0, flash_defense=0,

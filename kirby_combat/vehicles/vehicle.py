@@ -1,10 +1,10 @@
-"""Vehicle = Combatant subtype. HDC-shaped fields only.
+"""Vehicle = StatBlockCombatant subtype. HDC-shaped fields only.
 
 HDC alignment note: HDC treats vehicles via the same `<CHARACTER>` XML
 shape as PCs, with `<CHARACTER_INFO>` fields like CHARACTER_TYPE indicating
 type. Fields here mirror the canonical HD vehicle fields:
 NAME, SIZE, BODY, DEF (rPD/rED), PD, ED, STUN, SPD, DEX, STR, MOVEMENT.
-Combat-only state (passengers, current STUN/BODY) lives on the Combatant
+Combat-only state (passengers, current STUN/BODY) lives on the StatBlockCombatant
 parent fields established in Phase 1.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import ClassVar
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass(frozen=True)
@@ -34,10 +34,10 @@ def max_passengers_for_size(size: int) -> int:
 
 
 @dataclass
-class Vehicle(Combatant):
-    """A vehicle is a Combatant with additional HDC-shaped fields.
+class Vehicle(StatBlockCombatant):
+    """A vehicle is a StatBlockCombatant with additional HDC-shaped fields.
 
-    New fields beyond Combatant:
+    New fields beyond StatBlockCombatant:
         size               HDC SIZE (1-10)
         movement_inches    dict of movement mode -> inches (1" = 2m)
         passengers         list[Passenger]
@@ -47,7 +47,7 @@ class Vehicle(Combatant):
     passengers: list[Passenger] = field(default_factory=list)
 
     # Class-level marker so apply_event and serialization can distinguish
-    # Vehicle from base Combatant.
+    # Vehicle from a base StatBlockCombatant.
     kind: ClassVar[str] = "vehicle"
 
     @classmethod
@@ -60,7 +60,7 @@ class Vehicle(Combatant):
         movement_inches: dict[str, int],
         passengers: list[Passenger],
     ) -> "Vehicle":
-        """Factory building a Vehicle with Combatant-compatible defaults."""
+        """Factory building a Vehicle with StatBlockCombatant-compatible defaults."""
         if len(passengers) > max_passengers_for_size(size):
             raise ValueError(
                 f"Vehicle {id}: {len(passengers)} passengers exceeds capacity "
@@ -81,6 +81,27 @@ class Vehicle(Combatant):
             movement_inches=movement_inches,
             passengers=list(passengers),
         )
+
+    @property
+    def is_ko(self) -> bool:
+        """A vehicle with no STUN track is never "knocked out".
+
+        Unlike ObjectCombatant, a Vehicle MAY have STUN -- ``make()`` takes
+        ``max_stun`` -- so it keeps ``Stunnable`` and narrows it here instead
+        of opting out. But ``make(..., max_stun=0)`` sets
+        ``current_stun=max_stun=0``, and the inherited ``current_stun <= 0``
+        rule then read an undamaged vehicle as unconscious. Measured
+        2026-08-25, before this override::
+
+            Vehicle.make(..., max_stun=0)   # an undamaged van
+            -> current_stun=0  is_ko=True
+
+        Same defect as the intact door in ObjectCombatant; different fix,
+        because the capability is per-instance here, not per-type.
+        """
+        if self.max_stun <= 0:
+            return False
+        return super().is_ko
 
     def add_passenger(self, passenger: "Passenger") -> "Vehicle":
         if len(self.passengers) >= max_passengers_for_size(self.size):

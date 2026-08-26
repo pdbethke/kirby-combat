@@ -6,11 +6,11 @@ from kirby_combat.pre_attacks import (
     PresenceAttackResult,
 )
 from kirby_combat.tables import presence_attack_effect, PRESENCE_ATTACK_EFFECTS
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 
 
-def _attacker(pre: int = 25) -> Combatant:
-    return Combatant(
+def _attacker(pre: int = 25) -> "HeroCombatant":
+    return synthetic_combatant(
         id="a", name="a", ocv=8, dcv=8, omcv=3, dmcv=3,
         spd=4, dex=15, ego=15, str_=20, con=15, pre=pre, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
@@ -19,8 +19,8 @@ def _attacker(pre: int = 25) -> Combatant:
     )
 
 
-def _target(pre: int = 10) -> Combatant:
-    return Combatant(
+def _target(pre: int = 10) -> "HeroCombatant":
+    return synthetic_combatant(
         id="t", name="t", ocv=8, dcv=8, omcv=3, dmcv=3,
         spd=4, dex=15, ego=15, str_=15, con=15, pre=pre, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,

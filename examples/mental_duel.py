@@ -20,7 +20,7 @@ from __future__ import annotations
 from kirby_combat.mental.mental_combat import resolve_mental_to_hit
 from kirby_combat.mental.mental_blast import resolve_mental_blast
 from kirby_combat.mental.mind_control import resolve_mind_control
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 def rule(title: str) -> None:
@@ -29,7 +29,7 @@ def rule(title: str) -> None:
     print("═" * 70)
 
 
-def bar(c: Combatant, *, stun: int | None = None) -> str:
+def bar(c: StatBlockCombatant, *, stun: int | None = None) -> str:
     cur = c.current_stun if stun is None else stun
     filled = max(0, min(20, round(20 * cur / max(1, c.max_stun))))
     return (f"   {c.name:10} STUN [{'▓' * filled}{'░' * (20 - filled)}] "
@@ -40,7 +40,7 @@ def bar(c: Combatant, *, stun: int | None = None) -> str:
 # Cast — a telepath and a target with some mental resistance
 # ─────────────────────────────────────────────────────────────────────────────
 
-TELEPATH = Combatant(
+TELEPATH = StatBlockCombatant(
     id="telepath", name="The Whisper",
     ocv=5, dcv=6, omcv=9, dmcv=8,
     spd=4, dex=15, ego=25, str_=10, con=15, pre=25, rec=6,
@@ -51,7 +51,7 @@ TELEPATH = Combatant(
     attacks=[], defenses=[], is_mentalist=True,
 )
 
-SOLDIER = Combatant(
+SOLDIER = StatBlockCombatant(
     id="soldier", name="Sentry",
     ocv=8, dcv=7, omcv=3, dmcv=4,
     spd=4, dex=18, ego=13, str_=18, con=20, pre=15, rec=8,

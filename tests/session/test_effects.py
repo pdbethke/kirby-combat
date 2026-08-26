@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from kirby_combat.dice import FakeRoller
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.effects import (
     adjustment_delta, adjustments_for, entangle_state, flash_state,
@@ -24,7 +24,7 @@ from kirby_combat.template import CombatTemplate
 
 
 def _session() -> CombatSession:
-    c = Combatant(
+    c = synthetic_combatant(
         id="alice", name="alice", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,

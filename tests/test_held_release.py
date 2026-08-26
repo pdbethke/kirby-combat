@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.dice import FakeRoller
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session import CombatSession
 from kirby_combat.session.events import (
     ActionDeclared, HeldActionDeclared, make_author_combatant,
@@ -18,14 +18,14 @@ from kirby_combat.template import CombatTemplate
 
 
 def _session() -> CombatSession:
-    a = Combatant(
+    a = synthetic_combatant(
         id="alice", name="alice", ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,
     )
-    b = Combatant(
+    b = synthetic_combatant(
         id="bob", name="bob", ocv=7, dcv=7, omcv=5, dmcv=5,
         spd=3, dex=15, ego=10, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,

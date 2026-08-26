@@ -18,13 +18,14 @@ import pytest
 
 from kirby_combat.actions import resolve_attack
 from kirby_combat.models import (
-    AttackInput, AttackPower, Combatant, DefenseItem, DiceValues,
+    AttackInput, AttackPower, DefenseItem, DiceValues,
 )
 from kirby_combat.template import CombatTemplate
+from tests.fixtures.synthetic_hero import synthetic_combatant
 
 
 def _attacker(*, ocv=10, str_=20, name="atk"):
-    return Combatant(
+    return synthetic_combatant(
         id="atk", name=name, ocv=ocv, dcv=10, omcv=3, dmcv=3,
         spd=4, dex=10, ego=10, str_=str_, con=10, pre=10, rec=5,
         pd=10, ed=10, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
@@ -36,7 +37,7 @@ def _attacker(*, ocv=10, str_=20, name="atk"):
 
 
 def _defender(*, pd=10, ed=10, rpd=0, red=0, defenses=None):
-    return Combatant(
+    return synthetic_combatant(
         id="def", name="def", ocv=5, dcv=5, omcv=3, dmcv=3,
         spd=4, dex=10, ego=10, str_=10, con=10, pre=10, rec=5,
         pd=pd, ed=ed, rpd=rpd, red=red, md=0, power_defense=0, flash_defense=0,

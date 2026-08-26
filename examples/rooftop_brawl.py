@@ -20,7 +20,7 @@ from kirby_combat.actions.movement.knockback_movement import resolve_knockback_m
 from kirby_combat.actions.reactive.dodge import Dodge
 from kirby_combat.dice import FakeRoller
 from kirby_combat.models import (
-    AttackInput, AttackPower, Combatant, DefenseItem, DiceValues,
+    AttackInput, AttackPower, DefenseItem, DiceValues, StatBlockCombatant,
 )
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
@@ -45,7 +45,7 @@ ENERGY_BLAST = AttackPower(
     armor_piercing=0, penetrating=0, increased_stun_mult=0,
 )
 
-NIGHTHAWK = Combatant(
+NIGHTHAWK = StatBlockCombatant(
     id="nighthawk", name="Nighthawk",
     ocv=9, dcv=8, omcv=4, dmcv=4,
     spd=5, dex=23, ego=15, str_=20, con=20, pre=20, rec=8,
@@ -57,7 +57,7 @@ NIGHTHAWK = Combatant(
     defenses=[DefenseItem(name="Armored Cape", pd=4, ed=4, rpd=4, red=4, is_resistant=True)],
 )
 
-VOLT = Combatant(
+VOLT = StatBlockCombatant(
     id="volt", name="Volt",
     ocv=8, dcv=7, omcv=3, dmcv=3,
     spd=5, dex=20, ego=12, str_=15, con=23, pre=18, rec=7,
@@ -103,7 +103,7 @@ SCENE = Scene(
 # 3. Helpers — apply Phase 1 attack result to session combatants
 # ─────────────────────────────────────────────────────────────────────────────
 
-def resolve_attack(attacker: Combatant, target: Combatant, dice: DiceValues,
+def resolve_attack(attacker: StatBlockCombatant, target: StatBlockCombatant, dice: DiceValues,
                    *, ocv_mod: int = 0, dcv_mod: int = 0):
     """Run the Phase 1 pipeline. Returns (stun_dealt, body_dealt, hit, audit)."""
     inp = AttackInput(

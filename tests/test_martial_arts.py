@@ -6,13 +6,13 @@ from __future__ import annotations
 
 from kirby_combat.actions.martial_arts import MartialArts
 from kirby_combat.dice import FakeRoller
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate
 
 
 def _session() -> CombatSession:
-    fighter = Combatant(
+    fighter = synthetic_combatant(
         id="fighter", name="Fighter",
         ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=20, con=20, pre=15, rec=8,

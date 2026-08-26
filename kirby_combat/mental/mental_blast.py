@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MentalBlastResult:
 
 
 def resolve_mental_blast(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     damage_dice_values: list[int],
 ) -> MentalBlastResult:
     if not attacker.is_mentalist:
@@ -37,6 +37,10 @@ def resolve_mental_blast(
     body_dealt = 0
 
     new_current_stun = target.current_stun - stun_dealt
+    # Raw int in hand: this is the PROJECTED post-damage STUN, not yet
+    # written back onto `target.state`, so there is no participant object
+    # to read `.is_ko` from here. The rule itself is defined once, on
+    # kirby_combat.participant.Stunnable.is_ko.
     target_ko = new_current_stun <= 0
     target_stunned = stun_dealt > target.con
 

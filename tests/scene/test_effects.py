@@ -1,11 +1,11 @@
 """Construct effect resolution incl. capability-gated suffocation (spec §1.5)."""
 from kirby_combat.scene import Construct, ConstructEffect, Position
 from kirby_combat.scene.effects import resolve_construct_effect
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 
 
 def _occupant(*statuses):
-    c = Combatant(id="o", name="o", ocv=8, dcv=8, omcv=5, dmcv=5, spd=4, dex=20,
+    c = synthetic_combatant(id="o", name="o", ocv=8, dcv=8, omcv=5, dmcv=5, spd=4, dex=20,
                   ego=15, str_=15, con=15, pre=15, rec=5, pd=5, ed=5, rpd=0, red=0,
                   md=5, power_defense=0, flash_defense=0, max_stun=30, max_body=15,
                   max_end=30, current_stun=30, current_body=15, current_end=30)

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.tables import mental_illusion_degree
 
 
@@ -37,8 +37,8 @@ class DisbeliefResult:
 
 
 def resolve_mental_illusion(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     effect_dice_values: list[int],
 ) -> MentalIllusionResult:
     if not attacker.is_mentalist:
@@ -60,7 +60,7 @@ def resolve_mental_illusion(
 
 
 def attempt_disbelief(
-    target: Combatant,
+    target: StatBlockCombatant,
     illusion_effect_total: int,
     ego_roll_dice: list[int],
     contradiction_observed: bool,

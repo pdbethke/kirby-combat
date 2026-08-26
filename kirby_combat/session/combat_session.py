@@ -1,7 +1,7 @@
 """CombatSession — the stateful combat state machine.
 
 Per combatant-redesign step 3 (2026-05-02), the ``combatants`` dict
-accepts either the legacy flat ``Combatant`` or the HD-shaped
+accepts either the flat ``StatBlockCombatant`` or the HD-shaped
 ``HeroCombatant``. The session machinery itself only reads ``.id``
 on each combatant; per-combatant stat reads happen in ``actions/``
 when AttackInput is built (step 4 migration).
@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional, Union
 
 from kirby_combat.hero_view import HeroCombatant
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.timeline import Timeline
 from kirby_combat.session.events import (
     CombatEvent, SessionStarted, SessionEnded,
@@ -25,9 +25,10 @@ if TYPE_CHECKING:
     from kirby_combat.dice.roller import DiceRoller
 
 
-# Either flat or HD-shaped — both implement ``.id``. Live alongside
-# until the migration retires LegacyCombatant in step 6.
-CombatantLike = Union[Combatant, HeroCombatant]
+# Every kind of thing that can be in a fight. CombatParticipant in
+# kirby_combat.participant is the ancestor; this union is what the session
+# actually stores until the ABC is the only annotation needed.
+CombatantLike = Union[StatBlockCombatant, HeroCombatant]
 
 
 @dataclass

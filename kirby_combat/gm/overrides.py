@@ -2,7 +2,7 @@
 
 Per Phase 2 spec Section 9 (GM tiered model):
 - Tier 1: simple stat/status nudge ("set Bob's STUN to 5", "apply Stunned"
-          on Carol). Mutates a Combatant snapshot field. No justification.
+          on Carol). Mutates a combatant snapshot field. No justification.
 - Tier 2: replace/retract a single past resolved event ("re-roll", "abort
           retroactively"). Requires justification. Creates a corrective
           GMOverride event referencing the original.
@@ -18,7 +18,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import GMOverride, EventAuthor, make_author_gm
 
@@ -115,7 +115,7 @@ def make_tier2_retroactive_abort(
 def make_tier3_spawn(
     session: CombatSession,
     user_id: str,
-    combatant: Combatant,
+    combatant: StatBlockCombatant,
     justification: str,
 ) -> GMOverride:
     if not justification:
@@ -175,7 +175,7 @@ def apply_tier1_override(session: CombatSession, override: GMOverride) -> Combat
         new_combatants[cid] = new
         return replace(session, combatants=new_combatants)
     if op == "apply_status":
-        # Status tracking lives outside the Combatant for now; this op is
+        # Status tracking lives outside the combatant for now; this op is
         # idempotent at the structural level. Caller should follow with a
         # StatusChanged event in a richer integration.
         return session
@@ -185,7 +185,7 @@ def apply_tier1_override(session: CombatSession, override: GMOverride) -> Combat
 def apply_tier3_spawn(
     session: CombatSession,
     override: GMOverride,
-    new_combatant: Combatant,
+    new_combatant: StatBlockCombatant,
 ) -> CombatSession:
     """Add a combatant mid-session via a Tier 3 spawn override."""
     if override.tier != 3:

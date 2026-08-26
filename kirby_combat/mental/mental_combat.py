@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 @dataclass
@@ -24,8 +24,8 @@ class MentalToHitResult:
 
 
 def resolve_mental_to_hit(
-    attacker: Combatant,
-    target: Combatant,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
     dice_values: list[int],
     distance_m: float | None = None,
     ocv_modifier: int = 0,

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from hypothesis import given, strategies as st, settings
 
 from kirby_combat.serialization import to_dict, from_dict
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.vehicles import Vehicle, Passenger
 from kirby_combat.masscombat import Unit, UnitMorale
 from kirby_combat.scene import (
@@ -27,8 +27,10 @@ def _ts() -> datetime:
     return datetime(2026, 4, 25, 12, 0, 0, tzinfo=timezone.utc)
 
 
-def _ct(id_: str = "alice") -> Combatant:
-    return Combatant(
+# NOT synthetic: exercises full-field dataclass equality after
+# to_dict/from_dict, which only holds for the flat StatBlockCombatant shape.
+def _ct(id_: str = "alice") -> StatBlockCombatant:
+    return StatBlockCombatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=5, dmcv=5,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -121,7 +123,7 @@ def test_every_event_type_roundtrips():
 )
 @settings(max_examples=50, deadline=None)
 def test_hypothesis_random_combatant_roundtrip(id_, spd, dex, stun, body):
-    c = Combatant(
+    c = StatBlockCombatant(
         id=id_, name=id_, ocv=5, dcv=5, omcv=3, dmcv=3,
         spd=spd, dex=dex, ego=10, str_=10, con=10, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,

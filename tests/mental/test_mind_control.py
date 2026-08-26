@@ -6,11 +6,11 @@ from kirby_combat.mental.mind_control import (
     MindControlResult, MindControlState,
     can_break_out_with_ego_roll,
 )
-from kirby_combat.models import Combatant
+from tests.fixtures.synthetic_hero import synthetic_combatant
 
 
-def _mentalist(id_: str = "a") -> Combatant:
-    return Combatant(
+def _mentalist(id_: str = "a"):
+    return synthetic_combatant(
         id=id_, name=id_, ocv=0, dcv=0, omcv=8, dmcv=3,
         spd=4, dex=15, ego=18, str_=10, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -20,8 +20,8 @@ def _mentalist(id_: str = "a") -> Combatant:
     )
 
 
-def _target(id_: str = "t", ego: int = 10) -> Combatant:
-    return Combatant(
+def _target(id_: str = "t", ego: int = 10):
+    return synthetic_combatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=5,
         spd=3, dex=12, ego=ego, str_=15, con=15, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=3, power_defense=0, flash_defense=0,

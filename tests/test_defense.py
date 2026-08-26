@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from kirby_combat.models import AttackPower, DefenseItem
-from fixtures.synthetic_hero import synthetic_combatant as Combatant
+from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.resolution.defense import compute_defense
 
 
@@ -30,7 +30,7 @@ def _make_power(defense_type: str = "pd", armor_piercing: int = 0) -> AttackPowe
     )
 
 
-def _make_combatant(**overrides) -> Combatant:
+def _make_combatant(**overrides) -> "HeroCombatant":
     defaults = dict(
         id="c1",
         name="Test Char",
@@ -43,7 +43,7 @@ def _make_combatant(**overrides) -> Combatant:
         knockback_resistance=0,
     )
     defaults.update(overrides)
-    return Combatant(**defaults)
+    return synthetic_combatant(**defaults)
 
 
 # ---------------------------------------------------------------------------

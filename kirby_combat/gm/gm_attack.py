@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
     ActionDeclared, EventAuthor, make_author_gm,
@@ -59,6 +59,6 @@ def make_gm_attack(
     return GMAttackDeclaration(declaration=decl, on_behalf_of=on_behalf_of)
 
 
-def can_actor_pay_end(actor: Combatant, end_cost: int) -> bool:
+def can_actor_pay_end(actor: StatBlockCombatant, end_cost: int) -> bool:
     """A GM-attack still respects the actor's current END."""
     return actor.current_end >= end_cost

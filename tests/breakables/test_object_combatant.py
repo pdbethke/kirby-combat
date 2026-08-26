@@ -2,12 +2,12 @@
 import pytest
 
 from kirby_combat.breakables import ObjectCombatant
-from kirby_combat.models import Combatant
+from kirby_combat.models import StatBlockCombatant
 
 
 def test_object_combatant_has_body_def_no_stun():
     o = ObjectCombatant.make(id="door1", name="Wooden Door", material="wood")
-    assert isinstance(o, Combatant)
+    assert isinstance(o, StatBlockCombatant)
     assert o.max_body == 4
     assert o.rpd == 3
     assert o.red == 3
@@ -43,3 +43,23 @@ def test_object_hdc_fields_preserved():
         id="x", name="X", material="metal", hdc_source_xml=raw,
     )
     assert o.hdc_source_xml == raw
+
+
+def test_is_destroyed_comes_from_the_shared_breakable_mixin():
+    """`current_body <= 0` was written in four places. ObjectCombatant's own
+    copy is gone; it inherits the one on `participant.Breakable`.
+
+    `Breakable.is_destroyed` is a plain METHOD, matching the call convention
+    already used here (`o.is_destroyed()`); a property would have made this
+    `TypeError: 'bool' object is not callable`. Pin both facts.
+    """
+    from kirby_combat.participant import Breakable
+
+    assert issubclass(ObjectCombatant, Breakable)
+    # Not overridden -- resolved straight off the mixin.
+    assert ObjectCombatant.is_destroyed is Breakable.is_destroyed
+    assert "is_destroyed" not in vars(ObjectCombatant)
+
+    o = ObjectCombatant.make(id="wall", name="Wall", material="stone")
+    assert o.is_destroyed() is False
+    assert type(o)(**{**o.__dict__, "current_body": 0}).is_destroyed() is True
