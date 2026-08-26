@@ -48,7 +48,33 @@ class Encounter:
     id: str
     turn: int = 1
     segment: int = 12  # 6E2 p.20: combat begins on Segment 12.
+    #: HAZARD -- TWO INDEPENDENT CLOCKS. `Encounter(turn, segment,
+    #: current_slot_index)` duplicates `Timeline(turn, segment,
+    #: current_slot_index)` (kirby_combat/session/timeline.py) field for
+    #: field, and the two do NOT advance the same way. `advance_segment`
+    #: below implements the 6E2 p.18 Segment-12 -> next-Turn wrap. The path
+    #: `CombatSession` actually uses -- `session/apply.py`'s handling of
+    #: `SegmentAdvanced` -- takes `to_turn`/`to_segment` straight from the
+    #: event and applies NO wrap; it is whatever the caller says. A Scene
+    #: holding both an `Encounter` and a `CombatSession` therefore has two
+    #: counters that can be advanced independently and can disagree, and
+    #: NEITHER is authoritative today -- that only gets decided when acting
+    #: order moves onto `Encounter` in the follow-up work (this field is
+    #: kept now, unwired, because the spec names it as part of what
+    #: `Encounter` owns).
     current_slot_index: int = 0
+    #: HAZARD -- CAN GO STALE. `Scene.encounter -> Encounter.sessions ->
+    #: CombatSession.scene` is a reference cycle. `Scene` and `Encounter`
+    #: are immutable-by-convention (mutation is via `dataclasses.replace`,
+    #: never in place), so a `replace(scene, encounter=...)` produces a new
+    #: `Scene` without touching any `CombatSession` already reachable
+    #: through the OLD `encounter.sessions` -- that session's `.scene`
+    #: keeps pointing at the Scene that was replaced. Nothing in this
+    #: package enforces that the two ever agree; a caller that walks
+    #: `encounter.sessions[i].scene` after replacing the owning Scene can
+    #: read stale data. Kept (per spec: `Encounter -> CombatSession` is the
+    #: named containment link) rather than deleted, pending the follow-up
+    #: that wires acting order through here.
     sessions: list["CombatSession"] = field(default_factory=list)
     template: "CombatTemplate | None" = None
 
@@ -67,7 +93,7 @@ class Encounter:
         combatants: Iterable["StatBlockCombatant"],
         *,
         campaign: "Campaign | None" = None,
-        roller: Callable[[], int] | None = None,
+        roller: Callable[[], int | list[int] | tuple[int, ...]] | None = None,
     ) -> list["ActingSlot"]:
         """Build the acting order for ``self.segment``, honoring the
         resolved CombatTemplate's ``tie_rule`` (6E2 p.21).
