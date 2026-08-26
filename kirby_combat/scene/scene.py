@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from kirby_combat.encounter import Encounter
     from kirby_combat.scene.construct import Construct
 
 
@@ -160,6 +161,12 @@ class Scene:
     ambient: AmbientConditions
     combatant_positions: dict[str, Position] = field(default_factory=dict)
     constructs: list["Construct"] = field(default_factory=list)
+    # 6E2 p.8, "COMBAT AND NONCOMBAT TIME": precise (Segment-level) time is
+    # only tracked when a sequence needs it. A Scene at rest -- a house,
+    # five occupants doing chores -- has no Encounter at all; this is that
+    # normal, resting state, not an omission. Set only when the scene needs
+    # Segment-level accounting (a fight, a car chase, a rocket countdown).
+    encounter: "Encounter | None" = None
 
     def supporting_surfaces(self) -> list[Surface]:
         """Authored surfaces plus derived wall-top strips — THE support
