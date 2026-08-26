@@ -216,3 +216,46 @@ def test_current_slot_index_resets_when_a_new_order_is_built():
     enc = Encounter(id="e1", segment=3, current_slot_index=4,
                     sessions=[_session("a", [("x", 20)])])
     assert enc.run_segment(roller=_scripted_roller()).current_slot_index == 0
+
+
+def test_run_segment_honors_the_campaigns_tie_rule():
+    """`run_segment`'s campaign path -- `resolve_template(campaign, self)`
+    -- is the payoff of the whole Campaign -> Encounter hierarchy (a
+    campaign's tie_rule reaching the sort). Alice/Bob share DEX (15) so the
+    order is decided entirely by tie-breaking; INT/EGO are set inversely
+    (alice: int=10/ego=18, bob: int=18/ego=10) so this can't pass by
+    accident via EGO ordering.
+
+    The campaign's template sets TieRule.INT_THEN_PRE ("highest INT acts
+    first", 6E2 p.21) -> bob first. If `run_segment` ignored `campaign`
+    and fell back to `self.template or DEFAULT_TEMPLATE`
+    (DEFAULT_TEMPLATE.tie_rule is TieRule.DEX_ROLL), the scripted roller
+    below returns an identical roll for every combatant, so DEX_ROLL ties
+    fall through to alphabetical combatant_id -> alice first. The two
+    paths necessarily disagree, so this only passes if the campaign's
+    tie_rule actually reached the sort.
+    """
+    from dataclasses import replace
+
+    from kirby_combat.campaign import Campaign
+    from kirby_combat.session.tie_rule import TieRule
+
+    # _session doesn't carry INT/EGO, so build the session directly here.
+    a = CombatSession.create(
+        id="a",
+        combatants=[
+            synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18),
+            synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10),
+        ],
+        scene=None,
+        template=DEFAULT_TEMPLATE,
+    )
+    campaign = Campaign(
+        id="c1", name="X",
+        template=replace(DEFAULT_TEMPLATE, tie_rule=TieRule.INT_THEN_PRE),
+    )
+    enc = Encounter(id="e1", segment=3, sessions=[a])
+
+    out = enc.run_segment(campaign=campaign, roller=_scripted_roller())
+
+    assert _scene_order_ids(out) == ["bob", "alice"]

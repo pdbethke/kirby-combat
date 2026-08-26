@@ -65,10 +65,21 @@ class Encounter:
     #: event and applies NO wrap; it is whatever the caller says. A Scene
     #: holding both an `Encounter` and a `CombatSession` therefore has two
     #: counters that can be advanced independently and can disagree, and
-    #: NEITHER is authoritative today -- that only gets decided when acting
-    #: order moves onto `Encounter` in the follow-up work (this field is
-    #: kept now, unwired, because the spec names it as part of what
-    #: `Encounter` owns).
+    #: NEITHER is authoritative for turn/segment advancement today -- that
+    #: is still true; `advance_segment` and `apply.py`'s `SegmentAdvanced`
+    #: handler remain two separate, disagreeing paths, and this task did
+    #: not touch either.
+    #:
+    #: WIRED (was unwired): `current_slot_index` itself -- as opposed to
+    #: `turn`/`segment` -- is no longer one of the two disagreeing clocks.
+    #: `run_segment` (below) is the acting-order work this comment used to
+    #: say was still pending: it resolves one scene-wide order across every
+    #: combatant in every `self.sessions` entry (6E2 p.18) and sets BOTH
+    #: this field and every session's `Timeline.current_slot_index` to `0`
+    #: whenever it builds a fresh order. So `current_slot_index` now has a
+    #: single writer with a real meaning (an index into the just-built
+    #: order); it is `turn`/`segment` that remain the still-open half of
+    #: this hazard.
     current_slot_index: int = 0
     #: HAZARD -- CAN GO STALE. `Scene.encounter -> Encounter.sessions ->
     #: CombatSession.scene` is a reference cycle. `Scene` and `Encounter`
