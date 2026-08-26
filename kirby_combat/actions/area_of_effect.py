@@ -5,7 +5,7 @@ Modifier: Explosion (DC falloff by distance from epicenter).
 
 The basic shape methods are pure math (xy-positions only). Optional scene
 integration kwargs (scene + indirect) layer wall-blocking and hazard-along-
-path resolution on top, per Plan 1 Task 29.
+path resolution on top of that pure math.
 
 Engine has zero runtime deps — only stdlib + this package.
 """

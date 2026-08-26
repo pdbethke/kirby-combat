@@ -2,11 +2,24 @@
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,
+    ActionIntent,
     HeldAction,
     build_acting_order_for_segment,
+    build_provisional_order_for_segment,
+    resolve_acting_order,
+    consume_block_priority,
 )
 
-__all__ = ["Timeline", "ActingSlot", "HeldAction", "build_acting_order_for_segment"]
+__all__ = [
+    "Timeline",
+    "ActingSlot",
+    "ActionIntent",
+    "HeldAction",
+    "build_acting_order_for_segment",
+    "build_provisional_order_for_segment",
+    "resolve_acting_order",
+    "consume_block_priority",
+]
 
 from kirby_combat.session.events import (
     CombatEvent, EventAuthor,

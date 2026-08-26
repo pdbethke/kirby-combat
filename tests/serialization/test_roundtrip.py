@@ -32,7 +32,7 @@ def _ts() -> datetime:
 def _ct(id_: str = "alice") -> StatBlockCombatant:
     return StatBlockCombatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=5, dmcv=5,
-        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        spd=4, dex=20, ego=15, int_=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,
@@ -125,7 +125,7 @@ def test_every_event_type_roundtrips():
 def test_hypothesis_random_combatant_roundtrip(id_, spd, dex, stun, body):
     c = StatBlockCombatant(
         id=id_, name=id_, ocv=5, dcv=5, omcv=3, dmcv=3,
-        spd=spd, dex=dex, ego=10, str_=10, con=10, pre=10, rec=5,
+        spd=spd, dex=dex, ego=10, int_=10, str_=10, con=10, pre=10, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
         max_stun=stun, max_body=body, max_end=stun,
         current_stun=stun, current_body=body, current_end=stun,

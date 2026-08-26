@@ -129,6 +129,9 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         "OCV": data["ocv"], "DCV": data["dcv"],
         "OMCV": data["omcv"], "DMCV": data["dmcv"],
         "SPD": data["spd"], "DEX": data["dex"], "EGO": data["ego"],
+        # .get, not [...]: snapshots written before 2026-08-26 have no
+        # "int_" key, and a recorded combat must still replay.
+        "INT": data.get("int_", 0),
         "STR": data["str_"], "CON": data["con"], "PRE": data["pre"],
         "REC": data["rec"],
         "PD": data["pd"], "ED": data["ed"],
@@ -226,5 +229,10 @@ def from_dict(data: Any) -> Any:
             if f.name in data:
                 raw = from_dict(data[f.name])
                 kwargs[f.name] = _coerce_field(f.type, raw)
+            elif f.name == "int_":
+                # StatBlockCombatant snapshots written before 2026-08-26
+                # have no "int_" key. Default it rather than raising, so
+                # a recorded combat can still replay.
+                kwargs["int_"] = 0
         return cls(**kwargs)
     raise TypeError(f"cannot deserialize {type(data).__name__}")

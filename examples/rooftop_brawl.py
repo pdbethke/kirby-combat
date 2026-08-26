@@ -48,7 +48,7 @@ ENERGY_BLAST = AttackPower(
 NIGHTHAWK = StatBlockCombatant(
     id="nighthawk", name="Nighthawk",
     ocv=9, dcv=8, omcv=4, dmcv=4,
-    spd=5, dex=23, ego=15, str_=20, con=20, pre=20, rec=8,
+    spd=5, dex=23, ego=15, int_=13, str_=20, con=20, pre=20, rec=8,
     pd=10, ed=10, rpd=4, red=4, md=5,
     power_defense=0, flash_defense=0,
     max_stun=40, max_body=14, max_end=40,
@@ -60,7 +60,7 @@ NIGHTHAWK = StatBlockCombatant(
 VOLT = StatBlockCombatant(
     id="volt", name="Volt",
     ocv=8, dcv=7, omcv=3, dmcv=3,
-    spd=5, dex=20, ego=12, str_=15, con=23, pre=18, rec=7,
+    spd=5, dex=20, ego=12, int_=18, str_=15, con=23, pre=18, rec=7,
     pd=8, ed=15, rpd=2, red=8, md=4,
     power_defense=0, flash_defense=0,
     max_stun=45, max_body=12, max_end=50,

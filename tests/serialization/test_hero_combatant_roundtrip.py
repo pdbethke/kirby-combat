@@ -91,6 +91,15 @@ def test_hero_combatant_round_trip_preserves_combat_state():
     assert restored.knockback_resistance == 4
 
 
+def test_snapshot_without_int_still_loads():
+    """Combat recordings predate the int_ field. Replay must not break."""
+    original = synthetic_combatant(id="delta", name="Delta")
+    payload = to_dict(original)
+    payload.pop("int_", None)
+    restored = from_dict(payload)
+    assert restored.combat_stats().int_ == 0
+
+
 def test_hero_combatant_round_trip_when_state_is_default():
     """A freshly-loaded HeroCombatant with default state survives roundtrip."""
     original = synthetic_combatant(id="gamma", name="Gamma")

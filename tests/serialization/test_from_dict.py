@@ -15,7 +15,7 @@ def test_round_trip_position():
 def test_round_trip_combatant():
     c = StatBlockCombatant(
         id="a", name="a", ocv=8, dcv=8, omcv=5, dmcv=5,
-        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        spd=4, dex=20, ego=15, int_=15, str_=15, con=15, pre=15, rec=5,
         pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,

@@ -132,3 +132,21 @@ def test_block_does_not_depend_on_attacker_roll():
     out_b = Block.resolve(blocker_ocv=10, blocker_dice=[3, 3, 3], attacker_ocv=8)
     assert out_a.success == out_b.success
     assert out_a.blocker_margin == out_b.blocker_margin
+
+
+def test_successful_block_records_acts_first_priority():
+    """6E2 p.60 ("ACTING FIRST"): a successful Block earns the blocker
+    priority to act first against that attacker in their next shared
+    Segment. This is the recording point session state consumes via
+    `session.timeline.resolve_acting_order`'s `acts_first` mapping."""
+    result = Block.resolve(blocker_ocv=10, blocker_dice=[3, 3, 3], attacker_ocv=8)
+    assert result.success is True
+    priority = Block.acts_first_priority(result, "alice", "bob")
+    assert priority == {"alice": "bob"}
+
+
+def test_failed_block_records_no_priority():
+    result = Block.resolve(blocker_ocv=8, blocker_dice=[4, 4, 4], attacker_ocv=10)
+    assert result.success is False
+    priority = Block.acts_first_priority(result, "alice", "bob")
+    assert priority == {}

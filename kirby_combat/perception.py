@@ -421,7 +421,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
     LoS/occlusion; per-Sense-Group Invisibility blocks the covered senses
     (with a ≤2m Fringe PER roll unless the power has No Fringe); a Hidden
     target runs an opposed Stealth-vs-PER contest against any clear Sight-group
-    sense. Mental senses give non-LOS mental targeting (Task 6 adds the lock).
+    sense. Mental senses give non-LOS mental targeting (a lock, not yet added).
     Pure: no DB, no mutation."""
     if roller is None:
         roller = RandomRoller()

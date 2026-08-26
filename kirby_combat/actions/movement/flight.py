@@ -1,7 +1,7 @@
 """Flight — 3D movement; treats walls/terrain as ignorable at engine layer.
 
-Scene-aware logic (obstacles, movement terrain, ceiling height) is left to
-Task 20 (Scene integration). 1 END/10m, NCM 4×.
+Scene-aware logic (obstacles, movement terrain, ceiling height) is not yet
+wired in at this engine layer. 1 END/10m, NCM 4×.
 """
 from __future__ import annotations
 

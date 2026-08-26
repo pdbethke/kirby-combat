@@ -45,6 +45,8 @@ class _Stats:
         self.dex = dex
         self.spd = spd
         self.ego = 10
+        self.int_ = 10
+        self.pre = 10
 
 
 def _participant(id_: str, dex: int, spd: int):

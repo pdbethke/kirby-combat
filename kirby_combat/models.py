@@ -142,6 +142,11 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
     spd: int
     dex: int
     ego: int
+    # int_ used to sit here. It moved into the defaulted region below
+    # (default 10) so this dataclass stays constructible by keyword
+    # without INT — kirby-api's Vehicle/ObjectCombatant call sites
+    # (entity_service.py) never pass it. See int_'s new declaration
+    # for the rationale.
     str_: int
     con: int
     pre: int
@@ -165,6 +170,19 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
     is_mentalist: bool = False
     is_npc: bool = False
     knockback_resistance: int = 0
+    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
+    #: Carried here because timeline sorts on it; it was absent until
+    #: 2026-08-26, which made timeline's INT branch dead code.
+    #: Defaults to 10 — the HERO baseline for a normal human characteristic,
+    #: and the value the old ``getattr(stats, "int_", ...)`` fallback used
+    #: before INT was threaded through. A non-defaulted field would make an
+    #: omission a construction error, which is right *inside* this repo but
+    #: does not extend across the published-package boundary: kirby-api
+    #: constructs vehicles/objects by keyword without passing int_, and a
+    #: TypeError there would ship as a breaking patch release. Vehicles and
+    #: breakable objects still pass int_=0 explicitly — they have no INT and
+    #: must not silently inherit a human default.
+    int_: int = 10
 
     # ── CombatParticipant contract, for a stat block ──────────────────
     # CombatParticipant.combat_stats() / .state are abstract: every

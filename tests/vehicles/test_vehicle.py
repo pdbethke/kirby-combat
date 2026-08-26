@@ -66,6 +66,29 @@ def test_vehicle_over_passenger_capacity_raises():
         v.add_passenger(Passenger("c", "extra", False))
 
 
+def test_vehicle_constructs_by_keyword_without_int():
+    """kirby-api's entity_service.py constructs Vehicle directly by keyword
+    (not via `.make()`) and never passes `int_` -- confirmed against
+    entity_service.py's `_build_vehicle`. `StatBlockCombatant.int_` must
+    stay defaulted (10) so this call shape keeps working across the
+    package boundary; a non-defaulted field would raise TypeError here."""
+    v = Vehicle(
+        id="v1", name="Wraith Mk2",
+        ocv=0, dcv=3, omcv=0, dmcv=0,
+        spd=4, dex=18, ego=0, str_=40, con=0, pre=0, rec=0,
+        pd=8, ed=8, rpd=6, red=6, md=0,
+        power_defense=0, flash_defense=0,
+        max_stun=40, max_body=12, max_end=0,
+        current_stun=40, current_body=12, current_end=0,
+        size=6,
+    )
+    # Vehicles have no INT and must not silently inherit the human
+    # default -- entity_service.py doesn't pass int_ either, so it relies
+    # on Vehicle.make()'s explicit int_=0; a bare keyword construction
+    # like this one falls back to StatBlockCombatant's default instead.
+    assert v.int_ == 10
+
+
 def test_vehicle_fields_are_hdc_shaped():
     """Regression against the HDC round-trip requirement."""
     v = Vehicle.make(

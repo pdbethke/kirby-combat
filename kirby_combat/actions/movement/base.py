@@ -1,6 +1,6 @@
 """MovementAction — base for all movement powers.
 
-Subclasses (Task 10): Running, Leaping, Flight, Swimming, Teleportation, Tunneling.
+Subclasses: Running, Leaping, Flight, Swimming, Teleportation, Tunneling.
 Each subclass sets `name`, `base_inches`, and overrides `noncombat_multiplier`
 or `end_per_10m` if the power deviates from defaults.
 

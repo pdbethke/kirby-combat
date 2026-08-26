@@ -43,7 +43,7 @@ def bar(c: StatBlockCombatant, *, stun: int | None = None) -> str:
 TELEPATH = StatBlockCombatant(
     id="telepath", name="The Whisper",
     ocv=5, dcv=6, omcv=9, dmcv=8,
-    spd=4, dex=15, ego=25, str_=10, con=15, pre=25, rec=6,
+    spd=4, dex=15, ego=25, int_=20, str_=10, con=15, pre=25, rec=6,
     pd=4, ed=4, rpd=0, red=0, md=10,
     power_defense=0, flash_defense=0,
     max_stun=30, max_body=10, max_end=40,
@@ -54,7 +54,7 @@ TELEPATH = StatBlockCombatant(
 SOLDIER = StatBlockCombatant(
     id="soldier", name="Sentry",
     ocv=8, dcv=7, omcv=3, dmcv=4,
-    spd=4, dex=18, ego=13, str_=18, con=20, pre=15, rec=8,
+    spd=4, dex=18, ego=13, int_=13, str_=18, con=20, pre=15, rec=8,
     pd=8, ed=8, rpd=4, red=4, md=3,          # a little Mental Defense
     power_defense=0, flash_defense=0,
     max_stun=40, max_body=12, max_end=40,

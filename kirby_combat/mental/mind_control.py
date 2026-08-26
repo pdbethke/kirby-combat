@@ -68,6 +68,7 @@ def can_break_out_with_ego_roll(target: StatBlockCombatant, ego_roll_dice: list[
     """
     if len(ego_roll_dice) != 3:
         raise ValueError(f"EGO roll needs 3d6, got {len(ego_roll_dice)}")
+    from kirby_cost.engine.rolls import characteristic_roll
     roll = sum(ego_roll_dice)
-    target_number = 9 + target.ego // 5
+    target_number = characteristic_roll(target.ego)
     return roll <= target_number

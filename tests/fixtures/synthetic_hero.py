@@ -116,6 +116,7 @@ def synthetic_combatant(
     spd: int = 2,
     dex: int = 10,
     ego: int = 10,
+    int_: int = 10,
     str_: int = 10,
     con: int = 10,
     pre: int = 10,
@@ -151,7 +152,7 @@ def synthetic_combatant(
     """
     char_values = {
         "OCV": ocv, "DCV": dcv, "OMCV": omcv, "DMCV": dmcv,
-        "SPD": spd, "DEX": dex, "EGO": ego, "STR": str_,
+        "SPD": spd, "DEX": dex, "EGO": ego, "INT": int_, "STR": str_,
         "CON": con, "PRE": pre, "REC": rec,
         "PD": pd, "ED": ed,
         "STUN": max_stun, "BODY": max_body, "END": max_end,

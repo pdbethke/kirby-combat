@@ -41,7 +41,7 @@ def rule(title: str) -> None:
 HERO = StatBlockCombatant(
     id="hero", name="The Bulwark",
     ocv=9, dcv=8, omcv=4, dmcv=4,
-    spd=5, dex=20, ego=15, str_=50, con=28, pre=40, rec=12,
+    spd=5, dex=20, ego=15, int_=13, str_=50, con=28, pre=40, rec=12,
     pd=20, ed=20, rpd=15, red=15, md=8,
     power_defense=0, flash_defense=0,
     max_stun=60, max_body=18, max_end=50,
@@ -52,7 +52,7 @@ HERO = StatBlockCombatant(
 THUG = StatBlockCombatant(
     id="thug", name="Street Thug",
     ocv=5, dcv=5, omcv=3, dmcv=3,
-    spd=3, dex=13, ego=10, str_=13, con=13, pre=10, rec=5,
+    spd=3, dex=13, ego=10, int_=10, str_=13, con=13, pre=10, rec=5,
     pd=4, ed=3, rpd=0, red=0, md=0,
     power_defense=0, flash_defense=0,
     max_stun=22, max_body=10, max_end=25,

@@ -182,6 +182,9 @@ class HeroCombatStats:
     # Primary characteristics
     dex: int
     ego: int
+    # int_ used to sit here. It moved into the defaulted region below
+    # (default 10) so this dataclass stays constructible by keyword
+    # without INT — see int_'s new declaration for the rationale.
     str_: int
     con: int
     pre: int
@@ -203,6 +206,18 @@ class HeroCombatStats:
 
     # Movement / reach
     reach_m: float = 0.0         # effective melee reach in metres (2m + Stretching)
+
+    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
+    #: Carried here because timeline sorts on it; it was absent until
+    #: 2026-08-26, which made timeline's INT branch dead code.
+    #: Defaults to 10 — the HERO baseline for a normal human characteristic,
+    #: and the value the old ``getattr(stats, "int_", ...)`` fallback used
+    #: before INT was threaded through. A non-defaulted field would make an
+    #: omission a construction error, which is right *inside* this repo but
+    #: does not extend across the published-package boundary: kirby-api
+    #: constructs combatants by keyword without always passing int_, and a
+    #: TypeError there would ship as a breaking patch release.
+    int_: int = 10
 
 
 @dataclass(frozen=True)
@@ -310,6 +325,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
     def dex(self) -> int: return self.combat_stats().dex
     @property
     def ego(self) -> int: return self.combat_stats().ego
+    @property
+    def int_(self) -> int: return self.combat_stats().int_
     @property
     def str_(self) -> int: return self.combat_stats().str_
     @property
@@ -1287,6 +1304,7 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
         spd=cv("SPD"),
         dex=cv("DEX"),
         ego=cv("EGO"),
+        int_=cv("INT"),
         str_=cv("STR"),
         con=cv("CON"),
         pre=cv("PRE"),

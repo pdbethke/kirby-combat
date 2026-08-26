@@ -37,7 +37,7 @@ def scenery(id_: str, name: str, *, body: int, pd: int, ed: int,
     return ObjectCombatant(
         id=id_, name=name,
         ocv=0, dcv=0, omcv=0, dmcv=0,
-        spd=0, dex=0, ego=0, str_=0, con=0, pre=0, rec=0,
+        spd=0, dex=0, ego=0, int_=0, str_=0, con=0, pre=0, rec=0,
         pd=pd, ed=ed, rpd=pd, red=ed, md=0,
         power_defense=0, flash_defense=0,
         max_stun=0, max_body=body, max_end=0,

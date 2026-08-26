@@ -1,8 +1,8 @@
 """Tunneling — slow movement that creates a dug trail.
 
 RAW: cannot be done at noncombat rate (you tunnel at a constant speed).
-Material DEF gating is Scene-aware (Task 20). 1 END/10m, NCM 1× (noncombat
-speedup does not apply).
+Material DEF gating is Scene-aware and not yet wired in here. 1 END/10m,
+NCM 1× (noncombat speedup does not apply).
 """
 from __future__ import annotations
 

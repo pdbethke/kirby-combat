@@ -11,7 +11,7 @@ Per 6E2 p87 §Using Dive For Cover:
     - Failed Dive: character is at HALF DCV but did NOT move, AND the
       attacker gets +2 OCV against the diver this Phase.
 
-The DEX Roll is the standard HERO Characteristic Roll: 3d6 ≤ 9 + DEX // 5,
+The DEX Roll is the standard HERO Characteristic Roll: 3d6 ≤ 9 + round(DEX / 5),
 with a penalty of -1 per 2m of distance moved (rounded up). Underwater
 the penalty doubles to -1 per 1m moved (per 6E2 p170).
 """
@@ -59,7 +59,7 @@ class DiveForCover:
     (no movement + prone + ½ DCV + attacker gets +2 OCV).
 
     DEX Roll formula (HERO standard Characteristic Roll, 6E2 p87):
-    3d6 ≤ 9 + DEX // 5, with -1 per 2m of distance moved (or fraction).
+    3d6 ≤ 9 + round(DEX / 5), with -1 per 2m of distance moved (or fraction).
     Underwater the penalty doubles to -1 per 1m (6E2 p170).
     """
 
@@ -111,8 +111,9 @@ class DiveForCover:
               - Failure: diver is prone at half DCV, did NOT move,
                 attacker gets +2 OCV against the diver this Phase.
         """
-        # 6E2 p87: standard Characteristic Roll target is 9 + DEX/5.
-        base_target = 9 + (combatant_dex // 5)
+        # 6E2 p87: standard Characteristic Roll target is 9 + round(DEX/5).
+        from kirby_cost.engine.rolls import characteristic_roll
+        base_target = characteristic_roll(combatant_dex)
         # 6E2 p87: -1 per 2m moved (or fraction). p170: doubled underwater.
         meters_per_penalty_step = 1.0 if underwater else 2.0
         from math import ceil as _ceil

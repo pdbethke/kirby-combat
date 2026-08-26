@@ -130,7 +130,7 @@ def test_dive_for_cover_marks_aborting():
 
 def test_dive_for_cover_success_prone_half_dcv_no_attacker_bonus():
     """Per 6E2 p87: successful Dive → prone at destination, ½ DCV, no attacker bonus."""
-    # DEX=18 → target = 9 + 18//5 = 12. Roll 9 → success.
+    # DEX=18 → target = 9 + round(18/5) = 13 (canon Characteristic Roll). Roll 9 → success.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[3, 3, 3],
         requested_destination=(10.0, 5.0, 0.0),
@@ -144,7 +144,7 @@ def test_dive_for_cover_success_prone_half_dcv_no_attacker_bonus():
 
 def test_dive_for_cover_failure_half_dcv_no_movement_attacker_plus_2_ocv():
     """Per 6E2 p87: failed Dive → ½ DCV, no movement, attacker +2 OCV."""
-    # DEX=18 → target = 9 + 18//5 = 12. Roll 18 → fail.
+    # DEX=18 → target = 9 + round(18/5) = 13 (canon Characteristic Roll). Roll 18 → fail.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[6, 6, 6],
         requested_destination=(10.0, 5.0, 0.0),
@@ -158,23 +158,23 @@ def test_dive_for_cover_failure_half_dcv_no_movement_attacker_plus_2_ocv():
 
 def test_dive_for_cover_dex_roll_succeeds_on_equal():
     """3d6 ≤ target → roll == target succeeds (HERO Characteristic Roll convention)."""
-    # DEX=30 → target = 9 + 30//5 = 15. Roll 15 → success at boundary.
+    # DEX=30 → target = 9 + round(30/5) = 15. Roll 15 → success at boundary.
     result = DiveForCover.resolve_dex_roll(combatant_dex=30, dice=[5, 5, 5])
     assert result.success is True
 
 
 def test_dive_for_cover_distance_penalty_applies_per_2m_per_6e2_p87():
     """Per 6E2 p87: -1 to DEX Roll per 2m moved (or fraction)."""
-    # DEX=18 → base target = 9 + 18//5 = 12. Move 6m → -3 penalty → effective target 9.
-    # Roll 9 → success at boundary.
+    # DEX=18 → base target = 9 + round(18/5) = 13 (canon Characteristic Roll).
+    # Move 6m → -3 penalty → effective target 10. Roll 9 → success.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[3, 3, 3], distance_m=6.0,
     )
     assert result.success is True
-    assert result.target == 9
-    # Move 8m → -4 penalty → effective target 8. Roll 9 → fail.
+    assert result.target == 10
+    # Move 10m → -5 penalty → effective target 8. Roll 9 → fail.
     result_fail = DiveForCover.resolve_dex_roll(
-        combatant_dex=18, dice=[3, 3, 3], distance_m=8.0,
+        combatant_dex=18, dice=[3, 3, 3], distance_m=10.0,
     )
     assert result_fail.success is False
     assert result_fail.target == 8
@@ -183,25 +183,25 @@ def test_dive_for_cover_distance_penalty_applies_per_2m_per_6e2_p87():
 def test_dive_for_cover_distance_penalty_rounds_up_per_6e2_p87():
     """Per 6E2 p87: distance penalty applies for every 2m moved 'or fraction thereof'."""
     # 1m moved → ceil(1/2) = 1m penalty step; 3m moved → ceil(3/2) = 2 steps.
-    # DEX=18 → base target 12. With 3m move → effective target 10.
+    # DEX=18 → base target 13 (canon Characteristic Roll). With 3m move → effective target 11.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[3, 3, 3], distance_m=3.0,
     )
-    assert result.target == 10
+    assert result.target == 11
 
 
 def test_dive_for_cover_underwater_penalty_doubled_per_6e2_p170():
     """Per 6E2 p170: underwater the distance penalty doubles to -1 per 1m moved."""
-    # DEX=18, 6m underwater → -6 penalty. Base target 12 → effective 6.
+    # DEX=18, 6m underwater → -6 penalty. Base target 13 (canon Characteristic Roll) → effective 7.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[3, 3, 3], distance_m=6.0, underwater=True,
     )
-    assert result.target == 6
+    assert result.target == 7
 
 
 def test_dive_for_cover_avoids_aoe_when_destination_outside_radius():
     """Per 6E2 p87: AoE attack misses iff diver's destination is outside the AoE radius."""
-    # DEX=18 → target = 9 + 18//5 = 12. Roll 9 → success. Destination (20, 0, 0)
+    # DEX=18 → target = 9 + round(18/5) = 13. Roll 9 → success. Destination (20, 0, 0)
     # is 20m from origin (0, 0, 0) — outside a 10m AoE.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[3, 3, 3],
@@ -225,6 +225,16 @@ def test_dive_for_cover_does_not_avoid_aoe_when_destination_inside_radius():
     )
     assert result.success is True
     assert result.avoids_aoe is False
+
+
+def test_dive_for_cover_target_rounds_like_canon():
+    """DEX 13 gives a 12- Characteristic Roll, not 11-. The two formulas
+    disagree on 16 of 40 DEX values and dive_for_cover had the harsh one."""
+    from kirby_cost.engine.rolls import characteristic_roll
+    result = DiveForCover.resolve_dex_roll(combatant_dex=13, dice=[4, 4, 4])
+    assert characteristic_roll(13) == 12
+    assert result.target == 12
+    assert result.success is True   # 12 <= 12; truncation would give 11- and fail
 
 
 # ---- Pulling Punch (per 6E2 p89) -----
