@@ -114,6 +114,7 @@ def main() -> None:
     for combatant_id, pos in occupants.items():
         house = house.place_combatant(combatant_id, pos)
     world = replace(world, scenes=[house, base])
+    campaign = replace(campaign, worlds=[world])
 
     describe(house)
     print("\n  Five people, one place, nobody tracking Segments. That is the")
@@ -128,6 +129,7 @@ def main() -> None:
         new_encounter = base.encounter.advance_segment()
         base = replace(base, encounter=new_encounter)
         world = replace(world, scenes=[house, base])
+        campaign = replace(campaign, worlds=[world])
         print(f"    Turn {new_encounter.turn}, Segment {new_encounter.segment}")
 
     print("\n  ...and driving it straight through the Segment 12 -> Turn+1 wrap:")
@@ -139,7 +141,23 @@ def main() -> None:
     print(f"    advance_segment() -> Turn {wrapped.turn}, Segment {wrapped.segment}")
     base = replace(base, encounter=wrapped)
     world = replace(world, scenes=[house, base])
+    campaign = replace(campaign, worlds=[world])
     assert wrapped.turn == encounter.turn + 1 and wrapped.segment == 1
+
+    # Rebinding `world` and `campaign` through every step above (rather than
+    # just `base`) is not cosmetic: it is what makes the hierarchy safe to
+    # read back through. Campaign/World/Scene are immutable-by-convention
+    # (`replace` returns a new object; nothing is mutated in place), so a
+    # `base = replace(base, ...)` that is never propagated upward leaves
+    # `campaign.worlds[0]` pointing at the OLD Scene forever -- a stale read
+    # that looks correct only because nothing here reads it back. This
+    # confirms the read-back is actually live:
+    live_base = campaign.worlds[0].scene_by_id("base")
+    print(f"\n  campaign.worlds[0].scene_by_id('base').encounter now reads "
+          f"Turn {live_base.encounter.turn}, Segment {live_base.encounter.segment} "
+          "-- not the Turn 1, Segment 12 it started at.")
+    assert (live_base.encounter.turn, live_base.encounter.segment) == \
+        (wrapped.turn, wrapped.segment)
 
     rule("THE CONTRAST")
     print("  Same World. Same kind of Scene object. One field tells them apart:")
