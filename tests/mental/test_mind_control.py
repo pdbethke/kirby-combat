@@ -70,3 +70,12 @@ def test_mind_control_target_can_break_out_each_phase_with_ego_roll():
     assert can_break_out_with_ego_roll(t, [4, 4, 3]) is True
     # roll 12 -> fails (need 11 or less)
     assert can_break_out_with_ego_roll(t, [4, 4, 4]) is False
+
+
+def test_mind_control_break_out_ego_roll_rounds_like_canon():
+    """EGO 18 gives a 13- Characteristic Roll, not 12-. The two formulas
+    disagree on 16 of 40 characteristic values and this site had the
+    truncating one (9 + EGO // 5). A roll of 13 distinguishes them:
+    canon (13-) succeeds; truncated (12-) fails."""
+    t = _target(ego=18)
+    assert can_break_out_with_ego_roll(t, [5, 4, 4]) is True   # 13 <= 13-
