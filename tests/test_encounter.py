@@ -1,4 +1,6 @@
 """Tests for Encounter -- the engine's Segment/Turn clock."""
+import pytest
+
 from kirby_combat.encounter import Encounter
 
 
@@ -96,3 +98,40 @@ def test_a_different_tie_rule_produces_a_different_order():
     order = e.acting_order([alice, bob], campaign=c, roller=roller)
 
     assert [s.combatant_id for s in order] == ["alice", "bob"]
+
+
+def test_acting_order_without_a_campaign_falls_back_to_own_template():
+    """`acting_order`'s no-`campaign` branch (`self.template or
+    DEFAULT_TEMPLATE`) had zero coverage: both other acting_order tests
+    pass `campaign=`. Set `self.template` explicitly and prove it -- not
+    DEFAULT_TEMPLATE -- is what gets consulted, via its `tie_rule`."""
+    from dataclasses import replace
+
+    from kirby_combat.session.tie_rule import TieRule
+    from kirby_combat.template import DEFAULT_TEMPLATE
+    from tests.fixtures.synthetic_hero import synthetic_combatant
+
+    own_template = replace(DEFAULT_TEMPLATE, tie_rule=TieRule.INT_THEN_PRE)
+    e = Encounter(id="e1", segment=3, template=own_template)
+    alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
+    bob = synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10)
+
+    order = e.acting_order([alice, bob])  # no campaign
+
+    assert [s.combatant_id for s in order] == ["bob", "alice"]
+
+
+def test_acting_order_without_a_campaign_or_own_template_falls_back_to_default_template():
+    """No `campaign`, no `self.template` -> DEFAULT_TEMPLATE, whose
+    `tie_rule` is TieRule.DEX_ROLL (6E2 p.21's book default). DEX_ROLL
+    requires a roller; asserting the ValueError (deliberately, per the
+    task) proves DEFAULT_TEMPLATE -- and not some no-roller-needed rule --
+    is what got resolved."""
+    from tests.fixtures.synthetic_hero import synthetic_combatant
+
+    e = Encounter(id="e1", segment=3)  # template=None
+    alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
+    bob = synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10)
+
+    with pytest.raises(ValueError):
+        e.acting_order([alice, bob])  # no campaign, no roller
