@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Mapping
 
 from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.tie_rule import TieRule, dex_roll_target
@@ -189,8 +189,23 @@ def resolve_acting_order(
     *,
     tie_rule: TieRule = TieRule.INT_THEN_PRE,
     roller: Callable[[], int] | None = None,
+    acts_first: Mapping[str, str] | None = None,
 ) -> list[ActingSlot]:
     """Resolve a provisional order into the final acting order for a segment.
+
+    `acts_first` maps blocker_id -> attacker_id: a successful Block (6E2
+    p.60, "ACTING FIRST") lets the blocker "act first (regardless of
+    relative DEX)" in the next Segment where both his Phase and the
+    attacker's Phase fall -- and the book is explicit this holds "even if
+    [the attacker] does not attack again", so it is consulted purely off
+    who has a Phase this Segment, never off `intents`. A pair only takes
+    priority when BOTH the blocker and the named attacker have a slot in
+    `slots` this Segment (that is the "same Segment" condition the rule
+    states); an entry naming a combatant absent this Segment is inert here
+    -- see `consume_block_priority` for when such an entry is spent.
+    Block priority outranks every characteristic, including the mental
+    EGO ordering and the INT/PRE tie ladder: it is the leading sort key,
+    checked before `ordering_value` is even read.
 
     `intents` maps combatant_id -> ActionIntent for combatants who have
     declared what they're about to do; a combatant absent from `intents`
@@ -256,17 +271,30 @@ def resolve_acting_order(
             # declared as `template.randomize_dex_ties` and never wired up.
             tie_scores[s.combatant_id] = _sum_roll(roller())
 
+    # Block priority (6E2 p.60) outranks DEX outright, so it must be the
+    # LEADING sort key -- ahead of `ordering_value` (which is itself ahead
+    # of the INT/PRE tie ladder). 0 sorts before 1, so a combatant with a
+    # live priority against someone also acting this Segment goes first;
+    # everyone else (including a blocker whose named attacker has no Phase
+    # this Segment) ties at rank 1 and falls through to the normal ladder.
+    acts_first = acts_first or {}
+    ids_present = {s.combatant_id for s in slots}
+
+    def _block_priority_rank(combatant_id: str) -> int:
+        target = acts_first.get(combatant_id)
+        return 0 if (target is not None and target in ids_present) else 1
+
     # Primary ordering: `ordering_value` (APG p.50 -- EGO for a declared
     # mental action, printed DEX otherwise, see that function's docstring).
     # DEX-tie tie-breaking (INT/PRE ladder, DEX Roll, RANDOM) is unchanged
     # by this and still keys off printed DEX/`dex_at_phase` -- APG p.50
     # only relocates who's compared on what for the *primary* sort.
     if tie_rule is TieRule.INT_THEN_PRE:
-        key = lambda s: (-ordering_value(s), -s.int_tiebreak, -s.pre_tiebreak,
-                          s.combatant_id)
+        key = lambda s: (_block_priority_rank(s.combatant_id), -ordering_value(s),
+                          -s.int_tiebreak, -s.pre_tiebreak, s.combatant_id)
     elif tie_rule in (TieRule.DEX_ROLL, TieRule.RANDOM):
-        key = lambda s: (-ordering_value(s), -tie_scores[s.combatant_id],
-                          s.combatant_id)
+        key = lambda s: (_block_priority_rank(s.combatant_id), -ordering_value(s),
+                          -tie_scores[s.combatant_id], s.combatant_id)
     else:
         raise ValueError(f"unknown TieRule: {tie_rule!r}")
 
@@ -279,17 +307,63 @@ def build_acting_order_for_segment(
     segment: int,
     tie_rule: TieRule = TieRule.INT_THEN_PRE,
     roller: Callable[[], int] | None = None,
+    acts_first: Mapping[str, str] | None = None,
 ) -> list[ActingSlot]:
     """Thin wrapper: provisional order, then resolve with no declared intents.
 
     Kept for existing callers that only need a final order and have no
     intents to declare. See `build_provisional_order_for_segment` and
     `resolve_acting_order` for the two-phase split this wraps.
+
+    `acts_first` (6E2 p.60) is forwarded to `resolve_acting_order` as-is
+    and is read-only here -- this function never mutates it. A Segment
+    can spend an `acts_first` entry (see `resolve_acting_order`'s
+    docstring for the "same Segment" condition); callers who need to know
+    which entries were spent so the priority doesn't outlive its one
+    shared Segment must call `consume_block_priority` themselves with this
+    call's `segment` and the combatants passed in -- consumption is a
+    session-state concern, not something this ordering primitive decides
+    on your behalf by rewriting an argument you handed it.
     """
     provisional = build_provisional_order_for_segment(combatants, segment)
     return resolve_acting_order(
-        provisional, intents={}, tie_rule=tie_rule, roller=roller
+        provisional, intents={}, tie_rule=tie_rule, roller=roller,
+        acts_first=acts_first,
     )
+
+
+def consume_block_priority(
+    acts_first: Mapping[str, str],
+    combatants: Iterable[StatBlockCombatant],
+    segment: int,
+) -> dict[str, str]:
+    """Spend any `acts_first` (6E2 p.60) entries usable in `segment`.
+
+    6E2 p.60: a successful Block's "act first" priority is good for the
+    next Segment in which both the blocker's and the attacker's Phases
+    fall -- one shared Segment, not a standing advantage. This holds
+    "even if [the attacker] does not attack again", so an entry is spent
+    purely by both ids having a Phase in `segment`, independent of what
+    either combatant declares doing there.
+
+    Returns a NEW dict with every entry whose blocker and named attacker
+    both have a Phase in `segment` removed; entries where one side (or
+    both) has no Phase this Segment are carried forward untouched, because
+    the priority hasn't had its shared Segment yet. The input mapping is
+    never mutated -- callers who want the priority to persist across
+    Segments own that state themselves (e.g. on `Timeline`) and replace it
+    with this function's return value; nothing here reaches into a
+    caller-supplied dict as a side channel.
+    """
+    ids_in_segment = {
+        c.id for c in combatants
+        if segment in segments_for_spd(c.combat_stats().spd)
+    }
+    return {
+        blocker_id: attacker_id
+        for blocker_id, attacker_id in acts_first.items()
+        if not (blocker_id in ids_in_segment and attacker_id in ids_in_segment)
+    }
 
 
 def _sum_roll(roll: int | list[int] | tuple[int, ...]) -> int:

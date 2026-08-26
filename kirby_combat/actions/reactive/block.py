@@ -61,3 +61,34 @@ class Block:
             attacker_ocv=attacker_ocv,
             blocker_ocv=blocker_ocv,
         )
+
+    @staticmethod
+    def acts_first_priority(
+        result: BlockResult, blocker_id: str, attacker_id: str,
+    ) -> dict[str, str]:
+        """Record the "acts first" priority a successful Block earns.
+
+        Per 6E2 p.60, "ACTING FIRST": a character who successfully Blocks
+        an attack may "act first (regardless of relative DEX)" if his next
+        Phase and the attacker's next Phase fall in the same Segment --
+        and the same passage is explicit this holds "even if [the
+        attacker] does not attack again", so it cannot be resolved as a
+        reaction at attack time; it has to be carried forward as state
+        until it is spent. This returns the `{blocker_id: attacker_id}`
+        entry to merge into that carried state (the `acts_first` mapping
+        consumed by `session.timeline.resolve_acting_order` /
+        `build_acting_order_for_segment`, and spent via
+        `consume_block_priority`), or `{}` if the Block failed.
+
+        DORMANT: nothing in kirby_combat currently calls this from a live
+        session path. `Block.resolve` has no caller today that wires a
+        `BlockResult` back onto `CombatSession`/`Timeline` -- there is no
+        `BlockResolved`-shaped event, and `apply_event` derives no session
+        state from a Block outcome. This method is the recording point
+        Task 9 adds so that wiring is a single, well-named call once a
+        live caller exists; it does not itself make Block priority take
+        effect in a running session.
+        """
+        if not result.success:
+            return {}
+        return {blocker_id: attacker_id}

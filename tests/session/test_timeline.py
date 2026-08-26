@@ -10,6 +10,7 @@ from kirby_combat.session.timeline import (
     build_acting_order_for_segment,
     build_provisional_order_for_segment,
     resolve_acting_order,
+    consume_block_priority,
 )
 
 
@@ -182,6 +183,106 @@ def test_no_declared_intent_orders_on_dex_as_before():
     prov = build_provisional_order_for_segment([brick, telepath], segment=3)
     final = resolve_acting_order(prov, intents={})
     assert [s.combatant_id for s in final] == ["brick", "telepath"]
+
+
+def test_successful_block_acts_first_despite_lower_dex():
+    """6E2 p.60 ("ACTING FIRST"): a successful Block lets the blocker
+    "act first (regardless of relative DEX)". The blocker has the LOWER
+    DEX here on purpose -- a passing result cannot be ordinary DEX
+    ordering in disguise."""
+    blocker = _c("blocker", spd=4, dex=10)
+    attacker = _c("attacker", spd=4, dex=25)
+    slots = build_acting_order_for_segment(
+        [blocker, attacker], segment=3,
+        acts_first={"blocker": "attacker"})
+    assert [s.combatant_id for s in slots] == ["blocker", "attacker"]
+
+
+def test_block_priority_holds_even_if_the_attacker_does_not_attack():
+    """6E2 p.60 applies the priority whether or not the attacker attacks
+    again -- so it cannot be modelled as a reaction resolved at attack
+    time. The blocker still goes first in a Phase where the attacker
+    only moves."""
+    blocker = _c("blocker", spd=4, dex=10)
+    attacker = _c("attacker", spd=4, dex=25)
+    prov = build_provisional_order_for_segment([blocker, attacker], segment=3)
+    final = resolve_acting_order(prov, intents={
+        "attacker": ActionIntent("MOVE"),
+        "blocker": ActionIntent("STRIKE"),
+    }, acts_first={"blocker": "attacker"})
+    assert [s.combatant_id for s in final] == ["blocker", "attacker"]
+
+
+def test_block_priority_outranks_the_int_pre_tie_ladder_too():
+    """Block priority must be consulted BEFORE any characteristic -- not
+    just DEX. Here attacker would win the INT/PRE ladder outright (higher
+    INT) if Block priority were not the leading sort key."""
+    blocker = _c("blocker", spd=4, dex=10, int_=8, pre=8)
+    attacker = _c("attacker", spd=4, dex=25, int_=20, pre=20)
+    slots = build_acting_order_for_segment(
+        [blocker, attacker], segment=3,
+        acts_first={"blocker": "attacker"})
+    assert [s.combatant_id for s in slots] == ["blocker", "attacker"]
+
+
+def test_block_priority_is_consumed_after_one_shared_segment():
+    """The priority buys one shared Segment, not a standing advantage.
+    `consume_block_priority` is an explicit, separate call -- it returns
+    a NEW dict rather than mutating the caller's `state` in place, so the
+    caller's own mapping is never touched as a hidden side channel."""
+    blocker = _c("blocker", spd=4, dex=10)
+    attacker = _c("attacker", spd=4, dex=25)
+    state = {"blocker": "attacker"}
+
+    first = build_acting_order_for_segment(
+        [blocker, attacker], segment=3, acts_first=state)
+    assert [s.combatant_id for s in first] == ["blocker", "attacker"]
+
+    state = consume_block_priority(state, [blocker, attacker], segment=3)
+    assert state == {}
+
+    second = build_acting_order_for_segment(
+        [blocker, attacker], segment=6, acts_first=state)
+    assert [s.combatant_id for s in second] == ["attacker", "blocker"]
+
+
+def test_block_priority_inert_when_named_attacker_has_no_phase_this_segment():
+    """6E2 p.60's priority only fires "if his next Phase and the
+    attacker's next Phase fall in the same Segment". A blocker's entry
+    naming an attacker who is not acting this Segment must NOT let the
+    blocker jump a THIRD combatant who is acting -- the same-Segment
+    condition, not just "has an entry", gates the priority."""
+    blocker = _c("blocker", spd=4, dex=10)          # acts 3, 6, 9, 12
+    absent_attacker = _c("absent", spd=2, dex=25)    # acts 6, 12 only
+    other = _c("other", spd=4, dex=20)               # acts 3, 6, 9, 12
+
+    slots = build_acting_order_for_segment(
+        [blocker, absent_attacker, other], segment=3,
+        acts_first={"blocker": "absent"})
+    assert [s.combatant_id for s in slots] == ["other", "blocker"]
+
+
+def test_block_priority_not_yet_consumed_if_named_attacker_has_no_phase_this_segment():
+    """An `acts_first` entry is only spent by a Segment where BOTH the
+    blocker and the named attacker have a Phase (6E2 p.60's "same
+    Segment" condition) -- not merely by the blocker acting."""
+    blocker = _c("blocker", spd=4, dex=10)   # acts 3, 6, 9, 12
+    attacker = _c("attacker", spd=2, dex=25)  # acts 6, 12 only
+    state = {"blocker": "attacker"}
+
+    # Segment 3: attacker has no Phase here, so the priority is inert
+    # (nothing to reorder) AND not yet spent.
+    order = build_acting_order_for_segment([blocker, attacker], segment=3)
+    assert [s.combatant_id for s in order] == ["blocker"]
+    state = consume_block_priority(state, [blocker, attacker], segment=3)
+    assert state == {"blocker": "attacker"}
+
+    # Segment 6: both share a Phase -- priority applies and is now spent.
+    slots = build_acting_order_for_segment(
+        [blocker, attacker], segment=6, acts_first=state)
+    assert [s.combatant_id for s in slots] == ["blocker", "attacker"]
+    state = consume_block_priority(state, [blocker, attacker], segment=6)
+    assert state == {}
 
 
 def test_timeline_initial_state():
