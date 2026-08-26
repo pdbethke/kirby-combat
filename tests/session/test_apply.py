@@ -209,6 +209,46 @@ def test_lightning_reflexes_restriction_fires_through_driver_built_session():
         apply_event(s, _declare(s, "move"))
 
 
+def test_lightning_reflexes_restriction_fires_at_a_non_segment_12_phase():
+    """Regression for a Critical bug the coordinator caught: `run_segment`
+    used to write ONLY `acting_order`/`current_slot_index` onto a
+    session's Timeline, never `segment`/`turn` -- and `CombatSession.
+    create()` hardcodes `Timeline(turn=1, segment=12, ...)` (6E2 p.20's
+    combat-start default). `apply.py`'s guard matches a resolved
+    `ActingSlot` against `session.timeline.segment`, so before the fix
+    that guard only ever fired when the Encounter itself happened to be
+    on Segment 12 -- `test_lightning_reflexes_restriction_fires_through_
+    driver_built_session` above passed only because `Encounter`'s own
+    default segment (12) coincides with that hardcoded value, not because
+    the guard generally worked. This test drives Segment 3 instead --
+    still a real Phase for a SPD 4 combatant (segments 3/6/9/12) -- to
+    prove the guard fires at a segment OTHER than 12 too."""
+    c = synthetic_combatant(
+        id="alice", name="alice", ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+    )
+    c.hero.talents = list(_hero_with_single_scope_lightning_reflexes().talents)
+    session = CombatSession.create(
+        id="s1", combatants=[c], scene=None,
+        template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=FakeRoller([]),
+    ).start()
+    encounter = Encounter(
+        id="enc-1", segment=3, sessions=[session],
+        template=CombatTemplate(name="test-template", tie_rule=TieRule.INT_THEN_PRE),
+    )
+    intents = {"alice": ActionIntent("strike", elect_lightning_reflexes=True)}
+    new_encounter = encounter.run_segment(intents=intents)
+    s = new_encounter.sessions[0]
+    assert s.timeline.acting_order  # sanity: the driver populated it
+    assert s.timeline.segment == 3  # run_segment must sync this to the Encounter
+    with pytest.raises(ValueError, match="Lightning Reflexes"):
+        apply_event(s, _declare(s, "move"))
+
+
 def test_lightning_reflexes_restriction_is_inert_without_the_driver():
     """Contrast case for the test above: the SAME scenario (SINGLE-scope
     grant, "strike" elected), but built the old way -- a session whose

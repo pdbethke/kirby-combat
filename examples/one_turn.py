@@ -71,9 +71,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
-from kirby_combat.session.events import (
-    ActionDeclared, SegmentAdvanced, make_author_combatant, make_author_engine,
-)
+from kirby_combat.session.events import ActionDeclared, make_author_combatant
 from kirby_combat.session.timeline import ActionIntent, ordering_value
 from kirby_combat.world import World
 
@@ -174,36 +172,6 @@ def show_vitals(label: str, combatant) -> None:
     print(f"    {label:8} STUN {st.current_stun:>3}   END {st.current_end:>3}")
 
 
-def sync_session_clock(
-    encounter: Encounter, *, from_segment: int, to_segment: int, to_turn: int,
-) -> Encounter:
-    """Keep `CombatSession.timeline.segment` in step with `Encounter.segment`.
-
-    `Encounter.advance_segment` moves only the ENCOUNTER's own turn/segment
-    counters — encounter.py's own "HAZARD -- TWO INDEPENDENT CLOCKS" comment
-    is explicit that `Timeline(turn, segment, ...)` is a second clock
-    nothing wires to the first automatically. That matters here because
-    `session/apply.py`'s Lightning Reflexes Phase-restriction guard only
-    matches a resolved `ActingSlot` against `session.timeline.segment` — a
-    session whose own Timeline never advanced would silently stop
-    recognising ANY Segment as "current" after the first one, and the
-    guard would go quietly inert again. This helper applies the
-    `SegmentAdvanced` event that keeps it in step, exactly the seam the
-    two-clocks hazard describes; collapsing the two clocks into one is
-    later work (see this plan's sequencing note), not this example's job.
-    """
-    session = encounter.sessions[0]
-    evt = SegmentAdvanced(
-        id=str(uuid.uuid4()), session_id=session.id,
-        sequence=len(session.event_log) + 1,
-        timestamp=datetime.now(timezone.utc),
-        author=make_author_engine(),
-        from_segment=from_segment, to_segment=to_segment, to_turn=to_turn,
-    )
-    new_session = apply_event(session, evt)
-    return replace(encounter, sessions=[new_session])
-
-
 def main() -> None:
     rule("ONE TURN, DRIVEN — 12 Segments, a wrap, and a free Recovery")
 
@@ -279,11 +247,12 @@ def main() -> None:
     campaign = Campaign(id="campaign-1", name="Rooftop Showdown", worlds=[world])
 
     # `CombatSession.create` hardcodes its Timeline to Turn 1, Segment 12
-    # (6E2 p.20's combat-start default) — this example instead wants to
-    # walk every Segment of Turn 1 starting at 1, so the session's own
-    # clock is corrected to match before the loop begins (see
-    # `sync_session_clock` below for why the two clocks need this at all).
-    encounter = sync_session_clock(encounter, from_segment=12, to_segment=1, to_turn=1)
+    # (6E2 p.20's combat-start default) — but `Encounter.run_segment`
+    # brings a session's `Timeline.segment`/`turn` into step with the
+    # Encounter's own every time it runs (see `encounter.py`'s
+    # `run_segment` docstring), so the very first `run_segment` call
+    # below (for Segment 1) corrects that hardcoded 12 without this
+    # example needing to do anything about it itself.
 
     print(f"\n  {vex.name} (SPD 4, DEX 16, Lightning Reflexes SINGLE/Shuriken +6)")
     print(f"  {talon.name} (SPD 4, DEX 20)")
@@ -372,10 +341,10 @@ def main() -> None:
             # branch in `advance_segment`. Segment 12 itself is advanced
             # separately below, where the wrap IS the point.
             encounter = encounter.advance_segment(campaign=campaign)
-            encounter = sync_session_clock(
-                encounter, from_segment=segment,
-                to_segment=encounter.segment, to_turn=encounter.turn,
-            )
+            # No further clock-syncing needed here: the NEXT `run_segment`
+            # call (top of the next loop iteration) brings the session's
+            # Timeline back into step with whatever Segment the Encounter
+            # is now on -- see the comment above section 3's loop.
 
     # ── 4. The Segment 12 -> Turn 2 Segment 1 wrap ───────────────────────
     rule("THE WRAP — Segment 12 -> Turn 2, Segment 1 (6E2 p.18)")
@@ -389,9 +358,6 @@ def main() -> None:
     # all characters (even Stunned ones) get a free Post-Segment 12
     # Recovery." Fires as part of this one call, on the wrap branch only.
     encounter = encounter.advance_segment(campaign=campaign)
-    encounter = sync_session_clock(
-        encounter, from_segment=12, to_segment=encounter.segment, to_turn=encounter.turn,
-    )
 
     print(f"\n  After:  Turn {encounter.turn}, Segment {encounter.segment}")
     after = {c.id: c for c in encounter.sessions[0].combatants.values()}

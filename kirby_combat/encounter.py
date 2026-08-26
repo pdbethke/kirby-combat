@@ -152,31 +152,46 @@ class Encounter:
     id: str
     turn: int = 1
     segment: int = 12  # 6E2 p.20: combat begins on Segment 12.
-    #: HAZARD -- TWO INDEPENDENT CLOCKS. `Encounter(turn, segment,
-    #: current_slot_index)` duplicates `Timeline(turn, segment,
+    #: HAZARD -- TWO INDEPENDENT CLOCKS (PARTIALLY CLOSED). `Encounter(turn,
+    #: segment, current_slot_index)` duplicates `Timeline(turn, segment,
     #: current_slot_index)` (kirby_combat/session/timeline.py) field for
-    #: field, and the two do NOT advance the same way. `advance_segment`
-    #: below implements the 6E2 p.18 Segment-12 -> next-Turn wrap. The path
-    #: `CombatSession` actually uses -- `session/apply.py`'s handling of
-    #: `SegmentAdvanced` -- takes `to_turn`/`to_segment` straight from the
-    #: event and applies NO wrap; it is whatever the caller says. A Scene
-    #: holding both an `Encounter` and a `CombatSession` therefore has two
-    #: counters that can be advanced independently and can disagree, and
-    #: NEITHER is authoritative for turn/segment advancement today -- that
-    #: is still true; `advance_segment` and `apply.py`'s `SegmentAdvanced`
-    #: handler remain two separate, disagreeing paths, and this task did
-    #: not touch either.
+    #: field, and the two do not automatically advance together.
     #:
-    #: WIRED (was unwired): `current_slot_index` itself -- as opposed to
-    #: `turn`/`segment` -- is no longer one of the two disagreeing clocks.
-    #: `run_segment` (below) is the acting-order work this comment used to
-    #: say was still pending: it resolves one scene-wide order across every
-    #: combatant in every `self.sessions` entry (6E2 p.18) and sets BOTH
-    #: this field and every session's `Timeline.current_slot_index` to `0`
-    #: whenever it builds a fresh order. So `current_slot_index` now has a
-    #: single writer with a real meaning (an index into the just-built
-    #: order); it is `turn`/`segment` that remain the still-open half of
-    #: this hazard.
+    #: WIRED (was unwired): `current_slot_index` was the first field this
+    #: comment described as fixed, by `run_segment` (below) resetting both
+    #: sides to `0` whenever it builds a fresh order. `turn`/`segment` are
+    #: now ALSO synced by that same write: `run_segment` was found to write
+    #: `acting_order`/`current_slot_index` onto a session's `Timeline`
+    #: without ever touching that Timeline's own `turn`/`segment` --
+    #: meaning `session/apply.py`'s Lightning Reflexes Phase-restriction
+    #: guard, which matches a resolved `ActingSlot` against
+    #: `session.timeline.segment`, only ever matched when the Encounter
+    #: happened to be sitting on whatever segment `CombatSession.create()`
+    #: hardcodes (12, 6E2 p.20's combat-start default) -- a live Critical
+    #: bug this docstring's own "NEITHER is authoritative" line had
+    #: (wrongly) treated as already understood and merely unfixed. Fixed:
+    #: `run_segment` now also sets `segment=self.segment, turn=self.turn`
+    #: on every session's `Timeline` it writes, so a session's Timeline is
+    #: guaranteed to agree with the Encounter for turn/segment/
+    #: current_slot_index immediately after any `run_segment` call.
+    #: (Regression coverage: `tests/session/test_apply.py::
+    #: test_lightning_reflexes_restriction_fires_at_a_non_segment_12_phase`.)
+    #:
+    #: STILL OPEN, precisely: `advance_segment` below moves ONLY the
+    #: Encounter's own `turn`/`segment` (plus, on the Segment-12 wrap,
+    #: applies Post-Segment 12 Recovery to combatants) -- it does not touch
+    #: any session's `Timeline.turn`/`segment` at all. So between an
+    #: `advance_segment` call and the NEXT `run_segment` call, a session's
+    #: Timeline still lags one step behind the Encounter it belongs to; the
+    #: two are only back in agreement once `run_segment` runs again. And
+    #: `session/apply.py`'s own `SegmentAdvanced` handler remains a wholly
+    #: separate path: a caller can advance a `CombatSession`'s Timeline
+    #: directly (`to_turn`/`to_segment` taken verbatim off the event, no
+    #: Segment-12 wrap applied) without going through any `Encounter` at
+    #: all, and `run_segment`'s fix does nothing to reconcile that path
+    #: with `Encounter.advance_segment`'s. Collapsing these into one clock
+    #: remains later work (see this plan's sequencing note), not something
+    #: this fix attempted.
     current_slot_index: int = 0
     #: HAZARD -- CAN GO STALE. `Scene.encounter -> Encounter.sessions ->
     #: CombatSession.scene` is a reference cycle. `Scene` and `Encounter`
@@ -414,8 +429,25 @@ class Encounter:
                 slot for slot in resolved
                 if owner_of[slot.combatant_id] == session_index
             ]
+            # Bring the session's own Timeline.segment/turn into step
+            # with the Encounter's -- session/apply.py's Lightning
+            # Reflexes guard matches a resolved ActingSlot against
+            # `session.timeline.segment`, and `CombatSession.create()`
+            # hardcodes `Timeline(turn=1, segment=12, ...)` (6E2 p.20's
+            # combat-start default). Writing `acting_order` alone left
+            # that guard comparing every slot's REAL segment against a
+            # frozen 12: it only ever matched when `self.segment` also
+            # happened to be 12 (which is why the guard's own driver test
+            # passed at Encounter's default segment and nowhere else --
+            # see `tests/session/test_apply.py::
+            # test_lightning_reflexes_restriction_fires_at_a_non_segment_
+            # 12_phase`, the regression test for exactly this). The
+            # Encounter is the authoritative clock for the order it just
+            # built, so a session's timeline must not be able to disagree
+            # with it.
             new_timeline = replace(
                 session.timeline, acting_order=own_slots, current_slot_index=0,
+                segment=self.segment, turn=self.turn,
             )
             new_sessions.append(replace(session, timeline=new_timeline))
 
