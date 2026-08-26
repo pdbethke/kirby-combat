@@ -18,8 +18,6 @@ from enum import Enum
 
 from kirby_cost.engine.rolls import characteristic_roll
 
-from kirby_combat.models import StatBlockCombatant
-
 
 class TieRule(Enum):
     """A campaign's chosen method for breaking a DEX tie in acting order."""
@@ -37,18 +35,20 @@ class TieRule(Enum):
     RANDOM = "random"
 
 
-def dex_roll_target(c: StatBlockCombatant) -> int:
-    """The 3d6 target for `c`'s contested DEX Roll (6E2 p.21).
+def dex_roll_target(dex: int) -> int:
+    """The 3d6 target for a contested DEX Roll (6E2 p.21), given PRINTED DEX.
 
-    Uses PRINTED DEX (`stats.dex`), not any effective/boosted DEX. 6E1 p.116
-    is explicit that a power like Lightning Reflexes which lets a character
-    act sooner does not touch his Skill Rolls: "his Agility Skill Rolls
-    remain 12-". A later task adds Lightning Reflexes' effective-DEX boost
-    to acting order only -- this function must never be handed that boosted
-    value, so it reads the plain characteristic here and nowhere else.
+    Callers MUST pass printed DEX (`stats.dex`), never any effective/boosted
+    DEX. 6E1 p.116 is explicit that a power like Lightning Reflexes which
+    lets a character act sooner does not touch his Skill Rolls: "his
+    Agility Skill Rolls remain 12-". Task 7 adds Lightning Reflexes'
+    effective-DEX boost to acting order only -- this function must never be
+    handed that boosted value, so it takes the plain characteristic as a
+    bare int (not a combatant, so there is nothing to read the wrong field
+    off of) and this is the single named home for that contract.
 
     Delegates the 9 + DEX/5 math to kirby_cost.engine.rolls.characteristic_roll,
     which rounds (DEX 13 -> 12-); a local `9 + DEX // 5` truncates and
     disagrees with the canon on 16 of 40 characteristic values.
     """
-    return characteristic_roll(c.combat_stats().dex)
+    return characteristic_roll(dex)

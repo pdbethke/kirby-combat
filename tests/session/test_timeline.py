@@ -109,22 +109,39 @@ def test_no_intents_resolves_to_the_provisional_order():
 
 
 def test_no_intents_resolve_matches_wrapper_with_ties_and_tie_rule():
-    """Same DEX (a tie) plus a non-default tie_rule/roller, to catch a
+    """Same DEX (a tie) plus a NON-default tie_rule (RANDOM, which also
+    requires a roller) actually run through the wrapper, to catch a
     wrapper that drops a combatant, reorders one, or fails to forward
-    `tie_rule`/`roller` through to the resolution pass."""
+    `tie_rule`/`roller` through to the resolution pass. INT_THEN_PRE would
+    not do this: it is also the default for both functions, so a wrapper
+    that silently swallowed `tie_rule` would still happen to produce the
+    right answer. RANDOM cannot pass by accident -- with no roller
+    forwarded it raises `ValueError` instead of silently falling back to
+    the INT_THEN_PRE default, and if `roller` weren't forwarded either,
+    the two paths below would consume the scripted rolls in diverging
+    ways and disagree."""
     a = _c("a", spd=4, dex=15, int_=12, pre=10)
     b = _c("b", spd=4, dex=15, int_=8, pre=20)
     c = _c("c", spd=4, dex=18)
     cs = [a, b, c]
 
-    wrapped = build_acting_order_for_segment(cs, segment=3, tie_rule=TieRule.INT_THEN_PRE)
+    # RANDOM's roller is called once per slot (not just the tied pair):
+    # the provisional order for this input is [c, a, b] (c's DEX 18 sorts
+    # first; a/b's tied DEX 15 keeps their input order), so these three
+    # scripted rolls land as c=2, a=5, b=9 in both calls below.
+    rolls_for_wrapped = iter([2, 5, 9])
+    wrapped = build_acting_order_for_segment(
+        cs, segment=3, tie_rule=TieRule.RANDOM, roller=lambda: next(rolls_for_wrapped))
 
     prov = build_provisional_order_for_segment(cs, segment=3)
-    resolved = resolve_acting_order(prov, intents={}, tie_rule=TieRule.INT_THEN_PRE)
+    rolls_for_resolved = iter([2, 5, 9])
+    resolved = resolve_acting_order(
+        prov, intents={}, tie_rule=TieRule.RANDOM, roller=lambda: next(rolls_for_resolved))
 
     assert [s.combatant_id for s in wrapped] == [s.combatant_id for s in resolved]
-    # highest DEX first (c), then the DEX tie broken by INT (a beats b)
-    assert [s.combatant_id for s in wrapped] == ["c", "a", "b"]
+    # highest DEX first (c); the a/b DEX tie broken by the scripted RANDOM
+    # rolls (a=5, b=9 -> b's higher roll wins)
+    assert [s.combatant_id for s in wrapped] == ["c", "b", "a"]
     assert len(wrapped) == 3
 
 

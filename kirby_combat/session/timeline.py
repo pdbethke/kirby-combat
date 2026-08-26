@@ -4,10 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
-from kirby_cost.engine.rolls import characteristic_roll
-
 from kirby_combat.models import StatBlockCombatant
-from kirby_combat.session.tie_rule import TieRule
+from kirby_combat.session.tie_rule import TieRule, dex_roll_target
 from kirby_combat.tables import segments_for_spd
 
 
@@ -96,6 +94,18 @@ def build_provisional_order_for_segment(
     `int_tiebreak`/`pre_tiebreak` are captured here (per 6E2 p.21's tie
     ladder) so `resolve_acting_order` can break ties without re-reading
     stats.
+
+    Sorts on DEX ONLY (a stable sort, so combatants sharing a DEX keep
+    their relative input order here). This matters beyond display: for
+    TieRule.DEX_ROLL/RANDOM, `resolve_acting_order` rolls once per slot in
+    the order this list hands them over, and that roll-consumption order
+    must match `combatants`' input order for same-DEX combatants -- the
+    same guarantee the old single-pass function made. Breaking ties on
+    `combatant_id` here (instead of leaving them in input order) would
+    reshuffle who gets which scripted roll and could flip who wins a DEX
+    tie -- a real ordering-outcome change, not just cosmetic. Final
+    determinism (a stable, id-ordered output) is `resolve_acting_order`'s
+    job, not this pass's.
     """
     slots: list[ActingSlot] = []
     for c in combatants:
@@ -118,7 +128,7 @@ def build_provisional_order_for_segment(
                 )
             )
 
-    slots.sort(key=lambda s: (-s.dex_at_phase, s.combatant_id))
+    slots.sort(key=lambda s: -s.dex_at_phase)
     return slots
 
 
@@ -182,9 +192,9 @@ def resolve_acting_order(
             # 6E2 p.21: "The character who succeeds with his DEX Roll by
             # the most gets to act first" -- score is margin of success.
             # `dex_at_phase` is printed DEX as captured by
-            # `build_provisional_order_for_segment`, matching
-            # `dex_roll_target`'s "uses PRINTED DEX" contract.
-            tie_scores[s.combatant_id] = characteristic_roll(s.dex_at_phase) - _sum_roll(roller())
+            # `build_provisional_order_for_segment`, satisfying
+            # `dex_roll_target`'s "callers MUST pass printed DEX" contract.
+            tie_scores[s.combatant_id] = dex_roll_target(s.dex_at_phase) - _sum_roll(roller())
     elif tie_rule is TieRule.RANDOM:
         for s in slots:
             if roller is None:
