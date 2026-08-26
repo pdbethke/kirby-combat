@@ -1,7 +1,7 @@
 """Resolve a Construct's effect against an occupant — gated by the occupant's
 relevant defense (physical DEF / breathing-swimming / reserved mental). Spec §1.5.
 
-The engine returns a result; the driver (kirby-api) applies it to combatant
+The engine returns a result; the driver applies it to combatant
 state and emits events. Stays pure.
 """
 from __future__ import annotations

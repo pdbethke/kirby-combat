@@ -6,7 +6,7 @@ The engine reasons over Constructs for durability + effect resolution; the
 authored Wall/Hazard dataclasses (scene.py) remain the template source and
 project into Constructs via the helpers here. Frozen: a Construct's `body` is
 the CURRENT body for one resolution; damage flows out as events and back via
-kirby-api hydration on the next step.
+driver hydration on the next step.
 """
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def construct_from_spawn_spec(
 ) -> "Construct":
     """Build a spawned Construct (force wall / spawn-on-destroy hazard). A
     force_wall defaults to a LoS+movement blocking impermeable barrier; a
-    hazard_zone defaults to porous. kirby-api computes def/body/geometry from the
+    hazard_zone defaults to porous. the driver computes def/body/geometry from the
     casting power (Plan 2) and passes them here. Spec §1.7."""
     if permeability is None:
         permeability = "impermeable" if kind in ("wall", "force_wall") else "porous"
@@ -132,7 +132,7 @@ def construct_from_wall(wall: Wall) -> Construct:
 def construct_from_hazard(hazard: Hazard) -> Construct:
     """Project a legacy authored Hazard into a hazard_zone Construct (porous,
     physical-DEF-gated damage or a status). Suffocation hazards are authored as
-    Constructs directly by kirby-api, not via the legacy Hazard model."""
+    Constructs directly by the driver, not via the legacy Hazard model."""
     eff = hazard.effect
     if not eff.damage_dice and not eff.status_inflicted:
         raise ValueError(

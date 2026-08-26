@@ -99,7 +99,7 @@ def blocking_wall_for_shot(
 ) -> "Wall | None":
     """The wall a ranged shot is redirected into when LoS is blocked, or None.
 
-    HTH (is_ranged=False) and Indirect never redirect. The driver (kirby-api)
+    HTH (is_ranged=False) and Indirect never redirect. The driver
     applies object damage to the returned wall and deals nothing to the target.
     """
     if not is_ranged or indirect_advantage:

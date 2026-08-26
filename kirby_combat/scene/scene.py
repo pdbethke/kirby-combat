@@ -90,7 +90,7 @@ def wall_top_surface(wall: Wall) -> Surface | None:
     """The standable strip on top of `wall`, or None when the wall has no
     walkable width (a chain-link fence, a force wall, a low parapet).
 
-    Derived rather than authored: walls are destructible, and kirby-api's
+    Derived rather than authored: walls are destructible, and the driver's
     hydration simply stops emitting a destroyed wall — so a derived strip
     disappears with its wall and can never desync from `height_m`.
     """

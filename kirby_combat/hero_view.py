@@ -719,7 +719,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """The 3d6 roll target for a skill the character has (e.g. STEALTH),
         from the cost engine's computed ``Skill.roll_value``. ``None`` if the
         skill is absent or has no numeric roll (caller treats None as "can't
-        hide" / auto-perceived). Same source kirby-api's throw ``_roll_skill``
+        hide" / auto-perceived). Same source the driver's throw ``_roll_skill``
         reads.
 
         Verified against a real STEALTH-bearing character: ``roll_value``
@@ -890,7 +890,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     def can_swim(self) -> bool:
         """False if explicitly flagged (the 'cannot_swim' session status — set by
-        kirby-api/demo for e.g. a cat) OR no swimming capability; else True.
+        a driver or demo, for e.g. a cat) OR no swimming capability; else True.
         Everyone has base Swimming in 6E, so the marker is the decisive signal."""
         if "cannot_swim" in self.state.statuses:
             return False

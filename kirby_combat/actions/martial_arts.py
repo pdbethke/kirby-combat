@@ -99,7 +99,7 @@ def modifiers_for_maneuver_view(
 ) -> MartialArtsModifiers:
     """Module-level convenience wrapper around
     ``MartialArtsModifiers.from_maneuver_view``. This is the entry point §4
-    (kirby-api driver) calls to turn a per-character ``MartialManeuverView``
+    (the driver) calls to turn a per-character ``MartialManeuverView``
     into applied modifiers, which it then passes to
     ``MartialArts.declare(session, cid, modifiers=...)`` to flow through the
     existing declare → ``modifiers_for_pending_attack`` → resolve_attack path.
@@ -133,7 +133,7 @@ class MartialArts:
           at ``modifiers_for_pending_attack`` time via ``_compute_modifiers``.
           This path is unchanged from before — same guard, same params shape.
 
-        - **Per-character** (``modifiers=...``): a caller (§4's kirby-api driver,
+        - **Per-character** (``modifiers=...``): a caller (§4's driver,
           via ``modifiers_for_maneuver_view``) passes pre-built
           ``MartialArtsModifiers`` derived from the character's OWN bought
           maneuver — which need NOT exist in ``MARTIAL_MANEUVERS``. The static

@@ -74,7 +74,7 @@ class SlotView:
 class FrameworkView:
     """A power framework (Multipower / Elemental Control / VPP) with its
     reserve/pool size and typed slots. Populated by
-    ``HeroCombatant.framework_view()``; consumed by kirby-api to enumerate
+    ``HeroCombatant.framework_view()``; consumed by the driver to enumerate
     available slots and enforce the reserve."""
 
     # The framework object's id — what consumers index on. The xmlid below is
@@ -339,10 +339,10 @@ class MovementCapability:
 #: Deprecated alias. The flat type was called `Combatant` when it was the only
 #: kind; it is one of three now (see kirby_combat.participant).
 #:
-#: It is kept for kirby-api, which is the only remaining importer:
-#: ``kirby/combat/services/entity_service.py`` and
-#: ``kirby/builds/combatant_loader.py``. Retiring it is therefore a cross-repo
-#: change -- update those two call sites first, then delete this line.
+#: It is kept for downstream consumers that still import the old name.
+#: Retiring it is therefore THEIR change first, then this line -- this package
+#: does not know who they are, and must not: an engine that names its callers
+#: has already started depending on them.
 #:
 #: This deliberately does NOT say "kept for one release". It used to, and that
 #: was untrue: 15 modules INSIDE this package imported and annotated with the

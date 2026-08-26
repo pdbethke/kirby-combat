@@ -281,7 +281,7 @@ def darkness_personal_immunity(power) -> bool:
 @dataclass(frozen=True)
 class Perception:
     """Result of ``perceive(observer, target)``. ``via`` lists the senses that
-    perceive; the per-type flags drive the kirby-api targeting gate."""
+    perceive; the per-type flags drive the driver's targeting gate."""
     targetable_physical: bool      # a non-mental Targeting Sense reaches the target
     targetable_mental: bool        # mental LOS holds (any Targeting Sense / Mind Scan)
     via: tuple[str, ...] = ()      # e.g. ("normal_sight",) / ("mindscan",)
@@ -432,7 +432,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
     detail: dict = {}
 
     # ``target_invisible`` is the caller's authority that the target is
-    # currently Invisible (kirby-api / a GM toggle). Use the build's covered
+    # currently Invisible (set by the driver, or a GM toggle). Use the build's covered
     # Sense Group(s) when its INVISIBILITY power names them; otherwise default
     # to the Sight Group (the HERO default) so the flag still has effect even
     # when the static build carries no INVISIBILITY power.
@@ -499,7 +499,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
                 via_physical.append(_via_token(sense.xmlid))
                 continue
             # PER takes the Range Modifier at distance (6E2 p13/p40); the
-            # hider's Stealth takes the movement modifier kirby-api supplies
+            # hider's Stealth takes the movement modifier the driver supplies
             # for how the hider moved this phase (Western Hero p29: Noncombat
             # −5 … creep ≤2m +2). A PER reduced to ≤0 by range can't perceive.
             rng = range_modifier(_distance(observer, target, scene))
@@ -581,7 +581,7 @@ def is_surprised(*, observer, attacker, scene, roller=None,
     should come up Surprised.
 
     The "observer is not already expecting attacks" gate (turn/awareness state)
-    is applied by kirby-api, which knows the combat clock — this function only
+    is applied by the driver, which knows the combat clock — this function only
     answers the pure perception question."""
     if _has_talent(observer.hero, "DANGER_SENSE"):
         return False
