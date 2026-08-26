@@ -20,9 +20,13 @@ from kirby_combat.session.timeline import (
     build_provisional_order_for_segment,
     resolve_acting_order,
 )
+from kirby_combat.session.timeline import ActingSlot
 from kirby_combat.talents.lightning_reflexes import (
+    LightningReflexesGrant,
     effective_dex,
     lightning_reflexes_bonus,
+    phase_restricted_to,
+    restriction_for_slot,
 )
 
 
@@ -177,3 +181,61 @@ def test_dex_roll_tie_break_uses_printed_dex_not_effective():
     # roll target, which would tie the margins and fall through to the
     # combatant_id tiebreak ("quick" < "rival" alphabetically) instead.
     assert [s.combatant_id for s in a] == ["rival", "quick"]
+
+
+def test_electing_lightning_reflexes_forbids_other_actions():
+    """6E1 p.116: "no movement, acrobatics, or other Actions" in a Phase
+    where the character uses the bonus."""
+    intent = ActionIntent("Shuriken", elect_lightning_reflexes=True)
+    assert phase_restricted_to(intent) == "Shuriken"
+
+
+def test_not_electing_leaves_the_phase_free():
+    assert phase_restricted_to(ActionIntent("Shuriken")) is None
+
+
+def _slot(*, intent, grants=()) -> ActingSlot:
+    return ActingSlot(
+        combatant_id="c", segment=3, dex_at_phase=16, int_tiebreak=10,
+        pre_tiebreak=10, ego=10, intent=intent, lightning_reflexes_grants=grants,
+    )
+
+
+def test_restriction_for_slot_matches_phase_restricted_to_for_single_scope():
+    """A SINGLE-scoped elector really is narrowed to the one Action."""
+    grant = LightningReflexesGrant(levels=4, option_id="SINGLE",
+                                    option_alias="Shuriken")
+    slot = _slot(
+        intent=ActionIntent("Shuriken", elect_lightning_reflexes=True),
+        grants=(grant,),
+    )
+    assert restriction_for_slot(slot) == "Shuriken"
+
+
+def test_restriction_for_slot_does_not_narrow_an_all_scope_elector():
+    """An ALL-scope grant covers every Action -- electing it forfeits
+    nothing extra, so the Phase is not restricted (6E1 p.116(c))."""
+    grant = LightningReflexesGrant(levels=6, option_id="ALL",
+                                    option_alias="All Actions")
+    slot = _slot(
+        intent=ActionIntent("Shuriken", elect_lightning_reflexes=True),
+        grants=(grant,),
+    )
+    assert restriction_for_slot(slot) is None
+
+
+def test_restriction_for_slot_is_none_when_no_grant_actually_applies():
+    """Electing produces no bonus when the build's grant doesn't cover the
+    declared action -- nothing was "used", so nothing is forfeited."""
+    grant = LightningReflexesGrant(levels=4, option_id="SINGLE",
+                                    option_alias="Spirit Travel")
+    slot = _slot(
+        intent=ActionIntent("Shuriken", elect_lightning_reflexes=True),
+        grants=(grant,),
+    )
+    assert restriction_for_slot(slot) is None
+
+
+def test_restriction_for_slot_is_none_when_not_electing():
+    slot = _slot(intent=ActionIntent("Shuriken"))
+    assert restriction_for_slot(slot) is None

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kirby_combat.participant import CombatParticipant
-    from kirby_combat.session.timeline import ActionIntent
+    from kirby_combat.session.timeline import ActingSlot, ActionIntent
 
 # The two XMLIDs kirby-cost's HDC loader can produce for this Talent.
 # LIGHTNING_REFLEXES_SINGLE is kirby-cost's ported class for the 5E-named
@@ -247,3 +247,62 @@ def effective_dex(participant: "CombatParticipant", intent: "ActionIntent") -> i
     if hero is None:
         return printed_dex
     return printed_dex + lightning_reflexes_bonus(hero, intent.action_type)
+
+
+def phase_restricted_to(intent: "ActionIntent | None") -> str | None:
+    """6E1 p.116(c): "When a character uses Lightning Reflexes to increase
+    his effective DEX, he may only execute the specific Action or maneuver
+    he purchased Lightning Reflexes for... no movement, acrobatics, or
+    other Actions." The pure, intent-only view of that restriction:
+    whichever ``action_type`` the combatant declared alongside the
+    election is the only action legal this Phase; ``None`` when the bonus
+    was not elected (the Phase is unrestricted) or ``intent`` is absent.
+
+    This function is deliberately ignorant of the elected grant's bought
+    SCOPE (ALL vs. SINGLE/LARGEGROUP/ALLRANGED) -- ``ActionIntent`` itself
+    doesn't carry that, only the action being declared. Taken alone this
+    function would wrongly narrow an ALL-scope elector down to one action
+    (see the module docstring's central trap and `restriction_for_slot`
+    below, which corrects for that using the elected grant). Callers that
+    hold an ``ActingSlot`` (and so have ``lightning_reflexes_grants`` in
+    hand) must use `restriction_for_slot`, not this function, to decide
+    what to actually enforce.
+    """
+    if intent is None or not intent.elect_lightning_reflexes:
+        return None
+    return intent.action_type
+
+
+def restriction_for_slot(slot: "ActingSlot") -> str | None:
+    """The Phase restriction (6E1 p.116(c)) actually enforced for one
+    *resolved* ``ActingSlot`` (post-``resolve_acting_order``, so
+    ``slot.intent`` is populated) -- `phase_restricted_to`, corrected two
+    ways using ``slot.lightning_reflexes_grants`` (captured at
+    provisional-order time, see ``ActingSlot``'s docstring):
+
+      1. If electing produced no actual bonus at all (no grant on the
+         build covers the declared action_type -- ``bonus_for_grants``
+         returns 0), nothing was "used", so 6E1 p.116(c)'s forfeiture,
+         which is tied to *using* the effective DEX, does not apply either.
+      2. If the grant that supplies the bonus is ALL-scoped, the
+         combatant is not meaningfully restricted: the "specific Action...
+         he purchased Lightning Reflexes for" IS every Action, so there is
+         nothing to narrow the Phase down to. Only a
+         SINGLE/LARGEGROUP/ALLRANGED-scoped grant narrows the Phase to the
+         one action/group/category it was bought for.
+
+    Reuses ``bonus_for_grants``/``_bonus_for_grant`` rather than
+    re-deriving scope logic here, so "what bonus applied" and "what
+    restriction applies" can't drift apart.
+    """
+    intent = slot.intent
+    restricted = phase_restricted_to(intent)
+    if restricted is None:
+        return None
+    if bonus_for_grants(slot.lightning_reflexes_grants, intent.action_type) <= 0:
+        return None
+    for grant in slot.lightning_reflexes_grants:
+        if grant.option_id == "ALL" and _bonus_for_grant(
+                grant, intent.action_type) > 0:
+            return None
+    return restricted
