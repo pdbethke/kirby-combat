@@ -63,3 +63,22 @@ def test_is_destroyed_comes_from_the_shared_breakable_mixin():
     o = ObjectCombatant.make(id="wall", name="Wall", material="stone")
     assert o.is_destroyed() is False
     assert type(o)(**{**o.__dict__, "current_body": 0}).is_destroyed() is True
+
+
+def test_object_combatant_constructs_by_keyword_without_int():
+    """kirby-api's entity_service.py constructs ObjectCombatant directly by
+    keyword (not via `.make()`) and never passes `int_` -- confirmed
+    against entity_service.py's `_build_object`. `StatBlockCombatant.int_`
+    must stay defaulted (10) so this call shape keeps working across the
+    package boundary; a non-defaulted field would raise TypeError here."""
+    o = ObjectCombatant(
+        id="wall", name="Wall",
+        ocv=0, dcv=0, omcv=0, dmcv=0,
+        spd=0, dex=0, ego=0, str_=0, con=0, pre=0, rec=0,
+        pd=0, ed=0, rpd=3, red=3, md=0,
+        power_defense=0, flash_defense=0,
+        max_stun=0, max_body=7, max_end=0,
+        current_stun=0, current_body=7, current_end=0,
+        material="stone",
+    )
+    assert o.int_ == 10

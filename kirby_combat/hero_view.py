@@ -182,10 +182,9 @@ class HeroCombatStats:
     # Primary characteristics
     dex: int
     ego: int
-    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
-    #: Carried here because timeline sorts on it; it was absent until
-    #: 2026-08-26, which made timeline's INT branch dead code.
-    int_: int
+    # int_ used to sit here. It moved into the defaulted region below
+    # (default 10) so this dataclass stays constructible by keyword
+    # without INT — see int_'s new declaration for the rationale.
     str_: int
     con: int
     pre: int
@@ -207,6 +206,18 @@ class HeroCombatStats:
 
     # Movement / reach
     reach_m: float = 0.0         # effective melee reach in metres (2m + Stretching)
+
+    #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
+    #: Carried here because timeline sorts on it; it was absent until
+    #: 2026-08-26, which made timeline's INT branch dead code.
+    #: Defaults to 10 — the HERO baseline for a normal human characteristic,
+    #: and the value the old ``getattr(stats, "int_", ...)`` fallback used
+    #: before INT was threaded through. A non-defaulted field would make an
+    #: omission a construction error, which is right *inside* this repo but
+    #: does not extend across the published-package boundary: kirby-api
+    #: constructs combatants by keyword without always passing int_, and a
+    #: TypeError there would ship as a breaking patch release.
+    int_: int = 10
 
 
 @dataclass(frozen=True)
