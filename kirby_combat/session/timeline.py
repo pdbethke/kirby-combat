@@ -4,9 +4,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
+from kirby_cost.engine.rolls import characteristic_roll
+
 from kirby_combat.models import StatBlockCombatant
-from kirby_combat.session.tie_rule import TieRule, dex_roll_target
+from kirby_combat.session.tie_rule import TieRule
 from kirby_combat.tables import segments_for_spd
+
+
+@dataclass
+class ActionIntent:
+    """What a combatant is about to do, as declared before final ordering.
+
+    Carried but not yet acted on: Task 6 gives `is_mental` meaning (mental
+    actions order on EGO rather than DEX) and Task 7 gives
+    `elect_lightning_reflexes` meaning (Lightning Reflexes raises effective
+    DEX only for the specific action it was bought for). This task only
+    threads the field through.
+    """
+    action_type: str
+    is_mental: bool = False
+    elect_lightning_reflexes: bool = False
 
 
 @dataclass
@@ -18,6 +35,7 @@ class ActingSlot:
     int_tiebreak: int
     pre_tiebreak: int
     has_acted: bool = False
+    intent: ActionIntent | None = None
 
 
 @dataclass
@@ -59,15 +77,68 @@ def _tie_key(c: StatBlockCombatant) -> tuple[int, int]:
     return (stats.int_, stats.pre)
 
 
-def build_acting_order_for_segment(
+def build_provisional_order_for_segment(
     combatants: Iterable[StatBlockCombatant],
     segment: int,
+) -> list[ActingSlot]:
+    """Build the *provisional* acting order for one segment: printed DEX
+    only, no tie-breaking.
+
+    Combatants without a phase in this segment (per SPD chart) are excluded.
+    This is a provisional pass because a final order can depend on what
+    action a combatant is about to take -- mental actions order on EGO
+    rather than DEX (Task 6), and Lightning Reflexes raises effective DEX
+    only for the specific action it was bought for (Task 7) -- neither of
+    which is knowable from stats alone. Feed this list's slots, together
+    with any declared intents, to `resolve_acting_order` to get the final
+    order (DEX ties included).
+
+    `int_tiebreak`/`pre_tiebreak` are captured here (per 6E2 p.21's tie
+    ladder) so `resolve_acting_order` can break ties without re-reading
+    stats.
+    """
+    slots: list[ActingSlot] = []
+    for c in combatants:
+        # Read via combat_stats() once per combatant, not `.dex`/`.spd`
+        # directly: those flat attributes only exist on the
+        # StatBlockCombatant shape, and reading them here is exactly the
+        # no-op shim this task removes (session/ must work for the HD-shaped
+        # participant too).
+        stats = c.combat_stats()
+        if segment in segments_for_spd(stats.spd):
+            int_tiebreak, pre_tiebreak = _tie_key(c)
+            slots.append(
+                ActingSlot(
+                    combatant_id=c.id,
+                    segment=segment,
+                    dex_at_phase=stats.dex,
+                    int_tiebreak=int_tiebreak,
+                    pre_tiebreak=pre_tiebreak,
+                    has_acted=False,
+                )
+            )
+
+    slots.sort(key=lambda s: (-s.dex_at_phase, s.combatant_id))
+    return slots
+
+
+def resolve_acting_order(
+    slots: list[ActingSlot],
+    intents: dict[str, "ActionIntent"],
+    *,
     tie_rule: TieRule = TieRule.INT_THEN_PRE,
     roller: Callable[[], int] | None = None,
 ) -> list[ActingSlot]:
-    """Build the acting order for one segment.
+    """Resolve a provisional order into the final acting order for a segment.
 
-    Combatants without a phase in this segment (per SPD chart) are excluded.
+    `intents` maps combatant_id -> ActionIntent for combatants who have
+    declared what they're about to do; a combatant absent from `intents`
+    sorts exactly as it does today (on printed DEX with `tie_rule` breaking
+    ties). Tasks 6/7 will make `is_mental`/`elect_lightning_reflexes` change
+    the sort key for combatants who *do* have a declared intent; until then
+    an intent's presence changes nothing, so this pass is a true no-op over
+    the provisional order.
+
     Ordering: highest DEX first; DEX ties are broken per `tie_rule` --
     6E2 p.21's default is a contested DEX Roll (TieRule.DEX_ROLL); the GM's
     stated alternative is highest INT then PRE (TieRule.INT_THEN_PRE,
@@ -90,39 +161,37 @@ def build_acting_order_for_segment(
     assigned; rolling once per combatant up front keeps the assignment
     deterministic and independent of the sort implementation.
     """
-    slots: list[ActingSlot] = []
+    slots = [
+        ActingSlot(
+            combatant_id=s.combatant_id,
+            segment=s.segment,
+            dex_at_phase=s.dex_at_phase,
+            int_tiebreak=s.int_tiebreak,
+            pre_tiebreak=s.pre_tiebreak,
+            has_acted=s.has_acted,
+            intent=intents.get(s.combatant_id),
+        )
+        for s in slots
+    ]
+
     tie_scores: dict[str, float] = {}
-    for c in combatants:
-        # Read via combat_stats() once per combatant, not `.dex`/`.spd`
-        # directly: those flat attributes only exist on the
-        # StatBlockCombatant shape, and reading them here is exactly the
-        # no-op shim this task removes (session/ must work for the HD-shaped
-        # participant too).
-        stats = c.combat_stats()
-        if segment in segments_for_spd(stats.spd):
-            int_tiebreak, pre_tiebreak = _tie_key(c)
-            slots.append(
-                ActingSlot(
-                    combatant_id=c.id,
-                    segment=segment,
-                    dex_at_phase=stats.dex,
-                    int_tiebreak=int_tiebreak,
-                    pre_tiebreak=pre_tiebreak,
-                    has_acted=False,
-                )
-            )
-            if tie_rule is TieRule.DEX_ROLL:
-                if roller is None:
-                    raise ValueError("TieRule.DEX_ROLL requires a roller callable")
-                # 6E2 p.21: "The character who succeeds with his DEX Roll by
-                # the most gets to act first" -- score is margin of success.
-                tie_scores[c.id] = dex_roll_target(c) - _sum_roll(roller())
-            elif tie_rule is TieRule.RANDOM:
-                if roller is None:
-                    raise ValueError("TieRule.RANDOM requires a roller callable")
-                # Not a book rule -- the campaign option the engine already
-                # declared as `template.randomize_dex_ties` and never wired up.
-                tie_scores[c.id] = _sum_roll(roller())
+    if tie_rule is TieRule.DEX_ROLL:
+        for s in slots:
+            if roller is None:
+                raise ValueError("TieRule.DEX_ROLL requires a roller callable")
+            # 6E2 p.21: "The character who succeeds with his DEX Roll by
+            # the most gets to act first" -- score is margin of success.
+            # `dex_at_phase` is printed DEX as captured by
+            # `build_provisional_order_for_segment`, matching
+            # `dex_roll_target`'s "uses PRINTED DEX" contract.
+            tie_scores[s.combatant_id] = characteristic_roll(s.dex_at_phase) - _sum_roll(roller())
+    elif tie_rule is TieRule.RANDOM:
+        for s in slots:
+            if roller is None:
+                raise ValueError("TieRule.RANDOM requires a roller callable")
+            # Not a book rule -- the campaign option the engine already
+            # declared as `template.randomize_dex_ties` and never wired up.
+            tie_scores[s.combatant_id] = _sum_roll(roller())
 
     if tie_rule is TieRule.INT_THEN_PRE:
         key = lambda s: (-s.dex_at_phase, -s.int_tiebreak, -s.pre_tiebreak,
@@ -135,6 +204,24 @@ def build_acting_order_for_segment(
 
     slots.sort(key=key)
     return slots
+
+
+def build_acting_order_for_segment(
+    combatants: Iterable[StatBlockCombatant],
+    segment: int,
+    tie_rule: TieRule = TieRule.INT_THEN_PRE,
+    roller: Callable[[], int] | None = None,
+) -> list[ActingSlot]:
+    """Thin wrapper: provisional order, then resolve with no declared intents.
+
+    Kept for existing callers that only need a final order and have no
+    intents to declare. See `build_provisional_order_for_segment` and
+    `resolve_acting_order` for the two-phase split this wraps.
+    """
+    provisional = build_provisional_order_for_segment(combatants, segment)
+    return resolve_acting_order(
+        provisional, intents={}, tie_rule=tie_rule, roller=roller
+    )
 
 
 def _sum_roll(roll: int | list[int] | tuple[int, ...]) -> int:

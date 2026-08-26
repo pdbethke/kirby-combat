@@ -2,10 +2,13 @@
 import pytest
 
 from fixtures.synthetic_hero import synthetic_combatant
+from kirby_combat.session.tie_rule import TieRule
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,
     build_acting_order_for_segment,
+    build_provisional_order_for_segment,
+    resolve_acting_order,
 )
 
 
@@ -93,6 +96,36 @@ def test_acting_slot_has_dex_and_int_snapshot():
     assert slots[0].dex_at_phase == 18
     assert slots[0].int_tiebreak == 11
     assert slots[0].has_acted is False
+
+
+def test_no_intents_resolves_to_the_provisional_order():
+    """The wrapper must be a true no-op so existing callers are unaffected."""
+    a = _c("a", spd=4, dex=20)
+    b = _c("b", spd=4, dex=15)
+    cs = [a, b]
+    prov = build_provisional_order_for_segment(cs, segment=3)
+    final = resolve_acting_order(prov, intents={})
+    assert [s.combatant_id for s in final] == [s.combatant_id for s in prov]
+
+
+def test_no_intents_resolve_matches_wrapper_with_ties_and_tie_rule():
+    """Same DEX (a tie) plus a non-default tie_rule/roller, to catch a
+    wrapper that drops a combatant, reorders one, or fails to forward
+    `tie_rule`/`roller` through to the resolution pass."""
+    a = _c("a", spd=4, dex=15, int_=12, pre=10)
+    b = _c("b", spd=4, dex=15, int_=8, pre=20)
+    c = _c("c", spd=4, dex=18)
+    cs = [a, b, c]
+
+    wrapped = build_acting_order_for_segment(cs, segment=3, tie_rule=TieRule.INT_THEN_PRE)
+
+    prov = build_provisional_order_for_segment(cs, segment=3)
+    resolved = resolve_acting_order(prov, intents={}, tie_rule=TieRule.INT_THEN_PRE)
+
+    assert [s.combatant_id for s in wrapped] == [s.combatant_id for s in resolved]
+    # highest DEX first (c), then the DEX tie broken by INT (a beats b)
+    assert [s.combatant_id for s in wrapped] == ["c", "a", "b"]
+    assert len(wrapped) == 3
 
 
 def test_timeline_initial_state():
