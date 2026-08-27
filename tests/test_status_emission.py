@@ -3,7 +3,7 @@ publishing status change (status-emission Task 4).
 
 CONTROLLER OVERRIDE: the task-4 brief asked for this to be wired inside
 `apply_event`. It is not -- see the module docstring in
-`kirby_combat/session/status_emission.py` for why (kirby-api's own
+`kirby_combat/status_emission.py` for why (kirby-api's own
 sequence bookkeeping would desync). This file tests the pure diff
 function instead, plus a regression proving `apply_event`'s sequence
 contract is exactly as strict as before this branch.
@@ -20,7 +20,7 @@ from kirby_combat.actions.reactive.abort import mark_aborting
 from kirby_combat.dice import FakeRoller
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.events import SegmentAdvanced, make_author_engine
-from kirby_combat.session.status_emission import (
+from kirby_combat.status_emission import (
     apply_event_with_deltas, status_deltas,
 )
 from kirby_combat.statuses import ABORTED, ENTANGLED, KNOCKED_OUT

@@ -51,12 +51,3 @@ from kirby_combat.session.rewind import rewind_to_sequence
 
 __all__ += ["CombatSession", "apply_event", "rewind_to_sequence"]
 
-# status_deltas / apply_event_with_deltas (kirby_combat.session.status_emission)
-# are deliberately NOT re-exported here: that module imports
-# kirby_combat.statuses, which imports kirby_combat.actions, which imports
-# kirby_combat.template, which imports kirby_combat.session.tie_rule --
-# re-entering this very package while it is still initializing. Importing
-# status_emission eagerly from this __init__ makes that a circular import
-# (proved: it broke `CombatTemplate` import with a partial-module error).
-# Callers import it directly: `from kirby_combat.session.status_emission
-# import status_deltas, apply_event_with_deltas`.
