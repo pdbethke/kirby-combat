@@ -80,22 +80,25 @@ class Block:
         `build_acting_order_for_segment`, and spent via
         `consume_block_priority`), or `{}` if the Block failed.
 
-        DORMANT RECORDING POINT, WIRED CONSUMPTION: the priority this
-        method returns, once it exists on `Encounter.acts_first`, now
-        flows through the driver correctly -- `Encounter.run_segment`
-        forwards it into `resolve_acting_order` (so the blocker really
-        does act first, 6E2 p.60) and spends it via
+        LIVE CALLER, PARTIAL WIRING: `Block.resolve` now has a live
+        caller -- `kirby_combat.actions.recording.resolve_block_in_session`
+        runs it and emits an `ActionResolved` for every Block resolution,
+        then calls this method unconditionally and returns whatever it
+        produces (`{}` on failure, `{blocker_id: attacker_id}` on success)
+        as part of its own return value. `Encounter.run_segment` is still
+        able to consume such a mapping correctly once it has one --
+        forwarding it into `resolve_acting_order` (so the blocker really
+        does act first, 6E2 p.60) and spending it via
         `consume_block_priority` once the blocker and the named attacker
         have shared a Segment (see `Encounter.acts_first`'s field
-        docstring). What remains unwired is getting a `BlockResult` to
-        this method in the first place: `Block.resolve` still has no live
-        caller in kirby_combat -- there is no `BlockResolved`-shaped
-        event, and `apply_event` derives no session state from a Block
-        outcome. So in a real fight today, nothing ever calls this method
-        to produce an entry for `Encounter.acts_first` to carry; the
-        moment a live caller starts calling `Block.resolve` and this
-        method, the priority it records will already flow correctly
-        through `run_segment` with no further wiring needed here.
+        docstring). What remains unwired is the link between those two:
+        no driver in kirby_combat holds both a `CombatSession` and its
+        owning `Encounter` together at the point a Block resolves, so
+        nothing merges `resolve_block_in_session`'s returned priority into
+        `Encounter.acts_first` today. A real fight is not yet acting on a
+        successful Block's 6E2 p.60 priority end-to-end -- the recording
+        half of that pipeline now runs on every resolution; the merge into
+        `Encounter.acts_first` is the piece still waiting on a caller.
         """
         if not result.success:
             return {}

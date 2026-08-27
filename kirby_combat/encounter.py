@@ -28,7 +28,9 @@ from typing import TYPE_CHECKING, Callable, Iterable
 
 from kirby_combat.resolution.recovery import compute_recovery
 from kirby_combat.session.apply import apply_event
-from kirby_combat.session.events import RecoveryTaken, make_author_engine
+from kirby_combat.session.events import (
+    RecoveryTaken, SegmentAdvanced, make_author_engine,
+)
 from kirby_combat.session.timeline import (
     ActionIntent,
     build_acting_order_for_segment,
@@ -143,6 +145,34 @@ def _apply_post_12_recovery(
         session = apply_event(session, evt)
 
     return replace(session, combatants=new_combatants)
+
+
+def _record_segment_advanced(
+    session: "CombatSession", from_segment: int, to_segment: int, to_turn: int,
+) -> "CombatSession":
+    """Return a NEW session with one ``SegmentAdvanced`` event appended to
+    ITS OWN log (`session/events.py:60`; handled by `apply_event`,
+    `session/apply.py:36-43`).
+
+    ``sequence`` is computed from THIS session's own ``event_log`` at call
+    time -- ``len(session.event_log) + 1`` -- exactly like
+    `_apply_post_12_recovery`'s `RecoveryTaken` above. Sessions have
+    independent logs (each has its own `SessionStarted`, its own prior
+    `RecoveryTaken`s, ...), so a sequence number computed once and reused
+    across sessions would desync at least one of them and `apply_event`
+    would reject it.
+    """
+    evt = SegmentAdvanced(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        from_segment=from_segment,
+        to_segment=to_segment,
+        to_turn=to_turn,
+    )
+    return apply_event(session, evt)
 
 
 @dataclass
@@ -301,18 +331,48 @@ class Encounter:
         it is here so a future house-rule hook has an unambiguous,
         deliberately-chosen source to read from, rather than an accident
         of whichever template happened to be passed.)
+
+        Every call also appends one ``SegmentAdvanced`` (`session/
+        events.py:60`) onto EACH session's own log via
+        `_record_segment_advanced`, carrying `from_segment`/`to_segment`/
+        `to_turn` -- so a replayer can finally answer "has a Segment
+        elapsed?" from the log alone, which it could not before this
+        (`apply_event` already handled `SegmentAdvanced`,
+        `session/apply.py:36-43`; nothing ever emitted one).
+
+        ORDERING (deliberate, pinned by
+        `tests/test_encounter.py::
+        test_segment_advanced_is_recorded_after_post_12_recovery`): on the
+        Segment-12 wrap, `RecoveryTaken` is logged BEFORE
+        `SegmentAdvanced`. 6E2 p.131 names the free Recovery "POST-Segment
+        12 Recovery" -- it is a consequence of Segment 12 finishing, so it
+        belongs to the Segment that is ENDING (12), not the Segment 1 that
+        is about to begin. Logging it first keeps a replayer's "what
+        Segment was this combatant on when they recovered" answer at 12.
         """
         if self.segment >= SEGMENTS_PER_TURN:
             template = self._resolve_template(campaign)
+            to_turn = self.turn + 1
 
             new_sessions = [
-                _apply_post_12_recovery(session, template)
+                _record_segment_advanced(
+                    _apply_post_12_recovery(session, template),
+                    from_segment=self.segment, to_segment=1, to_turn=to_turn,
+                )
                 for session in self.sessions
             ]
             return replace(
-                self, turn=self.turn + 1, segment=1, sessions=new_sessions,
+                self, turn=to_turn, segment=1, sessions=new_sessions,
             )
-        return replace(self, segment=self.segment + 1)
+        new_sessions = [
+            _record_segment_advanced(
+                session,
+                from_segment=self.segment, to_segment=self.segment + 1,
+                to_turn=self.turn,
+            )
+            for session in self.sessions
+        ]
+        return replace(self, segment=self.segment + 1, sessions=new_sessions)
 
     def acting_order(
         self,

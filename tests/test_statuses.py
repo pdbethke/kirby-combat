@@ -2,15 +2,25 @@
 from __future__ import annotations
 
 import re
+import uuid
+from datetime import datetime, timezone
 
 from fixtures.synthetic_hero import synthetic_combatant
+from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.entangle import Entangle
 from kirby_combat.actions.flash import Flash
 from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.actions.reactive.abort import mark_aborting
+from kirby_combat.actions.recording import resolve_attack_in_session
 from kirby_combat.dice import FakeRoller
+from kirby_combat.encounter import Encounter
+from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.events import (
+    RecoveryTaken, SegmentAdvanced, make_author_engine,
+)
 from kirby_combat.statuses import (
     ABORTED,
     ALL_STATUS_IDS,
@@ -340,7 +350,8 @@ def test_statuses_for_folds_several_simultaneous_conditions():
 # ---------------------------------------------------------------------------
 
 PRODUCED_BY = {
-    KNOCKED_OUT: "participant.is_ko (current_stun <= 0)",
+    KNOCKED_OUT: "participant.is_ko (current_stun <= 0) UNION "
+                 "_is_knocked_out_from_payload (status_changes, cleared by RecoveryTaken)",
     ENTANGLED: "Entangle.is_entangled",
     GRAB: "Grab.is_grabbed",
     ABORTED: "session.timeline.aborted_this_phase",
@@ -350,20 +361,20 @@ PRODUCED_BY = {
     MENTAL_SENSE_DISABLED: "Flash.is_flashed (mental) via SENSE_GROUP_TO_STATUS_ID",
     RADIO_SENSE_DISABLED: "Flash.is_flashed (radio) via SENSE_GROUP_TO_STATUS_ID",
     SMELL_TASTE_SENSE_DISABLED: "Flash.is_flashed (smell) via SENSE_GROUP_TO_STATUS_ID",
+    STUNNED: "_is_stunned -- ActionResolved.result_payload['status_changes'] "
+             "contains 'Stunned' (set), cleared by the first SegmentAdvanced "
+             "afterward whose to_segment is a Phase for this combatant "
+             "(6E2 p.107)",
+    DEAD: "_is_dead -- ActionResolved.result_payload['status_changes'] "
+          "contains 'Dead' (never clears)",
 }
 
-# statuses.py's own "Deliberately NOT read here" list: real conditions,
-# computed by resolution/status.py::determine_status_changes (and, for
-# STUNNED, also mental/mental_blast.py:45), but discarded into an
-# audit-trail string rather than persisted -- statuses_for has no branch
-# for either.
-NOT_YET_PRODUCED = {
-    STUNNED: "computed by determine_status_changes + mental_blast.py:45 "
-             "target_stunned, discarded by actions/base.py:190 -- no "
-             "statuses_for branch",
-    DEAD: "computed by determine_status_changes, discarded by "
-          "actions/base.py:190 -- no statuses_for branch",
-}
+# statuses.py's own "Deliberately NOT read here" list is now empty for these
+# two -- both moved into PRODUCED_BY above (Task 4). Kept as an empty dict,
+# not deleted, so the exhaustiveness assertion below and the module
+# docstring's structure stay in the same shape a future deferred id would
+# use.
+NOT_YET_PRODUCED: dict[str, str] = {}
 
 
 def test_producibility_table_is_exhaustive_over_all_status_ids():
@@ -377,12 +388,393 @@ def test_producibility_table_is_exhaustive_over_all_status_ids():
     assert set(PRODUCED_BY) | set(NOT_YET_PRODUCED) == ALL_STATUS_IDS
 
 
-def test_not_yet_produced_ids_never_actually_come_out_of_statuses_for():
-    """The declared exceptions are real gaps, not just labels: drive a
-    combatant to the exact state that would trigger Stunned/Dead via
-    determine_status_changes (STUN dealt > CON; BODY <= -max_body) and
-    confirm statuses_for still omits both."""
+def test_stunned_and_dead_are_not_derived_from_raw_combatant_state():
+    """Task 4 closed the gap the old `test_not_yet_produced_ids_never_
+    actually_come_out_of_statuses_for` guarded: STUNNED/DEAD are no longer
+    NOT_YET_PRODUCED. But they must still never be inferred from a
+    combatant's raw current_stun/current_body -- only from an
+    ActionResolved's recorded status_changes. A combatant created directly
+    in this deeply-negative state, with NO ActionResolved on the log at
+    all, must show neither id."""
     s = _session(_c("alice"), _c("bob", current_stun=-40, current_body=-40))
     result = statuses_for(s, "bob")
     assert STUNNED not in result
     assert DEAD not in result
+
+
+# ---------------------------------------------------------------------------
+# Stunned / Dead — derived from ActionResolved.status_changes
+# (resolve_attack_in_session, kirby_combat/actions/recording.py) plus, for
+# Stunned's clear edge, SegmentAdvanced (Encounter.advance_segment /
+# kirby_combat/session/events.py).
+#
+# 6E2 p.107, "RECOVERING FROM BEING STUNNED": "Recovering from being
+# Stunned requires a Full Phase, and is the only thing the character can
+# do during that Phase" -- the character "recovers from being Stunned when
+# his DEX occurs in the Segment" of his next full Phase. So the SET edge is
+# an ActionResolved naming this combatant with "Stunned" in
+# status_changes; the CLEAR edge is the first SegmentAdvanced afterward
+# whose to_segment is one of this combatant's Phase segments
+# (`segments_for_spd`, kirby_combat/tables.py:117).
+# ---------------------------------------------------------------------------
+
+def _attacker_for_stun(con: int = 15) -> "HeroCombatant":
+    return synthetic_combatant(
+        id="attacker", name="Attacker",
+        ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=15, con=con, pre=15, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+        attacks=[
+            AttackPower(
+                xmlid="ENERGYBLAST", name="Energy Blast", damage_dice=10,
+                half_die=False, plus_one=False,
+                damage_type="normal", defense_type="ed", range_m=200,
+                uses_str=False, str_min=0,
+                armor_piercing=0, penetrating=0, increased_stun_mult=0,
+            ),
+        ],
+    )
+
+
+def _target_for_stun(
+    spd: int = 4, con: int = 15, current_stun: int = 30, current_body: int = 15,
+) -> "HeroCombatant":
+    return synthetic_combatant(
+        id="bob", name="bob",
+        ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=spd, dex=20, ego=15, str_=15, con=con, pre=15, rec=5,
+        pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=current_stun, current_body=current_body, current_end=30,
+    )
+
+
+def _hitting_attack_for_stun(attacker, target) -> AttackInput:
+    # Roll 9 to-hit (well within range); 10d6 normal EB, no defenses on
+    # target so STUN dealt = 36, blowing through any reasonable CON.
+    return AttackInput(
+        attacker=attacker,
+        target=target,
+        power=attacker.attacks[0],
+        distance_m=0,
+        aim=None,
+        dice=DiceValues(
+            to_hit=[3, 3, 3],
+            damage=[5, 4, 3, 6, 2, 4, 6, 3, 1, 2],
+        ),
+    )
+
+
+def _advance(session: CombatSession, to_segment: int, to_turn: int) -> CombatSession:
+    """Append one SegmentAdvanced (session/events.py:60) to `session`'s own
+    log, mirroring encounter.py's `_record_segment_advanced` -- a session
+    fixture here has no owning `Encounter`, so this drives the same event
+    `Encounter.advance_segment` (Task 1) would append, without needing one."""
+    evt = SegmentAdvanced(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        from_segment=session.timeline.segment,
+        to_segment=to_segment,
+        to_turn=to_turn,
+    )
+    return apply_event(session, evt)
+
+
+def test_statuses_for_stunned_appears_after_qualifying_hit():
+    # bob: SPD 4 -> Phases at segments 3, 6, 9, 12 (tables.py SPEED_TO_SEGMENTS).
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Stunned" in result.status_changes  # sanity: the hit really qualifies
+
+    assert STUNNED in statuses_for(session, "bob")
+
+
+def test_statuses_for_stunned_disappears_after_the_combatants_next_phase():
+    """The clear edge: SPD 4 (Phases 3/6/9/12). Session starts on Segment
+    12 (CombatSession.create -- 6E2 p.20, combat begins Segment 12), so the
+    hit lands on bob's own Phase. Advance 12->1 (Turn wrap, not a Phase for
+    SPD 4) then 1->2 (not a Phase) then 2->3 (a Phase) -- 6E2 p.107 says
+    Stunned clears once a Segment that is a Phase for the combatant has
+    elapsed after the hit, and this is the first one."""
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert STUNNED in statuses_for(session, "bob")
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)  # bob's next Phase
+
+    assert STUNNED not in statuses_for(session, "bob")
+
+
+def test_statuses_for_stunned_survives_a_segment_that_is_not_the_combatants_phase():
+    """This is the test that must be able to fail: a Segment elapsing is
+    NOT enough on its own -- it must be one of THIS combatant's Phase
+    segments (6E2 p.107). SPD 4's Phases are 3/6/9/12, so 12->1->2 must
+    leave Stunned still set."""
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert STUNNED in statuses_for(session, "bob")
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+
+    assert STUNNED in statuses_for(session, "bob")
+
+
+def test_statuses_for_dead_appears_and_persists():
+    # con=15, current_stun=30, current_body=-10, max_body=15: a 36-STUN/
+    # 11-BODY hit drives body_after to -21 <= -15 -> Dead (and, along the
+    # way, Stunned + Knocked Out too -- resolution/status.py's three
+    # checks are independent, not exclusive).
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Dead" in result.status_changes  # sanity: the hit really qualifies
+
+    assert DEAD in statuses_for(session, "bob")
+
+    # Dead never clears -- unlike Stunned, advancing through bob's own
+    # Phase segments must not remove it.
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)
+
+    assert DEAD in statuses_for(session, "bob")
+
+
+# ---------------------------------------------------------------------------
+# Knocked Out coherence (Task 4 follow-up) -- surfaced by Task 5's example:
+# a payload naming "Stunned"/"Knocked Out"/"Dead" together, on a session
+# whose driver never mutates vitals (`resolve_attack_in_session` is
+# deliberately log-only, `session/apply.py`), previously produced `dead`
+# and `stunned` with NO `knockedOut` at all -- self-contradictory to any
+# consumer. `KNOCKED_OUT` now unions the live `is_ko` source with
+# `_is_knocked_out_from_payload`, the same payload fold STUNNED/DEAD use.
+# ---------------------------------------------------------------------------
+
+def _recover(
+    session: CombatSession, combatant_id: str,
+    stun_recovered: int = 5, end_recovered: int = 5,
+) -> CombatSession:
+    """Append one RecoveryTaken (session/events.py:84) to `session`'s own
+    log -- the event `_apply_post_12_recovery` (encounter.py) emits for
+    6E2 p.131's Post-Segment 12 Recovery, driven here directly so a
+    fixture doesn't need a full Encounter."""
+    evt = RecoveryTaken(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        combatant_id=combatant_id,
+        stun_recovered=stun_recovered,
+        end_recovered=end_recovered,
+    )
+    return apply_event(session, evt)
+
+
+def test_statuses_for_lethal_hit_yields_both_dead_and_knocked_out():
+    """The coherence property, pinned directly: a hit whose status_changes
+    names Stunned + Knocked Out + Dead together must surface ALL THREE
+    from statuses_for -- not dead+stunned with knockedOut silently
+    missing, even though `is_ko` (live current_stun) never moves, because
+    resolve_attack_in_session is deliberately log-only."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)  # same fixture as the Dead test
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert result.status_changes == ["Stunned", "Knocked Out", "Dead"]
+
+    # Sanity: vitals genuinely never moved -- is_ko alone would miss this.
+    assert session.combatants["bob"].is_ko is False
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert STUNNED in result_ids
+    assert KNOCKED_OUT in result_ids
+
+
+def test_statuses_for_knocked_out_from_payload_alone_when_vitals_never_move():
+    """A hit that drives stun_after <= 0 (Knocked Out) but not Dead, on a
+    combatant whose live current_stun stays at its starting value --
+    KNOCKED_OUT must still appear, sourced purely from the payload."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()  # current_stun=30
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Knocked Out" in result.status_changes  # sanity: 30 - 36 <= 0
+    assert "Dead" not in result.status_changes
+
+    assert session.combatants["bob"].is_ko is False  # vitals untouched
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+
+def test_statuses_for_knocked_out_payload_clears_on_recovery_taken():
+    """The clear edge this fold was given, asserted rather than
+    incidental: _is_knocked_out_from_payload clears on the very next
+    RecoveryTaken for this combatant (6E2 p.131), a deliberately
+    conservative choice over never clearing (see that function's
+    docstring)."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+    session = _recover(session, "bob")
+
+    assert KNOCKED_OUT not in statuses_for(session, "bob")
+
+
+def test_statuses_for_knocked_out_payload_unaffected_by_unrelated_recovery():
+    """A RecoveryTaken for a DIFFERENT combatant must not clear this
+    combatant's payload-derived Knocked Out."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+    session = _recover(session, "attacker")
+
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+
+# ---------------------------------------------------------------------------
+# Review finding #1 (CRITICAL): `dead` without `knockedOut` returns one Turn
+# later. `_apply_post_12_recovery` (encounter.py) emits a `RecoveryTaken`
+# for EVERY combatant unconditionally on every Turn wrap (6E2 p.131, "even
+# Stunned ones" -- corpses included), which is exactly the clear edge
+# `_is_knocked_out_from_payload` listens for. So a lethal hit's KNOCKED_OUT
+# (sourced only from the payload fold, since `resolve_attack_in_session`
+# never mutates vitals) used to disappear the instant a Turn wrapped, while
+# DEAD never clears -- reproducing "dead but not knocked out" within at
+# most one Turn (12 Segments). Fixed by making DEAD imply KNOCKED_OUT in
+# `statuses_for` directly, so the implication does not depend on which of
+# KNOCKED_OUT's other sources happens to still be live.
+#
+# These are the tests that were missing before this task: the four
+# existing coherence tests above all assert the status set AT THE HIT or
+# after a single hand-built `RecoveryTaken` -- none of them drive the
+# clock past a full Turn wrap, which is the only way this contradiction
+# ever surfaces.
+# ---------------------------------------------------------------------------
+
+def test_statuses_for_dead_still_implies_knocked_out_after_one_recovery_taken():
+    """Minimal reproduction: one hand-built RecoveryTaken (mirroring
+    `_apply_post_12_recovery`'s per-Turn-wrap emission) must not strip
+    KNOCKED_OUT off a DEAD combatant."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)  # same fixture as the Dead test
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert result.status_changes == ["Stunned", "Knocked Out", "Dead"]
+    assert set(statuses_for(session, "bob")) == {DEAD, KNOCKED_OUT, STUNNED}
+
+    # The exact clear edge _is_knocked_out_from_payload listens for.
+    session = _recover(session, "bob")
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert KNOCKED_OUT in result_ids  # must NOT have cleared
+
+
+def test_statuses_for_dead_survives_a_full_turn_wrap_via_encounter():
+    """The reviewer's exact repro, driven through the real machinery
+    (`Encounter.advance_segment`, not a hand-built event): a lethal hit,
+    then one Segment-12-to-Segment-1 Turn wrap, which is where
+    `_apply_post_12_recovery` actually lives and fires unconditionally for
+    every combatant -- corpses included. `dead` and `knockedOut` must both
+    still be present afterward."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert result.status_changes == ["Stunned", "Knocked Out", "Dead"]
+
+    encounter = Encounter(id="e1", turn=1, segment=12, sessions=[session])
+    encounter = encounter.advance_segment()  # wraps: Segment 12 -> Turn 2, Segment 1
+    assert encounter.turn == 2
+    assert encounter.segment == 1
+
+    wrapped_session = encounter.sessions[0]
+    result_ids = statuses_for(wrapped_session, "bob")
+    assert DEAD in result_ids
+    assert KNOCKED_OUT in result_ids  # this is the finding: used to be gone
+
+
+def test_statuses_for_dead_implies_knocked_out_even_with_no_payload_source():
+    """Pins the fix's actual mechanism, not just its symptom: DEAD alone
+    (with no live is_ko and no surviving payload-derived KO source at
+    all -- both already cleared) must still force KNOCKED_OUT. This is
+    the test that distinguishes "gate the payload clear on `not
+    _is_dead(...)`" from "make DEAD imply KNOCKED_OUT in statuses_for" --
+    it only passes under the latter."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert session.combatants["bob"].is_ko is False  # live KO source never available
+
+    # Clear the payload-derived KO source directly, same as any other
+    # payload-KO test does -- if DEAD's implication lived only inside
+    # _is_knocked_out_from_payload's own clear-gate, this recovery would
+    # have nothing left to gate and KNOCKED_OUT would vanish.
+    session = _recover(session, "bob")
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert KNOCKED_OUT in result_ids
+
+
+# ---------------------------------------------------------------------------
+# Review finding #6 (minor): segments_for_spd(0) is empty, so _is_stunned
+# could latch forever for a SPD-0 combatant -- no engine path produces one
+# today, but this is exactly the never-turns-off case the branch is built
+# to avoid.
+# ---------------------------------------------------------------------------
+
+def test_statuses_for_stunned_clears_on_next_segment_advanced_when_spd_is_zero():
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=0)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Stunned" in result.status_changes
+    assert STUNNED in statuses_for(session, "bob")
+
+    # SPD 0 has no Phase segments at all (SPEED_TO_SEGMENTS[0] == []), so
+    # without the guard no SegmentAdvanced could ever match and this would
+    # never clear. Any SegmentAdvanced at all must clear it.
+    session = _advance(session, to_segment=1, to_turn=2)
+
+    assert STUNNED not in statuses_for(session, "bob")
