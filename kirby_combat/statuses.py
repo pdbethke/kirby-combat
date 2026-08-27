@@ -30,20 +30,22 @@ An id the engine never emits is a promise it cannot keep, so ids that have
 no engine-side source are omitted on purpose (see the two notes below) rather
 than transcribed wholesale from Foundry's list.
 
-Two ids, `STUNNED` and `DEAD`, are the acknowledged exception to that rule
-today: both are real, engine-defined conditions
-(`resolution/status.py::determine_status_changes`) with no persisted
-source `statuses_for` can fold from yet -- see that function's
-"Deliberately NOT read here" section for exactly why. They are kept in
-`ALL_STATUS_IDS` rather than dropped because the condition genuinely
-exists in this engine's rules and is expected to gain a source (a later
-persistence task), not because this module is being loose about its own
-stated rule.
+`STUNNED` and `DEAD` were, for three earlier tasks on this branch, the
+acknowledged exception to that rule: both are real, engine-defined
+conditions (`resolution/status.py::determine_status_changes`) whose
+result was computed and then discarded (`actions/base.py:190` folded it
+into an audit-trail string only) -- there was no persisted source
+`statuses_for` could fold from. Task 4 (this one) closes that gap for
+both: `resolve_attack_in_session` (`actions/recording.py`) now records the
+outcome as an `ActionResolved` whose `result_payload["status_changes"]`
+survives on the event log, and `_is_stunned`/`_is_dead` below fold it back
+out -- see `statuses_for`'s docstring for exactly what each reads and why
+`STUNNED` additionally needs `SegmentAdvanced` to answer its clear edge.
 
-This is a vocabulary module only: constants and a frozenset. It does not
-compute any status (that is `statuses_for`, Task 2), does not define a delta
-event (Task 3), and does not touch emission or `resolution/status.py`
-(Tasks 4/5).
+This module is a vocabulary module (constants and a frozenset) PLUS,
+below, `statuses_for` -- the one fold over every condition source. It does
+not define a delta event (Task 3) and does not touch emission or
+`resolution/status.py` itself.
 """
 from __future__ import annotations
 
@@ -61,12 +63,17 @@ from __future__ import annotations
 STUNNED = "stunned"
 # stun_dealt (from a single attack) > target's CON. See
 # kirby_combat/resolution/status.py `determine_status_changes`, called
-# from TWO sites -- both compute this and neither persists it:
-# kirby_combat/actions/base.py:190 (physical attacks; folded into an
-# audit-trail string only) and kirby_combat/mental/mental_blast.py:45
-# (`target_stunned`, mental attacks; same fate). See `statuses_for`'s
-# "Deliberately NOT read here" section below: this engine has no source
-# to fold this id from yet.
+# from kirby_combat/actions/base.py:190 (physical attacks) --
+# `resolve_attack_in_session` (actions/recording.py) records the result on
+# the event log as an `ActionResolved` whose `result_payload["status_changes"]`
+# carries "Stunned"; `_is_stunned` below folds that back out. See
+# `statuses_for`'s docstring for the clear edge (6E2 p.107).
+#
+# `mental/mental_blast.py:45`'s own `target_stunned` (mental attacks) is a
+# SEPARATE computation that nothing records onto the event log the same
+# way -- so a mental Stunned is not yet foldable here. That is a real,
+# narrower gap than the one this task closes (physical attacks via
+# `resolve_attack_in_session`), not something this module claims to cover.
 
 KNOCKED_OUT = "knockedOut"
 # current STUN <= 0. See kirby_combat/participant.py:139 `is_ko`
@@ -86,11 +93,11 @@ KNOCKED_OUT = "knockedOut"
 DEAD = "dead"
 # BODY <= -max_body (double negative BODY). See
 # kirby_combat/resolution/status.py `determine_status_changes`, called
-# from kirby_combat/actions/base.py:190, which folds the result into an
-# audit-trail string only -- never persisted. Same gap as STUNNED: kept
-# in ALL_STATUS_IDS as a real, engine-defined condition, but see
-# `statuses_for`'s "Deliberately NOT read here" section -- this engine
-# has no source to fold this id from yet either.
+# from kirby_combat/actions/base.py:190. `resolve_attack_in_session`
+# (actions/recording.py) records the result on the event log as an
+# `ActionResolved` whose `result_payload["status_changes"]` carries "Dead";
+# `_is_dead` below folds that back out. Unlike STUNNED, this condition
+# never clears (see `statuses_for`'s docstring).
 
 # ---------------------------------------------------------------------------
 # Entangle / Grab / Held Action / Abort
@@ -316,9 +323,77 @@ from kirby_combat.actions.entangle import Entangle
 from kirby_combat.actions.flash import Flash
 from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
+from kirby_combat.tables import segments_for_spd
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
+
+
+def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
+    """Fold Stunned's SET/CLEAR edges out of the event log (Task 4).
+
+    SET: an ``ActionResolved`` whose ``result_payload`` names this
+    combatant (``"target_id"``, written by ``resolve_attack_in_session``,
+    ``actions/recording.py``) and whose ``"status_changes"`` contains
+    ``"Stunned"`` (``resolution/status.py::determine_status_changes``:
+    ``stun_dealt > con``).
+
+    CLEAR: 6E2 p.107, "RECOVERING FROM BEING STUNNED" -- "Recovering from
+    being Stunned requires a Full Phase, and is the only thing the
+    character can do during that Phase," and the character "recovers from
+    being Stunned when his DEX occurs in the Segment" of his next full
+    Phase. So this combatant's Phase segments (``segments_for_spd``,
+    ``tables.py:117``, keyed off this combatant's own SPD -- 6E2's SPD
+    chart is per-character) are computed once, and the flag clears on the
+    first ``SegmentAdvanced`` (``session/events.py:60``, emitted per
+    session by ``Encounter.advance_segment``) whose ``to_segment`` falls
+    among them, walked in the log's own order so it can only be a
+    ``SegmentAdvanced`` that comes AFTER the qualifying ``ActionResolved``
+    -- exactly "next full Phase", never the Segment the hit itself landed
+    in.
+
+    A later qualifying hit re-sets the flag even if a prior one had
+    already cleared it (or vice versa) -- this is a plain left-to-right
+    fold over the whole log, not a first-match short-circuit, so repeated
+    Stunned/recovery cycles across a long fight are handled correctly.
+    """
+    combatant = session.combatants[combatant_id]
+    phase_segments = segments_for_spd(combatant.combat_stats().spd)
+
+    stunned = False
+    for evt in session.event_log:
+        kind = evt.kind
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("target_id") == combatant_id
+                and "Stunned" in payload.get("status_changes", ())
+            ):
+                stunned = True
+        elif kind == "SegmentAdvanced" and stunned:
+            if evt.to_segment in phase_segments:
+                stunned = False
+    return stunned
+
+
+def _is_dead(session: "CombatSession", combatant_id: str) -> bool:
+    """Fold Dead out of the event log (Task 4): an ``ActionResolved``
+    naming this combatant (``"target_id"``, ``resolve_attack_in_session``)
+    whose ``"status_changes"`` contains ``"Dead"``
+    (``resolution/status.py::determine_status_changes``:
+    ``body_after <= -max_body``). Unlike Stunned, this never clears --
+    HERO 6E has no "recovering from Dead" rule, so once set this is set
+    for the rest of the fold.
+    """
+    for evt in session.event_log:
+        if evt.kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("target_id") == combatant_id
+                and "Dead" in payload.get("status_changes", ())
+            ):
+                return True
+    return False
 
 
 def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
@@ -357,31 +432,30 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       (un-released ``HeldActionDeclared`` events for this combatant),
       matching the ``is_entangled`` / ``is_grabbed`` / ``is_flashed``
       pattern this whole function already follows.
+    - Stunned: ``_is_stunned(session, combatant_id)`` (this module) --
+      folds ``ActionResolved.result_payload["status_changes"]`` (set,
+      written by ``resolve_attack_in_session``) against ``SegmentAdvanced``
+      (clear, 6E2 p.107 -- see that function's docstring for the exact
+      SET/CLEAR fold). Physical attacks only today (see "Deliberately NOT
+      read here" below).
+    - Dead: ``_is_dead(session, combatant_id)`` (this module) -- same
+      ``status_changes`` source as Stunned, no clear edge (see that
+      function's docstring).
 
     Deliberately NOT read here:
 
     - ``prone`` -- not stored per-combatant anywhere in this engine (see the
       module-level NOTE above); there is nothing to fold in.
-    - ``stunned`` -- computed at attack time by both
-      ``resolution/status.py::determine_status_changes`` (physical attacks,
-      called from ``actions/base.py:190``) and
-      ``mental/mental_blast.py:45``'s ``target_stunned`` (mental attacks),
-      and in both cases the result is folded into an audit-trail string,
-      never persisted as an event or written onto combatant state. This
-      function has **no branch that adds ``STUNNED``**, and cannot until a
-      later task makes one of those results persist -- there is a real gap
-      here today, not merely a future improvement; whichever mechanism ends
-      up persisting it will need a new source read added to this function,
-      not just "start working" on its own.
-    - ``dead`` -- same shape as ``stunned`` above: computed by
-      ``resolution/status.py::determine_status_changes`` (called from
-      ``actions/base.py:190``) as the ``"Dead"`` string, folded into the
-      same discarded audit trail, never persisted. This function has no
-      branch that adds ``DEAD`` either, for the same reason.
+    - a **mental** Stunned -- ``mental/mental_blast.py:45``'s own
+      ``target_stunned`` is computed by a resolver ``resolve_attack_in_session``
+      does not wrap, so nothing persists a mental Stunned onto the event
+      log the way a physical one is persisted. ``_is_stunned`` therefore
+      only ever sees physical Stunned today; wiring a mental-attack
+      recording path is separate work this task does not attempt.
 
     Preconditions -- this function requires a session whose ``event_log``
-    contains the *complete* history for the four sources that walk it
-    (Entangled, Grabbed, Flashed, Holding), and a
+    contains the *complete* history for the six sources that walk it
+    (Entangled, Grabbed, Flashed, Holding, Stunned, Dead), and a
     ``timeline.aborted_this_phase`` that has been populated by every abort
     applied so far. **kirby-api's rehydrated session supplies neither:**
 
@@ -398,20 +472,24 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     holds only the event just applied: the stream can only ever turn a
     token **on** (e.g. an ``EntangleApplied`` looks like a fresh condition
     by luck, but the later ``EntangleEscape`` produces nothing, because
-    both snapshots read as clean). Consuming this surface from kirby-api's
+    both snapshots read as clean). ``_is_stunned``/``_is_dead`` inherit
+    this exact hazard -- a qualifying ``ActionResolved`` looks fresh by the
+    same luck, and ``_is_stunned``'s clear edge (a *subsequent*
+    ``SegmentAdvanced``) can never be seen at all on a log that never
+    accumulates past one event. Consuming this surface from kirby-api's
     live path needs the log replayed first, or a session variant that
     accumulates it -- neither is done by this module. The one id
     unaffected by this: ``KNOCKED_OUT``, read from
     ``participant.is_ko`` / ``current_stun <= 0`` -- combatant state, not
     the log -- so it is correct even under rehydration.
 
-    Performance: ``is_entangled``, ``is_grabbed``, ``is_flashed`` and
-    ``HeldAction.get_pending`` each walk the entire event log
-    independently, so a single call to this function is O(events) per
-    source, i.e. O(4 * events) for those four plus O(1) for KO/aborted.
-    Fine for the combats this engine runs (short logs, called per
-    combatant per emission, not per tick); no caching is added here --
-    measure before optimising.
+    Performance: ``is_entangled``, ``is_grabbed``, ``is_flashed``,
+    ``HeldAction.get_pending``, ``_is_stunned`` and ``_is_dead`` each walk
+    the entire event log independently, so a single call to this function
+    is O(events) per source, i.e. O(6 * events) for those six plus O(1)
+    for KO/aborted. Fine for the combats this engine runs (short logs,
+    called per combatant per emission, not per tick); no caching is added
+    here -- measure before optimising.
 
     Returns an empty frozenset (never ``None``) for a combatant with no
     conditions.
@@ -441,5 +519,11 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     if HeldAction.get_pending(session, combatant_id):
         statuses.add(HOLDING)
+
+    if _is_stunned(session, combatant_id):
+        statuses.add(STUNNED)
+
+    if _is_dead(session, combatant_id):
+        statuses.add(DEAD)
 
     return frozenset(statuses)

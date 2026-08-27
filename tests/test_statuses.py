@@ -2,15 +2,22 @@
 from __future__ import annotations
 
 import re
+import uuid
+from datetime import datetime, timezone
 
 from fixtures.synthetic_hero import synthetic_combatant
+from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.entangle import Entangle
 from kirby_combat.actions.flash import Flash
 from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.actions.reactive.abort import mark_aborting
+from kirby_combat.actions.recording import resolve_attack_in_session
 from kirby_combat.dice import FakeRoller
+from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.events import SegmentAdvanced, make_author_engine
 from kirby_combat.statuses import (
     ABORTED,
     ALL_STATUS_IDS,
@@ -350,20 +357,20 @@ PRODUCED_BY = {
     MENTAL_SENSE_DISABLED: "Flash.is_flashed (mental) via SENSE_GROUP_TO_STATUS_ID",
     RADIO_SENSE_DISABLED: "Flash.is_flashed (radio) via SENSE_GROUP_TO_STATUS_ID",
     SMELL_TASTE_SENSE_DISABLED: "Flash.is_flashed (smell) via SENSE_GROUP_TO_STATUS_ID",
+    STUNNED: "_is_stunned -- ActionResolved.result_payload['status_changes'] "
+             "contains 'Stunned' (set), cleared by the first SegmentAdvanced "
+             "afterward whose to_segment is a Phase for this combatant "
+             "(6E2 p.107)",
+    DEAD: "_is_dead -- ActionResolved.result_payload['status_changes'] "
+          "contains 'Dead' (never clears)",
 }
 
-# statuses.py's own "Deliberately NOT read here" list: real conditions,
-# computed by resolution/status.py::determine_status_changes (and, for
-# STUNNED, also mental/mental_blast.py:45), but discarded into an
-# audit-trail string rather than persisted -- statuses_for has no branch
-# for either.
-NOT_YET_PRODUCED = {
-    STUNNED: "computed by determine_status_changes + mental_blast.py:45 "
-             "target_stunned, discarded by actions/base.py:190 -- no "
-             "statuses_for branch",
-    DEAD: "computed by determine_status_changes, discarded by "
-          "actions/base.py:190 -- no statuses_for branch",
-}
+# statuses.py's own "Deliberately NOT read here" list is now empty for these
+# two -- both moved into PRODUCED_BY above (Task 4). Kept as an empty dict,
+# not deleted, so the exhaustiveness assertion below and the module
+# docstring's structure stay in the same shape a future deferred id would
+# use.
+NOT_YET_PRODUCED: dict[str, str] = {}
 
 
 def test_producibility_table_is_exhaustive_over_all_status_ids():
@@ -377,12 +384,173 @@ def test_producibility_table_is_exhaustive_over_all_status_ids():
     assert set(PRODUCED_BY) | set(NOT_YET_PRODUCED) == ALL_STATUS_IDS
 
 
-def test_not_yet_produced_ids_never_actually_come_out_of_statuses_for():
-    """The declared exceptions are real gaps, not just labels: drive a
-    combatant to the exact state that would trigger Stunned/Dead via
-    determine_status_changes (STUN dealt > CON; BODY <= -max_body) and
-    confirm statuses_for still omits both."""
+def test_stunned_and_dead_are_not_derived_from_raw_combatant_state():
+    """Task 4 closed the gap the old `test_not_yet_produced_ids_never_
+    actually_come_out_of_statuses_for` guarded: STUNNED/DEAD are no longer
+    NOT_YET_PRODUCED. But they must still never be inferred from a
+    combatant's raw current_stun/current_body -- only from an
+    ActionResolved's recorded status_changes. A combatant created directly
+    in this deeply-negative state, with NO ActionResolved on the log at
+    all, must show neither id."""
     s = _session(_c("alice"), _c("bob", current_stun=-40, current_body=-40))
     result = statuses_for(s, "bob")
     assert STUNNED not in result
     assert DEAD not in result
+
+
+# ---------------------------------------------------------------------------
+# Stunned / Dead — derived from ActionResolved.status_changes
+# (resolve_attack_in_session, kirby_combat/actions/recording.py) plus, for
+# Stunned's clear edge, SegmentAdvanced (Encounter.advance_segment /
+# kirby_combat/session/events.py).
+#
+# 6E2 p.107, "RECOVERING FROM BEING STUNNED": "Recovering from being
+# Stunned requires a Full Phase, and is the only thing the character can
+# do during that Phase" -- the character "recovers from being Stunned when
+# his DEX occurs in the Segment" of his next full Phase. So the SET edge is
+# an ActionResolved naming this combatant with "Stunned" in
+# status_changes; the CLEAR edge is the first SegmentAdvanced afterward
+# whose to_segment is one of this combatant's Phase segments
+# (`segments_for_spd`, kirby_combat/tables.py:117).
+# ---------------------------------------------------------------------------
+
+def _attacker_for_stun(con: int = 15) -> "HeroCombatant":
+    return synthetic_combatant(
+        id="attacker", name="Attacker",
+        ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=15, con=con, pre=15, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+        attacks=[
+            AttackPower(
+                xmlid="ENERGYBLAST", name="Energy Blast", damage_dice=10,
+                half_die=False, plus_one=False,
+                damage_type="normal", defense_type="ed", range_m=200,
+                uses_str=False, str_min=0,
+                armor_piercing=0, penetrating=0, increased_stun_mult=0,
+            ),
+        ],
+    )
+
+
+def _target_for_stun(
+    spd: int = 4, con: int = 15, current_stun: int = 30, current_body: int = 15,
+) -> "HeroCombatant":
+    return synthetic_combatant(
+        id="bob", name="bob",
+        ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=spd, dex=20, ego=15, str_=15, con=con, pre=15, rec=5,
+        pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=current_stun, current_body=current_body, current_end=30,
+    )
+
+
+def _hitting_attack_for_stun(attacker, target) -> AttackInput:
+    # Roll 9 to-hit (well within range); 10d6 normal EB, no defenses on
+    # target so STUN dealt = 36, blowing through any reasonable CON.
+    return AttackInput(
+        attacker=attacker,
+        target=target,
+        power=attacker.attacks[0],
+        distance_m=0,
+        aim=None,
+        dice=DiceValues(
+            to_hit=[3, 3, 3],
+            damage=[5, 4, 3, 6, 2, 4, 6, 3, 1, 2],
+        ),
+    )
+
+
+def _advance(session: CombatSession, to_segment: int, to_turn: int) -> CombatSession:
+    """Append one SegmentAdvanced (session/events.py:60) to `session`'s own
+    log, mirroring encounter.py's `_record_segment_advanced` -- a session
+    fixture here has no owning `Encounter`, so this drives the same event
+    `Encounter.advance_segment` (Task 1) would append, without needing one."""
+    evt = SegmentAdvanced(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        from_segment=session.timeline.segment,
+        to_segment=to_segment,
+        to_turn=to_turn,
+    )
+    return apply_event(session, evt)
+
+
+def test_statuses_for_stunned_appears_after_qualifying_hit():
+    # bob: SPD 4 -> Phases at segments 3, 6, 9, 12 (tables.py SPEED_TO_SEGMENTS).
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Stunned" in result.status_changes  # sanity: the hit really qualifies
+
+    assert STUNNED in statuses_for(session, "bob")
+
+
+def test_statuses_for_stunned_disappears_after_the_combatants_next_phase():
+    """The clear edge: SPD 4 (Phases 3/6/9/12). Session starts on Segment
+    12 (CombatSession.create -- 6E2 p.20, combat begins Segment 12), so the
+    hit lands on bob's own Phase. Advance 12->1 (Turn wrap, not a Phase for
+    SPD 4) then 1->2 (not a Phase) then 2->3 (a Phase) -- 6E2 p.107 says
+    Stunned clears once a Segment that is a Phase for the combatant has
+    elapsed after the hit, and this is the first one."""
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert STUNNED in statuses_for(session, "bob")
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)  # bob's next Phase
+
+    assert STUNNED not in statuses_for(session, "bob")
+
+
+def test_statuses_for_stunned_survives_a_segment_that_is_not_the_combatants_phase():
+    """This is the test that must be able to fail: a Segment elapsing is
+    NOT enough on its own -- it must be one of THIS combatant's Phase
+    segments (6E2 p.107). SPD 4's Phases are 3/6/9/12, so 12->1->2 must
+    leave Stunned still set."""
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert STUNNED in statuses_for(session, "bob")
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+
+    assert STUNNED in statuses_for(session, "bob")
+
+
+def test_statuses_for_dead_appears_and_persists():
+    # con=15, current_stun=30, current_body=-10, max_body=15: a 36-STUN/
+    # 11-BODY hit drives body_after to -21 <= -15 -> Dead (and, along the
+    # way, Stunned + Knocked Out too -- resolution/status.py's three
+    # checks are independent, not exclusive).
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Dead" in result.status_changes  # sanity: the hit really qualifies
+
+    assert DEAD in statuses_for(session, "bob")
+
+    # Dead never clears -- unlike Stunned, advancing through bob's own
+    # Phase segments must not remove it.
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)
+
+    assert DEAD in statuses_for(session, "bob")
