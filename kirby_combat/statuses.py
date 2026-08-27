@@ -42,6 +42,16 @@ survives on the event log, and `_is_stunned`/`_is_dead` below fold it back
 out -- see `statuses_for`'s docstring for exactly what each reads and why
 `STUNNED` additionally needs `SegmentAdvanced` to answer its clear edge.
 
+Follow-up coherence fix (same task): that payload also names "Knocked
+Out" whenever STUN falls to 0 or below, but `resolve_attack_in_session`
+deliberately never mutates a combatant's live vitals (`session/apply.py`'s
+log-only design), so `KNOCKED_OUT`'s pre-existing `is_ko` source (reading
+live `current_stun`) never saw it -- a session could report `dead` and
+`stunned` for a combatant with NO `knockedOut`, which is self-contradictory
+to any consumer. `_is_knocked_out_from_payload` below adds the same
+payload fold as a second, additive source for `KNOCKED_OUT`, unioned with
+`is_ko` -- see that function's docstring for its clear edge.
+
 This module is a vocabulary module (constants and a frozenset) PLUS,
 below, `statuses_for` -- the one fold over every condition source. It does
 not define a delta event (Task 3) and does not touch emission or
@@ -80,15 +90,25 @@ KNOCKED_OUT = "knockedOut"
 # ("Unconscious. 6E: at 0 STUN or below, not merely below zero.") and
 # kirby_combat/resolution/status.py `determine_status_changes`.
 #
+# TWO sources fold into this id (Task 4 follow-up, "coherence" finding):
+# live vitals (`is_ko` / `current_stun <= 0`, unchanged) AND the same
+# `ActionResolved.result_payload["status_changes"]` fold used for STUNNED/
+# DEAD (`_is_knocked_out_from_payload` below), unioned. The second source
+# exists because `resolve_attack_in_session` deliberately never mutates
+# vitals (`session/apply.py`'s log-only design) -- a payload naming
+# "Stunned"/"Knocked Out"/"Dead" together, with vitals never touched,
+# previously surfaced `dead`+`stunned` WITHOUT `knockedOut`, which is
+# self-contradictory to any consumer (a dead combatant who was never
+# knocked out). See `_is_knocked_out_from_payload`'s docstring for why its
+# clear edge is deliberately conservative rather than latching.
+#
 # NOTE: Foundry separately defines an "unconscious" id
 # (`unconsciousEffect`, distinct changes from `knockedOutEffect`) but this
-# engine has only ONE source for this condition -- `is_ko` /
-# `current_stun <= 0` -- which `resolution/status.py` itself already labels
-# "Knocked Out". There is no second, independent engine signal (e.g. sleep,
-# drugging) that would justify a distinct `unconscious` id here, so it is
-# deliberately NOT included: it would be a promise (a second, different
-# trigger) this engine cannot keep. `KNOCKED_OUT` is the one id emitted for
-# `is_ko`.
+# engine has only ONE *condition* here -- `resolution/status.py` already
+# labels both its sources "Knocked Out" -- so there is still no second,
+# independent SIGNAL (e.g. sleep, drugging) that would justify a distinct
+# `unconscious` id; the two folds above are two ways of observing the same
+# condition, not two conditions. `KNOCKED_OUT` remains the one id emitted.
 
 DEAD = "dead"
 # BODY <= -max_body (double negative BODY). See
@@ -396,14 +416,78 @@ def _is_dead(session: "CombatSession", combatant_id: str) -> bool:
     return False
 
 
+def _is_knocked_out_from_payload(session: "CombatSession", combatant_id: str) -> bool:
+    """Fold a payload-derived Knocked Out out of the event log (Task 4
+    coherence follow-up): an ``ActionResolved`` naming this combatant
+    whose ``"status_changes"`` contains ``"Knocked Out"``
+    (``resolution/status.py::determine_status_changes``: ``stun_after <=
+    0``). This is a SECOND, additive source for ``KNOCKED_OUT`` --
+    ``statuses_for`` also still reads the live ``is_ko`` /
+    ``current_stun <= 0`` predicate, unioned with this one -- added
+    because ``resolve_attack_in_session`` deliberately never mutates
+    vitals (``session/apply.py``'s log-only design), so a payload naming
+    "Stunned"/"Knocked Out"/"Dead" together, on a session that never
+    touches ``current_stun``, previously produced ``dead``+``stunned``
+    with NO ``knockedOut`` -- self-contradictory to any consumer.
+
+    CLEAR EDGE, decided deliberately: this flag clears on the next
+    ``RecoveryTaken`` event for this combatant (``combatant_id`` field),
+    rather than never clearing (like DEAD) or clearing on a Phase-based
+    rule (like STUNNED). Reasoning:
+
+    - Being Knocked Out is not a fixed-duration condition the way Stunned
+      is (6E2 p.107 names an exact clearing Segment). It ends when STUN
+      rises back above 0 -- a live-vitals fact this fold, deliberately,
+      never reconstructs (that would mean replaying a full STUN ledger
+      from the log, which is a materially bigger derivation this task
+      does not attempt, and would duplicate what live vitals already
+      answer correctly whenever a caller DOES mutate them).
+    - ``RecoveryTaken`` (6E2 p.131, "POST-SEGMENT 12 RECOVERY") is the one
+      log event that represents STUN being restored, so it is the most
+      rule-relevant signal available for "this combatant may have
+      recovered" -- but seeing the event proves neither that enough STUN
+      was restored nor that it wasn't; it is a conservative proxy, not an
+      exact replay.
+    - Given that imprecision, this branch's own governing rule (a status
+      that never turns off is worse than one that never turns on --
+      exactly why STUNNED was deferred three times) means the tie goes to
+      NOT latching: clearing on the first plausible recovery signal,
+      accepting an occasional early clear, rather than a flag that can
+      never come down once a caller's driver stops mutating vitals.
+    """
+    ko = False
+    for evt in session.event_log:
+        kind = evt.kind
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("target_id") == combatant_id
+                and "Knocked Out" in payload.get("status_changes", ())
+            ):
+                ko = True
+        elif kind == "RecoveryTaken" and ko:
+            if getattr(evt, "combatant_id", None) == combatant_id:
+                ko = False
+    return ko
+
+
 def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     """Fold every condition source into one status set for a combatant.
 
     Sources read, and why each is read at this layer rather than another:
 
-    - KO: ``session.combatants[combatant_id].is_ko`` -- a property,
+    - KO: the UNION of two sources (Task 4 coherence follow-up) --
+      ``session.combatants[combatant_id].is_ko``, a property,
       ``current_stun <= 0`` (``participant.py:139``, "Unconscious. 6E: at 0
-      STUN or below, not merely below zero.").
+      STUN or below, not merely below zero."), OR
+      ``_is_knocked_out_from_payload(session, combatant_id)`` (this
+      module), which folds ``ActionResolved.result_payload["status_changes"]``
+      the same way STUNNED/DEAD do. Additive, not a replacement: a session
+      whose driver DOES mutate vitals keeps working exactly as before via
+      ``is_ko``; the payload fold exists for the log-only case
+      ``resolve_attack_in_session`` produces, where nothing else would
+      ever set KNOCKED_OUT even though the payload plainly says so. See
+      ``_is_knocked_out_from_payload``'s docstring for its clear edge.
     - Entangled: ``Entangle.is_entangled(session, combatant_id)``
       (``actions/entangle.py``) -- the ``actions/`` function, not
       ``session.effects.EntangleState``, because the ``actions/`` layer is
@@ -441,6 +525,11 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     - Dead: ``_is_dead(session, combatant_id)`` (this module) -- same
       ``status_changes`` source as Stunned, no clear edge (see that
       function's docstring).
+    - Knocked Out (payload half): ``_is_knocked_out_from_payload(session,
+      combatant_id)`` (this module) -- same ``status_changes`` source
+      again, unioned into the KO bullet above; see that function's
+      docstring for why its clear edge is ``RecoveryTaken``, not never
+      (unlike Dead) and not Phase-based (unlike Stunned).
 
     Deliberately NOT read here:
 
@@ -451,13 +540,16 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       does not wrap, so nothing persists a mental Stunned onto the event
       log the way a physical one is persisted. ``_is_stunned`` therefore
       only ever sees physical Stunned today; wiring a mental-attack
-      recording path is separate work this task does not attempt.
+      recording path is separate work this task does not attempt. The same
+      gap applies to a mental Knocked Out (``mental_blast.py``'s
+      ``target_ko``) for the same reason.
 
     Preconditions -- this function requires a session whose ``event_log``
-    contains the *complete* history for the six sources that walk it
-    (Entangled, Grabbed, Flashed, Holding, Stunned, Dead), and a
-    ``timeline.aborted_this_phase`` that has been populated by every abort
-    applied so far. **kirby-api's rehydrated session supplies neither:**
+    contains the *complete* history for the seven sources that walk it
+    (Entangled, Grabbed, Flashed, Holding, Stunned, Dead, and the
+    payload half of Knocked Out), and a ``timeline.aborted_this_phase``
+    that has been populated by every abort applied so far. **kirby-api's
+    rehydrated session supplies neither:**
 
     - ``kirby-api/kirby/combat/services/session_service.py:237`` sets
       ``event_log=_FakeLog(row.last_sequence)``, whose ``__iter__`` always
@@ -472,24 +564,28 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     holds only the event just applied: the stream can only ever turn a
     token **on** (e.g. an ``EntangleApplied`` looks like a fresh condition
     by luck, but the later ``EntangleEscape`` produces nothing, because
-    both snapshots read as clean). ``_is_stunned``/``_is_dead`` inherit
-    this exact hazard -- a qualifying ``ActionResolved`` looks fresh by the
-    same luck, and ``_is_stunned``'s clear edge (a *subsequent*
-    ``SegmentAdvanced``) can never be seen at all on a log that never
-    accumulates past one event. Consuming this surface from kirby-api's
-    live path needs the log replayed first, or a session variant that
-    accumulates it -- neither is done by this module. The one id
-    unaffected by this: ``KNOCKED_OUT``, read from
-    ``participant.is_ko`` / ``current_stun <= 0`` -- combatant state, not
-    the log -- so it is correct even under rehydration.
+    both snapshots read as clean). ``_is_stunned``/``_is_dead``/
+    ``_is_knocked_out_from_payload`` inherit this exact hazard -- a
+    qualifying ``ActionResolved`` looks fresh by the same luck, and
+    ``_is_stunned``'s clear edge (a *subsequent* ``SegmentAdvanced``) and
+    ``_is_knocked_out_from_payload``'s (a *subsequent* ``RecoveryTaken``)
+    can never be seen at all on a log that never accumulates past one
+    event. Consuming this surface from kirby-api's live path needs the
+    log replayed first, or a session variant that accumulates it --
+    neither is done by this module. The live half of KO --
+    ``participant.is_ko`` / ``current_stun <= 0``, combatant state, not
+    the log -- is unaffected and stays correct even under rehydration;
+    only the payload half of KO (unioned in) shares the log-based hazard
+    the other five sources have.
 
     Performance: ``is_entangled``, ``is_grabbed``, ``is_flashed``,
-    ``HeldAction.get_pending``, ``_is_stunned`` and ``_is_dead`` each walk
-    the entire event log independently, so a single call to this function
-    is O(events) per source, i.e. O(6 * events) for those six plus O(1)
-    for KO/aborted. Fine for the combats this engine runs (short logs,
-    called per combatant per emission, not per tick); no caching is added
-    here -- measure before optimising.
+    ``HeldAction.get_pending``, ``_is_stunned``, ``_is_dead`` and
+    ``_is_knocked_out_from_payload`` each walk the entire event log
+    independently, so a single call to this function is O(events) per
+    source, i.e. O(7 * events) for those seven plus O(1) for the live
+    ``is_ko``/aborted checks. Fine for the combats this engine runs (short
+    logs, called per combatant per emission, not per tick); no caching is
+    added here -- measure before optimising.
 
     Returns an empty frozenset (never ``None``) for a combatant with no
     conditions.
@@ -497,7 +593,7 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     statuses: set[str] = set()
 
     participant = session.combatants[combatant_id]
-    if participant.is_ko:
+    if participant.is_ko or _is_knocked_out_from_payload(session, combatant_id):
         statuses.add(KNOCKED_OUT)
 
     is_entangled, _ = Entangle.is_entangled(session, combatant_id)

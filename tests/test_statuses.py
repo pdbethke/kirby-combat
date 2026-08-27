@@ -17,7 +17,9 @@ from kirby_combat.dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
 from kirby_combat.session.apply import apply_event
-from kirby_combat.session.events import SegmentAdvanced, make_author_engine
+from kirby_combat.session.events import (
+    RecoveryTaken, SegmentAdvanced, make_author_engine,
+)
 from kirby_combat.statuses import (
     ABORTED,
     ALL_STATUS_IDS,
@@ -347,7 +349,8 @@ def test_statuses_for_folds_several_simultaneous_conditions():
 # ---------------------------------------------------------------------------
 
 PRODUCED_BY = {
-    KNOCKED_OUT: "participant.is_ko (current_stun <= 0)",
+    KNOCKED_OUT: "participant.is_ko (current_stun <= 0) UNION "
+                 "_is_knocked_out_from_payload (status_changes, cleared by RecoveryTaken)",
     ENTANGLED: "Entangle.is_entangled",
     GRAB: "Grab.is_grabbed",
     ABORTED: "session.timeline.aborted_this_phase",
@@ -554,3 +557,106 @@ def test_statuses_for_dead_appears_and_persists():
     session = _advance(session, to_segment=3, to_turn=2)
 
     assert DEAD in statuses_for(session, "bob")
+
+
+# ---------------------------------------------------------------------------
+# Knocked Out coherence (Task 4 follow-up) -- surfaced by Task 5's example:
+# a payload naming "Stunned"/"Knocked Out"/"Dead" together, on a session
+# whose driver never mutates vitals (`resolve_attack_in_session` is
+# deliberately log-only, `session/apply.py`), previously produced `dead`
+# and `stunned` with NO `knockedOut` at all -- self-contradictory to any
+# consumer. `KNOCKED_OUT` now unions the live `is_ko` source with
+# `_is_knocked_out_from_payload`, the same payload fold STUNNED/DEAD use.
+# ---------------------------------------------------------------------------
+
+def _recover(
+    session: CombatSession, combatant_id: str,
+    stun_recovered: int = 5, end_recovered: int = 5,
+) -> CombatSession:
+    """Append one RecoveryTaken (session/events.py:84) to `session`'s own
+    log -- the event `_apply_post_12_recovery` (encounter.py) emits for
+    6E2 p.131's Post-Segment 12 Recovery, driven here directly so a
+    fixture doesn't need a full Encounter."""
+    evt = RecoveryTaken(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        combatant_id=combatant_id,
+        stun_recovered=stun_recovered,
+        end_recovered=end_recovered,
+    )
+    return apply_event(session, evt)
+
+
+def test_statuses_for_lethal_hit_yields_both_dead_and_knocked_out():
+    """The coherence property, pinned directly: a hit whose status_changes
+    names Stunned + Knocked Out + Dead together must surface ALL THREE
+    from statuses_for -- not dead+stunned with knockedOut silently
+    missing, even though `is_ko` (live current_stun) never moves, because
+    resolve_attack_in_session is deliberately log-only."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)  # same fixture as the Dead test
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert result.status_changes == ["Stunned", "Knocked Out", "Dead"]
+
+    # Sanity: vitals genuinely never moved -- is_ko alone would miss this.
+    assert session.combatants["bob"].is_ko is False
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert STUNNED in result_ids
+    assert KNOCKED_OUT in result_ids
+
+
+def test_statuses_for_knocked_out_from_payload_alone_when_vitals_never_move():
+    """A hit that drives stun_after <= 0 (Knocked Out) but not Dead, on a
+    combatant whose live current_stun stays at its starting value --
+    KNOCKED_OUT must still appear, sourced purely from the payload."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()  # current_stun=30
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Knocked Out" in result.status_changes  # sanity: 30 - 36 <= 0
+    assert "Dead" not in result.status_changes
+
+    assert session.combatants["bob"].is_ko is False  # vitals untouched
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+
+def test_statuses_for_knocked_out_payload_clears_on_recovery_taken():
+    """The clear edge this fold was given, asserted rather than
+    incidental: _is_knocked_out_from_payload clears on the very next
+    RecoveryTaken for this combatant (6E2 p.131), a deliberately
+    conservative choice over never clearing (see that function's
+    docstring)."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+    session = _recover(session, "bob")
+
+    assert KNOCKED_OUT not in statuses_for(session, "bob")
+
+
+def test_statuses_for_knocked_out_payload_unaffected_by_unrelated_recovery():
+    """A RecoveryTaken for a DIFFERENT combatant must not clear this
+    combatant's payload-derived Knocked Out."""
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, _ = resolve_attack_in_session(session, attack, session.template)
+    assert KNOCKED_OUT in statuses_for(session, "bob")
+
+    session = _recover(session, "attacker")
+
+    assert KNOCKED_OUT in statuses_for(session, "bob")
