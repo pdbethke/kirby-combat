@@ -1,12 +1,28 @@
 """Canonical status-id vocabulary for combat state emission.
 
-Foundry's status ids are the canon: they are an already-published,
-already-consumed contract (`hero6e-kirby/module/actor/actor-active-effects.mjs`
-defines 43 of them; `module/combatant.mjs:48` reads
-`actor.statuses.has("holding")` directly). The engine's own internal names
-(`"Stunned"` / `"Knocked Out"` / `"Dead"`, from
-`kirby_combat/resolution/status.py`) are title-case-with-spaces and are NOT
-the canon — they exist only inside this engine and must never leak out.
+**Kirby owns this vocabulary.** Each id here is named for the HERO System
+condition this engine actually models (per HERO 6E), not transcribed from
+another product's list. The engine's own internal names (`"Stunned"` /
+`"Knocked Out"` / `"Dead"`, from `kirby_combat/resolution/status.py`) are
+title-case-with-spaces and are NOT the wire vocabulary — they exist only
+inside this engine and must never leak out; the ids below are what leaks
+out instead.
+
+Foundry (`hero6e-kirby/module/actor/actor-active-effects.mjs`, 43 ids) is a
+**compatibility target and a coverage reference — never the authority.**
+It is a fairly complete, already-published enumeration of HERO conditions,
+which is exactly why it is worth reading: (a) `FOUNDRY_ID` below records
+where our id and Foundry's *wire id* happen to differ, purely at the
+serialization boundary, so a Foundry client can still be driven; (b) the
+known-unmodelled section further down records HERO conditions Foundry
+already has ids for that this engine does not produce yet — a checklist
+for what a more complete implementation would cover. Neither role lets
+Foundry's list cap what Kirby is allowed to define: a Kirby id with no
+Foundry equivalent is expected and fine (see `NO_FOUNDRY_EQUIVALENT`
+below), and adding a HERO condition Foundry lacks is ordinary work, not a
+test failure. (Corrects `2026-08-26-statuses-must-be-emitted-design.md`
+§5a / §6 bullet 1, which called Foundry's list "the canon" — see
+`2026-08-27-kirby-owns-its-vocabulary-design.md`.)
 
 This module defines **only the ids this engine can actually produce.**
 Foundry defines 43 status ids in total; this engine is deliberately narrower.
@@ -134,19 +150,28 @@ HOLDING = "holding"
 #
 # Engine sense groups (kirby_combat/perception.py:20-24): sight, hearing,
 # mental, radio, smell. These MUST match actions/flash.py's sense_group
-# strings. Foundry's *SenseDisabled ids that have a matching engine sense
-# group are mapped below; Foundry also defines danger / detect / sonar /
-# spatialAwareness / touch SenseDisabled ids, which have NO corresponding
-# engine sense group and are deliberately OMITTED (not an oversight).
+# strings. HERO's Flash can target ANY Sense Group (6E1) -- a Mental-group
+# Flash is as much a sensory blackout as a Sight-group one -- so this
+# engine names all five with the same *SenseDisabled pattern rather than
+# giving the Sight case a sight-specific folk name ("blind"). Foundry also
+# defines danger / detect / sonar / spatialAwareness / touch SenseDisabled
+# ids, which have NO corresponding engine sense group and are deliberately
+# OMITTED (not an oversight; see the known-unmodelled section below).
 # ---------------------------------------------------------------------------
 
-BLIND = "blind"
-# Flash vs the Sight Group. Foundry has no "sightSenseDisabled" id; its
-# sight-disabled status id is "blind"
-# (`sightSenseDisabledEffect` -> id "blind" in
-# hero6e-kirby/module/actor/actor-active-effects.mjs). See
-# kirby_combat/actions/flash.py (Flash targets sight group per HERO 6E1) and
-# kirby_combat/perception.py SIGHT.
+SIGHT_SENSE_DISABLED = "sightSenseDisabled"
+# Flash vs the Sight Group. See kirby_combat/actions/flash.py (Flash targets
+# sight group per HERO 6E1) and kirby_combat/perception.py SIGHT.
+#
+# Kirby names this per its own per-Sense-Group pattern (matching the other
+# four ids below) rather than borrowing Foundry's sight-specific "blind".
+# Foundry's own *model* already agrees with the per-group naming --
+# its object for this is `sightSenseDisabledEffect`, localized as
+# "EFFECT.StatusSenseSightDisabled"
+# (`hero6e-kirby/module/actor/actor-active-effects.mjs:406-408`) -- only its
+# wire *id* is the legacy "blind". `FOUNDRY_ID` below records that
+# divergence at the wire boundary only; it does not change how Kirby names
+# the condition.
 
 HEARING_SENSE_DISABLED = "hearingSenseDisabled"
 # Flash vs the Hearing Group (HERO 6E1). See kirby_combat/perception.py
@@ -164,11 +189,10 @@ SMELL_TASTE_SENSE_DISABLED = "smellTasteSenseDisabled"
 # Flash vs the Smell/Taste Group (HERO 6E1). See kirby_combat/perception.py
 # SMELL and kirby_combat/actions/flash.py (sense_group "smell").
 
-# Engine sense-group string -> Foundry status id, for the groups that exist
-# on both sides. kirby_combat/perception.py's SIGHT group has no Foundry
-# "*SenseDisabled" counterpart -- Foundry uses "blind" instead.
+# Engine sense-group string -> Kirby status id, for the groups this engine
+# models (kirby_combat/perception.py:20-24).
 SENSE_GROUP_TO_STATUS_ID: dict[str, str] = {
-    "sight": BLIND,
+    "sight": SIGHT_SENSE_DISABLED,
     "hearing": HEARING_SENSE_DISABLED,
     "mental": MENTAL_SENSE_DISABLED,
     "radio": RADIO_SENSE_DISABLED,
@@ -188,13 +212,90 @@ ALL_STATUS_IDS: frozenset[str] = frozenset(
         GRAB,
         ABORTED,
         HOLDING,
-        BLIND,
+        SIGHT_SENSE_DISABLED,
         HEARING_SENSE_DISABLED,
         MENTAL_SENSE_DISABLED,
         RADIO_SENSE_DISABLED,
         SMELL_TASTE_SENSE_DISABLED,
     }
 )
+
+# ---------------------------------------------------------------------------
+# FOUNDRY_ID -- one-directional wire mapping, Kirby id -> Foundry id
+#
+# This is the ONLY place Foundry's vocabulary touches this module. It exists
+# purely at the serialization boundary, for a client that wants to drive an
+# actual Foundry token; it is not consulted anywhere else in this package
+# (`statuses_for`, `status_deltas`, `apply_event` all speak Kirby ids only).
+#
+# Eleven of twelve ids map identically; only SIGHT_SENSE_DISABLED differs,
+# because Foundry's wire id for that condition is the legacy "blind" (see
+# the note on SIGHT_SENSE_DISABLED above). Divergence should mean something;
+# where Foundry and Kirby already agree, the mapping is the identity.
+#
+# Every value here must be a real id in FOUNDRY_STATUS_IDS_20260827
+# (tests/test_statuses.py) -- but that snapshot no longer bounds
+# ALL_STATUS_IDS itself (see NO_FOUNDRY_EQUIVALENT below): it validates
+# mapping *targets* only, not the existence of Kirby ids.
+FOUNDRY_ID: dict[str, str] = {
+    STUNNED: "stunned",
+    KNOCKED_OUT: "knockedOut",
+    DEAD: "dead",
+    ENTANGLED: "entangled",
+    GRAB: "grab",
+    ABORTED: "aborted",
+    HOLDING: "holding",
+    SIGHT_SENSE_DISABLED: "blind",
+    HEARING_SENSE_DISABLED: "hearingSenseDisabled",
+    MENTAL_SENSE_DISABLED: "mentalSenseDisabled",
+    RADIO_SENSE_DISABLED: "radioSenseDisabled",
+    SMELL_TASTE_SENSE_DISABLED: "smellTasteSenseDisabled",
+}
+
+# Kirby ids with no Foundry equivalent at all -- a *stated decision*, not an
+# oversight, so an id missing from FOUNDRY_ID doesn't read as one we forgot
+# to map. Empty today: every id in ALL_STATUS_IDS happens to have a Foundry
+# counterpart. This set is where a future Kirby-only condition (one Foundry
+# has no id for at all) would be declared, so it stays even though nothing
+# populates it yet -- see the module docstring: a Kirby id with no Foundry
+# equivalent is expected and fine, never a test failure.
+NO_FOUNDRY_EQUIVALENT: frozenset[str] = frozenset()
+
+# ---------------------------------------------------------------------------
+# Known-unmodelled -- Foundry ids for HERO Sense Groups this engine does not
+# produce yet (coverage reference only; §3b of the design doc)
+#
+# HERO 6E1 p.279 lists the Sense Groups: "Hearing Group; Mental Group; Radio
+# Group; Sight Group; Smell/Taste Group: Normal Smell, Normal Taste; Touch
+# Group; Unusual Group: Active Sonar." This engine's perception.py:20-24
+# models five of those seven (sight, hearing, mental, radio, smell/taste);
+# it does not model Touch or Unusual (Active Sonar) as sense groups a Flash
+# can target. Foundry already has ids for several conditions in this space:
+#
+#   touchSenseDisabled              -- Flash vs the Touch Group (6E1 p.279)
+#   sonarSenseDisabled               -- Flash vs the Unusual Group / Active
+#                                        Sonar (6E1 p.279)
+#   spatialAwarenessSenseDisabled    -- Spatial Awareness, a Targeting Sense
+#                                        this engine currently files under
+#                                        the Sight group (perception.py
+#                                        _TARGETING_SENSE_XMLIDS), not its
+#                                        own sense group
+#   detectSenseDisabled               -- Detect, a Sense not modelled by this
+#                                        engine's Flash/perception layer
+#   dangerSenseDisabled               -- Danger Sense, a Sense not modelled by
+#                                        this engine's Flash/perception layer
+#
+# These are recorded here as a checklist, not emitted: this engine has no
+# per-combatant source for any of them today, so none appear in
+# ALL_STATUS_IDS. This is Foundry's list doing its one genuinely useful job
+# -- a coverage reference -- without being treated as an authority to match.
+KNOWN_UNMODELLED_FOUNDRY_IDS: frozenset[str] = frozenset({
+    "touchSenseDisabled",
+    "sonarSenseDisabled",
+    "spatialAwarenessSenseDisabled",
+    "detectSenseDisabled",
+    "dangerSenseDisabled",
+})
 
 # ---------------------------------------------------------------------------
 # statuses_for -- one fold over every condition source

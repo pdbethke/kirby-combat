@@ -14,16 +14,19 @@ from kirby_combat.session import CombatSession
 from kirby_combat.statuses import (
     ABORTED,
     ALL_STATUS_IDS,
-    BLIND,
     DEAD,
     ENTANGLED,
+    FOUNDRY_ID,
     GRAB,
     HEARING_SENSE_DISABLED,
     HOLDING,
     KNOCKED_OUT,
+    KNOWN_UNMODELLED_FOUNDRY_IDS,
     MENTAL_SENSE_DISABLED,
+    NO_FOUNDRY_EQUIVALENT,
     RADIO_SENSE_DISABLED,
     SENSE_GROUP_TO_STATUS_ID,
+    SIGHT_SENSE_DISABLED,
     SMELL_TASTE_SENSE_DISABLED,
     STUNNED,
     statuses_for,
@@ -55,7 +58,7 @@ def test_the_engines_internal_names_are_not_the_canon():
 def test_all_expected_ids_present():
     expected = {
         STUNNED, KNOCKED_OUT, DEAD, ENTANGLED, GRAB, ABORTED, HOLDING,
-        BLIND, HEARING_SENSE_DISABLED, MENTAL_SENSE_DISABLED,
+        SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED, MENTAL_SENSE_DISABLED,
         RADIO_SENSE_DISABLED, SMELL_TASTE_SENSE_DISABLED,
     }
     assert ALL_STATUS_IDS == expected
@@ -76,10 +79,10 @@ def test_prone_is_not_emittable():
 
 def test_sense_group_mapping_matches_engine_groups():
     """Every engine sense group (perception.py:20-24) maps to exactly one
-    Foundry status id; sight maps to "blind" since Foundry has no
-    "sightSenseDisabled" id."""
+    Kirby status id, named per the engine's own per-Sense-Group pattern
+    (sight -> SIGHT_SENSE_DISABLED, not the Foundry-only "blind")."""
     assert SENSE_GROUP_TO_STATUS_ID == {
-        "sight": BLIND,
+        "sight": SIGHT_SENSE_DISABLED,
         "hearing": HEARING_SENSE_DISABLED,
         "mental": MENTAL_SENSE_DISABLED,
         "radio": RADIO_SENSE_DISABLED,
@@ -134,13 +137,55 @@ def test_foundry_status_ids_snapshot_has_43_entries():
     assert len(FOUNDRY_STATUS_IDS_20260827) == 43
 
 
-def test_every_engine_id_exists_in_foundry():
-    """Every id this engine claims to be able to emit must actually be one
-    of Foundry's published status ids -- a typo'd or invented id would
-    otherwise pass every other test in this file (they only check
-    self-consistency against ALL_STATUS_IDS) and silently do nothing on a
-    token client-side."""
-    assert ALL_STATUS_IDS <= FOUNDRY_STATUS_IDS_20260827
+# ---------------------------------------------------------------------------
+# FOUNDRY_ID mapping -- Foundry no longer caps ALL_STATUS_IDS (that ceiling
+# was the defect this branch corrects: see
+# 2026-08-27-kirby-owns-its-vocabulary-design.md §1a/§3c). Instead:
+#   - every FOUNDRY_ID *value* must be a real, published Foundry id
+#     (a typo'd or invented mapping target would otherwise silently do
+#     nothing on a token client-side);
+#   - every Kirby id must be accounted for as either mapped or explicitly
+#     declared to have no Foundry equivalent, so an unmapped id reads as a
+#     stated decision, never an oversight.
+# ---------------------------------------------------------------------------
+
+def test_every_foundry_id_mapping_target_is_a_real_foundry_id():
+    """FOUNDRY_ID's values (not ALL_STATUS_IDS itself) are what must exist
+    in Foundry's published vocabulary -- the snapshot now validates mapping
+    targets only."""
+    for kirby_id, foundry_id in FOUNDRY_ID.items():
+        assert foundry_id in FOUNDRY_STATUS_IDS_20260827, (
+            f"{kirby_id!r} maps to {foundry_id!r}, which is not a real "
+            f"Foundry status id"
+        )
+
+
+def test_every_kirby_id_is_mapped_or_declared_to_have_no_foundry_equivalent():
+    """An id in ALL_STATUS_IDS that is neither in FOUNDRY_ID nor in
+    NO_FOUNDRY_EQUIVALENT would be a silently unmapped id -- this test
+    forces every id to be one or the other, on purpose."""
+    accounted_for = set(FOUNDRY_ID) | set(NO_FOUNDRY_EQUIVALENT)
+    assert accounted_for == ALL_STATUS_IDS
+    # and the two categories don't overlap -- an id doesn't get to be both
+    # "mapped" and "declared as having no equivalent"
+    assert set(FOUNDRY_ID).isdisjoint(NO_FOUNDRY_EQUIVALENT)
+
+
+def test_sight_sense_disabled_is_the_one_divergent_mapping():
+    """Eleven of twelve ids map identically to their own string; only
+    SIGHT_SENSE_DISABLED differs, because Foundry's wire id for that
+    condition is the legacy "blind"."""
+    divergent = {k: v for k, v in FOUNDRY_ID.items() if k != v}
+    assert divergent == {SIGHT_SENSE_DISABLED: "blind"}
+
+
+def test_known_unmodelled_foundry_ids_are_not_produced():
+    """The known-unmodelled record (§3b) is a checklist, not a promise --
+    none of these ids should appear in ALL_STATUS_IDS, since this engine
+    has no per-combatant source for any of them."""
+    assert KNOWN_UNMODELLED_FOUNDRY_IDS.isdisjoint(ALL_STATUS_IDS)
+    for fid in KNOWN_UNMODELLED_FOUNDRY_IDS:
+        assert fid in FOUNDRY_STATUS_IDS_20260827
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +256,7 @@ def test_statuses_for_flashed_maps_specific_sense_group():
     result = statuses_for(s2, "bob")
     assert HEARING_SENSE_DISABLED in result
     # not a generic / wrong sense group
-    assert BLIND not in result
+    assert SIGHT_SENSE_DISABLED not in result
     assert MENTAL_SENSE_DISABLED not in result
 
 
@@ -226,7 +271,7 @@ def test_statuses_for_flashed_in_two_groups_gets_both_ids():
         sense_group="mental", body_dealt=8, flash_defense=0,
     )
     result = statuses_for(s3, "bob")
-    assert BLIND in result
+    assert SIGHT_SENSE_DISABLED in result
     assert MENTAL_SENSE_DISABLED in result
 
 
@@ -276,7 +321,7 @@ def test_statuses_for_folds_several_simultaneous_conditions():
 
     result = statuses_for(s5, "bob")
     assert result == frozenset(
-        {KNOCKED_OUT, ENTANGLED, GRAB, BLIND, HEARING_SENSE_DISABLED}
+        {KNOCKED_OUT, ENTANGLED, GRAB, SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED}
     )
 
 
@@ -300,7 +345,7 @@ PRODUCED_BY = {
     GRAB: "Grab.is_grabbed",
     ABORTED: "session.timeline.aborted_this_phase",
     HOLDING: "HeldAction.get_pending",
-    BLIND: "Flash.is_flashed (sight) via SENSE_GROUP_TO_STATUS_ID",
+    SIGHT_SENSE_DISABLED: "Flash.is_flashed (sight) via SENSE_GROUP_TO_STATUS_ID",
     HEARING_SENSE_DISABLED: "Flash.is_flashed (hearing) via SENSE_GROUP_TO_STATUS_ID",
     MENTAL_SENSE_DISABLED: "Flash.is_flashed (mental) via SENSE_GROUP_TO_STATUS_ID",
     RADIO_SENSE_DISABLED: "Flash.is_flashed (radio) via SENSE_GROUP_TO_STATUS_ID",
