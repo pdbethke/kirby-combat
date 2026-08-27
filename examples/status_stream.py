@@ -175,7 +175,7 @@ def main() -> None:
     rule("3. Vanguard aborts to Dodge, then holds a phase")
     before = session
     session, _ = mark_aborting(session, "vanguard", to_action="dodge")
-    show_step("Abort to Dodge (6E2 p59 SS USING DODGE)", before, session)
+    show_step('Abort to Dodge (6E2 p63, DODGE -- "Characters can Abort to Dodge")', before, session)
 
     before = session
     session, _ = HeldAction.declare(
