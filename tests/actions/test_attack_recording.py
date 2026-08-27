@@ -10,7 +10,9 @@ import pytest
 
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions import resolve_attack
-from kirby_combat.actions.recording import resolve_attack_in_session
+from kirby_combat.actions.recording import (
+    ACCEPTED_ACTION_KINDS, resolve_attack_in_session,
+)
 from kirby_combat.dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
@@ -96,7 +98,13 @@ class TestPayloadCarriesKindDiscriminator:
     not merely the key's presence.
     """
 
-    _KIND_VALUES_ACCEPTED_BY_KIRBY_API_ATTACK_FILTER = ("attack", "strike", "grab")
+    # The single source of truth is `recording.ACCEPTED_ACTION_KINDS` (review
+    # finding #3: `action_type` used to be a bare `str`, so
+    # `action_type="haymaker"` silently reproduced the kirby-api filter's
+    # silent-drop with every test green). Asserting against the real
+    # constant, not a hand-duplicated tuple, means this test actually goes
+    # red if the two ever diverge.
+    _KIND_VALUES_ACCEPTED_BY_KIRBY_API_ATTACK_FILTER = ACCEPTED_ACTION_KINDS
 
     def test_default_action_type_produces_accepted_kind(self):
         attacker, target = _attacker(), _target()

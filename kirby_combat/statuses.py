@@ -90,17 +90,25 @@ KNOCKED_OUT = "knockedOut"
 # ("Unconscious. 6E: at 0 STUN or below, not merely below zero.") and
 # kirby_combat/resolution/status.py `determine_status_changes`.
 #
-# TWO sources fold into this id (Task 4 follow-up, "coherence" finding):
-# live vitals (`is_ko` / `current_stun <= 0`, unchanged) AND the same
+# THREE sources fold into this id (Task 4 follow-up, "coherence" finding,
+# plus a second coherence fix on top of that): live vitals (`is_ko` /
+# `current_stun <= 0`, unchanged), the same
 # `ActionResolved.result_payload["status_changes"]` fold used for STUNNED/
-# DEAD (`_is_knocked_out_from_payload` below), unioned. The second source
-# exists because `resolve_attack_in_session` deliberately never mutates
-# vitals (`session/apply.py`'s log-only design) -- a payload naming
+# DEAD (`_is_knocked_out_from_payload` below), and `_is_dead` itself (DEAD
+# implies KNOCKED_OUT, unconditionally -- see `statuses_for`). The second
+# source exists because `resolve_attack_in_session` deliberately never
+# mutates vitals (`session/apply.py`'s log-only design) -- a payload naming
 # "Stunned"/"Knocked Out"/"Dead" together, with vitals never touched,
 # previously surfaced `dead`+`stunned` WITHOUT `knockedOut`, which is
 # self-contradictory to any consumer (a dead combatant who was never
 # knocked out). See `_is_knocked_out_from_payload`'s docstring for why its
-# clear edge is deliberately conservative rather than latching.
+# clear edge is deliberately conservative rather than latching. The third
+# source exists because that clear edge (`RecoveryTaken`) fires for EVERY
+# combatant unconditionally at every Turn wrap (6E2 p.131), corpses
+# included, so the payload fold alone would clear KNOCKED_OUT out from
+# under a DEAD combatant within one Turn -- reproducing the exact
+# contradiction above, just delayed. DEAD never clears (see below), so
+# forcing KNOCKED_OUT whenever DEAD is true closes that gap for good.
 #
 # NOTE: Foundry separately defines an "unconscious" id
 # (`unconsciousEffect`, distinct changes from `knockedOutEffect`) but this
@@ -358,24 +366,57 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     ``"Stunned"`` (``resolution/status.py::determine_status_changes``:
     ``stun_dealt > con``).
 
-    CLEAR: 6E2 p.107, "RECOVERING FROM BEING STUNNED" -- "Recovering from
-    being Stunned requires a Full Phase, and is the only thing the
-    character can do during that Phase," and the character "recovers from
-    being Stunned when his DEX occurs in the Segment" of his next full
-    Phase. So this combatant's Phase segments (``segments_for_spd``,
-    ``tables.py:117``, keyed off this combatant's own SPD -- 6E2's SPD
-    chart is per-character) are computed once, and the flag clears on the
-    first ``SegmentAdvanced`` (``session/events.py:60``, emitted per
-    session by ``Encounter.advance_segment``) whose ``to_segment`` falls
-    among them, walked in the log's own order so it can only be a
-    ``SegmentAdvanced`` that comes AFTER the qualifying ``ActionResolved``
-    -- exactly "next full Phase", never the Segment the hit itself landed
-    in.
+    CLEAR (APPROXIMATE -- clears a Phase-fraction early; see below): 6E2
+    p.107, "RECOVERING FROM BEING STUNNED" -- "In the character's next full
+    Phase after becoming Stunned, he recovers from being Stunned when his
+    DEX occurs in the Segment. He regains his full DCV... but he still
+    cannot act until his next Phase -- recovering from being Stunned is
+    all he can do that Phase." The precise rule clears Stunned PARTWAY
+    THROUGH the Segment, at the character's DEX-ordered acting position,
+    not at the Segment's start. This module has no acting-order position
+    at this layer -- ``statuses_for`` folds a log of events, not a live
+    per-Segment DEX ordering -- so there is nothing to clear "at DEX" against.
+    The approximation actually implemented: this combatant's Phase segments
+    (``segments_for_spd``, ``tables.py:117``, keyed off this combatant's own
+    SPD -- 6E2's SPD chart is per-character) are computed once, and the flag
+    clears on the first ``SegmentAdvanced`` (``session/events.py:60``,
+    emitted per session by ``Encounter.advance_segment``) whose
+    ``to_segment`` falls among them, walked in the log's own order so it
+    can only be a ``SegmentAdvanced`` that comes AFTER the qualifying
+    ``ActionResolved`` -- his next full Phase's Segment, but at its START,
+    not at his DEX within it.
+
+    This means ``statuses_for`` reports him un-Stunned for the entire
+    Segment his recovery Phase falls in, including the portion of that
+    Segment (everyone whose DEX is higher than his) during which 6E2 says
+    "recovering from being Stunned is all he can do." The error is
+    deliberately in the direction of clearing EARLY rather than of
+    latching -- this branch's stated governing rule (see
+    ``_is_knocked_out_from_payload``'s docstring: a status that never
+    turns off is worse than one that never turns on) -- and it is
+    contained: nothing in this engine currently gates action selection on
+    the ``stunned`` id, so an early clear here does not let anyone act who
+    shouldn't. Do not "fix" this by moving the clear edge later without
+    also giving this layer real intra-Segment acting-order information;
+    that would trade the contained early-clear error for the latching
+    error this branch is built to avoid.
 
     A later qualifying hit re-sets the flag even if a prior one had
     already cleared it (or vice versa) -- this is a plain left-to-right
     fold over the whole log, not a first-match short-circuit, so repeated
     Stunned/recovery cycles across a long fight are handled correctly.
+
+    GUARD: SPD 0 has no Phase at all (``SPEED_TO_SEGMENTS[0] == []``,
+    ``tables.py``), so ``phase_segments`` is empty and no
+    ``SegmentAdvanced.to_segment`` could ever match it -- without a guard
+    this flag would latch forever, exactly the never-turns-off failure
+    mode this branch is built to avoid (see above). No engine path
+    produces a SPD-0 combatant today, but this function should not rely on
+    that: when ``phase_segments`` is empty, the flag clears on the very
+    next ``SegmentAdvanced`` event for this session, regardless of
+    ``to_segment`` -- there is no valid Phase to wait for, so clearing
+    immediately is the same "clear early rather than latch" bias the rest
+    of this function already takes.
     """
     combatant = session.combatants[combatant_id]
     phase_segments = segments_for_spd(combatant.combat_stats().spd)
@@ -391,7 +432,7 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
             ):
                 stunned = True
         elif kind == "SegmentAdvanced" and stunned:
-            if evt.to_segment in phase_segments:
+            if not phase_segments or evt.to_segment in phase_segments:
                 stunned = False
     return stunned
 
@@ -488,6 +529,16 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       ``resolve_attack_in_session`` produces, where nothing else would
       ever set KNOCKED_OUT even though the payload plainly says so. See
       ``_is_knocked_out_from_payload``'s docstring for its clear edge.
+      A THIRD condition also forces KNOCKED_OUT regardless of the two
+      above: ``_is_dead(session, combatant_id)`` -- DEAD implies
+      KNOCKED_OUT unconditionally (added below, after the Dead bullet),
+      because a dead combatant is definitionally knocked out and nothing
+      in 6E2 lets that reverse. This closes a real bug: without it, a
+      lethal hit's KNOCKED_OUT (sourced from the payload fold) clears on
+      the next ``RecoveryTaken`` -- emitted for every combatant
+      unconditionally at every Turn wrap, 6E2 p.131 -- while DEAD never
+      clears, so the combatant would read back as dead-but-not-knocked-out
+      within at most one Turn (12 Segments).
     - Entangled: ``Entangle.is_entangled(session, combatant_id)``
       (``actions/entangle.py``) -- the ``actions/`` function, not
       ``session.effects.EntangleState``, because the ``actions/`` layer is
@@ -621,5 +672,30 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     if _is_dead(session, combatant_id):
         statuses.add(DEAD)
+        # A dead combatant is definitionally knocked out (this is a rule
+        # implication, not a patch over the payload fold below): 6E2 has no
+        # state "dead but conscious/acting", so DEAD => KNOCKED_OUT always,
+        # regardless of what the KO sources above concluded. This closes a
+        # real coherence gap found in review: `_is_knocked_out_from_payload`
+        # clears on the very next `RecoveryTaken` (6E2 p.131's Post-Segment
+        # 12 Recovery, emitted for EVERY combatant unconditionally on every
+        # Turn wrap -- `encounter.py::_apply_post_12_recovery` -- corpses
+        # included), while `_is_dead` never clears. Without this line, a
+        # lethal hit produces {dead, knockedOut, stunned} at the moment of
+        # the hit, then loses `knockedOut` the instant the Turn wraps once
+        # (a `RecoveryTaken` a dead combatant does not "take" in any
+        # meaningful sense, but the log emits one anyway) -- reintroducing
+        # the exact "dead combatant who was never knocked out"
+        # self-contradiction this module's KNOCKED_OUT comment above says is
+        # unacceptable, just delayed rather than immediate. Folding the
+        # implication in here, rather than gating
+        # `_is_knocked_out_from_payload`'s clear on `not _is_dead(...)`,
+        # keeps that function's own clear-edge reasoning (a plain
+        # "recovery signal seen" proxy) uncomplicated by a second
+        # combatant's-worth of DEAD-awareness; the implication belongs at
+        # the point where two sources are already being reconciled into
+        # one combatant's status set, not smuggled into a single source's
+        # clear edge.
+        statuses.add(KNOCKED_OUT)
 
     return frozenset(statuses)

@@ -119,9 +119,13 @@ def status_deltas(
     other unchanged pair -- there is nothing to report.
 
     Recursion is a non-issue (confirmed by reading `statuses.py`):
-    `statuses_for` folds only the *condition* event kinds --
-    `Entangle`/`Flash`/`Grab`/`HeldAction` sources, plus the `is_ko`
-    property and `timeline.aborted_this_phase` -- and does not read
+    `statuses_for` folds SEVEN log-scanning sources -- `Entangle`/`Flash`/
+    `Grab`/`HeldAction` (unchanged since this was first written), plus
+    `ActionResolved.result_payload["status_changes"]` (Stunned/Dead/a
+    payload-derived Knocked Out), `SegmentAdvanced` (Stunned's clear edge,
+    6E2 p.107), and `RecoveryTaken` (the payload-derived Knocked Out's
+    clear edge, 6E2 p.131) -- plus the `is_ko` property and
+    `timeline.aborted_this_phase`, neither log-scanning. It does not read
     `StatusEffectsChanged` at all (that event kind appears nowhere in
     `statuses_for`'s body; see `kirby_combat/statuses.py`). So computing
     and even appending a `StatusEffectsChanged` event never changes what
@@ -132,8 +136,9 @@ def status_deltas(
     inputs the derivation reads.
 
     Cost (stated, not solved -- YAGNI, no cache added here): each of
-    `statuses_for`'s four log-scanning sources (`is_entangled`,
-    `is_grabbed`, `is_flashed`, `HeldAction.get_pending`) is O(events), so
+    `statuses_for`'s seven log-scanning sources (`is_entangled`,
+    `is_grabbed`, `is_flashed`, `HeldAction.get_pending`, `_is_stunned`,
+    `_is_dead`, `_is_knocked_out_from_payload`) is O(events), so
     one `statuses_for` call is O(events) and this function calls it twice
     (`before`, `after`) per combatant, i.e. O(2 * combatants * events) for
     one `status_deltas` call. Fine for the combats this engine runs

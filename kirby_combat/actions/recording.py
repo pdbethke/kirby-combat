@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal, get_args
 
 from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.reactive.abort import mark_aborting
@@ -55,6 +55,18 @@ from kirby_combat.session.events import (
 )
 from kirby_combat.template import CombatTemplate
 
+#: The only ``action_type``/payload ``"kind"`` values kirby-api's own filter
+#: accepts (``situation_builder.py:687-688``: ``kind not in ("attack",
+#: "strike", "grab")``). Anything else is silently dropped by that filter,
+#: not rejected as an error -- see ``resolve_attack_in_session``'s inline
+#: comment on ``result_payload["kind"]``. Kept as a runtime tuple (not just
+#: a type-checker-only ``Literal``) so a caller can assert against it
+#: directly, e.g. ``assert "haymaker" not in ACCEPTED_ACTION_KINDS``.
+ACCEPTED_ACTION_KINDS: tuple[str, ...] = get_args(
+    Literal["attack", "strike", "grab"]
+)
+ActionKind = Literal["attack", "strike", "grab"]
+
 
 def resolve_attack_in_session(
     session: CombatSession,
@@ -62,7 +74,7 @@ def resolve_attack_in_session(
     template: CombatTemplate,
     *,
     declaration_event_id: str | None = None,
-    action_type: str = "attack",
+    action_type: ActionKind = "attack",
 ) -> tuple[CombatSession, AttackResult]:
     """Resolve an attack and record the outcome on the session's event log.
 
@@ -119,12 +131,16 @@ def resolve_attack_in_session(
     # status_changes rather than duplicated as a separate boolean key.
     # "kind" is required, not decorative: situation_builder.py:687-688 does
     # `kind = result.get("kind")` then filters on
-    # `kind not in ("attack", "strike", "grab")`, and soliloquy.py:255 reads
+    # `kind not in ("attack", "strike", "grab")` -- exactly
+    # `ACCEPTED_ACTION_KINDS` above -- and soliloquy.py:255 reads
     # `payload.get("kind") or "action"` for narration. A payload without it
     # is silently dropped by that filter (not an error — just invisible) and
     # narrated as the generic "action". Sourced from `action_type`, which
     # already defaults to "attack" and lets a caller pass "strike"/"grab"
-    # where those are the accurate label.
+    # where those are the accurate label. `action_type`'s ``ActionKind``
+    # annotation constrains it to that same set at the type-checker level
+    # (a plain `str` here previously let `action_type="haymaker"` reproduce
+    # the silent-drop with every test green -- see review finding #3).
     result_payload: dict[str, Any] = {
         "kind": action_type,
         "hit": result.hit,
@@ -170,7 +186,11 @@ def resolve_block_in_session(
     If ``declaration_event_id`` is omitted, this calls ``mark_aborting``
     (``actions/reactive/abort.py``) to emit the ``AbortDeclared`` Block
     already declares itself with via ``Block.declare`` (which is exactly
-    ``mark_aborting(session, combatant_id, to_action="block")``), and uses
+    ``mark_aborting(session, combatant_id, to_action="block")``) -- and by
+    doing so on this default path, THIS function is now a caller feeding
+    ``session.timeline.aborted_this_phase``, a ONE-WAY LATCH that nothing
+    in this package ever clears (``statuses.py``'s ``ABORTED`` comment:
+    "aborted for the rest of the fight", not "aborted this phase") -- and uses
     its id as the resolution's ``declaration_event_id``. Pass the id
     ``Block.declare`` already returned when the caller declared the Block
     itself; this parameter exists so callers who separate declare/resolve
@@ -246,4 +266,9 @@ def resolve_block_in_session(
     return s, result, priority
 
 
-__all__ = ["resolve_attack_in_session", "resolve_block_in_session"]
+__all__ = [
+    "resolve_attack_in_session",
+    "resolve_block_in_session",
+    "ACCEPTED_ACTION_KINDS",
+    "ActionKind",
+]
