@@ -86,6 +86,52 @@ class TestEmitsExactlyOneActionResolved:
         assert len(resolved) == 1
 
 
+class TestPayloadCarriesKindDiscriminator:
+    """kirby-api's attack filter branches on payload["kind"]
+    (situation_builder.py:687-688: `kind not in ("attack", "strike", "grab")`
+    -> skipped) and its narration falls back to "action" when it's absent
+    (soliloquy.py:255). A payload missing "kind", or carrying a value that
+    filter doesn't recognize, is silently invisible to that consumer even
+    though the event was emitted — so this pins the actual accepted values,
+    not merely the key's presence.
+    """
+
+    _KIND_VALUES_ACCEPTED_BY_KIRBY_API_ATTACK_FILTER = ("attack", "strike", "grab")
+
+    def test_default_action_type_produces_accepted_kind(self):
+        attacker, target = _attacker(), _target()
+        session = _session(attacker, target)
+        attack = _hitting_attack(attacker, target)
+
+        new_session, _ = resolve_attack_in_session(
+            session, attack, session.template,
+        )
+
+        resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"][0]
+        assert (
+            resolved.result_payload["kind"]
+            in self._KIND_VALUES_ACCEPTED_BY_KIRBY_API_ATTACK_FILTER
+        )
+        assert resolved.result_payload["kind"] == "attack"
+
+    def test_action_type_override_produces_accepted_kind(self):
+        attacker, target = _attacker(), _target()
+        session = _session(attacker, target)
+        attack = _hitting_attack(attacker, target)
+
+        new_session, _ = resolve_attack_in_session(
+            session, attack, session.template,
+            action_type="strike",
+        )
+
+        resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"][0]
+        assert resolved.result_payload["kind"] == "strike"
+        assert (
+            resolved.result_payload["kind"]
+            in self._KIND_VALUES_ACCEPTED_BY_KIRBY_API_ATTACK_FILTER
+        )
+
+
 class TestPayloadCarriesStatusChanges:
     def test_stunned_status_change_in_payload_when_stun_exceeds_con(self):
         # CON 15, 36 STUN rolled, no defenses -> stun_dealt 36 > CON 15 -> Stunned

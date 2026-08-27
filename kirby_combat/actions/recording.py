@@ -107,7 +107,16 @@ def resolve_attack_in_session(
     # Out" is one of the strings `determine_status_changes` may return
     # (kirby_combat/resolution/status.py), so it is already carried inside
     # status_changes rather than duplicated as a separate boolean key.
+    # "kind" is required, not decorative: situation_builder.py:687-688 does
+    # `kind = result.get("kind")` then filters on
+    # `kind not in ("attack", "strike", "grab")`, and soliloquy.py:255 reads
+    # `payload.get("kind") or "action"` for narration. A payload without it
+    # is silently dropped by that filter (not an error — just invisible) and
+    # narrated as the generic "action". Sourced from `action_type`, which
+    # already defaults to "attack" and lets a caller pass "strike"/"grab"
+    # where those are the accurate label.
     result_payload: dict[str, Any] = {
+        "kind": action_type,
         "hit": result.hit,
         "stun_dealt": result.stun_dealt,
         "body_dealt": result.body_dealt,
