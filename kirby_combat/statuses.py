@@ -161,3 +161,111 @@ ALL_STATUS_IDS: frozenset[str] = frozenset(
         SMELL_TASTE_SENSE_DISABLED,
     }
 )
+
+# ---------------------------------------------------------------------------
+# statuses_for -- one fold over every condition source
+#
+# This is the read model: "what conditions does this combatant have right
+# now", folding sources that already exist and already treat status as a
+# derivation over the event log (see is_entangled / is_grabbed / is_flashed
+# docstrings in actions/entangle.py, actions/grab.py, actions/flash.py).
+# This function invents no new derivation; it names one that already existed
+# in five separate places and gives it one vocabulary (this module's ids).
+# ---------------------------------------------------------------------------
+
+from typing import TYPE_CHECKING
+
+from kirby_combat.actions.entangle import Entangle
+from kirby_combat.actions.flash import Flash
+from kirby_combat.actions.grab import Grab
+from kirby_combat.actions.held_action import HeldAction
+
+if TYPE_CHECKING:
+    from kirby_combat.session.combat_session import CombatSession
+
+
+def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
+    """Fold every condition source into one status set for a combatant.
+
+    Sources read, and why each is read at this layer rather than another:
+
+    - KO: ``session.combatants[combatant_id].is_ko`` -- a property,
+      ``current_stun <= 0`` (``participant.py:139``, "Unconscious. 6E: at 0
+      STUN or below, not merely below zero.").
+    - Entangled: ``Entangle.is_entangled(session, combatant_id)``
+      (``actions/entangle.py``) -- the ``actions/`` function, not
+      ``session.effects.EntangleState``, because the ``actions/`` layer is
+      the one whose own docstring says "scan event log" and is what the
+      rest of the engine (tests, other actions) already calls; reading two
+      layers for the same fact risks them drifting out of sync, so this
+      picks one.
+    - Grabbed: ``Grab.is_grabbed(session, combatant_id)``
+      (``actions/grab.py``, 6E2 p67 SS USING GRAB) -- same reasoning.
+    - Flashed: ``Flash.is_flashed(session, combatant_id)``
+      (``actions/flash.py``, HERO 6E1) -- same reasoning; the ``session
+      .effects.FlashState.is_flashed`` property is the alternate layer, not
+      used here for the same reason. Each affected sense group is mapped
+      through ``SENSE_GROUP_TO_STATUS_ID`` independently -- a combatant
+      flashed in two groups gets both ids, never collapsed to one.
+    - Aborted: ``session.timeline.aborted_this_phase`` (``session/timeline
+      .py``), a ``set[str]`` of combatant ids maintained by
+      ``actions/reactive/abort.py``.
+    - Holding: ``HeldAction.get_pending(session, combatant_id)``
+      (``actions/held_action.py``, 6E2 p61 SS HOLD AN ACTION) -- **not**
+      ``session.timeline.held_actions``, despite that field's name and
+      shape looking like the obvious source: nothing in this codebase ever
+      appends to it (``apply_event``'s ``HeldActionDeclared`` branch is a
+      declaration-only no-op, like ``ActionDeclared``), so that list is
+      always empty. ``get_pending`` is the real, event-log-derived source
+      (un-released ``HeldActionDeclared`` events for this combatant),
+      matching the ``is_entangled`` / ``is_grabbed`` / ``is_flashed``
+      pattern this whole function already follows.
+
+    Deliberately NOT read here:
+
+    - ``prone`` -- not stored per-combatant anywhere in this engine (see the
+      module-level NOTE above); there is nothing to fold in.
+    - ``stunned`` -- computed at attack time by
+      ``resolution/status.py::determine_status_changes`` and currently
+      dropped rather than persisted. This function still returns
+      ``STUNNED`` correctly once a later task makes that persist (nothing
+      here needs to change for that); until then no source exists to add.
+
+    Performance: ``is_entangled``, ``is_grabbed``, ``is_flashed`` and
+    ``HeldAction.get_pending`` each walk the entire event log
+    independently, so a single call to this function is O(events) per
+    source, i.e. O(4 * events) for those four plus O(1) for KO/aborted.
+    Fine for the combats this engine runs (short logs, called per
+    combatant per emission, not per tick); no caching is added here --
+    measure before optimising.
+
+    Returns an empty frozenset (never ``None``) for a combatant with no
+    conditions.
+    """
+    statuses: set[str] = set()
+
+    participant = session.combatants[combatant_id]
+    if participant.is_ko:
+        statuses.add(KNOCKED_OUT)
+
+    is_entangled, _ = Entangle.is_entangled(session, combatant_id)
+    if is_entangled:
+        statuses.add(ENTANGLED)
+
+    is_grabbed, _ = Grab.is_grabbed(session, combatant_id)
+    if is_grabbed:
+        statuses.add(GRAB)
+
+    _, flashed_groups = Flash.is_flashed(session, combatant_id)
+    for sense_group in flashed_groups:
+        status_id = SENSE_GROUP_TO_STATUS_ID.get(sense_group)
+        if status_id is not None:
+            statuses.add(status_id)
+
+    if combatant_id in session.timeline.aborted_this_phase:
+        statuses.add(ABORTED)
+
+    if HeldAction.get_pending(session, combatant_id):
+        statuses.add(HOLDING)
+
+    return frozenset(statuses)

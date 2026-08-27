@@ -3,6 +3,14 @@ from __future__ import annotations
 
 import re
 
+from fixtures.synthetic_hero import synthetic_combatant
+from kirby_combat.actions.entangle import Entangle
+from kirby_combat.actions.flash import Flash
+from kirby_combat.actions.grab import Grab
+from kirby_combat.actions.held_action import HeldAction
+from kirby_combat.actions.reactive.abort import mark_aborting
+from kirby_combat.dice import FakeRoller
+from kirby_combat.session import CombatSession
 from kirby_combat.statuses import (
     ABORTED,
     ALL_STATUS_IDS,
@@ -18,7 +26,9 @@ from kirby_combat.statuses import (
     SENSE_GROUP_TO_STATUS_ID,
     SMELL_TASTE_SENSE_DISABLED,
     STUNNED,
+    statuses_for,
 )
+from kirby_combat.template import CombatTemplate
 
 
 def test_ids_are_foundry_shaped_slugs():
@@ -129,3 +139,140 @@ def test_every_engine_id_exists_in_foundry():
     self-consistency against ALL_STATUS_IDS) and silently do nothing on a
     token client-side."""
     assert ALL_STATUS_IDS <= FOUNDRY_STATUS_IDS_20260827
+
+
+# ---------------------------------------------------------------------------
+# statuses_for -- the read model: one fold over every condition source
+# ---------------------------------------------------------------------------
+
+def _c(id_: str, **overrides) -> "HeroCombatant":
+    kwargs = dict(
+        id=id_, name=id_, ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=20, con=15, pre=15, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=3,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+    )
+    kwargs.update(overrides)
+    return synthetic_combatant(**kwargs)
+
+
+def _session(*combatants) -> CombatSession:
+    return CombatSession.create(
+        id="s1",
+        combatants=list(combatants),
+        scene=None,
+        template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=FakeRoller([]),
+    ).start()
+
+
+def test_statuses_for_empty_when_no_conditions():
+    s = _session(_c("alice"), _c("bob"))
+    assert statuses_for(s, "bob") == frozenset()
+
+
+def test_statuses_for_knocked_out():
+    s = _session(_c("alice"), _c("bob", current_stun=0))
+    assert KNOCKED_OUT in statuses_for(s, "bob")
+    # covering: a conscious combatant does not get the id
+    assert KNOCKED_OUT not in statuses_for(s, "alice")
+
+
+def test_statuses_for_entangled():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    assert ENTANGLED in statuses_for(s2, "bob")
+    assert ENTANGLED not in statuses_for(s2, "alice")
+
+
+def test_statuses_for_grabbed():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = Grab.declare_and_resolve(
+        s, attacker_id="alice", target_id="bob",
+        attacker_str=20, target_str=15,
+        attacker_ocv=8, target_dcv=5, attack_roll=10,
+    )
+    assert GRAB in statuses_for(s2, "bob")
+    assert GRAB not in statuses_for(s2, "alice")
+
+
+def test_statuses_for_flashed_maps_specific_sense_group():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = Flash.apply(
+        s, attacker_id="alice", target_id="bob",
+        sense_group="hearing", body_dealt=8, flash_defense=0,
+    )
+    result = statuses_for(s2, "bob")
+    assert HEARING_SENSE_DISABLED in result
+    # not a generic / wrong sense group
+    assert BLIND not in result
+    assert MENTAL_SENSE_DISABLED not in result
+
+
+def test_statuses_for_flashed_in_two_groups_gets_both_ids():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = Flash.apply(
+        s, attacker_id="alice", target_id="bob",
+        sense_group="sight", body_dealt=8, flash_defense=0,
+    )
+    s3, _ = Flash.apply(
+        s2, attacker_id="alice", target_id="bob",
+        sense_group="mental", body_dealt=8, flash_defense=0,
+    )
+    result = statuses_for(s3, "bob")
+    assert BLIND in result
+    assert MENTAL_SENSE_DISABLED in result
+
+
+def test_statuses_for_aborted():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = mark_aborting(s, "bob", to_action="dodge")
+    assert ABORTED in statuses_for(s2, "bob")
+    assert ABORTED not in statuses_for(s2, "alice")
+
+
+def test_statuses_for_holding():
+    s = _session(_c("alice"), _c("bob"))
+    s2, _ = HeldAction.declare(
+        s, "bob", trigger_condition="enemy enters range",
+    )
+    assert HOLDING in statuses_for(s2, "bob")
+    assert HOLDING not in statuses_for(s2, "alice")
+
+
+def test_statuses_for_returns_frozenset_not_none():
+    s = _session(_c("alice"))
+    result = statuses_for(s, "alice")
+    assert isinstance(result, frozenset)
+
+
+def test_statuses_for_folds_several_simultaneous_conditions():
+    """Spec §5d: a combatant can be entangled AND flashed in two groups
+    AND knocked out at once -- a set is the whole point."""
+    s = _session(_c("alice"), _c("bob", current_stun=0))
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    s3, _ = Flash.apply(
+        s2, attacker_id="alice", target_id="bob",
+        sense_group="sight", body_dealt=8, flash_defense=0,
+    )
+    s4, _ = Flash.apply(
+        s3, attacker_id="alice", target_id="bob",
+        sense_group="hearing", body_dealt=8, flash_defense=0,
+    )
+    s5, _ = Grab.declare_and_resolve(
+        s4, attacker_id="alice", target_id="bob",
+        attacker_str=20, target_str=15,
+        attacker_ocv=8, target_dcv=5, attack_roll=10,
+    )
+
+    result = statuses_for(s5, "bob")
+    assert result == frozenset(
+        {KNOCKED_OUT, ENTANGLED, GRAB, BLIND, HEARING_SENSE_DISABLED}
+    )
