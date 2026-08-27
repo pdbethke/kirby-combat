@@ -34,7 +34,7 @@ consumes.
 
 Conditions demonstrated (the full set this engine can currently produce,
 per `kirby_combat/statuses.py`):
-    entangled, grab, blind, hearingSenseDisabled, aborted, holding,
+    entangled, grab, sightSenseDisabled, hearingSenseDisabled, aborted, holding,
     knockedOut -- gained, and (where the underlying rule allows it) later
     lost again, so the stream shows both directions of the toggle.
 
