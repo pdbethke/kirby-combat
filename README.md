@@ -21,7 +21,7 @@ citations on every behavioral commit.
 
 ## Status
 
-Working, and tested at 980 tests. It is a **library**: no server, no I/O, no
+Working, and tested at 1179 tests. It is a **library**: no server, no I/O, no
 API layer. The virtual tabletop consumes it as a dependency, never the other
 way round — nothing here reaches back up.
 
@@ -43,9 +43,34 @@ way round — nothing here reaches back up.
 - **Breakables** — scenery with BODY, and structural collapse that cascades
 - **Presence attacks** — intimidation as a mechanic, on an effects ladder
 - **GM tooling** — three override tiers, attacks on behalf of, spawn/despawn
+- **Perception** — sense groups, Invisibility, Stealth against PER, Mind Scan,
+  Combat Sense and Danger Sense; an attacker it cannot perceive is one a
+  combatant cannot target
+- **Initiative** — DEX order with Lightning Reflexes, Fast Draw, and Block's
+  "acts first regardless of relative DEX"
+- **Conditions** — a canonical status vocabulary derived from live state and
+  the event log, emitted as gained/lost deltas
 
 **The session layer** adds a SPD-chart timeline, an event log, per-action
 rewind, and `to_dict` / `from_dict` round-trip for a whole encounter.
+
+**The setting layer** puts a place around the fight: `Campaign` → `World` →
+`Scene` → `Encounter`, where a Scene is somewhere that exists whether or not
+anyone is fighting in it — a base, a house, five occupants doing their chores.
+**Time is a mechanic here, not a loop counter.** An `Encounter` drives the
+clock across every session in a Scene: `advance_segment` walks Segments 1-12,
+wraps the Turn, fires the Post-Segment 12 Recovery for everyone (6E2 p.131,
+"even Stunned ones"), and writes a `SegmentAdvanced` event to each session's
+log. Because elapsed time is recorded rather than merely tracked, the log can
+answer "has a Phase passed for this character?" — which is what makes a
+condition like Stunned clear on its own. Combat in one room and a countdown in
+another advance on the same Segments.
+
+**Outcomes are recorded, not just computed.** Attack and Block resolution and
+the passage of time all leave events in the log, so a fight replays from that
+log alone and conditions like Stunned and Dead derive from history rather than
+being recalculated. The pure resolvers stay pure: recording entry points sit
+beside them and are opt-in.
 
 ## Usage
 
@@ -92,7 +117,7 @@ rewind rather than one-shot resolution — see `examples/rooftop_brawl.py`.
 
 ## Examples
 
-Four runnable demos, none of which need anything installed beyond the package:
+Eight runnable demos, none of which need anything installed beyond the package:
 
 | | |
 |---|---|
@@ -100,6 +125,10 @@ Four runnable demos, none of which need anything installed beyond the package:
 | `examples/mental_duel.py` | the OMCV/DMCV pipeline — mental to-hit, Mental Blast against Mental Defense, Mind Control measured against EGO |
 | `examples/bring_the_house_down.py` | scenery as combatants — destroy a support column and watch the collapse cascade and drop everyone standing above it |
 | `examples/hold_the_line.py` | Presence attacks on the effects ladder, and twenty thugs resolved as one Unit with morale |
+| `examples/the_house.py` | a Scene with no combat in it — a house, five occupants, chores on a clock; the setting layer standing on its own |
+| `examples/one_turn.py` | the time mechanic alone — one full Turn, Segment by Segment, with the SPD chart deciding who acts when |
+| `examples/status_stream.py` | conditions as a live feed — gained/lost deltas a client can render on a token |
+| `examples/replay_a_fight.py` | a fight reconstructed from its event log alone, and shown to agree with the state the engine held |
 
 ```bash
 .venv/bin/python examples/rooftop_brawl.py
@@ -132,10 +161,16 @@ tabletop for the HERO System in active development:
   engine: attacks, movement, mental combat, vehicles, mass combat,
   destructible terrain
 
-What's still to come is the table itself — terrain with its own PD and ED,
-elevation and concealment that move OCV and DCV, and line of sight worked out
-from where a character is actually standing. Kirby plays characters; it does
-not create them. Character creation stays in Hero Designer.
+The table itself has since landed: terrain with its own PD and ED, elevation
+and concealment that move OCV and DCV, and line of sight worked out from where
+a character is actually standing — see `kirby_combat/scene/`. Perception now
+governs targeting, so a combatant cannot attack what it cannot perceive.
+
+What's still to come: sense-affecting powers (Flash, Darkness, Images) as a
+first-class layer over the sense groups; Stunned *enforced* rather than only
+recorded, which touches acting order; and mental Stunned, which has no
+recording path yet. Kirby plays characters; it does not create them. Character
+creation stays in Hero Designer.
 
 Progress and notes at [kirbyvtt.org](https://kirbyvtt.org).
 
