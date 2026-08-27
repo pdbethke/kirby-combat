@@ -1,4 +1,4 @@
-"""Session-aware wrapper around the pure attack resolver.
+"""Session-aware wrappers around pure action resolvers (attack, Block).
 
 ``AttackAction.resolve`` (and the ``resolve_attack`` dispatcher in
 ``actions/__init__.py``) is a pure calculator: a total function of its
@@ -30,6 +30,14 @@ are completely unaffected — nothing here changes their behaviour, and
 nothing here emits anything on their behalf. A caller must choose to call
 ``resolve_attack_in_session`` instead, which is what keeps this from
 double-logging against kirby-api's own emission.
+
+``resolve_block_in_session`` (below) does the same thing for
+``Block.resolve`` (``actions/reactive/block.py``): that resolver is also a
+pure calculator, so a Block's outcome never reached the event log, and
+``Block.acts_first_priority`` (6E2 p.60, "ACTING FIRST") had no live
+caller anywhere. See that function's docstring for the ``kind`` value it
+chose and the limits of what it wires versus what it returns for a caller
+to wire further.
 """
 from __future__ import annotations
 
@@ -38,6 +46,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from kirby_combat.actions import resolve_attack
+from kirby_combat.actions.reactive.abort import mark_aborting
+from kirby_combat.actions.reactive.block import Block, BlockResult
 from kirby_combat.models import AttackInput, AttackResult
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
@@ -139,4 +149,101 @@ def resolve_attack_in_session(
     return s, result
 
 
-__all__ = ["resolve_attack_in_session"]
+def resolve_block_in_session(
+    session: CombatSession,
+    *,
+    blocker_id: str,
+    attacker_id: str,
+    blocker_ocv: int,
+    blocker_dice: list[int],
+    attacker_ocv: int,
+    declaration_event_id: str | None = None,
+) -> tuple[CombatSession, BlockResult, dict[str, str]]:
+    """Resolve a Block and record the outcome on the session's event log.
+
+    Runs the pure ``Block.resolve`` calculation unchanged (``actions/
+    reactive/block.py``), then emits an ``ActionResolved`` carrying the
+    outcome — the same gap ``resolve_attack_in_session`` closes for
+    attacks: ``Block.resolve`` is a pure calculator with no session, so
+    nothing recorded a Block's outcome anywhere before this.
+
+    If ``declaration_event_id`` is omitted, this calls ``mark_aborting``
+    (``actions/reactive/abort.py``) to emit the ``AbortDeclared`` Block
+    already declares itself with via ``Block.declare`` (which is exactly
+    ``mark_aborting(session, combatant_id, to_action="block")``), and uses
+    its id as the resolution's ``declaration_event_id``. Pass the id
+    ``Block.declare`` already returned when the caller declared the Block
+    itself; this parameter exists so callers who separate declare/resolve
+    across a Segment boundary (the normal case for a reactive defense)
+    don't get a second, spurious ``AbortDeclared``.
+
+    ``kind`` on the payload is ``"block"`` — a deliberate, distinct value,
+    not one of the three kirby-api's attack filter accepts (`kind not in
+    ("attack", "strike", "grab")` at situation_builder.py:687-688). A
+    Block is not an attack, a strike, or a grab, and mislabeling it as one
+    of those to slip past that filter would be worse than the filter
+    simply not recognizing it yet: extending kirby-api's filter to also
+    accept "block" is kirby-api's call, out of scope here.
+
+    ``Block.acts_first_priority`` (6E2 p.60, "ACTING FIRST") had no live
+    caller anywhere in kirby_combat before this. This function is that
+    caller: it computes the priority mapping from the just-resolved
+    ``BlockResult`` and returns it as the third tuple element — `{}` on a
+    failed Block, `{blocker_id: attacker_id}` on a successful one — so a
+    caller that owns an ``Encounter`` can merge it into
+    ``Encounter.acts_first`` itself (via ``dataclasses.replace``, since
+    ``Encounter`` is immutable). This function does not reach into
+    ``Encounter.acts_first`` itself: doing so needs a driver that holds
+    both a ``CombatSession`` and its ``Encounter`` together, and no such
+    driver exists in kirby_combat today (nor does this task touch
+    ``encounter.py`` to add one) — leaving that merge to the returned
+    value is the honest state of the wiring, not a half-connected guard
+    that looks wired and isn't.
+
+    Returns ``(new_session, result, acts_first_priority)`` — ``result`` is
+    exactly what ``Block.resolve`` returned; nothing about the pure result
+    is altered.
+    """
+    from kirby_combat.session.apply import apply_event
+
+    result = Block.resolve(
+        blocker_ocv=blocker_ocv, blocker_dice=blocker_dice,
+        attacker_ocv=attacker_ocv,
+    )
+
+    now = datetime.now(timezone.utc)
+
+    s = session
+    decl_id = declaration_event_id
+    if decl_id is None:
+        s, declared = mark_aborting(s, blocker_id, to_action="block")
+        decl_id = declared.id
+
+    result_payload: dict[str, Any] = {
+        "kind": "block",
+        "success": result.success,
+        "blocker_id": blocker_id,
+        "attacker_id": attacker_id,
+        "blocker_roll": result.blocker_roll,
+        "blocker_margin": result.blocker_margin,
+        "attacker_ocv": result.attacker_ocv,
+        "blocker_ocv": result.blocker_ocv,
+    }
+
+    resolved = ActionResolved(
+        id=str(uuid.uuid4()),
+        session_id=s.id,
+        sequence=len(s.event_log) + 1,
+        timestamp=now,
+        author=make_author_combatant(blocker_id),
+        declaration_event_id=decl_id,
+        result_payload=result_payload,
+    )
+    s = apply_event(s, resolved)
+
+    priority = Block.acts_first_priority(result, blocker_id, attacker_id)
+
+    return s, result, priority
+
+
+__all__ = ["resolve_attack_in_session", "resolve_block_in_session"]
