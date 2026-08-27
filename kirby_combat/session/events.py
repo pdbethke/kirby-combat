@@ -108,6 +108,25 @@ class StatusChanged(_BaseEvent):
 
 
 @dataclass
+class StatusEffectsChanged(_BaseEvent):
+    """Delta view of a combatant's condition set at one change point.
+
+    `StatusChanged` (above) carries a scalar from/to pair for narration
+    ("went from Stunned to Knocked Out"). Conditions are not scalar — a
+    combatant can be Entangled AND Flashed in two sense groups AND
+    Knocked Out at once, and each id toggles independently (this is how
+    Foundry's per-effect toggle API works). This event carries exactly
+    that: the ids added and the ids removed at this change point. It is
+    plumbing, not a rule — the status set itself is derived elsewhere
+    (`kirby_combat.statuses.statuses_for`), never from this event.
+    """
+    kind: Literal["StatusEffectsChanged"] = field(default="StatusEffectsChanged", init=False)
+    combatant_id: str = ""
+    added: frozenset[str] = field(default_factory=frozenset)
+    removed: frozenset[str] = field(default_factory=frozenset)
+
+
+@dataclass
 class AbortDeclared(_BaseEvent):
     kind: Literal["AbortDeclared"] = field(default="AbortDeclared", init=False)
     combatant_id: str = ""
@@ -242,6 +261,7 @@ CombatEvent = (
     | RecoveryTaken
     | MovementResolved
     | StatusChanged
+    | StatusEffectsChanged
     | AbortDeclared
     | HeldActionDeclared
     | HeldActionReleased

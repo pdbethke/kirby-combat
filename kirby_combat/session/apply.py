@@ -64,6 +64,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     # helpers rather than mutating Combatant fields:
     #   - Adjustment / Entangle / Flash:  kirby_combat/session/effects.py
     #   - Recovery / status / movement:   resolved at action time, not on apply
+    #   - StatusEffectsChanged: audit-only delta view; the status set itself
+    #     is derived from the log by kirby_combat.statuses.statuses_for, so
+    #     applying this event must never be what makes a status true
     #   - GMOverride / EnvironmentalTriggered: structural log entries only
     #   - ConstructDamaged / ConstructSpawned: audit-only; construct state
     #     lives in the driver, not the engine session (Plan 2)
@@ -71,7 +74,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     # would force log replay to mirror combatant state, which is more brittle.
     if kind in {
         "ActionResolved", "RecoveryTaken", "MovementResolved",
-        "StatusChanged", "HeldActionReleased",
+        "StatusChanged", "StatusEffectsChanged", "HeldActionReleased",
         "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",

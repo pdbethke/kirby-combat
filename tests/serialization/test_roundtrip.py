@@ -15,7 +15,8 @@ from kirby_combat.scene import (
 )
 from kirby_combat.session.events import (
     SessionStarted, SegmentAdvanced, ActionDeclared, ActionResolved,
-    RecoveryTaken, MovementResolved, StatusChanged, AbortDeclared,
+    RecoveryTaken, MovementResolved, StatusChanged, StatusEffectsChanged,
+    AbortDeclared,
     HeldActionDeclared, HeldActionReleased,
     AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
     FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
@@ -87,6 +88,9 @@ def test_every_event_type_roundtrips():
                          velocity_mps=5.0, move_type="run"),
         StatusChanged(**base_kwargs, combatant_id="a", from_status="ok", to_status="stunned",
                       reason="big hit"),
+        StatusEffectsChanged(**base_kwargs, combatant_id="a",
+                             added=frozenset({"stunned"}),
+                             removed=frozenset({"entangled"})),
         AbortDeclared(**base_kwargs, combatant_id="a", to_action="dodge"),
         HeldActionDeclared(**base_kwargs, combatant_id="a", trigger_condition="see attacker",
                            for_action="block"),
@@ -194,3 +198,66 @@ def test_unit_with_morale_enum_roundtrips():
     assert isinstance(restored, Unit)
     assert restored.morale == UnitMorale.SHAKEN
     assert restored.count == 20
+
+
+def test_status_effects_changed_wire_shape_is_sorted_lists():
+    """`added`/`removed` are frozenset[str] in Python — not JSON. The wire
+    representation is a sorted list (same precedent as the HeroCombatant
+    snapshot's `"statuses": sorted(obj.state.statuses)` in to_dict.py),
+    which is both valid JSON and stable/diffable in a recorded stream."""
+    ev = StatusEffectsChanged(
+        id="evt-x", session_id="s1", sequence=1,
+        timestamp=_ts(), author=make_author_engine(),
+        combatant_id="a",
+        added=frozenset({"stunned", "prone"}),
+        removed=frozenset({"entangled", "flash_sight"}),
+    )
+    wire = to_dict(ev)
+    assert wire["added"] == ["prone", "stunned"]
+    assert wire["removed"] == ["entangled", "flash_sight"]
+
+
+def test_status_effects_changed_roundtrips_with_both_added_and_removed():
+    ev = StatusEffectsChanged(
+        id="evt-x", session_id="s1", sequence=1,
+        timestamp=_ts(), author=make_author_engine(),
+        combatant_id="a",
+        added=frozenset({"stunned", "prone"}),
+        removed=frozenset({"entangled", "flash_sight"}),
+    )
+    restored = from_dict(to_dict(ev))
+    assert type(restored) is type(ev)
+    assert restored.combatant_id == ev.combatant_id
+    assert restored.added == frozenset({"stunned", "prone"})
+    assert restored.removed == frozenset({"entangled", "flash_sight"})
+    assert isinstance(restored.added, frozenset)
+    assert isinstance(restored.removed, frozenset)
+
+
+def test_status_effects_changed_unregistered_type_fails_to_replay():
+    """Proves the from_dict registry wiring actually matters: if
+    StatusEffectsChanged were missing from the `_TYPE_REGISTRY` (the
+    import + class-list step in from_dict.py's `_ensure_registry`), a
+    recorded event of this kind could not replay. Simulate that by
+    deleting it from the (already-populated) registry and confirming
+    from_dict then raises rather than silently succeeding."""
+    import sys
+    import kirby_combat.serialization.from_dict  # noqa: F401 — ensures it's imported
+    from_dict_module = sys.modules["kirby_combat.serialization.from_dict"]
+
+    ev = StatusEffectsChanged(
+        id="evt-x", session_id="s1", sequence=1,
+        timestamp=_ts(), author=make_author_engine(),
+        combatant_id="a",
+        added=frozenset({"stunned"}),
+        removed=frozenset({"entangled"}),
+    )
+    wire = to_dict(ev)
+
+    from_dict_module._ensure_registry()  # populate if not already
+    saved = from_dict_module._TYPE_REGISTRY.pop("StatusEffectsChanged")
+    try:
+        with pytest.raises(TypeError):
+            from_dict(wire)
+    finally:
+        from_dict_module._TYPE_REGISTRY["StatusEffectsChanged"] = saved
