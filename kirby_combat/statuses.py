@@ -14,6 +14,16 @@ An id the engine never emits is a promise it cannot keep, so ids that have
 no engine-side source are omitted on purpose (see the two notes below) rather
 than transcribed wholesale from Foundry's list.
 
+Two ids, `STUNNED` and `DEAD`, are the acknowledged exception to that rule
+today: both are real, engine-defined conditions
+(`resolution/status.py::determine_status_changes`) with no persisted
+source `statuses_for` can fold from yet -- see that function's
+"Deliberately NOT read here" section for exactly why. They are kept in
+`ALL_STATUS_IDS` rather than dropped because the condition genuinely
+exists in this engine's rules and is expected to gain a source (a later
+persistence task), not because this module is being loose about its own
+stated rule.
+
 This is a vocabulary module only: constants and a frozenset. It does not
 compute any status (that is `statuses_for`, Task 2), does not define a delta
 event (Task 3), and does not touch emission or `resolution/status.py`
@@ -34,7 +44,13 @@ from __future__ import annotations
 
 STUNNED = "stunned"
 # stun_dealt (from a single attack) > target's CON. See
-# kirby_combat/resolution/status.py `determine_status_changes`.
+# kirby_combat/resolution/status.py `determine_status_changes`, called
+# from TWO sites -- both compute this and neither persists it:
+# kirby_combat/actions/base.py:190 (physical attacks; folded into an
+# audit-trail string only) and kirby_combat/mental/mental_blast.py:45
+# (`target_stunned`, mental attacks; same fate). See `statuses_for`'s
+# "Deliberately NOT read here" section below: this engine has no source
+# to fold this id from yet.
 
 KNOCKED_OUT = "knockedOut"
 # current STUN <= 0. See kirby_combat/participant.py:139 `is_ko`
@@ -53,7 +69,12 @@ KNOCKED_OUT = "knockedOut"
 
 DEAD = "dead"
 # BODY <= -max_body (double negative BODY). See
-# kirby_combat/resolution/status.py `determine_status_changes`.
+# kirby_combat/resolution/status.py `determine_status_changes`, called
+# from kirby_combat/actions/base.py:190, which folds the result into an
+# audit-trail string only -- never persisted. Same gap as STUNNED: kept
+# in ALL_STATUS_IDS as a real, engine-defined condition, but see
+# `statuses_for`'s "Deliberately NOT read here" section -- this engine
+# has no source to fold this id from yet either.
 
 # ---------------------------------------------------------------------------
 # Entangle / Grab / Held Action / Abort
@@ -81,6 +102,19 @@ ABORTED = "aborted"
 # "aborted" itself is this engine's shared bookkeeping flag for all three.
 # See kirby_combat.actions.reactive.abort.is_aborting /
 # session.timeline.aborted_this_phase.
+#
+# ONE-WAY LATCH, not a toggle: nothing in this package ever removes a
+# combatant id from `aborted_this_phase` -- `apply_event`'s
+# `SegmentAdvanced` branch (`session/apply.py`) replaces only
+# `segment`/`turn` on the timeline, never touches `aborted_this_phase`.
+# Verified: abort, then apply 26 `SegmentAdvanced` events (two full Turns)
+# later, the id is still set. So despite the field's name, in an
+# engine-built session this id never clears on its own once set -- it
+# reads as "aborted for the rest of the fight", not "aborted this phase".
+# This is pre-existing engine state (the clearing, if it belongs
+# anywhere, is `apply_event`'s to add, and is its own separate change);
+# this module just surfaces it as-is, so a consumer of `ABORTED` should
+# not expect it to fall off phase-to-phase.
 
 HOLDING = "holding"
 # 6E2 p61 SS HOLD AN ACTION -- phase consumed, waiting on a declared trigger.
@@ -225,11 +259,48 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     - ``prone`` -- not stored per-combatant anywhere in this engine (see the
       module-level NOTE above); there is nothing to fold in.
-    - ``stunned`` -- computed at attack time by
-      ``resolution/status.py::determine_status_changes`` and currently
-      dropped rather than persisted. This function still returns
-      ``STUNNED`` correctly once a later task makes that persist (nothing
-      here needs to change for that); until then no source exists to add.
+    - ``stunned`` -- computed at attack time by both
+      ``resolution/status.py::determine_status_changes`` (physical attacks,
+      called from ``actions/base.py:190``) and
+      ``mental/mental_blast.py:45``'s ``target_stunned`` (mental attacks),
+      and in both cases the result is folded into an audit-trail string,
+      never persisted as an event or written onto combatant state. This
+      function has **no branch that adds ``STUNNED``**, and cannot until a
+      later task makes one of those results persist -- there is a real gap
+      here today, not merely a future improvement; whichever mechanism ends
+      up persisting it will need a new source read added to this function,
+      not just "start working" on its own.
+    - ``dead`` -- same shape as ``stunned`` above: computed by
+      ``resolution/status.py::determine_status_changes`` (called from
+      ``actions/base.py:190``) as the ``"Dead"`` string, folded into the
+      same discarded audit trail, never persisted. This function has no
+      branch that adds ``DEAD`` either, for the same reason.
+
+    Preconditions -- this function requires a session whose ``event_log``
+    contains the *complete* history for the four sources that walk it
+    (Entangled, Grabbed, Flashed, Holding), and a
+    ``timeline.aborted_this_phase`` that has been populated by every abort
+    applied so far. **kirby-api's rehydrated session supplies neither:**
+
+    - ``kirby-api/kirby/combat/services/session_service.py:237`` sets
+      ``event_log=_FakeLog(row.last_sequence)``, whose ``__iter__`` always
+      returns ``iter([])`` -- the persisted log lives in Postgres and is
+      never handed back to the engine outside the rewind-rebuild path.
+    - ``kirby-api/kirby/combat/services/session_service.py:219`` builds
+      ``Timeline(turn=..., segment=..., acting_order=[],
+      current_slot_index=...)`` -- ``aborted_this_phase`` is never
+      populated.
+
+    So on that path, ``before.event_log`` is empty and ``after.event_log``
+    holds only the event just applied: the stream can only ever turn a
+    token **on** (e.g. an ``EntangleApplied`` looks like a fresh condition
+    by luck, but the later ``EntangleEscape`` produces nothing, because
+    both snapshots read as clean). Consuming this surface from kirby-api's
+    live path needs the log replayed first, or a session variant that
+    accumulates it -- neither is done by this module. The one id
+    unaffected by this: ``KNOCKED_OUT``, read from
+    ``participant.is_ko`` / ``current_stun <= 0`` -- combatant state, not
+    the log -- so it is correct even under rehydration.
 
     Performance: ``is_entangled``, ``is_grabbed``, ``is_flashed`` and
     ``HeldAction.get_pending`` each walk the entire event log

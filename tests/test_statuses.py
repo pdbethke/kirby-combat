@@ -38,8 +38,10 @@ def test_ids_are_foundry_shaped_slugs():
         assert re.fullmatch(r"[a-z][a-zA-Z]*", sid), sid
 
 
-def test_every_id_is_one_the_engine_can_produce():
-    """An id the engine never emits is a promise it cannot keep."""
+def test_known_ids_present_and_unmodeled_ids_absent():
+    """Smoke check only -- this does NOT test producibility (see
+    `test_producibility_table_is_exhaustive_and_matches_reality` below for
+    that); it just checks two ids land where expected."""
     assert KNOCKED_OUT in ALL_STATUS_IDS
     assert "haymaker" not in ALL_STATUS_IDS   # Foundry has it; this engine does not model it
 

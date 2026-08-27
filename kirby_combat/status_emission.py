@@ -24,8 +24,16 @@ Why a pure diff is the honest model, not a workaround: status is *derived*
 (``kirby_combat.statuses.statuses_for`` folds the event log), so the delta
 between two sessions is fully determined by their logs. A pure comparison
 cannot desync from that derivation the way a stored/mirrored status set
-could, and it means a consumer can regenerate the same stream retroactively
-from a recorded combat -- exactly the "publish live combat sequences" goal.
+could -- **for a session whose logs are complete.** A consumer can
+regenerate the same stream retroactively from a recorded combat only when
+both snapshots come from a session the engine built end-to-end (every
+event replayed through ``apply_event``), or from a session rehydrated
+*with* its full ``event_log`` and ``timeline.aborted_this_phase``. It is
+NOT true of kirby-api's live rehydrate path, which supplies neither (see
+``kirby_combat.statuses.statuses_for``'s Preconditions section for the
+exact lines and the resulting failure mode). "Publish live combat
+sequences" is the goal this was built for; it is reachable today only via
+the first two shapes above, not via kirby-api's current rehydration.
 """
 from __future__ import annotations
 
@@ -33,13 +41,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Callable
 
+from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import (
     EventAuthor, StatusEffectsChanged, make_author_engine,
 )
 from kirby_combat.statuses import statuses_for
 
 if TYPE_CHECKING:
-    from kirby_combat.session.apply import apply_event as _apply_event_type  # noqa: F401
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.session.events import CombatEvent
 
@@ -81,6 +89,17 @@ def status_deltas(
     `apply_event_with_deltas` below for the common "apply one event, get
     its deltas back" shape -- itself just this function plus a call to
     the untouched `apply_event`).
+
+    Preconditions (inherited from ``statuses_for``, called twice per
+    combatant here): both `before` and `after` must be sessions whose
+    ``event_log`` carries the *complete* history and whose
+    ``timeline.aborted_this_phase`` has been populated by every abort
+    applied so far. A session engine-built end-to-end via `apply_event`
+    satisfies this by construction. kirby-api's rehydrated session does
+    not -- see ``kirby_combat.statuses.statuses_for``'s own Preconditions
+    section for the exact lines and the resulting failure mode (a diff
+    across two such sessions can miss a real transition, e.g. an
+    Entangle-then-Escape reads as no change at all).
 
     Combatants present in only one session -- deliberate handling:
     A combatant can be added mid-fight (a summoned construct, a
@@ -215,8 +234,6 @@ def apply_event_with_deltas(
     next slot after the event that was just applied, so a caller who does
     choose to append them keeps a contiguous, gap-free sequence.
     """
-    from kirby_combat.session.apply import apply_event
-
     before = session
     after = apply_event(session, event)
     deltas = status_deltas(
