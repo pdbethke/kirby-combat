@@ -43,6 +43,16 @@ def _encounter_with_one_session(segment):
     )
 
 
+def _encounter_with_two_sessions(segment, turn=1):
+    return Encounter(
+        id="e1", turn=turn, segment=segment,
+        sessions=[
+            _session("a", [("a_high", 20), ("a_low", 10)]),
+            _session("b", [("b_high", 18), ("b_low", 8)]),
+        ],
+    )
+
+
 def _scene_order_ids(encounter):
     return [s.combatant_id for s in encounter.scene_acting_order]
 
@@ -390,12 +400,70 @@ def test_post_12_recovery_emits_a_recovery_taken_event_per_combatant():
     out = enc.advance_segment()
 
     events = out.sessions[0].event_log
-    assert len(events) == 1
+    # 6E2 p.131's Post-Segment 12 Recovery is emitted first (it belongs
+    # to Segment 12 finishing), THEN the SegmentAdvanced that moves the
+    # clock onto the new Turn's Segment 1 -- see
+    # `test_segment_advanced_is_recorded_after_post_12_recovery` for the
+    # order pinned as a dedicated assertion.
+    assert len(events) == 2
     evt = events[0]
     assert evt.kind == "RecoveryTaken"
     assert evt.combatant_id == "only"
     assert evt.stun_recovered == 4
     assert evt.end_recovered == 4
+    assert events[1].kind == "SegmentAdvanced"
+
+
+def test_advancing_a_segment_is_recorded_on_each_session():
+    """Measured before this task: advance_segment moved the clock and the
+    log held only ['SessionStarted']. Time left no trace."""
+    enc = _encounter_with_two_sessions(segment=3)
+    out = enc.advance_segment()
+    for s in out.sessions:
+        kinds = [getattr(e, "kind", None) for e in s.event_log]
+        assert "SegmentAdvanced" in kinds
+    evt = [e for e in out.sessions[0].event_log if getattr(e, "kind", None) == "SegmentAdvanced"][-1]
+    assert (evt.from_segment, evt.to_segment, evt.to_turn) == (3, 4, out.turn)
+
+
+def test_the_segment_12_wrap_is_recorded_with_the_new_turn():
+    """6E2 p.18: a Turn is 12 Segments, so advancing past 12 wraps."""
+    enc = _encounter_with_two_sessions(segment=12, turn=1)
+    out = enc.advance_segment()
+    evt = [e for e in out.sessions[0].event_log
+           if getattr(e, "kind", None) == "SegmentAdvanced"][-1]
+    assert (evt.from_segment, evt.to_segment, evt.to_turn) == (12, 1, 2)
+    assert (out.segment, out.turn) == (1, 2)
+
+
+def test_each_sessions_event_sequence_stays_valid():
+    """apply_event rejects a sequence that is not len(log)+1, and sessions
+    have INDEPENDENT logs -- one shared counter would desync them."""
+    enc = _encounter_with_two_sessions(segment=3)
+    out = enc.advance_segment().advance_segment()
+    for s in out.sessions:
+        seqs = [e.sequence for e in s.event_log]
+        assert seqs == list(range(1, len(seqs) + 1)), seqs
+
+
+def test_segment_advanced_is_recorded_after_post_12_recovery():
+    """Ordering decision (deliberate, pinned): on the Segment-12 wrap,
+    RecoveryTaken is logged BEFORE SegmentAdvanced.
+
+    6E2 p.131 names it "POST-Segment 12 Recovery": the free Recovery is a
+    consequence of Segment 12 finishing, so it belongs to the segment
+    that is ENDING, not the Turn/Segment 1 that is beginning. Recording
+    RecoveryTaken first keeps a replayer's "what segment was this
+    combatant on when they recovered" answer at 12, not at the new
+    Turn's 1 -- reversing the order would make Recovery look like it
+    happened on the new Segment, contradicting the rule's own name."""
+    session = _session_with_vitals("s", current_stun=10, current_end=10, rec=4)
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+
+    out = enc.advance_segment()
+
+    kinds = [e.kind for e in out.sessions[0].event_log]
+    assert kinds == ["RecoveryTaken", "SegmentAdvanced"]
 
 
 def test_post_12_recovery_uses_the_campaigns_resolved_template():
