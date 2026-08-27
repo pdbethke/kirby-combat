@@ -2,14 +2,14 @@
 
 Foundry's status ids are the canon: they are an already-published,
 already-consumed contract (`hero6e-kirby/module/actor/actor-active-effects.mjs`
-defines 42 of them; `module/combatant.mjs:48` reads
+defines 43 of them; `module/combatant.mjs:48` reads
 `actor.statuses.has("holding")` directly). The engine's own internal names
 (`"Stunned"` / `"Knocked Out"` / `"Dead"`, from
 `kirby_combat/resolution/status.py`) are title-case-with-spaces and are NOT
 the canon — they exist only inside this engine and must never leak out.
 
 This module defines **only the ids this engine can actually produce.**
-Foundry defines 42 status ids in total; this engine is deliberately narrower.
+Foundry defines 43 status ids in total; this engine is deliberately narrower.
 An id the engine never emits is a promise it cannot keep, so ids that have
 no engine-side source are omitted on purpose (see the two notes below) rather
 than transcribed wholesale from Foundry's list.
@@ -70,9 +70,16 @@ GRAB = "grab"
 # kirby_combat.actions.grab.Grab.is_grabbed.
 
 ABORTED = "aborted"
-# A combatant has declared an abort (Dodge/Block/Dive for Cover) this phase,
-# forfeiting their next action. See
-# kirby_combat.actions.reactive.abort.is_aborting /
+# A state description, not itself a single cited rule: true whenever a
+# combatant has declared an abort this phase (Dodge, Block, or Dive for
+# Cover), forfeiting their next action. The underlying maneuvers each carry
+# their own citation -- Block 6E2 p59 SS USING BLOCK
+# (kirby_combat/actions/reactive/block.py), Dive for Cover 6E2 p87 SS USING
+# DIVE FOR COVER (kirby_combat/actions/dive_for_cover.py), Dodge per the
+# maneuver table (kirby_combat/tables.py "martial_dodge" /
+# kirby_combat/actions/reactive/dodge.py, no page cited in source) -- but
+# "aborted" itself is this engine's shared bookkeeping flag for all three.
+# See kirby_combat.actions.reactive.abort.is_aborting /
 # session.timeline.aborted_this_phase.
 
 HOLDING = "holding"

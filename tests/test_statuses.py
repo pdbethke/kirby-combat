@@ -83,3 +83,49 @@ def test_sense_disabled_ids_omit_ungrouped_foundry_senses():
         "spatialAwarenessSenseDisabled", "touchSenseDisabled",
     ):
         assert omitted not in ALL_STATUS_IDS
+
+
+# ---------------------------------------------------------------------------
+# Foundry-existence check
+#
+# Hardcoded, NOT parsed from hero6e-kirby at test time: kirby-combat must
+# stay self-contained and must not depend on a sibling repo's presence or
+# file layout (a checkout without hero6e-kirby would otherwise fail this
+# suite for no engine-side reason).
+#
+# Provenance: all 43 `id: "..."` string literals read directly from
+# hero6e-kirby/module/actor/actor-active-effects.mjs on 2026-08-27.
+#
+# DRIFT RISK: this list is a snapshot, not a live check. If Foundry's module
+# adds, renames, or removes a status id after 2026-08-27, this constant goes
+# stale and nothing here will notice -- re-read the .mjs and update this set
+# by hand when hero6e-kirby's status effects change.
+# ---------------------------------------------------------------------------
+
+FOUNDRY_STATUS_IDS_20260827 = frozenset({
+    "stunned", "bleeding", "unconscious", "knockedOut", "dead", "asleep",
+    "prone", "entangled", "paralysis", "mindControl", "fear",
+    "regeneration", "upgrade", "downgrade", "invisible", "target",
+    "holding", "underwater", "standingInWater", "holdingBreath", "aborted",
+    "block", "brace", "club-weapon", "desolidification", "dodge", "grab",
+    "haymaker", "strike", "fly", "nonCombatMovement", "tunneling",
+    "dangerSenseDisabled", "detectSenseDisabled", "hearingSenseDisabled",
+    "mentalSenseDisabled", "radioSenseDisabled", "blind", "silence",
+    "smellTasteSenseDisabled", "sonarSenseDisabled",
+    "spatialAwarenessSenseDisabled", "touchSenseDisabled",
+})
+
+
+def test_foundry_status_ids_snapshot_has_43_entries():
+    """Sanity check on the hardcoded snapshot itself, so a future hand-edit
+    that silently drops or duplicates an id is caught."""
+    assert len(FOUNDRY_STATUS_IDS_20260827) == 43
+
+
+def test_every_engine_id_exists_in_foundry():
+    """Every id this engine claims to be able to emit must actually be one
+    of Foundry's published status ids -- a typo'd or invented id would
+    otherwise pass every other test in this file (they only check
+    self-consistency against ALL_STATUS_IDS) and silently do nothing on a
+    token client-side."""
+    assert ALL_STATUS_IDS <= FOUNDRY_STATUS_IDS_20260827
