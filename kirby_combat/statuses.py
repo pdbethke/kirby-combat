@@ -265,16 +265,18 @@ NO_FOUNDRY_EQUIVALENT: frozenset[str] = frozenset()
 # Known-unmodelled -- Foundry ids for HERO Sense Groups this engine does not
 # produce yet (coverage reference only; §3b of the design doc)
 #
-# HERO 6E1 p.279 lists the Sense Groups: "Hearing Group; Mental Group; Radio
-# Group; Sight Group; Smell/Taste Group: Normal Smell, Normal Taste; Touch
-# Group; Unusual Group: Active Sonar." This engine's perception.py:20-24
+# HERO 6E1 p.211 ("SENSE GROUPS") lists the Sense Groups: "Hearing Group;
+# Mental Group; Radio Group; Sight Group; Smell/Taste Group: Normal Smell,
+# Normal Taste; Touch Group; Unusual Group: Active Sonar." (6E1 p.279 is a
+# different table -- sense-group Flash/Images COST, not the enumeration --
+# and is not the citation for this claim.) This engine's perception.py:20-24
 # models five of those seven (sight, hearing, mental, radio, smell/taste);
 # it does not model Touch or Unusual (Active Sonar) as sense groups a Flash
 # can target. Foundry already has ids for several conditions in this space:
 #
-#   touchSenseDisabled              -- Flash vs the Touch Group (6E1 p.279)
+#   touchSenseDisabled              -- Flash vs the Touch Group (6E1 p.211)
 #   sonarSenseDisabled               -- Flash vs the Unusual Group / Active
-#                                        Sonar (6E1 p.279)
+#                                        Sonar (6E1 p.211)
 #   spatialAwarenessSenseDisabled    -- Spatial Awareness, a Targeting Sense
 #                                        this engine currently files under
 #                                        the Sight group (perception.py
