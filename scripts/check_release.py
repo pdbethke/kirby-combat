@@ -197,7 +197,14 @@ def check_tag(wheel: Path) -> bool:
 
 
 def main() -> int:
-    dist = Path(sys.argv[1] if len(sys.argv) > 1 else "dist")
+    # .resolve() is load-bearing, not tidiness. check_install_and_version
+    # runs pip with cwd= a temp dir, so a RELATIVE wheel path stops resolving
+    # the moment it is used there -- pip reports "looks like a filename, but
+    # the file does not exist" and the guard fails every artifact it is given.
+    # release.yml invokes this as `check_release.py dist/`, relative, so this
+    # bug failed 100% of releases; it was never caught because v0.6.0 is the
+    # first tag pushed since this script was written (31c0e2d).
+    dist = Path(sys.argv[1] if len(sys.argv) > 1 else "dist").resolve()
     if not dist.is_dir():
         fail(f"{dist} is not a directory")
         return 1
