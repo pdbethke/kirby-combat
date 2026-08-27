@@ -13,6 +13,7 @@ from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.events import (
     SegmentAdvanced, make_author_engine,
     ActionDeclared, make_author_combatant,
+    StatusEffectsChanged,
 )
 from kirby_combat.session.tie_rule import TieRule
 from fixtures.synthetic_hero import synthetic_combatant
@@ -273,6 +274,25 @@ def test_lightning_reflexes_restriction_is_inert_without_the_driver():
     assert s.timeline.acting_order == []  # never driven -- still empty
     s2 = apply_event(s, _declare(s, "move"))
     assert s2.event_log[-1].kind == "ActionDeclared"
+
+
+def test_apply_status_effects_changed_is_log_only():
+    """StatusEffectsChanged is a derived-status delta, audit-only: applying
+    it must append to the log and otherwise leave the session untouched.
+    The status set itself comes from `statuses_for` folding the log, never
+    from mutating state in response to this event."""
+    s = _session()
+    evt = StatusEffectsChanged(
+        id="evt-x", session_id="s1", sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id="alice",
+        added=frozenset({"stunned"}),
+        removed=frozenset({"entangled"}),
+    )
+    s2 = apply_event(s, evt)
+    assert evt in s2.event_log
+    # Nothing besides the log (and updated_at) changed.
+    assert replace(s2, event_log=s.event_log, updated_at=s.updated_at) == s
 
 
 def test_apply_unknown_event_raises():

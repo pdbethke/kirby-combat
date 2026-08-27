@@ -35,6 +35,7 @@ def _ensure_registry() -> None:
     from kirby_combat.session.events import (
         EventAuthor, SessionStarted, SegmentAdvanced, ActionDeclared,
         ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
+        StatusEffectsChanged,
         AbortDeclared, HeldActionDeclared, HeldActionReleased,
         AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
         FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
@@ -50,6 +51,7 @@ def _ensure_registry() -> None:
         Timeline, ActingSlot, HeldAction, CombatSession,
         EventAuthor, SessionStarted, SegmentAdvanced, ActionDeclared,
         ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
+        StatusEffectsChanged,
         AbortDeclared, HeldActionDeclared, HeldActionReleased,
         AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
         FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
@@ -92,6 +94,15 @@ def _coerce_field(field_type: Any, value: Any) -> Any:
             return datetime.fromisoformat(value)
         except ValueError:
             return value
+    # frozenset-typed fields (e.g. StatusEffectsChanged.added/.removed) go
+    # over the wire as a sorted list (JSON has no set type — see
+    # to_dict.py's set/frozenset branch). `field_type` is a string here
+    # (PEP 563 forward ref, e.g. "frozenset[str]") since it never matches
+    # a registered class; rehydrate the list back into a frozenset rather
+    # than leaving it a list, so the round-tripped instance is `==` to
+    # the original.
+    if isinstance(field_type, str) and field_type.startswith("frozenset[") and isinstance(value, list):
+        return frozenset(value)
     return value
 
 

@@ -50,3 +50,4 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.rewind import rewind_to_sequence
 
 __all__ += ["CombatSession", "apply_event", "rewind_to_sequence"]
+
