@@ -278,3 +278,66 @@ def test_statuses_for_folds_several_simultaneous_conditions():
     assert result == frozenset(
         {KNOCKED_OUT, ENTANGLED, GRAB, BLIND, HEARING_SENSE_DISABLED}
     )
+
+
+# ---------------------------------------------------------------------------
+# Producibility table -- enforces the module docstring's own claim
+# (statuses.py:11-15): "This module defines only the ids this engine can
+# actually produce... An id the engine never emits is a promise it cannot
+# keep." That was a claim in a docstring, not a guard, until now.
+#
+# Every id in ALL_STATUS_IDS must appear in exactly one of the two maps
+# below: PRODUCED_BY (a real statuses_for source) or NOT_YET_PRODUCED
+# (statuses.py's own "Deliberately NOT read here" list -- STUNNED and
+# DEAD, both real conditions with no fold source yet). The table and that
+# docstring section are made to agree by construction: this is literally
+# the same list, asserted, not just written down.
+# ---------------------------------------------------------------------------
+
+PRODUCED_BY = {
+    KNOCKED_OUT: "participant.is_ko (current_stun <= 0)",
+    ENTANGLED: "Entangle.is_entangled",
+    GRAB: "Grab.is_grabbed",
+    ABORTED: "session.timeline.aborted_this_phase",
+    HOLDING: "HeldAction.get_pending",
+    BLIND: "Flash.is_flashed (sight) via SENSE_GROUP_TO_STATUS_ID",
+    HEARING_SENSE_DISABLED: "Flash.is_flashed (hearing) via SENSE_GROUP_TO_STATUS_ID",
+    MENTAL_SENSE_DISABLED: "Flash.is_flashed (mental) via SENSE_GROUP_TO_STATUS_ID",
+    RADIO_SENSE_DISABLED: "Flash.is_flashed (radio) via SENSE_GROUP_TO_STATUS_ID",
+    SMELL_TASTE_SENSE_DISABLED: "Flash.is_flashed (smell) via SENSE_GROUP_TO_STATUS_ID",
+}
+
+# statuses.py's own "Deliberately NOT read here" list: real conditions,
+# computed by resolution/status.py::determine_status_changes (and, for
+# STUNNED, also mental/mental_blast.py:45), but discarded into an
+# audit-trail string rather than persisted -- statuses_for has no branch
+# for either.
+NOT_YET_PRODUCED = {
+    STUNNED: "computed by determine_status_changes + mental_blast.py:45 "
+             "target_stunned, discarded by actions/base.py:190 -- no "
+             "statuses_for branch",
+    DEAD: "computed by determine_status_changes, discarded by "
+          "actions/base.py:190 -- no statuses_for branch",
+}
+
+
+def test_producibility_table_is_exhaustive_over_all_status_ids():
+    """Every id in ALL_STATUS_IDS is accounted for as either produced or
+    explicitly not-yet-produced, and the two lists don't overlap. This is
+    the guard the module docstring's claim ("only ids this engine can
+    actually produce") never had: an id added to ALL_STATUS_IDS without a
+    matching row here (in either map) fails; a row added here for an id
+    not in ALL_STATUS_IDS also fails."""
+    assert set(PRODUCED_BY).isdisjoint(NOT_YET_PRODUCED)
+    assert set(PRODUCED_BY) | set(NOT_YET_PRODUCED) == ALL_STATUS_IDS
+
+
+def test_not_yet_produced_ids_never_actually_come_out_of_statuses_for():
+    """The declared exceptions are real gaps, not just labels: drive a
+    combatant to the exact state that would trigger Stunned/Dead via
+    determine_status_changes (STUN dealt > CON; BODY <= -max_body) and
+    confirm statuses_for still omits both."""
+    s = _session(_c("alice"), _c("bob", current_stun=-40, current_body=-40))
+    result = statuses_for(s, "bob")
+    assert STUNNED not in result
+    assert DEAD not in result
