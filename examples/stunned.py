@@ -210,19 +210,35 @@ def main() -> None:
     print("  bob as still conditioned, not as an unconditioned fighter who")
     print("  inexplicably can't act.")
 
-    # ── 6. Fully recovered — acting normally again ───────────────────────
-    rule("6. Segment 6 — bob's NEXT Phase: fully recovered")
-    enc = enc.advance_segment()  # -> segment 4
-    enc = enc.advance_segment()  # -> segment 5
-    enc = enc.advance_segment()  # -> segment 6 (bob's next Phase)
+    # ── 6. Fully recovered — right after the recovery Segment, not bob's
+    #      NEXT Phase ──────────────────────────────────────────────────────
+    rule("6. Segment 4 — fully recovered (6E2 p.107's Andarra example)")
+    print('  6E2 p.107\'s own worked example (Andarra, DEX 20 SPD 3, Stunned')
+    print('  Segment 6) restores full DCV and allows the Abort in Segments 9,')
+    print('  10, and 11 -- all THREE Segments between her recovery Phase')
+    print('  (Segment 8) and her next full Phase (Segment 12), not merely at')
+    print('  that next Phase. So "recovering from being Stunned" spans only')
+    print("  the ONE Segment containing the recovery Phase (bob's Segment 3,")
+    print("  step 5 above) -- it is gone from the very next Segment onward,")
+    print("  here Segment 4, well before bob's own next Phase at Segment 6.")
+
+    enc = enc.advance_segment()  # -> segment 4: the Segment right after the
+                                  # recovery Segment -- gone from here, not
+                                  # from bob's next own Phase (segment 6).
     session = enc.sessions[0]
 
     show_statuses(session, "bob", "bob")
-    print(f"  effective DCV / DMCV: {effective_dcv_for(session, 'bob')} / "
+    print(f"  effective DCV / DMCV at segment {enc.segment}: "
+          f"{effective_dcv_for(session, 'bob')} / "
           f"{effective_dmcv_for(session, 'bob')}   (base {BOB.dcv} / {BOB.dmcv})")
 
     session, evt = Dodge.declare(session, "bob")
     print(f"  Dodge.declare succeeded: to_action={evt.to_action!r}")
+    print("\n  bob is clear here, in Segment 4 -- two Segments before his own")
+    print("  next Phase (Segment 6) -- exactly the way Andarra is clear in")
+    print("  Segments 9-11, well before HER next Phase (Segment 12). See")
+    print("  examples/raw_andarra.py for the book's own example, driven and")
+    print("  asserted Segment by Segment.")
 
     rule("END")
 

@@ -291,11 +291,19 @@ def test_stunned_cv_penalty_still_applies_during_recovery_phase():
     assert effective_dcv_for(session, "bob") == 5   # 9 * 0.5 -> ceil -> 5
 
 
-def test_stunned_cv_penalty_clears_after_the_recovery_phase_ends():
-    """One more of bob's Phase segments past the recovery Phase (Segment
-    6) is his NEXT Phase after that -- fully recovered, per 6E2 p.107
-    ('he cannot act until his next Phase'). Both the penalty and the
-    status id should be gone."""
+def test_stunned_cv_penalty_clears_right_after_the_recovery_segment_ends():
+    """The penalty clears from the very next Segment after the recovery
+    Phase's own Segment (Segment 3) -- Segment 4 here -- NOT at bob's
+    NEXT full Phase (Segment 6). 6E2 p.107's own Andarra example is what
+    pins this: she is restored to full DCV in Segments 9, 10, AND 11,
+    the whole stretch up to (but not including) her next Phase at
+    Segment 12 -- not merely at Segment 12 itself. (An earlier version of
+    this test asserted the penalty survived through Segments 4 and 5 too,
+    clearing only at Segment 6 -- that was the "one Phase too long" bug
+    this test now pins the fix for; see
+    ``statuses.py::stunned_or_recovering_for``'s CORRECTED WINDOW section
+    and ``examples/raw_andarra.py`` for the book's example run verbatim.)
+    """
     attacker, target = _attacker_for_stun(), _target_for_stun(spd=4, dcv=9, dmcv=7)
     session = _session(attacker, target)
     session = _stun(session, attacker, target)
@@ -303,15 +311,20 @@ def test_stunned_cv_penalty_clears_after_the_recovery_phase_ends():
     session = _advance(session, to_segment=1, to_turn=2)
     session = _advance(session, to_segment=2, to_turn=2)
     session = _advance(session, to_segment=3, to_turn=2)  # recovery Phase starts
-    session = _advance(session, to_segment=4, to_turn=2)
-    session = _advance(session, to_segment=5, to_turn=2)
-    session = _advance(session, to_segment=6, to_turn=2)  # his NEXT Phase: fully clear
+    session = _advance(session, to_segment=4, to_turn=2)  # gone already: NOT one Phase too long
 
     mods = cv_modifiers_for(session, "bob")
     assert mods.dcv_factor == 1.0
     assert mods.dmcv_factor == 1.0
     assert effective_dcv_for(session, "bob") == 9
     assert effective_dmcv_for(session, "bob") == 7
+
+    from kirby_combat.statuses import (
+        RECOVERING_FROM_STUNNED, STUNNED, statuses_for,
+    )
+    ids = statuses_for(session, "bob")
+    assert STUNNED not in ids
+    assert RECOVERING_FROM_STUNNED not in ids
 
 
 # ----------------------------------------------------------------------- #
@@ -387,6 +400,71 @@ def test_stunned_combatant_cannot_abort_to_block():
 
     with pytest.raises(ValueError):
         Block.declare(session, "bob")
+
+
+# --------------------------------------------------------------------- #
+# The merge-blocker fix: the recovery window must not run one full Phase
+# too long. 6E2 p.107 hands over its own worked example -- run it
+# verbatim rather than inventing a fixture that might accidentally avoid
+# the bug. See ``statuses.py::stunned_or_recovering_for``'s CORRECTED
+# WINDOW section and ``examples/raw_andarra.py`` for the same example
+# driven end-to-end with printed output.
+# --------------------------------------------------------------------- #
+
+def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
+    """6E2 p.107: "Example: Andarra (DEX 20, SPD 3) is Stunned by an
+    attack on Segment 6. She must use her Phase on Segment 8 to recover;
+    she recovers on DEX 20 (so an enemy attacking her in Segment 8 with,
+    say, DEX 15 would have to hit her at her full DCV). Andarra cannot
+    take any other Action until her next Phase on Segment 12, but may
+    Abort her Phase in Segment 12 in Segments 8 (after her DEX occurs),
+    9, 10, or 11 if she so desires."
+
+    Asserted here: full DCV and Abort ALLOWED in Segments 9, 10, and 11
+    -- the book is unambiguous there (no intra-Segment DEX-order
+    approximation involved, unlike Segment 8 itself; see
+    ``examples/raw_andarra.py`` for that nuance spelled out). Before the
+    fix, the engine denied the Abort and halved DCV through all three of
+    these Segments -- exactly the "one full Phase too long" bug this test
+    pins shut.
+
+    Each Segment gets its OWN fresh session: ``AbortDeclared`` sets
+    ``timeline.aborted_this_phase`` and nothing in this engine ever
+    clears it on ``SegmentAdvanced`` (a real, separate quirk -- there is
+    no in-engine "next Phase releases the Abort lock" event), so reusing
+    one session across Segment 9's successful Abort would make Segment
+    10's ``Dodge.declare`` fail on the WRONG precondition ("already
+    aborted") instead of proving the Stunned-window check.
+    """
+    from kirby_combat.actions.reactive.dodge import Dodge
+    from kirby_combat.statuses import statuses_for
+
+    # DEX 20, SPD 3 -- Andarra's own stated stats. CON well under the hit,
+    # current STUN generous so this stays Stunned-while-conscious.
+    andarra = synthetic_combatant(
+        id="andarra", name="andarra",
+        ocv=8, dcv=9, omcv=5, dmcv=7,
+        spd=3, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=40, max_body=15, max_end=30,
+        current_stun=40, current_body=15, current_end=30,
+    )
+
+    # SPD 3 -> Phases at Segments 4, 8, 12 (tables.py SPEED_TO_SEGMENTS).
+    # Segment 8 is Andarra's own recovery Phase, exactly per the book.
+    for to_segment in (9, 10, 11):
+        attacker = _attacker_for_stun()
+        session = _session(attacker, andarra)
+        session = _stun(session, attacker, andarra)
+        for seg in range(7, to_segment + 1):
+            session = _advance(session, to_segment=seg, to_turn=1)
+
+        ids = statuses_for(session, "andarra")
+        assert not ids, (to_segment, ids)  # fully clear, matching the book
+        assert effective_dcv_for(session, "andarra") == andarra.dcv, to_segment
+
+        session, evt = Dodge.declare(session, "andarra")
+        assert evt.to_action == "dodge", to_segment
 
 
 def test_unstunned_combatant_can_still_abort_to_dodge_and_block():
@@ -506,6 +584,44 @@ def test_movement_reach_without_a_session_is_unaffected():
     out = movement_reach("running", from_pos, to_pos, distance_m=12, scene=scene)
     assert out.reachable is True
     assert out.landing == to_pos
+
+
+def test_movement_reach_with_a_session_and_an_unknown_combatant_id_raises_meaningfully():
+    """Review finding (LOW): `movement_reach(session=..., combatant_id=
+    "ghost")` used to raise a bare `KeyError('ghost')` out of
+    `statuses.py::stunned_or_recovering_for`'s `session.combatants[...]`
+    lookup -- no live caller hits this today, but a caller mistake (a
+    stale or misspelled combatant id, still passed a real session) should
+    fail with a message that says what went wrong, not a bare id."""
+    import pytest
+    from kirby_combat.scene.movement_legality import movement_reach
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface,
+    )
+
+    scene = Scene(
+        id="arena", name="Open Field",
+        bounds=SceneBounds(0, 0, 0, 20, 20, 20),
+        surfaces=[
+            Surface(id="ground", name="Ground",
+                    polygon_xy=[(0, 0), (20, 0), (20, 20), (0, 20)],
+                    elevation_m=0.0, surface_type="ground",
+                    cover_level=0, is_supporting=True),
+        ],
+        walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={},
+    )
+    from_pos = Position(2, 10, 0)
+    to_pos = Position(10, 10, 0)
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)  # neither "attacker" nor "bob" is "ghost"
+
+    with pytest.raises(KeyError, match="ghost"):
+        movement_reach(
+            "running", from_pos, to_pos, distance_m=12, scene=scene,
+            combatant_id="ghost", session=session,
+        )
 
 
 def _pre_attacker(pre: int = 25):

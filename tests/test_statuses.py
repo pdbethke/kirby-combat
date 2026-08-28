@@ -564,6 +564,40 @@ def test_statuses_for_dead_appears_and_persists():
     assert DEAD in statuses_for(session, "bob")
 
 
+def test_statuses_for_dead_does_not_also_read_as_recovering_from_stunned():
+    """Review finding (LOW, ``2026-08-28-conditions-must-bite`` final-fix
+    pass): a corpse cannot "recover" from anything -- 6E2 p.107,
+    "recovering from being Stunned is all he can do that Phase", names an
+    active process. A lethal hit (Stunned + Dead together, same fixture
+    as ``test_statuses_for_dead_appears_and_persists``) followed by one
+    at-Phase ``SegmentAdvanced`` used to yield ``{dead, knockedOut,
+    recoveringFromStunned}`` -- this pins the fix: DEAD implies NOT
+    RECOVERING_FROM_STUNNED, same call site as the pre-existing DEAD =>
+    KNOCKED_OUT implication just above it in ``statuses.py``."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Stunned" in result.status_changes
+    assert "Dead" in result.status_changes
+
+    # bob's recovery Phase (SPD 4 -> Phases 3/6/9/12; session starts
+    # Segment 12, so the hit lands on his own Phase, and Segment 3 is his
+    # next full Phase) -- the exact Segment `_is_recovering_from_stunned`
+    # would otherwise fire in for a living combatant.
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert KNOCKED_OUT in result_ids
+    assert RECOVERING_FROM_STUNNED not in result_ids
+    assert STUNNED not in result_ids  # sanity: not the OTHER Stunned id either
+
+
 # ---------------------------------------------------------------------------
 # Knocked Out coherence (Task 4 follow-up) -- surfaced by Task 5's example:
 # a payload naming "Stunned"/"Knocked Out"/"Dead" together, on a session

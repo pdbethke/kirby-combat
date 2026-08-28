@@ -78,15 +78,12 @@ def _stunned_or_recovering(session: "CombatSession", combatant_id: str) -> bool:
     p.39's penalty is a SEPARATE row that does not lift at that same
     instant -- recovering-from-being-Stunned is its own condition with
     its own matching penalty -- so a CV-modifier source that gated only
-    on ``STUNNED in statuses_for(...)`` would drop the penalty one Phase
-    too early. This function tracks one stage further than
-    ``_is_stunned``'s fold: the same SET edge (a qualifying "Stunned" in
-    an ``ActionResolved.status_changes``), but the fold does not fully
-    clear until the SECOND matching ``SegmentAdvanced`` after that (the
-    first enters "recovering", mirroring ``_is_stunned``'s clear; the
-    second -- the combatant's NEXT full Phase after that -- is when 6E2
-    p.107 says "recovering from being Stunned is all he can do that
-    Phase" has run its course).
+    on ``STUNNED in statuses_for(...)`` would drop the penalty too early.
+    The exact width of that extension -- one Segment (the recovery
+    Segment itself), NOT one full Phase -- is derived and grounded in
+    ``statuses.py::stunned_or_recovering_for``'s own docstring (see its
+    CORRECTED WINDOW section, including the residual approximation it
+    documents); this function does not re-derive it.
 
     As of Task 3 (``conditions-must-bite``), this is a thin wrapper over
     ``statuses.py::stunned_or_recovering_for`` -- the SAME wider window is
@@ -223,9 +220,22 @@ def apply_cv_factor(base: int, factor: float) -> int:
     "Normal rounding rules apply" is 6E2 p.39 invoking 6E1 p.14's general
     HERO rounding rule BY NAME ("always round off to the next whole
     number in favor of the... character... .5 rounds up or down
-    [whichever is more beneficial]") -- so ``math.ceil`` (round toward
-    the character's benefit) is now a direct citation for this function,
-    not the extrapolation an earlier version of this docstring called it.
+    [whichever is more beneficial]"). **This IS an extrapolation, not a
+    direct citation, and an earlier version of this docstring was right
+    to call it one -- a later revision overstated it and that overstatement
+    is corrected here.** 6E1 p.14's actual text is scoped to Character
+    Point arithmetic ("When you calculate the cost of something using
+    division or multiplication, always round off... in favor of the
+    Player Character") -- it is not a general-purpose combat-math rule,
+    and it names the PLAYER CHARACTER specifically, not "the character"
+    generically (see ``apply_hit_location_factor`` below for where that
+    distinction actually bites). 6E2 p.39 borrows the ROUNDING
+    DIRECTION ("round toward whoever benefits") for a combat-CV context
+    p.14 was never written for; applying it here is defensible -- 6E2
+    p.39 itself invokes "normal rounding rules" by name, so SOME external
+    rounding rule has to fill that gap, and p.14 is the only one HERO 6E
+    defines -- but it is extrapolation, and this docstring says so rather
+    than dressing it up as a direct hit.
 
     **This function is for a combatant's own CV (OCV/DCV/OMCV/DMCV)
     only.** The hit-location/Placed-Shot factor is deliberately NOT
@@ -289,11 +299,22 @@ def apply_hit_location_factor(base_penalty: int, factor: float) -> int:
 
     Formula: ``math.ceil(base_penalty * factor)`` unconditionally (no
     sign branch). For a negative base, ``math.ceil`` rounds toward zero
-    (less negative), which is exactly "smaller penalty, in favour of
-    whoever is making the Placed Shot" -- 6E1 p.14's general rounding
-    principle, applied directly since 6E2 p.106 doesn't restate a
-    rounding direction of its own: -8 * 0.5 = -4.0 -> -4 (exact); an odd
-    penalty like -5 * 0.5 = -2.5 -> ceil -> -2 (smaller penalty, not -3).
+    (less negative), which always shrinks the penalty's magnitude --
+    consistent with 6E2 p.106's own stated direction ("drop to half",
+    a smaller penalty), not derived from 6E1 p.14. **p.14 does NOT
+    ground this rounding choice the way an earlier version of this
+    docstring claimed:** p.14 is a Character-Point cost rule that rounds
+    in favor of the PLAYER CHARACTER specifically ("always round off...
+    in favor of the Player Character"), and this function's caller is
+    whichever combatant is making the Placed Shot -- against a Stunned
+    target, that is routinely an NPC attacking a PC, the OPPOSITE of
+    p.14's stated beneficiary. Rounding toward zero here is grounded
+    directly in 6E2 p.106's own "drop to half" language (a smaller
+    penalty is what "half" of a penalty means, regardless of who is
+    rolling), not smuggled in as an extension of p.14's PC-favoring
+    rule to whichever side happens to attack: -8 * 0.5 = -4.0 -> -4
+    (exact); an odd penalty like -5 * 0.5 = -2.5 -> ceil -> -2 (smaller
+    penalty, not -3).
 
     Same grounded-factor restriction as ``apply_cv_factor`` (1.0, 0.5, or
     0.0 only) -- refuses anything else rather than inventing arithmetic
@@ -321,10 +342,30 @@ def _fold_cv_factors(base: int, factors: list[float]) -> int:
 
     1. **Multiple halvings compose SEQUENTIALLY, not by multiplying their
        factors together first.** 0.5 * 0.5 = 0.25 is not one of p.39's
-       grounded cases (see ``apply_cv_factor``), and -- because the
-       negative-CV branch is sign-dependent -- pre-multiplying can give a
-       genuinely different number than applying two real halvings in
-       order once the running value crosses zero partway through. This
+       grounded cases (see ``apply_cv_factor``). **An earlier version of
+       this docstring justified that with a false mathematical claim --
+       that pre-multiplying diverges from sequential application "once
+       the running value crosses zero partway through" -- and that
+       justification is wrong, not just imprecise:**
+       ``apply_cv_factor`` can never change its input's sign in the
+       first place (positives use ``ceil(b * 0.5)``, which stays >= 0;
+       negatives use ``ceil(b * 1.5)``, which stays negative), so there
+       is no zero-crossing case for sequential application to diverge
+       at, ever (checked exhaustively for every integer base in
+       [-40, 40]). The REAL reason sequential and pre-multiplied answers
+       differ: on positive/zero bases the two ARE identical
+       (``ceil(ceil(x / 2) / 2) == ceil(x / 4)`` for every non-negative
+       integer x -- halving twice and quartering once round to the same
+       place), but on negative bases they are NOT (1.5 * 1.5 = 2.25, not
+       0.5 * 0.5's reciprocal-consistent 1.25 -- the sign-dependent
+       formula does not compose multiplicatively the way the positive
+       branch's does). That is a real, grounded reason on its own and
+       does not need an invented zero-crossing story. The rule that
+       settles which composition is correct is 6E1 p.14: "If a
+       calculation involves two or more separate parts or stages, round
+       at each separate step of the calculation" -- each halving is its
+       own stage, so each is rounded (via ``apply_cv_factor``) before
+       the next is applied, exactly what this function does. This
        function instead applies each 0.5 (or 1.0 no-op) one at a time,
        via ``apply_cv_factor``, to the RUNNING value: "halve it, then
        halve the result again" -- which is literally p.39's own phrasing
