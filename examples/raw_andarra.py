@@ -13,22 +13,16 @@ because the design cited 6E2 p.39 and p.106 for a claim that lives on p.107.
 Every test passed the whole time. Quoting the page in full, and then running
 the page, is what caught it.
 
-THE BOOK (6E2 p.107, "RECOVERING FROM BEING STUNNED"):
+THE BOOK'S SCENARIO (6E2 p.107, "RECOVERING FROM BEING STUNNED"),
+PARAPHRASED -- this project ships no rules text; open your own copy:
 
-    "In the character's next full Phase after becoming Stunned, he recovers
-    from being Stunned when his DEX occurs in the Segment. He regains his
-    full DCV (and Placed Shot modifiers return to normal), but he still
-    cannot act until his next Phase -- recovering from being Stunned is all
-    he can do that Phase. However, after recovering from being Stunned, a
-    character may, if he wishes, Abort to a defensive Action (even in the
-    same Segment in which he recovers from being Stunned).
-
-    Example: Andarra (DEX 20, SPD 3) is Stunned by an attack on Segment 6.
-    She must use her Phase on Segment 8 to recover; she recovers on DEX 20
-    (so an enemy attacking her in Segment 8 with, say, DEX 15 would have to
-    hit her at her full DCV). Andarra cannot take any other Action until her
-    next Phase on Segment 12, but may Abort her Phase in Segment 12 in
-    Segments 8 (after her DEX occurs), 9, 10, or 11 if she so desires."
+    A character with DEX 20 and SPD 3 is Stunned by an attack in Segment 6.
+    Her next Phase falls in Segment 8, and she must spend it recovering. She
+    recovers when her DEX comes up in that Segment -- regaining her full DCV,
+    with Placed Shot modifiers back to normal -- but still cannot take any
+    other Action until her next Phase in Segment 12. The book states she MAY
+    Abort that Segment 12 Phase during Segments 8 (after her DEX), 9, 10
+    or 11.
 
 WHERE THIS ENGINE IS APPROXIMATE, STATED PLAINLY: the book restores Andarra's
 DCV partway through Segment 8, at her DEX. `statuses_for` folds an event log

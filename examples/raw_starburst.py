@@ -6,23 +6,18 @@ follow it. The engine follows the RULE. This script asserts the rule's
 numbers and prints the divergence, so anyone checking Kirby against the
 book's example sees why the two differ and which one Kirby chose.
 
-THE RULE (6E2 p.72, "MOVE BY"):
+THE RULE AND THE EXAMPLE (6E2 p.72, "MOVE BY"), BOTH PARAPHRASED --
+this project ships no rules text; open your own copy:
 
-    "A successful Move By does half of the character's regular STR damage plus
-    (velocity/10)d6 Normal Damage to the target (in other words, (STR/2) +
-    (vel/10)d6)... (Halve a character's STR before determining the STR damage
-    he does with a Move By; that eliminates potential problems with trying to
-    halve a half-die of damage.) However, the character himself takes
-    one-third of the STUN and BODY damage done to the target."
+    THE RULE. A Move By does half the attacker's STR damage plus one d6 per
+    10m of velocity. The page adds a parenthetical instruction: halve the
+    character's STR BEFORE working out its damage, specifically so that
+    nobody has to halve a half-die. The attacker takes one third of the
+    damage done to the target.
 
-THE EXAMPLE, on the same page:
-
-    "Example: Starburst (Flight 30m) is 10m away from Ogre. He does a Move By
-    on the villain and ends up 20m away from Ogre at the end of the Maneuver.
-    The villain takes 1/2 of Starburst's STR damage plus 30/10 = 3d6 for
-    Starburst's velocity. Starburst has a 15 STR, so the villain takes
-    (1/2 x 3d6) + 3d6 = 4 1/2d6 of damage. Starburst will take one third of
-    the damage himself..."
+    THE EXAMPLE, on the same page. A flying character with STR 15 and 30m of
+    Flight Move Bys a villain from 10m away, ending 20m past him. The book
+    computes the damage as (1/2 x 3d6) + 3d6 = 4 1/2d6.
 
 WHY THEY DISAGREE. The parenthetical says to halve STR *before* converting to
 damage: STR 15 -> 7 STR -> 7/5 = 1 DC, so 1 + 3 = 4 DC. The example instead
