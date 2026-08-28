@@ -202,11 +202,13 @@ def main() -> None:
     except ValueError as exc:
         print(f"  Dodge.declare STILL raises: {exc}")
     print("\n  Read side by side: 'stunned' is gone from the status set above,")
-    print("  but the Abort is still refused and the DCV penalty is still")
-    print("  live. A status panel that only showed the id set would read as")
-    print("  self-contradictory here -- the wider 'recovering' window")
-    print("  (`stunned_or_recovering_for`) is the thing actually gating both,")
-    print("  and it has no status id of its own to display.")
+    print("  but 'recoveringFromStunned' has taken its place -- 6E2 p.39's")
+    print("  own named row for this window (same 1/2 DCV/hit-location")
+    print("  penalty as Stunned outright). The Abort is still refused and")
+    print("  the DCV penalty is still live, and now the status set actually")
+    print("  SAYS why: a status panel reading the id set alone would show")
+    print("  bob as still conditioned, not as an unconditioned fighter who")
+    print("  inexplicably can't act.")
 
     # ── 6. Fully recovered — acting normally again ───────────────────────
     rule("6. Segment 6 — bob's NEXT Phase: fully recovered")

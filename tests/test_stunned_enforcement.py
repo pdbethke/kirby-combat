@@ -659,3 +659,112 @@ def test_stunned_combatant_retains_grip_on_held_objects():
 
     assert after_attacks == before_attacks
     assert after_defenses == before_defenses
+
+
+# ----------------------------------------------------------------------- #
+# Coherence follow-up: RECOVERING_FROM_STUNNED
+# (``kirby_combat/statuses.py``)
+# ----------------------------------------------------------------------- #
+#
+# Found by ``examples/stunned.py`` step 5: at bob's recovery Phase,
+# `statuses_for` printed `{— none —}` while `effective_dcv_for` was still
+# halved and `Dodge.declare` was still refused -- the wider
+# `stunned_or_recovering_for` window (which both of those already read)
+# had NO status id of its own, so a status-panel consumer would show an
+# apparently-unconditioned fighter who inexplicably can't act. 6E2 p.39
+# gives "Recovering from being Stunned" its own named condition-table row
+# (DCV 1/2, hit locations 1/2 -- same penalty as Stunned outright); 6E2
+# p.107 narrates the same window ("recovering from being Stunned is all
+# he can do that Phase"). `RECOVERING_FROM_STUNNED` surfaces it.
+
+
+def test_recovering_from_stunned_fills_the_gap_stunned_leaves():
+    """The exact reproduction of the example's finding: at bob's recovery
+    Phase, `stunned` has cleared but the wider window is still live, and
+    now a status id names it instead of the set going empty."""
+    from kirby_combat.statuses import (
+        RECOVERING_FROM_STUNNED, STUNNED, statuses_for,
+    )
+
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)  # bob's recovery Phase
+
+    result = statuses_for(session, "bob")
+    assert STUNNED not in result
+    assert RECOVERING_FROM_STUNNED in result
+
+
+def test_stunned_and_recovering_from_stunned_are_mutually_exclusive():
+    """Never both in the set at once, checked at every stage of the cycle:
+    the moment of the hit (STUNNED only), during the recovery Phase
+    (RECOVERING_FROM_STUNNED only), and once fully clear (neither)."""
+    from kirby_combat.statuses import (
+        RECOVERING_FROM_STUNNED, STUNNED, statuses_for,
+    )
+
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    at_hit = statuses_for(session, "bob")
+    assert STUNNED in at_hit
+    assert RECOVERING_FROM_STUNNED not in at_hit
+
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)  # recovery Phase
+
+    at_recovery = statuses_for(session, "bob")
+    assert not ({STUNNED, RECOVERING_FROM_STUNNED} <= at_recovery)  # never both
+
+    session = _advance(session, to_segment=4, to_turn=2)
+    session = _advance(session, to_segment=5, to_turn=2)
+    session = _advance(session, to_segment=6, to_turn=2)  # fully recovered
+
+    at_clear = statuses_for(session, "bob")
+    assert STUNNED not in at_clear
+    assert RECOVERING_FROM_STUNNED not in at_clear
+
+
+def test_stunned_or_recovering_is_never_unreported_by_both_ids():
+    """The precise shape of the bug the example found: whenever the wider
+    `stunned_or_recovering_for` window is true, `statuses_for` must name
+    it via at least one of STUNNED / RECOVERING_FROM_STUNNED -- the two
+    can never BOTH be absent while the window that gates the CV penalty
+    and the Abort denial is still live. Checked across the whole cycle,
+    not just at one segment."""
+    from kirby_combat.statuses import (
+        RECOVERING_FROM_STUNNED, STUNNED, statuses_for, stunned_or_recovering_for,
+    )
+
+    attacker, target = _attacker_for_stun(), _target_for_stun(spd=4)
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    segments = [(1, 2), (2, 2), (3, 2), (4, 2), (5, 2), (6, 2)]
+    for to_segment, to_turn in segments:
+        session = _advance(session, to_segment=to_segment, to_turn=to_turn)
+        wide = stunned_or_recovering_for(session, "bob")
+        result = statuses_for(session, "bob")
+        if wide:
+            assert STUNNED in result or RECOVERING_FROM_STUNNED in result, (
+                to_segment, result,
+            )
+
+
+def test_recovering_from_stunned_has_no_foundry_wire_id():
+    """Checked against `hero6e-kirby/module/actor/actor-active-effects.mjs`
+    (the 43-id snapshot `FOUNDRY_STATUS_IDS_20260827` already pins) --
+    Foundry has no wire id for "recovering from being Stunned" as its own
+    condition, so it belongs in NO_FOUNDRY_EQUIVALENT, not FOUNDRY_ID."""
+    from kirby_combat.statuses import (
+        FOUNDRY_ID, NO_FOUNDRY_EQUIVALENT, RECOVERING_FROM_STUNNED,
+    )
+
+    assert RECOVERING_FROM_STUNNED not in FOUNDRY_ID
+    assert RECOVERING_FROM_STUNNED in NO_FOUNDRY_EQUIVALENT

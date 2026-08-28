@@ -35,6 +35,7 @@ from kirby_combat.statuses import (
     MENTAL_SENSE_DISABLED,
     NO_FOUNDRY_EQUIVALENT,
     RADIO_SENSE_DISABLED,
+    RECOVERING_FROM_STUNNED,
     SENSE_GROUP_TO_STATUS_ID,
     SIGHT_SENSE_DISABLED,
     SMELL_TASTE_SENSE_DISABLED,
@@ -67,9 +68,9 @@ def test_the_engines_internal_names_are_not_the_canon():
 
 def test_all_expected_ids_present():
     expected = {
-        STUNNED, KNOCKED_OUT, DEAD, ENTANGLED, GRAB, ABORTED, HOLDING,
-        SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED, MENTAL_SENSE_DISABLED,
-        RADIO_SENSE_DISABLED, SMELL_TASTE_SENSE_DISABLED,
+        STUNNED, KNOCKED_OUT, DEAD, RECOVERING_FROM_STUNNED, ENTANGLED, GRAB,
+        ABORTED, HOLDING, SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED,
+        MENTAL_SENSE_DISABLED, RADIO_SENSE_DISABLED, SMELL_TASTE_SENSE_DISABLED,
     }
     assert ALL_STATUS_IDS == expected
 
@@ -367,6 +368,9 @@ PRODUCED_BY = {
              "(6E2 p.107)",
     DEAD: "_is_dead -- ActionResolved.result_payload['status_changes'] "
           "contains 'Dead' (never clears)",
+    RECOVERING_FROM_STUNNED: "_is_recovering_from_stunned -- "
+          "stunned_or_recovering_for AND NOT _is_stunned (6E2 p.39's own "
+          "named row, distinct from Stunned)",
 }
 
 # statuses.py's own "Deliberately NOT read here" list is now empty for these
