@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from kirby_combat.scene.scene import Position, Scene, Wall, is_climbable
 from kirby_combat.scene.geometry import (
@@ -43,6 +44,9 @@ from kirby_combat.scene.geometry import (
     wall_height_blocks,
 )
 from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingResult
+
+if TYPE_CHECKING:
+    from kirby_combat.session.combat_session import CombatSession
 
 _EPS = 1e-6
 _FALL_COMBATANT_ID = "mover"   # default; overridden by movement_reach(combatant_id=)
@@ -170,6 +174,7 @@ def movement_reach(
     distance_m: float,
     scene: Scene,
     combatant_id: str = "mover",
+    session: "CombatSession | None" = None,
 ) -> MovementOutcome:
     """Resolve whether `to_pos` is reachable from `from_pos` via `mode` with
     `distance_m` of movement capacity. Returns a MovementOutcome with the actual
@@ -179,7 +184,32 @@ def movement_reach(
     `MovementOutcome.fall` can treat `fall.combatant_id` as the mover's id.
     Defaults to ``"mover"`` so existing call sites without the argument are
     unaffected.
+
+    `session`, new in Task 3 of ``conditions-must-bite``, is OPTIONAL and
+    defaults to ``None`` -- a caller that doesn't pass it (every existing
+    caller) gets exactly today's behaviour back, no Stunned check at all.
+    When given, and `combatant_id` is Stunned or recovering from being
+    Stunned in that session (6E2 p.106: "A character who's Stunned or
+    recovering from being Stunned can... cannot move"), the move is
+    refused outright: this function stays a pure resolver of Scene +
+    Positions otherwise, so the refusal is reported the SAME way every
+    other "can't get there" case in this function already is -- an
+    unreachable `MovementOutcome` (`reachable=False`) whose `landing` is
+    `from_pos` (no distance covered at all, unlike a blocked-by-a-wall
+    partial move) and no `fall` (a Stunned combatant hasn't moved, so
+    there is nothing to fall from). No exception: this module never
+    raises for a legality failure anywhere else (a blocked wall, an
+    unreachable teleport target, an out-of-water swim all return
+    `reachable=False` instead), so a Stunned refusal keeping that shape
+    is the consistent choice, not a new style introduced for one
+    condition.
     """
+    if session is not None:
+        from kirby_combat.statuses import stunned_or_recovering_for
+
+        if stunned_or_recovering_for(session, combatant_id):
+            return MovementOutcome(reachable=False, landing=from_pos, fall=None)
+
     if mode == "running":
         return _running(from_pos, to_pos, distance_m, scene, combatant_id)
     if mode == "leaping":

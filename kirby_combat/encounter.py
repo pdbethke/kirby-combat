@@ -288,6 +288,40 @@ class Encounter:
     #: caller.
     acts_first: "Mapping[str, str]" = field(default_factory=dict)
 
+    def record_block_priority(self, priority: "Mapping[str, str]") -> "Encounter":
+        """Merge a just-recorded Block's "acts first" entry into
+        `self.acts_first`.
+
+        This is THE missing link `actions/reactive/block.py`'s
+        `Block.acts_first_priority` docstring described: that pure
+        function and `resolve_block_in_session` (`actions/recording.py`)
+        already compute a Block's 6E2 p.60 priority as a
+        `{blocker_id: attacker_id}` mapping, and `run_segment`/
+        `consume_block_priority` already know how to spend an entry out
+        of `self.acts_first` -- nothing previously carried a value from
+        the first pair to the second. `resolve_block_in_session` returns
+        `{}` on a failed Block and a one-entry mapping on a successful
+        one; either is safe to pass here unconditionally.
+
+        6E2 p.60, "ACTING FIRST": the priority is additive carried state,
+        not a per-call argument -- it must survive "even if [the
+        attacker] does not attack again", i.e. across Segments the
+        blocker and that attacker do not share, until they do. So this
+        MERGES `priority` on top of `self.acts_first` (new entries win on
+        a repeated blocker_id) rather than replacing it outright -- unlike
+        `run_segment(acts_first=...)`'s explicit-argument-overrides
+        semantics (see that method's docstring), which is a deliberate,
+        different contract for a different caller: `run_segment` is told
+        "here is the priority state to use for this one call", while this
+        method is told "here is one more Block that just resolved -- add
+        it to what's already carried."
+
+        Returns a NEW `Encounter` (this dataclass is frozen); `self` is
+        never mutated. `priority` is read-only here and is never mutated
+        either -- the returned Encounter's `acts_first` is a fresh dict.
+        """
+        return replace(self, acts_first={**self.acts_first, **priority})
+
     def _resolve_template(self, campaign: "Campaign | None") -> "CombatTemplate":
         """Resolve the CombatTemplate this Encounter should use right now.
 

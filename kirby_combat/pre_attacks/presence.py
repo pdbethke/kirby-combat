@@ -42,11 +42,49 @@ def resolve_presence_attack(
     dice_values: list[int],
     bonus_dice_from_situation: int = 0,
     target_pre_defense: int = 0,
+    target_stunned: bool = False,
 ) -> PresenceAttackResult:
+    """Resolve one Presence Attack.
+
+    `target_stunned`, new in Task 3 of ``conditions-must-bite``, defaults
+    to ``False`` so every existing caller (none of which pass it) gets
+    today's behaviour back unchanged. 6E2 p.106: "A character who's
+    Stunned or recovering from being Stunned... cannot be affected by
+    Presence Attacks." This function stays a pure resolver of the values
+    it's handed -- it takes no `CombatSession` and does not derive
+    Stunned itself; a session-aware caller (this engine's own recording
+    layer, or kirby-api's driver) is expected to read
+    ``statuses.stunned_or_recovering_for`` and pass the bool in, exactly
+    the same shape as `target_pre_defense` already being a caller-supplied
+    number rather than something this function looks up.
+    """
     base_dice = base_pre_dice(attacker)
     total_dice = base_dice + bonus_dice_from_situation
     # PRE Defense reduces incoming dice 1-for-1 (6E2 p138)
     effective_dice = max(0, total_dice - target_pre_defense)
+
+    if target_stunned:
+        # 6E2 p.106: a Stunned (or recovering) target cannot be affected
+        # at all -- forced to "no_effect" regardless of the roll, and no
+        # dice are consumed/tallied since nothing about the attack is
+        # actually applied to the target.
+        roll_total = 0
+        effect = "no_effect"
+        audit = [
+            f"PRE Attack: PRE={attacker.pre}/5={base_dice} base; "
+            f"+{bonus_dice_from_situation} situational; "
+            f"-{target_pre_defense} PRE Def -> {effective_dice} effective dice",
+            "Target is Stunned (or recovering from being Stunned) -- "
+            "cannot be affected by Presence Attacks (6E2 p.106) -> "
+            "effect=no_effect",
+        ]
+        return PresenceAttackResult(
+            attacker_id=attacker.id, target_id=target.id,
+            base_dice=base_dice, bonus_dice=bonus_dice_from_situation,
+            total_dice=total_dice, target_pre_defense=target_pre_defense,
+            effective_dice=effective_dice, roll_total=roll_total,
+            target_pre=target.pre, effect=effect, audit=audit,
+        )
 
     # Caller passes pre-rolled dice values; we tally the first `effective_dice`
     if effective_dice > len(dice_values):

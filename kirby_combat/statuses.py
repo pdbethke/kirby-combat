@@ -79,11 +79,16 @@ STUNNED = "stunned"
 # carries "Stunned"; `_is_stunned` below folds that back out. See
 # `statuses_for`'s docstring for the clear edge (6E2 p.107).
 #
-# `mental/mental_blast.py:45`'s own `target_stunned` (mental attacks) is a
-# SEPARATE computation that nothing records onto the event log the same
-# way -- so a mental Stunned is not yet foldable here. That is a real,
-# narrower gap than the one this task closes (physical attacks via
-# `resolve_attack_in_session`), not something this module claims to cover.
+# `mental/mental_blast.py:45`'s own `target_stunned` (mental attacks) used
+# to be a SEPARATE computation that nothing recorded onto the event log
+# the same way a physical Stunned was -- that gap is CLOSED as of
+# `resolve_mental_blast_in_session` (`actions/recording.py`, commit
+# `df2486c`), which builds the SAME `status_changes` payload (via
+# `resolution/status.py::determine_status_changes`) a physical attack's
+# `resolve_attack_in_session` does. `_is_stunned` below folds a mental
+# Stunned exactly the way it folds a physical one -- it reads
+# `payload["status_changes"]` and never looks at `action_type`/`kind`, so
+# it can't distinguish the two sources and doesn't need to.
 
 KNOCKED_OUT = "knockedOut"
 # current STUN <= 0. See kirby_combat/participant.py:139 `is_ko`
@@ -126,6 +131,36 @@ DEAD = "dead"
 # `ActionResolved` whose `result_payload["status_changes"]` carries "Dead";
 # `_is_dead` below folds that back out. Unlike STUNNED, this condition
 # never clears (see `statuses_for`'s docstring).
+
+RECOVERING_FROM_STUNNED = "recoveringFromStunned"
+# 6E2 p.39's condition-modifier table gives this its OWN named row,
+# separate from "Stunned" -- "Recovering from being Stunned, Dcv = 1/2.
+# Recovering from being Stunned, hit locations = 1/2" -- the SAME penalty
+# as Stunned outright, but the book treats it as its own condition, not a
+# lingering tail of the first. 6E2 p.107, "RECOVERING FROM BEING STUNNED":
+# "In the character's next full Phase after becoming Stunned, he recovers
+# from being Stunned when his DEX occurs in the Segment... but he still
+# cannot act until his next Phase -- recovering from being Stunned is all
+# he can do that Phase."
+#
+# Named for camelCase-multiword parity with KNOCKED_OUT ("knockedOut")
+# rather than a Stunned-prefixed variant -- this is p.39's own name for a
+# distinct row, not a qualifier on STUNNED.
+#
+# Coherence gap this closes (found by `examples/stunned.py` step 5, the
+# same shape as two prior Criticals on this branch): `cv_modifiers.py`'s
+# CV penalty and `actions/reactive/abort.py`'s Abort denial both already
+# read the WIDER `statuses.stunned_or_recovering_for` window (Task 3),
+# but nothing surfaced that window as a status id of its own -- so a
+# combatant past the narrower `stunned` clear edge but still inside that
+# wider window showed an EMPTY status set while still losing half his DCV
+# and his Abort, which is self-contradictory to any consumer (an
+# apparently-unconditioned fighter who inexplicably can't act). See
+# `_is_recovering_from_stunned` below for the derivation -- it does not
+# duplicate `stunned_or_recovering_for`'s fold; it is defined directly in
+# terms of it and `_is_stunned`, so the two ids stay mutually exclusive by
+# construction (see `statuses_for`'s docstring for the exhaustive-and-
+# exclusive proof).
 
 # ---------------------------------------------------------------------------
 # Entangle / Grab / Held Action / Abort
@@ -243,6 +278,7 @@ ALL_STATUS_IDS: frozenset[str] = frozenset(
         STUNNED,
         KNOCKED_OUT,
         DEAD,
+        RECOVERING_FROM_STUNNED,
         ENTANGLED,
         GRAB,
         ABORTED,
@@ -263,10 +299,12 @@ ALL_STATUS_IDS: frozenset[str] = frozenset(
 # actual Foundry token; it is not consulted anywhere else in this package
 # (`statuses_for`, `status_deltas`, `apply_event` all speak Kirby ids only).
 #
-# Eleven of twelve ids map identically; only SIGHT_SENSE_DISABLED differs,
+# Eleven of thirteen ids map identically; only SIGHT_SENSE_DISABLED differs,
 # because Foundry's wire id for that condition is the legacy "blind" (see
-# the note on SIGHT_SENSE_DISABLED above). Divergence should mean something;
-# where Foundry and Kirby already agree, the mapping is the identity.
+# the note on SIGHT_SENSE_DISABLED above). RECOVERING_FROM_STUNNED has no
+# entry here at all -- see NO_FOUNDRY_EQUIVALENT below. Divergence should
+# mean something; where Foundry and Kirby already agree, the mapping is
+# the identity.
 #
 # Every value here must be a real id in FOUNDRY_STATUS_IDS_20260827
 # (tests/test_statuses.py) -- but that snapshot no longer bounds
@@ -289,12 +327,16 @@ FOUNDRY_ID: dict[str, str] = {
 
 # Kirby ids with no Foundry equivalent at all -- a *stated decision*, not an
 # oversight, so an id missing from FOUNDRY_ID doesn't read as one we forgot
-# to map. Empty today: every id in ALL_STATUS_IDS happens to have a Foundry
-# counterpart. This set is where a future Kirby-only condition (one Foundry
-# has no id for at all) would be declared, so it stays even though nothing
-# populates it yet -- see the module docstring: a Kirby id with no Foundry
-# equivalent is expected and fine, never a test failure.
-NO_FOUNDRY_EQUIVALENT: frozenset[str] = frozenset()
+# to map. RECOVERING_FROM_STUNNED lives here: checked against
+# `hero6e-kirby/module/actor/actor-active-effects.mjs` (the 43-id snapshot
+# this module already reads elsewhere) and against 6E1's own Foundry-side
+# HERO condition coverage -- neither defines any wire id for "recovering
+# from being Stunned" as its own condition (Foundry's Stunned handling is
+# a single `stunnedEffect`; the 6E2 p.39 table row this engine models has
+# no Foundry-side counterpart at all). This is expected and fine per the
+# module docstring, not an oversight -- Foundry's list is a coverage
+# reference, never the authority on what Kirby is allowed to define.
+NO_FOUNDRY_EQUIVALENT: frozenset[str] = frozenset({RECOVERING_FROM_STUNNED})
 
 # ---------------------------------------------------------------------------
 # Known-unmodelled -- Foundry ids for HERO Sense Groups this engine does not
@@ -437,6 +479,149 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     return stunned
 
 
+def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bool:
+    """True while Stunned OR recovering from being Stunned (Task 3,
+    ``conditions-must-bite``; window corrected in the merge-blocker fix
+    below -- read the CORRECTED WINDOW section before touching this
+    function again).
+
+    6E2 p.106, "Stunning": "A character who's Stunned or recovering from
+    being Stunned can take no Actions, take no Recoveries (except his
+    free Post-Segment 12 Recovery), cannot move, and cannot be affected
+    by Presence Attacks." -- this is a WIDER window than the ``stunned``
+    status id above: ``_is_stunned`` clears at the START of the
+    combatant's recovery Phase (see its own docstring for why that is
+    the right edge for the ``stunned`` id specifically), but this
+    consequence -- no Actions/no movement/PRE-Attack immunity -- is
+    explicitly extended to "recovering from being Stunned" as its own
+    named state, by the same sentence that lists it.
+
+    **CORRECTED WINDOW (6E2 p.107, quoted in full, since an earlier
+    version of this function got the edge wrong by a whole Phase):**
+
+    > "In the character's next full Phase after becoming Stunned, he
+    > recovers from being Stunned when his DEX occurs in the Segment. He
+    > regains his full DCV (and Placed Shot modifiers return to normal),
+    > but he still cannot act until his next Phase -- recovering from
+    > being Stunned is all he can do that Phase. However, after
+    > recovering from being Stunned, a character may, if he wishes,
+    > Abort to a defensive Action (even in the same Segment in which he
+    > recovers from being Stunned). Example: Andarra (DEX 20, SPD 3) is
+    > Stunned by an attack on Segment 6. She must use her Phase on
+    > Segment 8 to recover; she recovers on DEX 20 (so an enemy attacking
+    > her in Segment 8 with, say, DEX 15 would have to hit her at her
+    > full DCV). Andarra cannot take any other Action until her next
+    > Phase on Segment 12, but may Abort her Phase in Segment 12 in
+    > Segments 8 (after her DEX occurs), 9, 10, or 11 if she so desires."
+
+    So the book's own example runs DCV and Abort back to normal for
+    Andarra in Segments 9, 10, and 11 -- the whole stretch between her
+    recovery Phase (Segment 8) and her NEXT full Phase (Segment 12). The
+    earlier version of this function stopped the window at that NEXT
+    full Phase instead of at the recovery Phase's own Segment, which
+    denied Andarra's Abort and halved her DCV for three Segments (9, 10,
+    11) the book explicitly restores her in -- one full Phase too long.
+
+    **The fix: the window runs from the Stunning hit through the END of
+    the Segment containing the recovery Phase, and is gone from the next
+    ``SegmentAdvanced`` onward.** In fold terms: the same SET edge (a
+    qualifying "Stunned" in an ``ActionResolved.status_changes``) enters
+    "stunned"; the first matching ``SegmentAdvanced`` (the recovery
+    Phase, same edge ``_is_stunned`` clears on) enters "recovering"; and
+    the VERY NEXT ``SegmentAdvanced`` after that -- regardless of whether
+    it is one of the combatant's own Phase segments -- clears back to
+    "none". That is exactly one Segment of "recovering", matching
+    Andarra's Segment 8 alone, not Segments 8-11.
+
+    **Residual approximation, documented rather than hidden (matching
+    ``_is_stunned``'s own honesty about its early-clear bias):** the book
+    restores full DCV and allows the Abort PARTWAY THROUGH the recovery
+    Segment -- "she recovers on DEX 20", i.e. once her DEX has come up in
+    that Segment, not from the top of it. This fold has no intra-Segment
+    DEX-order information (``statuses_for`` folds a Segment-granularity
+    log, not a DEX-ordered action queue), so it cannot represent that
+    precise edge. Ending the window at the CLOSE of the recovery Segment
+    (rather than at Andarra's DEX within it) over-penalises by at most
+    the post-DEX portion of that ONE Segment -- versus the prior bug's
+    over-penalisation by up to a full Phase (three Segments, in
+    Andarra's case). The direction of the residual error is
+    "conservative": a combatant who should already be free to Abort or
+    act at full DCV, for the sliver of the recovery Segment before their
+    own DEX comes up, is still shown as recovering. No engine layer this
+    function feeds (``cv_modifiers.py``, ``actions/reactive/abort.py``,
+    ``scene/movement_legality.py``) has DEX-ordered intra-Segment timing
+    to do better with; closing that gap would need the acting-order
+    model this branch does not have, not a change to this fold.
+
+    The single source of truth for this window -- ``cv_modifiers.py``'s
+    Stunned CV penalty (6E2 p.39: the SAME DCV-1/2/hit-location-1/2 row
+    for "recovering from being Stunned" as for "Stunned" outright) reads
+    this function rather than re-deriving the fold, so the two consumers
+    (a CV penalty, an action denial) cannot silently drift to different
+    boundaries.
+    """
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None:
+        raise KeyError(
+            f"stunned_or_recovering_for: unknown combatant {combatant_id!r} "
+            "-- this session has no combatant with that id"
+        )
+    phase_segments = segments_for_spd(combatant.combat_stats().spd)
+
+    stage = "none"  # "none" -> "stunned" -> "recovering" -> "none"
+    for evt in session.event_log:
+        kind = evt.kind
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("target_id") == combatant_id
+                and "Stunned" in payload.get("status_changes", ())
+            ):
+                stage = "stunned"
+        elif kind == "SegmentAdvanced":
+            if stage == "stunned":
+                at_phase = not phase_segments or evt.to_segment in phase_segments
+                if at_phase:
+                    stage = "recovering"
+            elif stage == "recovering":
+                # The VERY NEXT SegmentAdvanced after entering "recovering"
+                # clears it, regardless of to_segment -- see CORRECTED
+                # WINDOW above. "Recovering" lasts exactly the one Segment
+                # in which the combatant's recovery Phase falls, not until
+                # their next full Phase.
+                stage = "none"
+    return stage in ("stunned", "recovering")
+
+
+def _is_recovering_from_stunned(session: "CombatSession", combatant_id: str) -> bool:
+    """Fold RECOVERING_FROM_STUNNED out of the event log: exactly the gap
+    between ``stunned_or_recovering_for``'s wider window and ``_is_stunned``'s
+    narrower one -- true while the combatant is in the "recovering" stage
+    of ``stunned_or_recovering_for``'s own fold but ``_is_stunned`` no
+    longer holds.
+
+    Deliberately NOT a re-derivation: this reuses both existing folds
+    rather than re-walking the event log a third time, which is what
+    keeps ``STUNNED`` and ``RECOVERING_FROM_STUNNED`` mutually exclusive
+    BY CONSTRUCTION (see ``statuses_for``'s docstring) -- one is exactly
+    "wide AND NOT narrow", so the two can never both be true for the same
+    combatant at the same time, and (since ``stunned_or_recovering_for``
+    is the strict superset) they can never both be false while
+    ``stunned_or_recovering_for`` itself is true either -- closing the gap
+    ``examples/stunned.py`` step 5 printed (an empty status set while
+    ``stunned_or_recovering_for`` was still gating the CV penalty and the
+    Abort denial).
+
+    6E2 p.39's condition table gives "Recovering from being Stunned" its
+    own named row (DCV 1/2, hit locations 1/2 -- identical to "Stunned"),
+    and 6E2 p.107 narrates the same window: "recovering from being
+    Stunned is all he can do that Phase."
+    """
+    return stunned_or_recovering_for(session, combatant_id) and not _is_stunned(
+        session, combatant_id
+    )
+
+
 def _is_dead(session: "CombatSession", combatant_id: str) -> bool:
     """Fold Dead out of the event log (Task 4): an ``ActionResolved``
     naming this combatant (``"target_id"``, ``resolve_attack_in_session``)
@@ -571,8 +756,23 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       folds ``ActionResolved.result_payload["status_changes"]`` (set,
       written by ``resolve_attack_in_session``) against ``SegmentAdvanced``
       (clear, 6E2 p.107 -- see that function's docstring for the exact
-      SET/CLEAR fold). Physical attacks only today (see "Deliberately NOT
-      read here" below).
+      SET/CLEAR fold). Covers a mental Stunned too, as of
+      ``resolve_mental_blast_in_session`` (``actions/recording.py``,
+      commit ``df2486c``) -- ``_is_stunned`` reads
+      ``payload["status_changes"]`` without looking at ``action_type``,
+      so a mental attack's payload folds in exactly the same way a
+      physical one's does.
+    - Recovering from being Stunned:
+      ``_is_recovering_from_stunned(session, combatant_id)`` (this
+      module) -- 6E2 p.39's own separate condition-table row for this
+      window (see ``RECOVERING_FROM_STUNNED``'s and
+      ``_is_recovering_from_stunned``'s docstrings). Folded via an
+      ``elif`` against ``_is_stunned`` immediately above, so ``STUNNED``
+      and ``RECOVERING_FROM_STUNNED`` are mutually exclusive in the
+      returned set BOTH by ``_is_recovering_from_stunned``'s own
+      definition (wide window AND NOT narrow window) AND by this
+      call-site branch -- belt and suspenders on purpose, given this
+      branch's history of exactly this shape of coherence gap.
     - Dead: ``_is_dead(session, combatant_id)`` (this module) -- same
       ``status_changes`` source as Stunned, no clear edge (see that
       function's docstring).
@@ -586,14 +786,18 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     - ``prone`` -- not stored per-combatant anywhere in this engine (see the
       module-level NOTE above); there is nothing to fold in.
-    - a **mental** Stunned -- ``mental/mental_blast.py:45``'s own
-      ``target_stunned`` is computed by a resolver ``resolve_attack_in_session``
-      does not wrap, so nothing persists a mental Stunned onto the event
-      log the way a physical one is persisted. ``_is_stunned`` therefore
-      only ever sees physical Stunned today; wiring a mental-attack
-      recording path is separate work this task does not attempt. The same
-      gap applies to a mental Knocked Out (``mental_blast.py``'s
-      ``target_ko``) for the same reason.
+
+    Formerly NOT read here, now covered (corrects earlier text in this
+    docstring): a **mental** Stunned/Knocked Out. ``mental/mental_blast.py
+    :45``'s own ``target_stunned``/``target_ko`` used to be computed by a
+    resolver ``resolve_attack_in_session`` didn't wrap, so nothing
+    persisted them onto the event log. ``resolve_mental_blast_in_session``
+    (``actions/recording.py``, commit ``df2486c``) closed that gap by
+    building the same ``status_changes`` payload
+    (``resolution/status.py::determine_status_changes``) a physical
+    attack's wrapper does -- ``_is_stunned`` and
+    ``_is_knocked_out_from_payload`` both fold it with no code change of
+    their own, since neither reads ``action_type``.
 
     Preconditions -- this function requires a session whose ``event_log``
     contains the *complete* history for the seven sources that walk it
@@ -669,6 +873,13 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     if _is_stunned(session, combatant_id):
         statuses.add(STUNNED)
+    elif _is_recovering_from_stunned(session, combatant_id):
+        # `elif`, not a second independent `if`: `_is_recovering_from_stunned`
+        # is already defined as "wide window AND NOT narrow window" (see its
+        # own docstring), so this branch is dead when STUNNED fires above --
+        # the `elif` just makes that mutual exclusivity visible at the call
+        # site too, rather than relying only on the callee's own guarantee.
+        statuses.add(RECOVERING_FROM_STUNNED)
 
     if _is_dead(session, combatant_id):
         statuses.add(DEAD)
@@ -697,5 +908,44 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
         # one combatant's status set, not smuggled into a single source's
         # clear edge.
         statuses.add(KNOCKED_OUT)
+
+        # DEAD also implies NOT recovering-from-Stunned (review finding,
+        # ``2026-08-28-conditions-must-bite`` final-fix pass): "recovering"
+        # names an active process -- 6E2 p.107, "recovering from being
+        # Stunned is all he can do that Phase" -- and a corpse cannot
+        # undertake any process, active or passive. Without this, a lethal
+        # hit followed by one at-Phase `SegmentAdvanced` produces
+        # ``{dead, knockedOut, recoveringFromStunned}``, which names an
+        # ongoing recovery for a combatant who, per this same line, is
+        # unconditionally KNOCKED_OUT and DEAD. Discarding rather than
+        # gating `_is_recovering_from_stunned`'s own fold on `not
+        # _is_dead(...)` keeps that function's contract (exactly
+        # `stunned_or_recovering_for` AND NOT `_is_stunned`) uncomplicated
+        # by a second combatant's-worth of DEAD-awareness -- the same
+        # reasoning the KNOCKED_OUT implication just above already uses.
+        #
+        # KNOCKED_OUT ALONE (not DEAD) deliberately does NOT get the same
+        # implication here, even though an unconscious combatant cannot
+        # actively "recover from being Stunned" either in principle.
+        # Decided against, not merely deferred: unlike DEAD (exact,
+        # irreversible, no clear edge), the KNOCKED_OUT id is the UNION of
+        # three sources (see this function's own KO bullet above), and its
+        # payload half is its own docstring's self-described "conservative
+        # proxy... an occasional early clear... not an exact replay" that
+        # can read true for a combatant who, moments later in the same log,
+        # is genuinely conscious and legitimately recovering (this
+        # engine's own test suite exercises exactly that combination as
+        # correct today -- e.g.
+        # ``tests/test_stunned_enforcement.py::test_recovering_from_stunned_fills_the_gap_stunned_leaves``,
+        # where the qualifying hit also drives payload STUN below zero).
+        # Layering "no recovering while knocked out" on top of a signal
+        # that is already documented as over-inclusive would suppress
+        # RECOVERING_FROM_STUNNED for combatants the log cannot actually
+        # prove are still unconscious -- trading one coherence gap (a
+        # corpse "recovering") for a worse one (a conscious, recovering
+        # combatant silently losing the id a CV-penalty/Abort-denial
+        # consumer already keys on). DEAD has no such false-positive risk,
+        # so only DEAD gets the implication.
+        statuses.discard(RECOVERING_FROM_STUNNED)
 
     return frozenset(statuses)

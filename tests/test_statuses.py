@@ -35,6 +35,7 @@ from kirby_combat.statuses import (
     MENTAL_SENSE_DISABLED,
     NO_FOUNDRY_EQUIVALENT,
     RADIO_SENSE_DISABLED,
+    RECOVERING_FROM_STUNNED,
     SENSE_GROUP_TO_STATUS_ID,
     SIGHT_SENSE_DISABLED,
     SMELL_TASTE_SENSE_DISABLED,
@@ -67,9 +68,9 @@ def test_the_engines_internal_names_are_not_the_canon():
 
 def test_all_expected_ids_present():
     expected = {
-        STUNNED, KNOCKED_OUT, DEAD, ENTANGLED, GRAB, ABORTED, HOLDING,
-        SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED, MENTAL_SENSE_DISABLED,
-        RADIO_SENSE_DISABLED, SMELL_TASTE_SENSE_DISABLED,
+        STUNNED, KNOCKED_OUT, DEAD, RECOVERING_FROM_STUNNED, ENTANGLED, GRAB,
+        ABORTED, HOLDING, SIGHT_SENSE_DISABLED, HEARING_SENSE_DISABLED,
+        MENTAL_SENSE_DISABLED, RADIO_SENSE_DISABLED, SMELL_TASTE_SENSE_DISABLED,
     }
     assert ALL_STATUS_IDS == expected
 
@@ -367,6 +368,9 @@ PRODUCED_BY = {
              "(6E2 p.107)",
     DEAD: "_is_dead -- ActionResolved.result_payload['status_changes'] "
           "contains 'Dead' (never clears)",
+    RECOVERING_FROM_STUNNED: "_is_recovering_from_stunned -- "
+          "stunned_or_recovering_for AND NOT _is_stunned (6E2 p.39's own "
+          "named row, distinct from Stunned)",
 }
 
 # statuses.py's own "Deliberately NOT read here" list is now empty for these
@@ -558,6 +562,40 @@ def test_statuses_for_dead_appears_and_persists():
     session = _advance(session, to_segment=3, to_turn=2)
 
     assert DEAD in statuses_for(session, "bob")
+
+
+def test_statuses_for_dead_does_not_also_read_as_recovering_from_stunned():
+    """Review finding (LOW, ``2026-08-28-conditions-must-bite`` final-fix
+    pass): a corpse cannot "recover" from anything -- 6E2 p.107,
+    "recovering from being Stunned is all he can do that Phase", names an
+    active process. A lethal hit (Stunned + Dead together, same fixture
+    as ``test_statuses_for_dead_appears_and_persists``) followed by one
+    at-Phase ``SegmentAdvanced`` used to yield ``{dead, knockedOut,
+    recoveringFromStunned}`` -- this pins the fix: DEAD implies NOT
+    RECOVERING_FROM_STUNNED, same call site as the pre-existing DEAD =>
+    KNOCKED_OUT implication just above it in ``statuses.py``."""
+    attacker = _attacker_for_stun()
+    target = _target_for_stun(current_body=-10)
+    session = _session(attacker, target)
+    attack = _hitting_attack_for_stun(attacker, target)
+
+    session, result = resolve_attack_in_session(session, attack, session.template)
+    assert "Stunned" in result.status_changes
+    assert "Dead" in result.status_changes
+
+    # bob's recovery Phase (SPD 4 -> Phases 3/6/9/12; session starts
+    # Segment 12, so the hit lands on his own Phase, and Segment 3 is his
+    # next full Phase) -- the exact Segment `_is_recovering_from_stunned`
+    # would otherwise fire in for a living combatant.
+    session = _advance(session, to_segment=1, to_turn=2)
+    session = _advance(session, to_segment=2, to_turn=2)
+    session = _advance(session, to_segment=3, to_turn=2)
+
+    result_ids = statuses_for(session, "bob")
+    assert DEAD in result_ids
+    assert KNOCKED_OUT in result_ids
+    assert RECOVERING_FROM_STUNNED not in result_ids
+    assert STUNNED not in result_ids  # sanity: not the OTHER Stunned id either
 
 
 # ---------------------------------------------------------------------------

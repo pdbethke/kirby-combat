@@ -48,7 +48,9 @@ from typing import Any, Literal, get_args
 from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.reactive.abort import mark_aborting
 from kirby_combat.actions.reactive.block import Block, BlockResult
-from kirby_combat.models import AttackInput, AttackResult
+from kirby_combat.mental.mental_blast import MentalBlastResult, resolve_mental_blast
+from kirby_combat.models import AttackInput, AttackResult, StatBlockCombatant
+from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
     ActionDeclared, ActionResolved, make_author_combatant,
@@ -148,6 +150,129 @@ def resolve_attack_in_session(
         "body_dealt": result.body_dealt,
         "status_changes": list(result.status_changes),
         "power_xmlid": result.power_xmlid,
+        "target_id": target_id,
+    }
+
+    resolved = ActionResolved(
+        id=str(uuid.uuid4()),
+        session_id=s.id,
+        sequence=len(s.event_log) + 1,
+        timestamp=now,
+        author=make_author_combatant(attacker_id),
+        declaration_event_id=decl_id,
+        result_payload=result_payload,
+    )
+    s = apply_event(s, resolved)
+
+    return s, result
+
+
+def resolve_mental_blast_in_session(
+    session: CombatSession,
+    attacker: StatBlockCombatant,
+    target: StatBlockCombatant,
+    damage_dice_values: list[int],
+    *,
+    declaration_event_id: str | None = None,
+    action_type: str = "mental_blast",
+) -> tuple[CombatSession, MentalBlastResult]:
+    """Resolve a Mental Blast and record the outcome on the session's event log.
+
+    Same gap as ``resolve_attack_in_session``, in the one attack family that
+    wrapper doesn't cover: ``resolve_mental_blast`` (``mental/mental_blast.py``)
+    is also a pure calculator, and it already computes ``target_stunned`` /
+    ``target_ko`` (``mental_blast.py:44-45``) but has no session to hand them
+    to, so every caller today discards them. This function is that missing
+    session-aware entry point -- it runs the pure calculation UNCHANGED (see
+    that function's docstring: it must stay a total function of its inputs)
+    and then emits an ``ActionResolved`` carrying a ``status_changes`` list.
+
+    Unlike ``AttackResult``, ``MentalBlastResult`` has no ``status_changes``
+    field of its own (it exposes the two raw booleans instead), so this
+    function builds that list itself -- via ``determine_status_changes``
+    (``resolution/status.py``), the SAME function ``AttackAction.resolve``
+    calls, so the strings landing in the payload
+    (``"Stunned"`` / ``"Knocked Out"`` / ``"Dead"``) are byte-identical to
+    the ones ``statuses.py``'s ``_is_stunned`` / ``_is_dead`` /
+    ``_is_knocked_out_from_payload`` already fold out of an
+    ``ActionResolved`` payload -- so ``statuses_for`` picks up a mental
+    Stunned with no change to ``statuses.py`` at all.
+
+    Mental Blast deals STUN only by default (6E1 p.249: "Mental Blasts only
+    do STUN damage, have no effect on inanimate objects, and do no
+    Knockback" -- ``MentalBlastResult.body_dealt`` is hard-coded to 0 in
+    the pure resolver accordingly, ``mental/mental_blast.py:37``), so
+    ``body_before`` and ``body_after`` are passed through unchanged below
+    -- ``determine_status_changes``'s ``"Dead"`` branch (``body_after <=
+    -max_body``) can therefore never fire from a Mental Blast as this
+    resolver is built today.
+
+    6E2 p.106, "STUNNING": "If the STUN done to a character by a single
+    attack (after subtracting defenses) exceeds his CON, he's Stunned...
+    A Stunned character's DCV and DMCV instantly drop to ½." The rule is
+    stated generically for STUN dealt by a single attack and calls out
+    DMCV by name, so it applies to Mental Blast exactly as it does to a
+    physical attack -- ``determine_status_changes``'s ``stun_dealt > con``
+    check (the same "exceeds", not "meets or exceeds") is reused unmodified.
+
+    If ``declaration_event_id`` is omitted, an ``ActionDeclared`` is emitted
+    first (mirroring ``resolve_attack_in_session``) and its id is used as
+    the resolution's ``declaration_event_id``. Pass an existing id when the
+    caller already declared the action itself.
+
+    ``kind`` defaults to ``"mental_blast"`` -- deliberately NOT one of
+    ``ACCEPTED_ACTION_KINDS`` (kirby-api's attack filter,
+    ``situation_builder.py:687-688``, only recognizes "attack"/"strike"/
+    "grab"): a Mental Blast is none of those, and mislabeling it as one to
+    slip past that filter would misdescribe it to any consumer that reads
+    ``kind`` for narration. Widening that filter to also accept
+    "mental_blast" is kirby-api's call, out of scope here (see
+    ``resolve_block_in_session``'s docstring for the same reasoning applied
+    to ``"block"``).
+
+    Returns ``(new_session, result)`` -- ``result`` is exactly what
+    ``resolve_mental_blast`` returned; nothing about the pure result is
+    altered.
+    """
+    from kirby_combat.session.apply import apply_event
+
+    result = resolve_mental_blast(attacker, target, damage_dice_values)
+
+    attacker_id = attacker.id
+    target_id = target.id
+    now = datetime.now(timezone.utc)
+
+    s = session
+    decl_id = declaration_event_id
+    if decl_id is None:
+        declared = ActionDeclared(
+            id=str(uuid.uuid4()),
+            session_id=s.id,
+            sequence=len(s.event_log) + 1,
+            timestamp=now,
+            author=make_author_combatant(attacker_id),
+            combatant_id=attacker_id,
+            action_type=action_type,
+            targets=[target_id],
+            parameters={},
+        )
+        s = apply_event(s, declared)
+        decl_id = declared.id
+
+    status_changes = determine_status_changes(
+        stun_before=target.current_stun,
+        stun_after=target.current_stun - result.stun_dealt,
+        body_before=target.current_body,
+        body_after=target.current_body,
+        con=target.con,
+        max_body=target.max_body,
+    )
+
+    result_payload: dict[str, Any] = {
+        "kind": action_type,
+        "stun_dealt": result.stun_dealt,
+        "body_dealt": result.body_dealt,
+        "status_changes": status_changes,
         "target_id": target_id,
     }
 
@@ -268,6 +393,7 @@ def resolve_block_in_session(
 
 __all__ = [
     "resolve_attack_in_session",
+    "resolve_mental_blast_in_session",
     "resolve_block_in_session",
     "ACCEPTED_ACTION_KINDS",
     "ActionKind",
