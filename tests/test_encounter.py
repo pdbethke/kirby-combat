@@ -1,6 +1,9 @@
 """Tests for Encounter -- the engine's Segment/Turn clock."""
+from dataclasses import replace
+
 import pytest
 
+from kirby_combat.actions.recording import resolve_block_in_session
 from kirby_combat.encounter import Encounter
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import DEFAULT_TEMPLATE
@@ -482,3 +485,109 @@ def test_post_12_recovery_uses_the_campaigns_resolved_template():
     out = enc.advance_segment(campaign=campaign)
 
     assert _only_combatant(out).state.current_stun > 10
+
+
+def _encounter_for_block_chain(segment=3):
+    """Blocker DEX 10, attacker DEX 25 -- deliberately the LOWER DEX, so
+    the blocker acting first proves 6E2 p.60's "regardless of relative
+    DEX" priority and cannot be ordinary DEX ordering in disguise."""
+    return Encounter(
+        id="e1", segment=segment,
+        sessions=[_session("s", [("blocker", 10), ("attacker", 25)])],
+    )
+
+
+def _replace_session(encounter, session):
+    """Swap the encounter's one session for a freshly-recorded one,
+    keyed by id -- mirrors how a real driver would thread the session
+    `resolve_block_in_session` just returned back into its Encounter."""
+    return replace(
+        encounter,
+        sessions=[
+            session if s.id == session.id else s for s in encounter.sessions
+        ],
+    )
+
+
+def test_a_recorded_block_reaches_encounter_acts_first_and_blocker_acts_first():
+    """THE WHOLE CHAIN (not the merge in isolation): record a successful
+    Block via `resolve_block_in_session`, merge its returned priority
+    into `Encounter.acts_first`, run a real Segment, and assert the
+    blocker -- DEX 10 against the attacker's DEX 25 -- acts first. 6E2
+    p.60, "ACTING FIRST": a character who Blocks "automatically gets to
+    act first (regardless of relative DEX)" when he and the attacker
+    share a Segment. A test that only asserted the dict merged would pass
+    even if `run_segment` never consumed it -- this asserts on the acting
+    order itself, the thing the rule is actually about."""
+    enc = _encounter_for_block_chain(segment=3)
+    session = enc.sessions[0]
+
+    # blocker_ocv=13, roll=9 (3+3+3) -> blocker total 13+11-9=15 vs
+    # attacker_ocv=10 -> margin +5, a success.
+    session, result, priority = resolve_block_in_session(
+        session,
+        blocker_id="blocker",
+        attacker_id="attacker",
+        blocker_ocv=13,
+        blocker_dice=[3, 3, 3],
+        attacker_ocv=10,
+    )
+    assert result.success
+    assert priority == {"blocker": "attacker"}
+
+    enc = _replace_session(enc, session)
+    enc = enc.record_block_priority(priority)
+
+    out = enc.run_segment(roller=_scripted_roller())
+
+    assert _scene_order_ids(out)[0] == "blocker"
+
+
+def test_block_priority_holds_even_if_the_attacker_declares_no_attack():
+    """6E2 p.60: the priority holds "even if [the attacker] does not
+    attack again" -- so it must survive into a Segment where the
+    attacker's declared intent (if any) is not an attack on the blocker
+    at all. `intents={}` here means NEITHER combatant has declared
+    anything; the blocker still acts first purely off the recorded
+    Block, not off what the attacker chooses to do this Segment."""
+    enc = _encounter_for_block_chain(segment=3)
+    session = enc.sessions[0]
+
+    session, result, priority = resolve_block_in_session(
+        session,
+        blocker_id="blocker",
+        attacker_id="attacker",
+        blocker_ocv=13,
+        blocker_dice=[3, 3, 3],
+        attacker_ocv=10,
+    )
+    assert result.success
+
+    enc = _replace_session(enc, session)
+    enc = enc.record_block_priority(priority)
+
+    out = enc.run_segment(intents={}, roller=_scripted_roller())
+
+    assert _scene_order_ids(out)[0] == "blocker"
+
+
+def test_record_block_priority_merges_onto_carried_state():
+    """Unlike `run_segment(acts_first=...)` (explicit argument overrides),
+    `record_block_priority` MERGES: a Block just recorded is additive to
+    whatever priority the Encounter already carries (6E2 p.60 -- the
+    benefit is carried state, not a per-call snapshot)."""
+    enc = Encounter(id="e1", acts_first={"other_blocker": "other_attacker"})
+    out = enc.record_block_priority({"blocker": "attacker"})
+    assert out.acts_first == {
+        "other_blocker": "other_attacker",
+        "blocker": "attacker",
+    }
+    assert enc.acts_first == {"other_blocker": "other_attacker"}  # unmutated
+
+
+def test_record_block_priority_is_a_noop_for_a_failed_block():
+    """`resolve_block_in_session` returns `{}` for a failed Block --
+    passing that through must not disturb existing carried priority."""
+    enc = Encounter(id="e1", acts_first={"blocker": "attacker"})
+    out = enc.record_block_priority({})
+    assert out.acts_first == {"blocker": "attacker"}
