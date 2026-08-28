@@ -141,6 +141,14 @@ Every game-mechanical commit cites a specific page or section in 6E1 / 6E2
 where Dorman's behavior is the source of truth). The Codex retrieval system
 backs this — values are verified against the corpus rather than memory.
 
+That is a claim, so [`docs/raw-alignment.md`](docs/raw-alignment.md) makes it
+checkable: the rulebooks' own **named worked examples**, run against the
+engine. Each is a script in `examples/` that **asserts** the book's numbers,
+and `tests/test_examples.py` requires every one to exit 0 — so the page cannot
+drift from what the engine actually does. It also records where the engine is
+approximate, and one case (Move By, 6E2 p.72) where the book's worked example
+contradicts the rule it illustrates and Kirby follows the rule.
+
 ## Tests
 
 ```bash
