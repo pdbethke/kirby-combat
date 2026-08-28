@@ -442,6 +442,59 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     return stunned
 
 
+def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bool:
+    """True while Stunned OR recovering from being Stunned (Task 3,
+    ``conditions-must-bite``).
+
+    6E2 p.106, "Stunning": "A character who's Stunned or recovering from
+    being Stunned can take no Actions, take no Recoveries (except his
+    free Post-Segment 12 Recovery), cannot move, and cannot be affected
+    by Presence Attacks." -- this is a WIDER window than the ``stunned``
+    status id above: ``_is_stunned`` clears at the START of the
+    combatant's recovery Phase (see its own docstring for why that is
+    the right edge for the ``stunned`` id specifically), but this
+    consequence -- no Actions/no movement/PRE-Attack immunity -- is
+    explicitly extended one further Phase, to "recovering from being
+    Stunned" as its own named state, by the same sentence that lists it.
+
+    Tracks one stage further than ``_is_stunned``'s fold: the same SET
+    edge (a qualifying "Stunned" in an ``ActionResolved.status_changes``),
+    but does not fully clear until the SECOND matching
+    ``SegmentAdvanced`` after that -- the first enters "recovering"
+    (mirroring ``_is_stunned``'s clear), the second, the combatant's NEXT
+    full Phase after that, is when 6E2 p.107 says "recovering from being
+    Stunned is all he can do that Phase" has run its course.
+
+    The single source of truth for this window -- ``cv_modifiers.py``'s
+    Stunned CV penalty (6E2 p.39: the SAME DCV-1/2/hit-location-1/2 row
+    for "recovering from being Stunned" as for "Stunned" outright) reads
+    this function rather than re-deriving the fold, so the two consumers
+    (a CV penalty, an action denial) cannot silently drift to different
+    boundaries.
+    """
+    combatant = session.combatants[combatant_id]
+    phase_segments = segments_for_spd(combatant.combat_stats().spd)
+
+    stage = "none"  # "none" -> "stunned" -> "recovering" -> "none"
+    for evt in session.event_log:
+        kind = evt.kind
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("target_id") == combatant_id
+                and "Stunned" in payload.get("status_changes", ())
+            ):
+                stage = "stunned"
+        elif kind == "SegmentAdvanced":
+            at_phase = not phase_segments or evt.to_segment in phase_segments
+            if at_phase:
+                if stage == "stunned":
+                    stage = "recovering"
+                elif stage == "recovering":
+                    stage = "none"
+    return stage in ("stunned", "recovering")
+
+
 def _is_dead(session: "CombatSession", combatant_id: str) -> bool:
     """Fold Dead out of the event log (Task 4): an ``ActionResolved``
     naming this combatant (``"target_id"``, ``resolve_attack_in_session``)

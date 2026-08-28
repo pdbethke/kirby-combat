@@ -312,3 +312,350 @@ def test_stunned_cv_penalty_clears_after_the_recovery_phase_ends():
     assert mods.dmcv_factor == 1.0
     assert effective_dcv_for(session, "bob") == 9
     assert effective_dmcv_for(session, "bob") == 7
+
+
+# ----------------------------------------------------------------------- #
+# Task 3: Stunned denies actions -- above all, the Abort
+# (``kirby_combat/actions/reactive/abort.py``,
+# ``kirby_combat/scene/movement_legality.py``,
+# ``kirby_combat/pre_attacks/presence.py``)
+# ----------------------------------------------------------------------- #
+#
+# > 6E2 p.106, "Stunning": "The character remains Stunned and can take no
+# > Action until his next Phase (he cannot even Abort to a defensive
+# > Action). A character who's Stunned or recovering from being Stunned
+# > can take no Actions, take no Recoveries (except his free Post-Segment
+# > 12 Recovery), cannot move, and cannot be affected by Presence Attacks.
+# > Stunned characters typically retain their grip on objects they are
+# > holding."
+#
+# Denial style used at each of the three enforced call sites, and why:
+#
+#   - ``mark_aborting`` (Abort/Dodge/Block/Dive-for-Cover's single choke
+#     point) RAISES ``ValueError`` -- matching its own existing sibling
+#     precondition failure ("already aborted this phase") two lines away
+#     in the same function; every caller already handles this function
+#     raising.
+#   - ``movement_reach`` RETURNS an unreachable ``MovementOutcome``
+#     (``reachable=False``, ``landing=from_pos``, ``fall=None``) --
+#     matching every OTHER "can't get there" case this pure resolver
+#     already reports the same way (a blocked wall, an out-of-water swim,
+#     ...); this function never raises for a legality failure anywhere
+#     else, so a Stunned refusal keeping that shape is the consistent
+#     choice.
+#   - ``resolve_presence_attack`` RETURNS a ``PresenceAttackResult`` whose
+#     ``effect`` is forced to ``"no_effect"`` -- matching how this pure
+#     resolver already reports "the attack didn't land" (a roll that
+#     falls short of the target's PRE also gets ``"no_effect"``, per
+#     ``presence_attack_effect``'s own docstring); the caller reads the
+#     same field either way.
+#
+# All three inconsistent in RAISE-vs-RETURN terms across the whole set,
+# but each one internally consistent with its own function's existing
+# failure-reporting convention -- which is the point: matching what a
+# call site ALREADY does with failure, not inventing one uniform style
+# that would be new to two of the three.
+
+
+def test_stunned_combatant_cannot_abort_to_dodge():
+    """The exploitable gap this task closes: before Task 3, nothing in
+    ``kirby_combat/actions/`` checked any condition (measured via
+    ``grep -rn "stunned" kirby_combat/actions/`` returning nothing), so a
+    Stunned combatant could still Abort to Dodge."""
+    import pytest
+    from kirby_combat.actions.reactive.dodge import Dodge
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    with pytest.raises(ValueError):
+        Dodge.declare(session, "bob")
+
+
+def test_stunned_combatant_cannot_abort_to_block():
+    """6E2 p.106's parenthetical names Block explicitly by naming ANY
+    'defensive Action' -- test the second reactive destination too, not
+    just Dodge, so a narrower fix (e.g. gating only ``Dodge.declare``)
+    cannot pass."""
+    import pytest
+    from kirby_combat.actions.reactive.block import Block
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    with pytest.raises(ValueError):
+        Block.declare(session, "bob")
+
+
+def test_unstunned_combatant_can_still_abort_to_dodge_and_block():
+    """Control: the denial must not regress an ordinary Abort."""
+    from kirby_combat.actions.reactive.block import Block
+    from kirby_combat.actions.reactive.dodge import Dodge
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+
+    session, evt = Dodge.declare(session, "bob")
+    assert evt.to_action == "dodge"
+
+    # A fresh session (nobody has aborted yet) so Block's declare isn't
+    # blocked by the "already aborted this phase" precondition instead.
+    session2 = _session(_attacker_for_stun(), _target_for_stun())
+    session2, evt2 = Block.declare(session2, "bob")
+    assert evt2.to_action == "block"
+
+
+def test_stunned_combatant_cannot_move():
+    """6E2 p.106: 'cannot move'. ``movement_reach`` stays a pure resolver
+    of Scene + Positions when ``session`` isn't passed (see its own
+    docstring) -- this test is the one exercising the new, OPTIONAL
+    session-aware path."""
+    from kirby_combat.scene.movement_legality import movement_reach
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface,
+    )
+
+    scene = Scene(
+        id="arena", name="Open Field",
+        bounds=SceneBounds(0, 0, 0, 20, 20, 20),
+        surfaces=[
+            Surface(id="ground", name="Ground",
+                    polygon_xy=[(0, 0), (20, 0), (20, 20), (0, 20)],
+                    elevation_m=0.0, surface_type="ground",
+                    cover_level=0, is_supporting=True),
+        ],
+        walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={},
+    )
+    from_pos = Position(2, 10, 0)
+    to_pos = Position(10, 10, 0)
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)
+
+    out = movement_reach(
+        "running", from_pos, to_pos, distance_m=12, scene=scene,
+        combatant_id="bob", session=session,
+    )
+    assert out.reachable is False
+    assert out.landing == from_pos
+    assert out.fall is None
+
+
+def test_unstunned_combatant_can_move():
+    """Control: passing `session` for an unstunned combatant must
+    round-trip today's un-Stunned movement behaviour unchanged."""
+    from kirby_combat.scene.movement_legality import movement_reach
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface,
+    )
+
+    scene = Scene(
+        id="arena", name="Open Field",
+        bounds=SceneBounds(0, 0, 0, 20, 20, 20),
+        surfaces=[
+            Surface(id="ground", name="Ground",
+                    polygon_xy=[(0, 0), (20, 0), (20, 20), (0, 20)],
+                    elevation_m=0.0, surface_type="ground",
+                    cover_level=0, is_supporting=True),
+        ],
+        walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={},
+    )
+    from_pos = Position(2, 10, 0)
+    to_pos = Position(10, 10, 0)
+
+    attacker, target = _attacker_for_stun(), _target_for_stun()
+    session = _session(attacker, target)  # nobody hit -- bob is unstunned
+
+    out = movement_reach(
+        "running", from_pos, to_pos, distance_m=12, scene=scene,
+        combatant_id="bob", session=session,
+    )
+    assert out.reachable is True
+    assert out.landing == to_pos
+
+
+def test_movement_reach_without_a_session_is_unaffected():
+    """Signature-discipline control: the pre-Task-3 call shape (no
+    `session=` at all) must behave EXACTLY as before -- no Stunned check
+    can run without a session to check it against."""
+    from kirby_combat.scene.movement_legality import movement_reach
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface,
+    )
+
+    scene = Scene(
+        id="arena", name="Open Field",
+        bounds=SceneBounds(0, 0, 0, 20, 20, 20),
+        surfaces=[
+            Surface(id="ground", name="Ground",
+                    polygon_xy=[(0, 0), (20, 0), (20, 20), (0, 20)],
+                    elevation_m=0.0, surface_type="ground",
+                    cover_level=0, is_supporting=True),
+        ],
+        walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={},
+    )
+    from_pos = Position(2, 10, 0)
+    to_pos = Position(10, 10, 0)
+
+    out = movement_reach("running", from_pos, to_pos, distance_m=12, scene=scene)
+    assert out.reachable is True
+    assert out.landing == to_pos
+
+
+def _pre_attacker(pre: int = 25):
+    return synthetic_combatant(
+        id="prea", name="prea", ocv=8, dcv=8, omcv=3, dmcv=3,
+        spd=4, dex=15, ego=15, str_=20, con=15, pre=pre, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+    )
+
+
+def _pre_target(pre: int = 10):
+    return synthetic_combatant(
+        id="pret", name="pret", ocv=8, dcv=8, omcv=3, dmcv=3,
+        spd=4, dex=15, ego=15, str_=15, con=15, pre=pre, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+    )
+
+
+def test_stunned_target_is_unaffected_by_a_presence_attack():
+    """6E2 p.106: 'cannot be affected by Presence Attacks'. A roll that
+    would ordinarily blow well past every tier on the table (PRE 25 ->
+    5 dice, all 6s -> roll_total=30, target PRE=10 -> margin=20 ->
+    'awed') is forced to 'no_effect' when `target_stunned=True`."""
+    from kirby_combat.pre_attacks.presence import resolve_presence_attack
+
+    attacker, target = _pre_attacker(pre=25), _pre_target(pre=10)
+    result = resolve_presence_attack(
+        attacker, target, dice_values=[6, 6, 6, 6, 6], target_stunned=True,
+    )
+    assert result.effect == "no_effect"
+
+
+def test_unstunned_target_is_affected_by_the_same_presence_attack():
+    """Control, same inputs minus the flag: proves the roll really would
+    have landed, so the Stunned test above is exercising a real denial,
+    not a roll that simply missed."""
+    from kirby_combat.pre_attacks.presence import resolve_presence_attack
+
+    attacker, target = _pre_attacker(pre=25), _pre_target(pre=10)
+    result = resolve_presence_attack(
+        attacker, target, dice_values=[6, 6, 6, 6, 6],
+    )
+    assert result.effect != "no_effect"
+    assert result.effect == "awed"
+
+
+def test_presence_attack_default_target_stunned_false_is_unaffected():
+    """Signature-discipline control: omitting `target_stunned` entirely
+    (every pre-Task-3 caller) must match the un-flagged call above."""
+    from kirby_combat.pre_attacks.presence import resolve_presence_attack
+
+    attacker, target = _pre_attacker(pre=25), _pre_target(pre=10)
+    result = resolve_presence_attack(
+        attacker, target, dice_values=[6, 6, 6, 6, 6],
+    )
+    assert result.effect == "awed"
+
+
+# --------------------------------------------------------------------- #
+# The two rows that need NO code -- pinned so a later change can't
+# silently break either one.
+# --------------------------------------------------------------------- #
+
+def test_stunned_combatant_still_receives_the_free_post_12_recovery():
+    """6E2 p.106: 'take no Recoveries (except his free Post-Segment 12
+    Recovery)'. 6E2 p.131: 'After Segment 12 each Turn, all characters
+    (even Stunned ones) get a free Post-Segment 12 Recovery.' MEASURED:
+    this engine has no voluntary Recovery action at all
+    (`encounter.py::_apply_post_12_recovery` applies to every combatant
+    unconditionally, no consciousness/status filter) -- so there is
+    nothing to deny; this test pins that the free Recovery keeps
+    reaching a Stunned combatant."""
+    from kirby_combat.encounter import Encounter
+    from kirby_combat.statuses import STUNNED, statuses_for
+
+    attacker = _attacker_for_stun()
+    # `resolve_attack_in_session` records the Stunned status via the
+    # ActionResolved payload (see `_stun`'s docstring-adjacent sanity
+    # assert) but does NOT mutate `state.current_stun` itself -- so bob's
+    # starting current_stun is set directly here, below its max, purely
+    # so the free Recovery below has visible room to raise it.
+    target = synthetic_combatant(
+        id="bob", name="bob", ocv=8, dcv=9, omcv=5, dmcv=7,
+        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=60, max_body=15, max_end=30,
+        current_stun=14, current_body=15, current_end=30,
+    )
+    session = _session(attacker, target)
+    session = _stun(session, attacker, target)  # records "Stunned" (sanity-asserted by `_stun`)
+
+    assert STUNNED in statuses_for(session, "bob")
+    stun_before = session.combatants["bob"].state.current_stun
+    assert stun_before == 14
+
+    enc = Encounter(id="e1", segment=12, sessions=[session])
+    out = enc.advance_segment()
+
+    bob_after = out.sessions[0].combatants["bob"]
+    assert bob_after.state.current_stun > stun_before
+
+
+def test_stunned_combatant_retains_grip_on_held_objects():
+    """6E2 p.106: 'Stunned characters typically retain their grip on
+    objects they are holding.' MEASURED: already the default behaviour --
+    this engine has no equipment/inventory model that anything could
+    strip on a status change (no field on `HeroCombatant`/`HeroCombatState`
+    represents a 'held object' distinct from a combatant's own powers).
+    Pinned here as a no-op: the combatant's held/equipped gear -- its
+    `attacks` (weapons/powers) and `defenses` (worn/carried protection) --
+    are byte-for-byte identical before and after taking a Stunning hit,
+    so a later change that started dropping gear on Stun would break this
+    test rather than shipping silently. Bob is given a real shield
+    (`defenses`) and a real weapon (`attacks`) here, rather than relying
+    on the shared `_target_for_stun` fixture's empty defaults, so an
+    equality check against two empty lists can't pass by accident."""
+    from kirby_combat.models import DefenseItem
+
+    attacker = _attacker_for_stun()
+    target = synthetic_combatant(
+        id="bob", name="bob", ocv=8, dcv=9, omcv=5, dmcv=7,
+        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+        attacks=[
+            AttackPower(
+                xmlid="HANDTOHANDATTACK", name="Sword", damage_dice=6,
+                half_die=False, plus_one=False,
+                damage_type="normal", defense_type="pd", range_m=0,
+                uses_str=True, str_min=0,
+                armor_piercing=0, penetrating=0, increased_stun_mult=0,
+            ),
+        ],
+        defenses=[DefenseItem(name="Shield", pd=3, ed=3, is_resistant=False)],
+    )
+    session = _session(attacker, target)
+
+    before_attacks = list(session.combatants["bob"].attacks)
+    before_defenses = list(session.combatants["bob"].defenses)
+    assert before_attacks and before_defenses  # sanity: not vacuously empty
+
+    session = _stun(session, attacker, target)
+
+    after_attacks = list(session.combatants["bob"].attacks)
+    after_defenses = list(session.combatants["bob"].defenses)
+
+    assert after_attacks == before_attacks
+    assert after_defenses == before_defenses

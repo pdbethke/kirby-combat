@@ -54,8 +54,6 @@ import math
 from dataclasses import dataclass
 from typing import Callable, TYPE_CHECKING
 
-from kirby_combat.tables import segments_for_spd
-
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
 
@@ -90,37 +88,20 @@ def _stunned_or_recovering(session: "CombatSession", combatant_id: str) -> bool:
     p.107 says "recovering from being Stunned is all he can do that
     Phase" has run its course).
 
-    Deliberately duplicates, rather than reuses, ``_is_stunned``'s fold:
-    that function's contract and its heavily-reasoned early-clear
-    tradeoff (see its own docstring) is a promise about the ``stunned``
-    status id specifically, not about this wider CV-penalty window.
-    Keeping the two folds separate means a future change to one cannot
-    silently move the other's boundary.
+    As of Task 3 (``conditions-must-bite``), this is a thin wrapper over
+    ``statuses.py::stunned_or_recovering_for`` -- the SAME wider window is
+    also the one 6E2 p.106's "can take no Actions... cannot move... [is]
+    unaffected by Presence Attacks" sentence names, so Task 3's action
+    denials (``actions/reactive/abort.py``, ``scene/movement_legality.py``,
+    ``pre_attacks/presence.py``) need the identical fold. Kept as its own
+    named function here (rather than calling ``statuses_for`` directly at
+    each CV-modifier call site) so this module's own contract -- "how
+    Stunned contributes to the CV seam" -- stays readable as one
+    self-contained unit; the fold itself now lives in exactly one place.
     """
-    combatant = session.combatants[combatant_id]
-    phase_segments = segments_for_spd(combatant.combat_stats().spd)
+    from kirby_combat.statuses import stunned_or_recovering_for
 
-    stage = "none"  # "none" -> "stunned" -> "recovering" -> "none"
-    for evt in session.event_log:
-        kind = evt.kind
-        if kind == "ActionResolved":
-            payload = getattr(evt, "result_payload", None) or {}
-            if (
-                payload.get("target_id") == combatant_id
-                and "Stunned" in payload.get("status_changes", ())
-            ):
-                stage = "stunned"
-        elif kind == "SegmentAdvanced":
-            # Same "no valid Phase to wait for -> treat every SegmentAdvanced
-            # as qualifying" guard `_is_stunned` uses for SPD 0 (tables.py's
-            # SPEED_TO_SEGMENTS[0] == []) -- see that function's docstring.
-            at_phase = not phase_segments or evt.to_segment in phase_segments
-            if at_phase:
-                if stage == "stunned":
-                    stage = "recovering"
-                elif stage == "recovering":
-                    stage = "none"
-    return stage in ("stunned", "recovering")
+    return stunned_or_recovering_for(session, combatant_id)
 
 
 def _stunned_cv_modifiers(session: "CombatSession", combatant_id: str) -> dict[str, float]:
