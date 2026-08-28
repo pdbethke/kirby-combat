@@ -1,8 +1,9 @@
 """Mental Blast — damage vs Mental Defense, no BODY/KB.
 
-6E1 pg 105: Mental Blast deals STUN-only damage. STUN is reduced by the
-target's Mental Defense (MD). No BODY damage. No knockback. Stunning rules
-apply normally (STUN dealt > CON -> Stunned).
+6E1 p.249: "Mental Blasts only do STUN damage, have no effect on
+inanimate objects, and do no Knockback." STUN is reduced by the target's
+Mental Defense (MD). No BODY damage. No knockback. Stunning rules apply
+normally (STUN dealt > CON -> Stunned).
 """
 from __future__ import annotations
 

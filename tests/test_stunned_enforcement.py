@@ -31,8 +31,9 @@ from datetime import datetime, timezone
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.recording import resolve_attack_in_session
 from kirby_combat.cv_modifiers import (
-    CVModifiers, apply_cv_factor, cv_modifiers_for, effective_dcv_for,
-    effective_dmcv_for, effective_ocv_for,
+    CVModifiers, apply_cv_factor, apply_hit_location_factor,
+    cv_modifiers_for, effective_dcv_for, effective_dmcv_for,
+    effective_ocv_for,
 )
 from kirby_combat.dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
@@ -142,6 +143,52 @@ def test_unstunned_combatant_cv_is_unchanged():
     assert effective_ocv_for(session, "bob") == 8
 
 
+def test_apply_cv_factor_matches_6e2_p39_negative_worked_examples():
+    """6E2 p.39's own two worked examples, pinned directly: 'if a
+    character has OCV -4, halving reduces it to -6 (-4 plus half of -4,
+    or -2). If he has OCV -3, halving reduces it to -4.' Halving a
+    negative CV makes it WORSE, not better."""
+    assert apply_cv_factor(-4, 0.5) == -6
+    assert apply_cv_factor(-3, 0.5) == -4
+
+
+def test_apply_cv_factor_positive_cv_still_shrinks_toward_zero():
+    """Sanity: only the NEGATIVE branch flips direction; positive CVs
+    behave as before (round up in the character's favour)."""
+    assert apply_cv_factor(8, 0.5) == 4
+    assert apply_cv_factor(5, 0.5) == 3   # ceil(2.5)
+
+
+def test_apply_cv_factor_rejects_an_ungrounded_factor():
+    """6E2 p.39 only grounds 1.0 (no-op), 0.5 (halving), and 0.0
+    (override to zero) -- anything else has no page to ground its
+    negative-CV arithmetic in, so this function refuses rather than
+    inventing one (this task's explicit brief)."""
+    import pytest
+    with pytest.raises(ValueError):
+        apply_cv_factor(9, 0.25)
+
+
+def test_apply_hit_location_factor_matches_apply_cv_factor_on_positives():
+    """The two functions agree when the base value is positive/zero --
+    they only diverge on a negative input, which is where p.39's
+    stacking clause (apply_cv_factor) and p.106's plain halving
+    (apply_hit_location_factor) actually differ."""
+    assert apply_hit_location_factor(8, 0.5) == apply_cv_factor(8, 0.5) == 4
+
+
+def test_apply_cv_factor_and_apply_hit_location_factor_disagree_on_a_penalty():
+    """The bug this task fixed, pinned so it cannot silently come back:
+    apply_cv_factor is for a combatant's OWN CV (p.39's 'further penalty
+    on an already-negative CV' stacking rule -- makes -8 WORSE, -12).
+    apply_hit_location_factor is for the Placed-Shot table constant
+    (p.106's plain 'the modifiers... drop to half' -- makes -8 a SMALLER
+    penalty, -4). Same input, opposite direction, because they ground
+    two different rules."""
+    assert apply_cv_factor(-8, 0.5) == -12
+    assert apply_hit_location_factor(-8, 0.5) == -4
+
+
 def test_apply_cv_factor_is_a_noop_at_factor_one():
     assert apply_cv_factor(9, 1.0) == 9
     assert apply_cv_factor(-8, 1.0) == -8
@@ -201,7 +248,13 @@ def test_stunned_halves_the_placed_shot_hit_location_modifier():
     assert mods.hit_location_factor == 0.5
 
     # Head shot ocvMod is -8 (tables.py::HIT_LOCATIONS); halved -> -4.
-    assert apply_cv_factor(-8, mods.hit_location_factor) == -4
+    # Uses apply_hit_location_factor, NOT apply_cv_factor -- 6E2 p.106
+    # halves the modifier's magnitude unconditionally (a smaller
+    # penalty), unlike p.39's sign-aware "further penalty on an
+    # already-negative CV" rule apply_cv_factor implements. See
+    # test_apply_cv_factor_and_apply_hit_location_factor_disagree_on_a_penalty
+    # below for the two functions' diverging answer on the same input.
+    assert apply_hit_location_factor(-8, mods.hit_location_factor) == -4
 
 
 # --------------------------------------------------------------------- #

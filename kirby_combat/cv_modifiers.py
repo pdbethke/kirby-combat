@@ -154,13 +154,22 @@ _CV_MODIFIER_SOURCES: tuple[
 
 @dataclass(frozen=True)
 class CVModifiers:
-    """Composed multiplicative CV factors from every active condition.
+    """A SUMMARY of composed CV factors from every active condition --
+    see ``cv_modifiers_for``'s docstring for what this is (and is not)
+    safe to use for.
 
-    1.0 = no effect on that CV. Multiple simultaneously-active conditions
-    COMPOSE by multiplication (e.g. Stunned x a hypothetical 0.5-DCV
-    condition would be 0.5 * 0.5 = 0.25 DCV), never by ``min()`` or an
-    override -- so no condition's contribution needs to know any other
-    condition exists.
+    1.0 = no effect on that CV. Reported here as the plain product of
+    every active source's factor -- e.g. Stunned x a hypothetical
+    0.5-DCV condition would report ``dcv_factor=0.25`` -- never by
+    ``min()`` or an override, so no condition's contribution needs to
+    know any other condition exists. This product is a fine thing to
+    compare against 1.0/0.5 ("is anything affecting this CV, and is it
+    exactly one halving") but is NOT the value ``effective_dcv_for`` and
+    friends actually compute a multi-condition result from -- 6E2 p.39
+    only grounds a single halving's arithmetic (see
+    ``apply_cv_factor``), so those functions apply each source's own
+    factor to the running value in turn (``_fold_cv_factors``) rather
+    than using this pre-multiplied summary.
     """
 
     ocv_factor: float = 1.0
@@ -174,13 +183,30 @@ class CVModifiers:
 
 
 def cv_modifiers_for(session: "CombatSession", combatant_id: str) -> CVModifiers:
-    """The seam's public entry point: fold every active condition's CV
-    contribution into one composed ``CVModifiers``.
+    """The seam's public entry point: a SUMMARY of every active
+    condition's CV contribution, as one composed ``CVModifiers``.
 
     Returns the all-1.0 default for a combatant with no active
     CV-affecting condition, so a caller that always applies this (even to
     a combatant it hasn't checked for conditions) gets today's behaviour
     back unchanged.
+
+    **This composed value is informational, not a computation recipe.**
+    Its fields are the plain product of every active source's factor for
+    that CV (e.g. two independent 0.5-DCV conditions active at once would
+    report ``dcv_factor=0.25``) -- useful for a caller asking "is
+    anything at all affecting this combatant's DCV right now", which is
+    all today's tests need (only one source, Stunned, is wired into
+    ``_CV_MODIFIER_SOURCES``, so no field here is ever anything but 1.0
+    or 0.5 in practice yet). It must NOT be fed into ``apply_cv_factor``
+    when more than one source could be simultaneously active: 6E2 p.39
+    only grounds a SINGLE halving's arithmetic (and its negative-CV
+    variant), not a composed fraction like 0.25 -- see
+    ``apply_cv_factor``'s docstring for why, and ``_fold_cv_factors``
+    below (used by ``effective_dcv_for``/``effective_dmcv_for``/
+    ``effective_ocv_for``) for how this module actually computes a
+    multi-condition result: by applying each source's own grounded factor
+    to the running value in turn, never by pre-multiplying them.
     """
     factors = {
         "ocv_factor": 1.0, "dcv_factor": 1.0, "omcv_factor": 1.0,
@@ -193,55 +219,193 @@ def cv_modifiers_for(session: "CombatSession", combatant_id: str) -> CVModifiers
 
 
 def apply_cv_factor(base: int, factor: float) -> int:
-    """Apply one ``CVModifiers`` factor to a base int CV/penalty value.
+    """Apply ONE condition's CV factor to a base int CV/penalty value.
 
-    **Rounding is a rules call, not a preference (see this task's brief).**
-    Neither 6E2 p.106 ("Stunning") nor p.39 (the condition modifier table)
-    states a rounding direction for a halved CV, and nothing elsewhere in
-    this codebase applies one either -- ``Entangle.modifiers`` /
-    ``Flash.modifiers`` / ``dive_for_cover.py``'s ``diver_dcv_factor`` all
-    stop at returning the raw multiplicative factor; none of them multiply
-    it into an int CV anywhere in this engine today (checked via grep --
-    no call site consumes them). This function is therefore the first
-    place that decision has to be made, and it is made explicitly here
-    rather than left to fall out of whatever Python's ``round()`` happens
-    to do (which is banker's rounding -- round-half-to-even -- and would
-    silently vary by parity):
+    **Grounded by 6E2 p.39's halving clause, quoted in full because the
+    sign-dependent arithmetic is easy to get backwards (and this module
+    shipped that exact bug once -- see git history on this docstring):**
 
-    **Choice: round the result UP (``math.ceil``), citing 6E1 p.14's
-    general HERO fractional-rounding rule** -- "always round off to the
-    next whole number in favor of the Player Character... .5 rounds up or
-    down [whichever is more beneficial]." That rule is written for
-    Character Point/cost calculations, not combat CVs, so this is an
-    extrapolation of its PRINCIPLE (round ambiguous fractions toward
-    whichever side benefits a character), not a direct citation of a CV
-    rounding rule -- stated explicitly rather than silently assumed, per
-    this task's brief. For DCV/DMCV/OCV, a higher value benefits the
-    combatant possessing it, so halves round up. For the hit-location
-    factor (an OCV PENALTY against the target, always <= 0), the same
-    ``math.ceil`` reduces the penalty's magnitude (e.g. -5 * 0.5 = -2.5 ->
-    ceil -> -2, not -3) -- a smaller penalty benefits whoever is making
-    the Placed Shot. One formula, applied uniformly regardless of which
-    side of the roll benefits, rather than picking a beneficiary per call
-    site.
+    > "If a character already has a negative OCV and suffers a further
+    > penalty that would halve his OCV, halve the negative OCV and apply
+    > that half amount to reduce the OCV further; normal rounding rules
+    > apply. For example, if a character has OCV -4, halving reduces it
+    > to -6 (-4 plus half of -4, or -2). If he has OCV -3, halving
+    > reduces it to -4."
+
+    So halving a POSITIVE (or zero) CV shrinks it toward zero as expected
+    (``ceil(base * 0.5)``: 8 -> 4, 5 -> ceil(2.5) -> 3), but halving a
+    NEGATIVE CV makes it WORSE -- computed as ``cv + cv/2`` (i.e.
+    ``cv * 1.5``), per the page's own worked examples: -4 -> ceil(-6.0) =
+    -6 (exact); -3 -> ceil(-4.5) = -4. Both are pinned as tests in
+    ``tests/test_stunned_enforcement.py``
+    (``test_apply_cv_factor_matches_6e2_p39_negative_worked_examples``).
+    "Normal rounding rules apply" is 6E2 p.39 invoking 6E1 p.14's general
+    HERO rounding rule BY NAME ("always round off to the next whole
+    number in favor of the... character... .5 rounds up or down
+    [whichever is more beneficial]") -- so ``math.ceil`` (round toward
+    the character's benefit) is now a direct citation for this function,
+    not the extrapolation an earlier version of this docstring called it.
+
+    **This function is for a combatant's own CV (OCV/DCV/OMCV/DMCV)
+    only.** The hit-location/Placed-Shot factor is deliberately NOT
+    routed through here -- see ``apply_hit_location_factor`` below for
+    why p.39's sign-aware stacking rule does not apply to it.
+
+    **Grounded only for factor 1.0 (no-op), 0.5 (halving, both branches
+    above), and 0.0 (a condition that overrides a CV to 0 outright, e.g.
+    6E2 p.9's Ranged unperceived-opponent OCV -- not produced by any
+    source wired into this engine today, but planned for the
+    sense-affecting-powers spec).** Nothing in this engine calls this
+    function with any other factor -- ``_stunned_cv_modifiers`` only ever
+    emits 0.5, and multi-condition composition goes through
+    ``_fold_cv_factors`` below, which applies EACH source's own 0.5/0.0
+    through this function rather than pre-multiplying them into an
+    ungrounded fraction. Any other factor has no page to ground its
+    negative-CV arithmetic in yet, so rather than silently inventing one
+    (this task's explicit brief), this function refuses it outright.
     """
     if factor == 1.0:
         return base
-    return math.ceil(base * factor)
+    if factor == 0.0:
+        return 0
+    if factor != 0.5:
+        raise ValueError(
+            f"apply_cv_factor: factor {factor!r} is not grounded in 6E2 "
+            "p.39 (only 1.0, 0.5, and 0.0 are -- see this function's "
+            "docstring); refusing to invent an arithmetic rule the book "
+            "doesn't give."
+        )
+    if base < 0:
+        # 6E2 p.39: halving a negative CV makes it WORSE (cv + cv/2).
+        return math.ceil(base * 1.5)
+    return math.ceil(base * 0.5)
+
+
+def apply_hit_location_factor(base_penalty: int, factor: float) -> int:
+    """Apply a hit-location/Placed-Shot factor to a base OCV penalty.
+
+    **Deliberately separate from ``apply_cv_factor``, not a shared code
+    path.** 6E2 p.39's sign-aware halving clause ("a further penalty that
+    would halve his OCV... halve the negative OCV and apply that half
+    amount to reduce the OCV further") describes STACKING a new penalty
+    ON TOP OF a combatant's own already-penalized OCV -- a "penalty on a
+    penalty" scenario where the compounding effect is meant to make
+    things worse. The hit-location factor is a different thing: 6E2 p.106
+    states its own, unambiguous direction in the same sentence that sets
+    up DCV/DMCV halving -- "the modifiers for making Placed Shots against
+    him" (a Stunned target) "drop to half" -- i.e. the table constant
+    itself (``tables.py::HIT_LOCATIONS[...]["ocvMod"]``, e.g. Head's -8)
+    is HALVED IN MAGNITUDE, unconditionally making it a smaller penalty,
+    because a Stunned target is explicitly easier to aim at. There is no
+    "already negative and now suffers a further penalty" framing here --
+    the base value already IS the full penalty, and the whole point of
+    the rule is to shrink it. Running it through ``apply_cv_factor``'s
+    sign-aware formula would do the opposite of what p.106 says (e.g.
+    -8 -> -12, a WORSE penalty against a Stunned target than an unstunned
+    one) -- confirmed as a real bug caught during review of this module
+    and fixed by giving this its own function rather than reusing
+    ``apply_cv_factor``.
+
+    Formula: ``math.ceil(base_penalty * factor)`` unconditionally (no
+    sign branch). For a negative base, ``math.ceil`` rounds toward zero
+    (less negative), which is exactly "smaller penalty, in favour of
+    whoever is making the Placed Shot" -- 6E1 p.14's general rounding
+    principle, applied directly since 6E2 p.106 doesn't restate a
+    rounding direction of its own: -8 * 0.5 = -4.0 -> -4 (exact); an odd
+    penalty like -5 * 0.5 = -2.5 -> ceil -> -2 (smaller penalty, not -3).
+
+    Same grounded-factor restriction as ``apply_cv_factor`` (1.0, 0.5, or
+    0.0 only) -- refuses anything else rather than inventing arithmetic
+    for it.
+    """
+    if factor == 1.0:
+        return base_penalty
+    if factor == 0.0:
+        return 0
+    if factor != 0.5:
+        raise ValueError(
+            f"apply_hit_location_factor: factor {factor!r} is not "
+            "grounded in 6E2 p.106 (only 1.0, 0.5, and 0.0 are -- see "
+            "this function's docstring)."
+        )
+    return math.ceil(base_penalty * factor)
+
+
+def _fold_cv_factors(base: int, factors: list[float]) -> int:
+    """Apply a combatant's list of per-condition CV factors to a base CV,
+    for when more than one condition may be simultaneously active.
+
+    Two rules from 6E2 p.39, both handled explicitly rather than left to
+    fall out of ``cv_modifiers_for``'s pre-multiplied summary:
+
+    1. **Multiple halvings compose SEQUENTIALLY, not by multiplying their
+       factors together first.** 0.5 * 0.5 = 0.25 is not one of p.39's
+       grounded cases (see ``apply_cv_factor``), and -- because the
+       negative-CV branch is sign-dependent -- pre-multiplying can give a
+       genuinely different number than applying two real halvings in
+       order once the running value crosses zero partway through. This
+       function instead applies each 0.5 (or 1.0 no-op) one at a time,
+       via ``apply_cv_factor``, to the RUNNING value: "halve it, then
+       halve the result again" -- which is literally p.39's own phrasing
+       for a second halving ("a further penalty that would halve
+       his OCV").
+    2. **A 0.0 factor wins and is applied LAST**, regardless of where it
+       appears in ``factors``: 6E2 p.39, "A reduction of OCV or DCV to 0
+       should generally be considered as 'reducing CV by a percentage,'
+       and thus be applied as the very last step in the OCV or DCV
+       calculation." Mathematically, 0 times anything is 0 regardless of
+       order, so this only matters for how a 0.0 condition interacts with
+       modifiers OUTSIDE this module (situational/maneuver/CSL bonuses,
+       which this engine's resolvers -- ``resolution/to_hit.py`` -- add
+       AFTER the value this function returns, e.g. ``effective_dcv =
+       base_dcv + attack.dcv_modifier``). Because this function's output
+       feeds INTO that later additive step rather than the other way
+       round, "0 applied last" is already the resulting order for a
+       caller using this seam correctly -- this branch exists so a 0.0
+       source's contribution is never accidentally averaged into a
+       sequence of halvings instead of overriding them.
+
+    No source wired into ``_CV_MODIFIER_SOURCES`` produces 0.0 today
+    (Stunned only ever emits 0.5), so branch 2 is not exercised by any
+    test yet -- it exists so 6E2 p.9's 0.0 OCV (Ranged, unperceived
+    opponent) composes correctly the day the sense-affecting-powers spec
+    wires it in, with no change to this function.
+    """
+    if any(f == 0.0 for f in factors):
+        return 0
+    value = base
+    for f in factors:
+        value = apply_cv_factor(value, f)
+    return value
+
+
+def _factors_for(session: "CombatSession", combatant_id: str, key: str) -> list[float]:
+    """The raw, per-source list of factors for one CV -- e.g.
+    ``key="dcv_factor"`` returns one entry per source in
+    ``_CV_MODIFIER_SOURCES`` that touches DCV. Feeds ``_fold_cv_factors``;
+    kept separate from ``cv_modifiers_for`` because that function
+    deliberately returns a pre-multiplied SUMMARY (see its docstring),
+    which is the wrong shape for ``_fold_cv_factors``'s sequential
+    application.
+    """
+    return [
+        source(session, combatant_id).get(key, 1.0)
+        for source in _CV_MODIFIER_SOURCES
+    ]
 
 
 def effective_dcv_for(session: "CombatSession", combatant_id: str) -> int:
     """This combatant's DCV as modified by every active condition."""
     combatant = session.combatants[combatant_id]
-    mods = cv_modifiers_for(session, combatant_id)
-    return apply_cv_factor(combatant.combat_stats().dcv, mods.dcv_factor)
+    factors = _factors_for(session, combatant_id, "dcv_factor")
+    return _fold_cv_factors(combatant.combat_stats().dcv, factors)
 
 
 def effective_dmcv_for(session: "CombatSession", combatant_id: str) -> int:
     """This combatant's DMCV as modified by every active condition."""
     combatant = session.combatants[combatant_id]
-    mods = cv_modifiers_for(session, combatant_id)
-    return apply_cv_factor(combatant.combat_stats().dmcv, mods.dmcv_factor)
+    factors = _factors_for(session, combatant_id, "dmcv_factor")
+    return _fold_cv_factors(combatant.combat_stats().dmcv, factors)
 
 
 def effective_ocv_for(session: "CombatSession", combatant_id: str) -> int:
@@ -255,5 +419,5 @@ def effective_ocv_for(session: "CombatSession", combatant_id: str) -> int:
     reflecting it with no change to this function itself.
     """
     combatant = session.combatants[combatant_id]
-    mods = cv_modifiers_for(session, combatant_id)
-    return apply_cv_factor(combatant.combat_stats().ocv, mods.ocv_factor)
+    factors = _factors_for(session, combatant_id, "ocv_factor")
+    return _fold_cv_factors(combatant.combat_stats().ocv, factors)

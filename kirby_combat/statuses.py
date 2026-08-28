@@ -79,11 +79,16 @@ STUNNED = "stunned"
 # carries "Stunned"; `_is_stunned` below folds that back out. See
 # `statuses_for`'s docstring for the clear edge (6E2 p.107).
 #
-# `mental/mental_blast.py:45`'s own `target_stunned` (mental attacks) is a
-# SEPARATE computation that nothing records onto the event log the same
-# way -- so a mental Stunned is not yet foldable here. That is a real,
-# narrower gap than the one this task closes (physical attacks via
-# `resolve_attack_in_session`), not something this module claims to cover.
+# `mental/mental_blast.py:45`'s own `target_stunned` (mental attacks) used
+# to be a SEPARATE computation that nothing recorded onto the event log
+# the same way a physical Stunned was -- that gap is CLOSED as of
+# `resolve_mental_blast_in_session` (`actions/recording.py`, commit
+# `df2486c`), which builds the SAME `status_changes` payload (via
+# `resolution/status.py::determine_status_changes`) a physical attack's
+# `resolve_attack_in_session` does. `_is_stunned` below folds a mental
+# Stunned exactly the way it folds a physical one -- it reads
+# `payload["status_changes"]` and never looks at `action_type`/`kind`, so
+# it can't distinguish the two sources and doesn't need to.
 
 KNOCKED_OUT = "knockedOut"
 # current STUN <= 0. See kirby_combat/participant.py:139 `is_ko`
@@ -571,8 +576,12 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       folds ``ActionResolved.result_payload["status_changes"]`` (set,
       written by ``resolve_attack_in_session``) against ``SegmentAdvanced``
       (clear, 6E2 p.107 -- see that function's docstring for the exact
-      SET/CLEAR fold). Physical attacks only today (see "Deliberately NOT
-      read here" below).
+      SET/CLEAR fold). Covers a mental Stunned too, as of
+      ``resolve_mental_blast_in_session`` (``actions/recording.py``,
+      commit ``df2486c``) -- ``_is_stunned`` reads
+      ``payload["status_changes"]`` without looking at ``action_type``,
+      so a mental attack's payload folds in exactly the same way a
+      physical one's does.
     - Dead: ``_is_dead(session, combatant_id)`` (this module) -- same
       ``status_changes`` source as Stunned, no clear edge (see that
       function's docstring).
@@ -586,14 +595,18 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
 
     - ``prone`` -- not stored per-combatant anywhere in this engine (see the
       module-level NOTE above); there is nothing to fold in.
-    - a **mental** Stunned -- ``mental/mental_blast.py:45``'s own
-      ``target_stunned`` is computed by a resolver ``resolve_attack_in_session``
-      does not wrap, so nothing persists a mental Stunned onto the event
-      log the way a physical one is persisted. ``_is_stunned`` therefore
-      only ever sees physical Stunned today; wiring a mental-attack
-      recording path is separate work this task does not attempt. The same
-      gap applies to a mental Knocked Out (``mental_blast.py``'s
-      ``target_ko``) for the same reason.
+
+    Formerly NOT read here, now covered (corrects earlier text in this
+    docstring): a **mental** Stunned/Knocked Out. ``mental/mental_blast.py
+    :45``'s own ``target_stunned``/``target_ko`` used to be computed by a
+    resolver ``resolve_attack_in_session`` didn't wrap, so nothing
+    persisted them onto the event log. ``resolve_mental_blast_in_session``
+    (``actions/recording.py``, commit ``df2486c``) closed that gap by
+    building the same ``status_changes`` payload
+    (``resolution/status.py::determine_status_changes``) a physical
+    attack's wrapper does -- ``_is_stunned`` and
+    ``_is_knocked_out_from_payload`` both fold it with no code change of
+    their own, since neither reads ``action_type``.
 
     Preconditions -- this function requires a session whose ``event_log``
     contains the *complete* history for the seven sources that walk it
