@@ -147,9 +147,51 @@ def _surface_candidates(observer: Position, scene: Scene,
     return out
 
 
+def darkness_zones_for(scene: Scene, sense_group: str | None) -> list:
+    """The scene's darkness_zone Constructs that occlude ``sense_group``.
+
+    ``None`` (the default everywhere) returns nothing, so every existing
+    caller keeps today's purely geometric behaviour.
+    """
+    if sense_group is None or scene is None:
+        return []
+    return [c for c in (getattr(scene, "constructs", None) or [])
+            if getattr(c, "kind", None) == "darkness_zone"
+            and getattr(c, "sense_group", None) == sense_group]
+
+
+def _darkness_on_ray(a: Position, b: Position, zones) -> bool:
+    """True if any zone blocks the a->b ray — 6E1 p.188's into / out of /
+    through, the same crossing-or-endpoint-inside test
+    ``perception._darkness_blocks`` applies. Kept here rather than imported
+    from ``perception`` because ``scene/`` does not depend on that module and
+    this file is pure geometry over Positions; the shared PREDICATE is
+    ``sense_penalties._targeting_senses_blocked``, which is where the rule
+    actually lives.
+    """
+    from kirby_combat.scene.geometry import path_crosses_polygon, point_in_polygon_xy
+
+    def _inside(p, zone) -> bool:
+        poly = getattr(zone, "polygon_xy", None)
+        if not poly:
+            return False
+        lo, hi = getattr(zone, "elevation_range_m", (0.0, 0.0))
+        return lo <= p.z <= hi and point_in_polygon_xy((p.x, p.y), poly)
+
+    for z in zones:
+        poly = getattr(z, "polygon_xy", None)
+        if not poly:
+            continue
+        if (path_crosses_polygon((a.x, a.y), (b.x, b.y), poly)
+                or _inside(a, z) or _inside(b, z)):
+            return True
+    return False
+
+
 def nearest_visible_point(observer: Position, target: Position, scene: Scene, *,
                           radius: float, vertical_reach: float = 0.0,
                           require_support: bool = False,
+                          sense_group: str | None = None,
                           ) -> Position | None:
     """Closest point to `observer`, within `radius`, with a clear line of fire
     to `target`. Returns `observer` when already clear; None when no analytic
@@ -161,13 +203,30 @@ def nearest_visible_point(observer: Position, target: Position, scene: Scene, *,
     still validates reachability per movement mode via movement_reach.)
     """
     walls = [w for w in scene.walls if getattr(w, "blocks_los", True)]
-    if line_of_sight_clear(observer, target, walls):
+    # 6E1 p.188: a Darkness field is impenetrable to the Senses it affects,
+    # so a line of fire that crosses one is not clear no matter what the
+    # walls do. Opt-in via `sense_group`: without it this function stays the
+    # pure wall geometry every existing caller passes it. An AI looking for
+    # a vantage point that omits this would report "I can already see him"
+    # from inside a smoke cloud and never move.
+    zones = darkness_zones_for(scene, sense_group)
+    if (line_of_sight_clear(observer, target, walls)
+            and not _darkness_on_ray(observer, target, zones)):
         return observer
     wall = first_blocking_wall(observer, target, walls)
-    if wall is None:
+    candidates: list[Position] = []
+    if wall is not None:
+        candidates += _shadow_candidates(observer, target, wall, vertical_reach)
+    elif not zones:
+        # No wall and no darkness to route around: nothing to solve.
         return None
-    candidates = _shadow_candidates(observer, target, wall, vertical_reach)
     candidates += _surface_candidates(observer, scene, vertical_reach, radius)
+    if zones:
+        # A darkness field casts no shadow a wall-shaped candidate generator
+        # would find, so add points spread around the observer and let the
+        # verification step below decide. Reuses the open-range fallback
+        # generator rather than growing a second one.
+        candidates += _radial_away_candidates(observer, target, radius)
     best: Position | None = None
     best_d = float("inf")
     for c in candidates:
@@ -177,6 +236,8 @@ def nearest_visible_point(observer: Position, target: Position, scene: Scene, *,
         if require_support and not is_supported_at(c, scene):
             continue
         if not line_of_sight_clear(c, target, walls):  # VERIFY vs ALL walls
+            continue
+        if _darkness_on_ray(c, target, zones):
             continue
         if d < best_d:
             best, best_d = c, d

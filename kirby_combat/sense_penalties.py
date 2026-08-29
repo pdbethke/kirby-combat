@@ -162,28 +162,35 @@ def _targeting_senses_blocked(
     there is nothing to reason about.
     """
     from kirby_combat.actions.flash import Flash
-    from kirby_combat.perception import SIGHT
+    from kirby_combat.perception import (
+        SIGHT, SenseCapability, _darkness_blocks,
+    )
 
     combatant = session.combatants.get(observer_id)
+    opponent = session.combatants.get(opponent_id)
     if combatant is None:
         return False
 
     _, flashed = Flash.is_flashed(session, observer_id)
     blocked_groups = set(flashed)
-    if not blocked_groups:
-        return False
 
     senses = combatant.senses() if hasattr(combatant, "senses") else None
     if senses is None:
-        return SIGHT in blocked_groups
+        # 6E2 p.9's normal human: Sight, and only Sight, aims.
+        senses = [SenseCapability(xmlid="NORMALSIGHT", name="Normal Sight",
+                                  group=SIGHT)]
 
+    scene = getattr(session, "scene", None)
     for sense in senses:
         if not getattr(sense, "is_targeting", True):
             continue
         if not getattr(sense, "functional", True):
             continue
         if getattr(sense, "group", None) in blocked_groups:
-            continue
+            continue                       # Flashed in this sense's Group
+        if opponent is not None and _darkness_blocks(
+                combatant, opponent, scene, sense):
+            continue                       # a Darkness field on the ray
         return False        # at least one Targeting Sense still reaches
     return True
 
