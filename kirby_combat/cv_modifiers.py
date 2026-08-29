@@ -119,6 +119,22 @@ def _stunned_cv_modifiers(session: "CombatSession", combatant_id: str) -> dict[s
     return {"dcv_factor": 0.5, "dmcv_factor": 0.5, "hit_location_factor": 0.5}
 
 
+def _sense_penalty_cv_modifiers(
+    session: "CombatSession", combatant_id: str, opponent_id: str,
+    combat_type: str,
+) -> dict[str, float]:
+    """The inability-to-sense contribution to the seam (6E2 p.9).
+
+    Thin delegation to ``kirby_combat.sense_penalties``, which owns the
+    rule, the Targeting/Nontargeting distinction, and the Nontargeting
+    PER Roll that mitigates it. Kept as a named function here so this
+    module's seam still reads as a list of conditions.
+    """
+    from kirby_combat.sense_penalties import sense_penalty_modifiers
+
+    return sense_penalty_modifiers(session, combatant_id, opponent_id, combat_type)
+
+
 #: Ordered sources folded into ``cv_modifiers_for``. THIS tuple is the
 #: seam: add one more ``(session, combatant_id) -> dict`` entry here for a
 #: new CV-affecting condition (see the module docstring's sense-affecting-
@@ -127,6 +143,35 @@ _CV_MODIFIER_SOURCES: tuple[
     Callable[["CombatSession", str], dict[str, float]], ...
 ] = (
     _stunned_cv_modifiers,
+)
+
+
+# ---------------------------------------------------------------------------
+# The per-opponent seam (6E2 p.9)
+# ---------------------------------------------------------------------------
+#
+# **Why a SECOND tuple rather than widening the first.** The module
+# docstring above predicted that sense-affecting powers would "plug in by
+# adding ONE more entry to ``_CV_MODIFIER_SOURCES``... Nothing in
+# ``cv_modifiers_for``, ``CVModifiers``, or ``apply_cv_factor`` needs to
+# change for that to work." **That prediction was wrong, and the reason it
+# was wrong is the whole shape of this section**, so it is corrected here
+# rather than quietly worked around: 6E2 p.9's Orion example has one
+# combatant at DIFFERENT CVs against DIFFERENT opponents in the same
+# Segment (-1 DCV against Durak, 1/2 DCV against everyone else), and it
+# expresses the mitigated case as a FLAT -1, which ``apply_cv_factor``
+# refuses by design. A ``(session, combatant_id) -> factors`` source can
+# express neither. So the existing seam is kept exactly as it is -- every
+# opponent-independent condition (Stunned, and whatever follows it) still
+# goes there and nothing about it changed -- and per-opponent conditions
+# get their own tuple with the two extra pieces of context they need.
+#
+# Sources here return the same ``*_factor`` keys plus, optionally,
+# ``*_delta`` keys for a flat modifier the book states as an integer.
+_PER_OPPONENT_CV_MODIFIER_SOURCES: tuple[
+    Callable[["CombatSession", str, str, str], dict[str, float]], ...
+] = (
+    _sense_penalty_cv_modifiers,
 )
 
 
@@ -401,6 +446,26 @@ def _fold_cv_factors(base: int, factors: list[float]) -> int:
     return value
 
 
+def apply_cv_delta(base: int, delta: int) -> int:
+    """Apply a FLAT CV modifier — plain integer addition, no rounding.
+
+    Separate from ``apply_cv_factor`` because it is a different kind of
+    thing, and the difference is exactly what 6E2 p.9's Orion example
+    turns on. Orion, blinded but hearing Durak, is "-1 DCV... in HTH
+    Combat" against him: an 8 DCV becomes 7. Routing that through
+    ``apply_cv_factor`` would mean inventing a factor (0.875 for THIS
+    combatant, something else for the next), which that function refuses
+    outright and rightly so -- the book states a modifier, not a
+    proportion, and a proportion would give a different answer for every
+    starting DCV.
+
+    No rounding rule is invoked because none is needed: both operands are
+    integers. No sign branch either -- 6E2 p.39's sign-aware clause is
+    scoped to a penalty "that would HALVE his OCV", which this is not.
+    """
+    return base + int(delta)
+
+
 def _factors_for(session: "CombatSession", combatant_id: str, key: str) -> list[float]:
     """The raw, per-source list of factors for one CV -- e.g.
     ``key="dcv_factor"`` returns one entry per source in
@@ -416,30 +481,113 @@ def _factors_for(session: "CombatSession", combatant_id: str, key: str) -> list[
     ]
 
 
-def effective_dcv_for(session: "CombatSession", combatant_id: str) -> int:
-    """This combatant's DCV as modified by every active condition."""
-    combatant = session.combatants[combatant_id]
-    factors = _factors_for(session, combatant_id, "dcv_factor")
-    return _fold_cv_factors(combatant.combat_stats().dcv, factors)
+def _per_opponent_modifiers(
+    session: "CombatSession", combatant_id: str, against: str | None,
+    combat_type: str,
+) -> list[dict[str, float]]:
+    """Every per-opponent source's dict, or ``[]`` when no opponent is named.
+
+    Naming no opponent is the honest answer for a caller asking "what is
+    this combatant's DCV" in the abstract: 6E2 p.9's penalties do not
+    HAVE an opponent-independent value (Orion is simultaneously 4 DCV and
+    7 DCV), so returning nothing is better than picking one arbitrarily.
+    It is also what keeps every pre-existing call site unchanged.
+    """
+    if against is None:
+        return []
+    return [
+        source(session, combatant_id, against, combat_type)
+        for source in _PER_OPPONENT_CV_MODIFIER_SOURCES
+    ]
 
 
-def effective_dmcv_for(session: "CombatSession", combatant_id: str) -> int:
-    """This combatant's DMCV as modified by every active condition."""
-    combatant = session.combatants[combatant_id]
-    factors = _factors_for(session, combatant_id, "dmcv_factor")
-    return _fold_cv_factors(combatant.combat_stats().dmcv, factors)
+def _effective_cv(
+    session: "CombatSession", combatant_id: str, key: str, base: int,
+    against: str | None, combat_type: str,
+) -> int:
+    """Fold both seams onto one base CV.
+
+    Order: every factor (sequentially, via ``_fold_cv_factors``), then
+    every flat delta. Factors first because 6E2 p.9's own mitigated row
+    reads that way -- the -1 is stated as the character's resulting DCV
+    against that opponent, not as something applied before a halving --
+    and because the only source producing a delta today never produces a
+    halving on the same CV in the same breath (the table in
+    ``sense_penalties`` emits ``dcv_factor`` or ``dcv_delta``, never
+    both), so the two orders cannot currently disagree. Stated explicitly
+    anyway: the day a second delta source lands, the ordering is already
+    decided and written down rather than being whatever fell out.
+
+    A 0.0 factor still wins outright (6E2 p.39, "applied as the very last
+    step"), so a delta cannot pull a zeroed OCV back above zero.
+    """
+    factor_key = f"{key}_factor"
+    delta_key = f"{key}_delta"
+    per_opponent = _per_opponent_modifiers(session, combatant_id, against, combat_type)
+
+    factors = _factors_for(session, combatant_id, factor_key)
+    factors += [m.get(factor_key, 1.0) for m in per_opponent]
+    if any(f == 0.0 for f in factors):
+        return 0
+
+    value = _fold_cv_factors(base, factors)
+    for m in per_opponent:
+        if delta_key in m:
+            value = apply_cv_delta(value, int(m[delta_key]))
+    return value
 
 
-def effective_ocv_for(session: "CombatSession", combatant_id: str) -> int:
-    """This combatant's OCV as modified by every active condition.
+def effective_dcv_for(
+    session: "CombatSession", combatant_id: str, *,
+    against: str | None = None, combat_type: str = "hth",
+) -> int:
+    """This combatant's DCV as modified by every active condition.
 
-    No source in ``_CV_MODIFIER_SOURCES`` currently sets ``ocv_factor``
-    (Stunned does not touch OCV per 6E2 p.106/p.39 -- only DCV/DMCV/hit
-    locations), so this returns the base OCV unchanged today. Provided
-    for symmetry and because the sense-affecting-powers spec's condition
-    (6E2 p.9) DOES set ``ocv_factor``, at which point this starts
-    reflecting it with no change to this function itself.
+    ``against`` names the opponent this DCV is being read against, and
+    ``combat_type`` (``"hth"`` / ``"ranged"``) the kind of combat between
+    them. Both are optional and default to today's behaviour: without
+    ``against``, only the opponent-independent conditions (Stunned, &c.)
+    are folded, so every pre-existing call site returns exactly what it
+    did before. With it, 6E2 p.9's inability-to-sense penalties apply --
+    and they genuinely differ per opponent, which is why they cannot be
+    folded without one.
     """
     combatant = session.combatants[combatant_id]
-    factors = _factors_for(session, combatant_id, "ocv_factor")
-    return _fold_cv_factors(combatant.combat_stats().ocv, factors)
+    return _effective_cv(session, combatant_id, "dcv",
+                         combatant.combat_stats().dcv, against, combat_type)
+
+
+def effective_dmcv_for(
+    session: "CombatSession", combatant_id: str, *,
+    against: str | None = None, combat_type: str = "hth",
+) -> int:
+    """This combatant's DMCV as modified by every active condition.
+
+    No per-opponent source touches DMCV today: 6E2 p.9's penalties are
+    stated for OCV and DCV, and this module does not extend them to the
+    mental CVs on its own authority (Stunned's DMCV halving is written
+    down on p.106 in as many words; nothing comparable is written for the
+    inability to sense).
+    """
+    combatant = session.combatants[combatant_id]
+    return _effective_cv(session, combatant_id, "dmcv",
+                         combatant.combat_stats().dmcv, against, combat_type)
+
+
+def effective_ocv_for(
+    session: "CombatSession", combatant_id: str, *,
+    against: str | None = None, combat_type: str = "hth",
+) -> int:
+    """This combatant's OCV as modified by every active condition.
+
+    No source in ``_CV_MODIFIER_SOURCES`` sets ``ocv_factor`` (Stunned
+    does not touch OCV per 6E2 p.106/p.39 -- only DCV/DMCV/hit
+    locations), so without ``against`` this still returns the base OCV.
+    The per-opponent seam does set it: 6E2 p.9's 1/2 OCV in HTH and **0
+    OCV at Range** against an opponent the combatant cannot perceive with
+    a Targeting Sense -- the engine's first producer of the 0.0 factor
+    that ``_fold_cv_factors``'s "applied last" branch was written for.
+    """
+    combatant = session.combatants[combatant_id]
+    return _effective_cv(session, combatant_id, "ocv",
+                         combatant.combat_stats().ocv, against, combat_type)

@@ -178,6 +178,22 @@ class Flash:
     ) -> dict:
         """Return the OCV/DCV factors for a flashed combatant making an attack.
 
+        **SUPERSEDED by ``kirby_combat.sense_penalties``, which is what the
+        CV seam actually folds.** This function is correct for the narrow
+        question it asks and is kept for the callers that ask it, but it
+        cannot express three things the same rule requires, so do not
+        build on it:
+
+        * the penalties are **per-opponent** (6E2 p.9's Orion is 1/2 DCV
+          against one attacker and -1 DCV against another in the same
+          Segment); this returns one global answer;
+        * mitigation by a Nontargeting PER Roll is a **flat -1 DCV**, not
+          a factor, so no return value of this shape can carry it;
+        * the penalty is owed to being unable to perceive with a
+          **Targeting** Sense, and this triggers on a Flash to ANY Sense
+          Group -- so it reports a blinded normal human after a Flash to
+          the Hearing Group, which 6E2 p.9 does not.
+
         Per 6E2 p127 §Inability To Sense An Opponent:
           - HTH attacks:    ½ OCV / ½ DCV
           - Ranged attacks: 0 OCV / ½ DCV  (cannot meaningfully aim)
