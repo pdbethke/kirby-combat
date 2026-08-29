@@ -97,11 +97,25 @@ def per_roll_target(observer) -> int:
 
     Was `9 + INT // 5`. Truncation is not the rule: an INT of 13 rolls 12-,
     and this reported 11- for it.
+
+    Works for either combatant shape. A build-backed `HeroCombatant` reads
+    its INT and its campaign's roll constants off the hero; a
+    `StatBlockCombatant` has no `.hero` at all and reads its `int_` field
+    against the 6E defaults (`roll_constants(None)`). Until this branch
+    existed, calling it with a stat block raised AttributeError — which
+    nothing noticed only because nothing had yet asked a stat block for a
+    PER roll. `examples/raw_orion.py` is the first caller that does.
     """
     from kirby_cost.engine.rolls import characteristic_roll, roll_constants
-    base, denominator = roll_constants(observer.hero)
-    return characteristic_roll(observer.hero.characteristic_value("INT"),
-                               base=base, denominator=denominator)
+
+    hero = getattr(observer, "hero", None)
+    if hero is not None:
+        base, denominator = roll_constants(hero)
+        value = hero.characteristic_value("INT")
+    else:
+        base, denominator = roll_constants(None)
+        value = getattr(observer, "int_", 10)
+    return characteristic_roll(value, base=base, denominator=denominator)
 
 
 def range_modifier(distance_m: float) -> int:

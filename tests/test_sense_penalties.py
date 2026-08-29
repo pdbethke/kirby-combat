@@ -231,3 +231,63 @@ def test_the_half_phase_action_is_recorded_on_the_log():
     assert len(declared) == 1
     assert declared[0].combatant_id == "orion"
     assert declared[0].parameters["phase_cost"] == "half"
+
+
+# ---------------------------------------------------------------------------
+# The stat-block path — found by examples/raw_orion.py, not by review
+# ---------------------------------------------------------------------------
+
+def _statblock_session():
+    """A session of ``StatBlockCombatant``s, which expose no ``senses()``."""
+    from kirby_combat.models import StatBlockCombatant
+
+    def sb(id_):
+        return StatBlockCombatant(
+            id=id_, name=id_, ocv=8, dcv=8, omcv=5, dmcv=5,
+            spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+            pd=5, ed=5, rpd=0, red=0, md=5,
+            power_defense=0, flash_defense=0,
+            max_stun=30, max_body=15, max_end=30,
+            current_stun=30, current_body=15, current_end=30,
+            attacks=[], defenses=[],
+        )
+
+    return CombatSession.create(
+        id="s1", combatants=[sb("orion"), sb("durak")], scene=None,
+        template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=FakeRoller([]),
+    ).start()
+
+
+def test_a_stat_block_combatant_is_blinded_too():
+    """Only a build-backed combatant has ``senses()``. Treating the absence
+    as "nothing blocks him" made the whole rule a no-op for stat blocks --
+    every example script, much of this suite, and any driver working from a
+    flat stat block. The fallback is 6E2 p.9's normal human: Sight is the
+    only Targeting Sense.
+    """
+    s = _statblock_session()
+    s, _ = Flash.apply(s, attacker_id="durak", target_id="orion",
+                       sense_group="sight", body_dealt=8, flash_defense=0)
+    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 0
+
+
+def test_a_stat_block_flashed_in_a_nontargeting_group_still_aims():
+    """The fallback has to be the whole rule, not just its punishing half."""
+    s = _statblock_session()
+    s, _ = Flash.apply(s, attacker_id="durak", target_id="orion",
+                       sense_group="hearing", body_dealt=8, flash_defense=0)
+    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 8
+    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 8
+
+
+def test_per_roll_target_works_for_a_stat_block():
+    """``per_roll_target`` read ``observer.hero``, which a stat block has
+    not got, so asking one for a PER roll raised AttributeError. INT 10
+    against the 6E defaults is an 11-."""
+    from kirby_combat.perception import per_roll_target
+
+    s = _statblock_session()
+    assert per_roll_target(s.combatants["orion"]) == 11

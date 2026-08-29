@@ -144,14 +144,28 @@ def _targeting_senses_blocked(
     many times while an attack is built, and a predicate that rolled
     would return a different answer each time it was asked.
 
-    A combatant the session does not know, or one whose view exposes no
-    ``senses()``, is treated as unblocked — the same fail-open direction
-    every other perception gate in this engine takes.
+    **A combatant with no ``senses()`` falls back to the book's normal
+    human, and does NOT fail open.** Only ``HeroCombatant`` (a build)
+    exposes ``senses()``; ``StatBlockCombatant`` — which every example
+    script, much of the suite, and any driver working from a flat stat
+    block uses — does not. Failing open there would have meant the rule
+    applied to build-backed combatants and silently did nothing for
+    everyone else, which is precisely the "a structure half the engine
+    ignores" outcome. Caught by ``examples/raw_orion.py`` on its first
+    run: Orion, Flashed, reported a full 8 DCV. The fallback is grounded
+    rather than invented — 6E2 p.9 names Sight as the only Targeting
+    Sense a normal human has — so a stat block flashed in the Sight Group
+    is blind and one flashed in the Hearing Group is not, matching what
+    the same character would do as a build with no bought senses.
+
+    A combatant the session does not know at all is treated as unblocked;
+    there is nothing to reason about.
     """
     from kirby_combat.actions.flash import Flash
+    from kirby_combat.perception import SIGHT
 
     combatant = session.combatants.get(observer_id)
-    if combatant is None or not hasattr(combatant, "senses"):
+    if combatant is None:
         return False
 
     _, flashed = Flash.is_flashed(session, observer_id)
@@ -159,7 +173,11 @@ def _targeting_senses_blocked(
     if not blocked_groups:
         return False
 
-    for sense in combatant.senses():
+    senses = combatant.senses() if hasattr(combatant, "senses") else None
+    if senses is None:
+        return SIGHT in blocked_groups
+
+    for sense in senses:
         if not getattr(sense, "is_targeting", True):
             continue
         if not getattr(sense, "functional", True):
