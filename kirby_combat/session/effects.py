@@ -177,3 +177,72 @@ def flash_state(session: "CombatSession", combatant_id: str) -> FlashState:
         target_id=combatant_id,
         segments_by_sense={g: n for g, n in segments.items() if n > 0},
     )
+
+
+# ---------------------------------------------------------------------------
+# Presence Attack bookkeeping
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PresenceState:
+    """A target's live Presence-Attack effect, folded from the log.
+
+    ``tier`` is None and ``segments_remaining`` 0 when nothing is active --
+    so a caller that always reads this gets today's behaviour for anyone who
+    was never shouted at.
+    """
+    target_id: str
+    tier: str | None = None
+    segments_remaining: int = 0
+    yields_to_id: str | None = None
+
+    @property
+    def is_active(self) -> bool:
+        return self.tier is not None and self.segments_remaining > 0
+
+
+def presence_state(session: "CombatSession", combatant_id: str) -> PresenceState:
+    """Walk the log accumulating PresenceApplied / PresenceFaded.
+
+    Same shape as ``flash_state`` and ``entangle_state`` above, and for the
+    same reason: ``PresenceFaded.segments_remaining`` states the RESULTING
+    value rather than a delta, so this fold runs forward and never has to
+    invert anything.
+
+    A stronger tier replaces a weaker one and resets its clock; an equal tier
+    refreshes the clock; a weaker one is ignored entirely -- 6E2 p.139's
+    tiers are a ladder, and a shout must not un-cow someone already cowed.
+    """
+    from kirby_combat.pre_attacks.presence_effects import effect_for_tier
+
+    tier: str | None = None
+    remaining = 0
+    yields_to: str | None = None
+    for evt in session.event_log:
+        kind = getattr(evt, "kind", None)
+        if getattr(evt, "target_id", None) != combatant_id:
+            continue
+        if kind == "PresenceApplied":
+            new_tier = getattr(evt, "tier", "") or ""
+            new_rule = effect_for_tier(new_tier)
+            if new_rule is None:
+                continue
+            current_rule = effect_for_tier(tier or "")
+            current_rank = current_rule.rank if (current_rule and remaining > 0) else 0
+            if new_rule.rank < current_rank:
+                continue                       # a weaker shout changes nothing
+            tier = new_tier
+            remaining = int(getattr(evt, "segments", 0) or 0)
+            yields_to = (getattr(evt, "attacker_id", None) or None
+                         if new_rule.yields else None)
+        elif kind == "PresenceFaded":
+            remaining = max(0, int(getattr(evt, "segments_remaining", 0) or 0))
+            if remaining == 0:
+                tier = None
+                yields_to = None
+    if remaining <= 0:
+        return PresenceState(target_id=combatant_id)
+    return PresenceState(
+        target_id=combatant_id, tier=tier,
+        segments_remaining=remaining, yields_to_id=yields_to,
+    )

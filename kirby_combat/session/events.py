@@ -201,6 +201,36 @@ class FlashRecovered(_BaseEvent):
 
 
 @dataclass
+class PresenceApplied(_BaseEvent):
+    """A Presence Attack tier landing on a target (6E2 p.139).
+
+    ``segments`` is the tier's full duration at the moment it lands. The
+    fold in ``session/effects.py`` reads it forward; nothing inverts it.
+    """
+    kind: Literal["PresenceApplied"] = field(default="PresenceApplied", init=False)
+    target_id: str = ""
+    attacker_id: str = ""
+    tier: str = ""
+    segments: int = 0
+
+
+@dataclass
+class PresenceFaded(_BaseEvent):
+    """Time passing on a Presence effect.
+
+    ``segments_remaining`` is the RESULTING value, absolute — never a delta
+    to subtract. That is what lets ``presence_state`` fold forward and is the
+    same contract ``FlashRecovered.segments_remaining`` and
+    ``AdjustmentFaded.remaining_delta`` already hold to. A delta here would
+    have to be inverted to read state backwards, and this project has already
+    proved inversion cannot be made correct (END clamps at 0 on spend).
+    """
+    kind: Literal["PresenceFaded"] = field(default="PresenceFaded", init=False)
+    target_id: str = ""
+    segments_remaining: int = 0
+
+
+@dataclass
 class EnvironmentalTriggered(_BaseEvent):
     kind: Literal["EnvironmentalTriggered"] = field(default="EnvironmentalTriggered", init=False)
     hazard_id: str = ""
@@ -271,6 +301,8 @@ CombatEvent = (
     | EntangleEscape
     | FlashApplied
     | FlashRecovered
+    | PresenceApplied
+    | PresenceFaded
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned

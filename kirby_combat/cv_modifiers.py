@@ -139,6 +139,26 @@ def _sense_penalty_cv_modifiers(
     return sense_penalty_modifiers(session, combatant_id, opponent_id, combat_type)
 
 
+def _presence_cv_modifiers(
+    session: "CombatSession", combatant_id: str,
+) -> dict[str, float]:
+    """A landed Presence Attack's contribution to the seam (6E2 p.139).
+
+    Thin delegation to ``pre_attacks/presence_effects.py``, which owns the
+    tier ladder and its durations. Opponent-INDEPENDENT: an awed character
+    is at half DCV against everyone, so this belongs here rather than in
+    ``_PER_OPPONENT_CV_MODIFIER_SOURCES``.
+
+    Its factors are 0.5 (awed) and 0.0 (cowed, overwhelmed) -- both grounded
+    values ``apply_cv_factor`` already accepts, so this needed no new
+    arithmetic. Cowed is the engine's SECOND real producer of the "a 0.0
+    factor is applied last" branch; 6E2 p.9's Ranged OCV was the first.
+    """
+    from kirby_combat.pre_attacks.presence_effects import presence_cv_modifiers
+
+    return presence_cv_modifiers(session, combatant_id)
+
+
 #: Ordered sources folded into ``cv_modifiers_for``. THIS tuple is the
 #: seam: add one more ``(session, combatant_id) -> dict`` entry here for a
 #: new CV-affecting condition (see the module docstring's sense-affecting-
@@ -147,6 +167,7 @@ _CV_MODIFIER_SOURCES: tuple[
     Callable[["CombatSession", str], dict[str, float]], ...
 ] = (
     _stunned_cv_modifiers,
+    _presence_cv_modifiers,
 )
 
 
