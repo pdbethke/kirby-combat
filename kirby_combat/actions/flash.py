@@ -184,9 +184,9 @@ class Flash:
         cannot express three things the same rule requires, so do not
         build on it:
 
-        * the penalties are **per-opponent** (6E2 p.9's Orion is 1/2 DCV
-          against one attacker and -1 DCV against another in the same
-          Segment); this returns one global answer;
+        * the penalties are **per-opponent** (6E2 p.9's blinded Orion is
+          1/2 DCV against one attacker and -1 DCV against another in the
+          same Segment); this returns one global answer;
         * mitigation by a Nontargeting PER Roll is a **flat -1 DCV**, not
           a factor, so no return value of this shape can carry it;
         * the penalty is owed to being unable to perceive with a

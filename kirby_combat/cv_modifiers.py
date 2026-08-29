@@ -36,17 +36,21 @@ hardcoded if/elif chain -- so a combatant under two conditions at once
 (e.g. Stunned AND Entangled) gets both penalties compounded automatically,
 and no source needs to know any other source exists.
 
-The next spec (sense-affecting powers: Flash, Darkness, Images -- 6E2 p.9,
-"a character who cannot perceive his opponent with a Targeting Sense... is
-at 1/2 OCV and 1/2 DCV in the HTH Combat, or 0 OCV and 1/2 DCV at Range")
-plugs in by adding ONE more entry to ``_CV_MODIFIER_SOURCES`` -- a function
-with the same ``(session, combatant_id) -> dict`` shape, returning
-``{"ocv_factor": ..., "dcv_factor": ...}`` (``actions/flash.py``'s
-``Flash.modifiers`` already computes exactly that value today; it is
-simply not yet wired into this composition, which is deliberately out of
-scope for THIS task -- see that function's own docstring). Nothing in
-``cv_modifiers_for``, ``CVModifiers``, or ``apply_cv_factor`` needs to
-change for that to work.
+**A prediction this docstring used to make, and what actually happened.**
+It said the next spec (sense-affecting powers: Flash, Darkness, Images --
+6E2 p.9's CV penalties for a character who cannot perceive his opponent
+with a Targeting Sense) would "plug in by adding ONE more entry to
+``_CV_MODIFIER_SOURCES``", with nothing in ``cv_modifiers_for``,
+``CVModifiers`` or ``apply_cv_factor`` needing to change, because
+``Flash.modifiers`` already computed the value. **That was wrong on both
+counts**, and the second seam below exists because of it: 6E2 p.9's
+worked example puts one combatant at DIFFERENT CVs against DIFFERENT
+opponents in the same Segment, and states the mitigated case as a flat
+-1 DCV rather than a factor. Neither fits a
+``(session, combatant_id) -> factors`` source. See
+``_PER_OPPONENT_CV_MODIFIER_SOURCES`` and ``kirby_combat.sense_penalties``.
+The original seam is unchanged and still takes every
+opponent-independent condition.
 """
 from __future__ import annotations
 
@@ -154,7 +158,7 @@ _CV_MODIFIER_SOURCES: tuple[
 # docstring above predicted that sense-affecting powers would "plug in by
 # adding ONE more entry to ``_CV_MODIFIER_SOURCES``... Nothing in
 # ``cv_modifiers_for``, ``CVModifiers``, or ``apply_cv_factor`` needs to
-# change for that to work." **That prediction was wrong, and the reason it
+# change for that to work". **That prediction was wrong, and the reason it
 # was wrong is the whole shape of this section**, so it is corrected here
 # rather than quietly worked around: 6E2 p.9's Orion example has one
 # combatant at DIFFERENT CVs against DIFFERENT opponents in the same
@@ -455,13 +459,13 @@ def apply_cv_delta(base: int, delta: int) -> int:
     Combat" against him: an 8 DCV becomes 7. Routing that through
     ``apply_cv_factor`` would mean inventing a factor (0.875 for THIS
     combatant, something else for the next), which that function refuses
-    outright and rightly so -- the book states a modifier, not a
+    outright and rightly so -- the page states a modifier, not a
     proportion, and a proportion would give a different answer for every
     starting DCV.
 
     No rounding rule is invoked because none is needed: both operands are
     integers. No sign branch either -- 6E2 p.39's sign-aware clause is
-    scoped to a penalty "that would HALVE his OCV", which this is not.
+    scoped to a further penalty that would HALVE a CV, which this is not.
     """
     return base + int(delta)
 
@@ -518,8 +522,9 @@ def _effective_cv(
     anyway: the day a second delta source lands, the ordering is already
     decided and written down rather than being whatever fell out.
 
-    A 0.0 factor still wins outright (6E2 p.39, "applied as the very last
-    step"), so a delta cannot pull a zeroed OCV back above zero.
+    A 0.0 factor still wins outright -- 6E2 p.39 applies a reduction to
+    zero as the very last step -- so a delta cannot pull a zeroed OCV
+    back above zero.
     """
     factor_key = f"{key}_factor"
     delta_key = f"{key}_delta"

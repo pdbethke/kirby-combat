@@ -1,30 +1,30 @@
 """Inability to sense an opponent — the CV consequence, per opponent.
 
-**The rule this module implements, 6E2 p.9** (the same numbers appear on
-p.127 under "Inability To Sense An Opponent"; both pages support the
-claims made here, and both were read before this was written):
+**The rule this module implements — 6E2 p.9**, restated in our own words
+(this project ships no rules text; open your own copy to check us). The
+same numbers appear on p.127 under "Inability To Sense An Opponent";
+both pages were read before this was written and both support every
+claim made here.
 
-    "In combat, a character must normally use a Targeting Sense to detect
-    his target... When a character cannot perceive his opponent with any
-    Targeting Sense, he suffers modifiers to his OCV and DCV:
-      - In HTH Combat, the character is at 1/2 OCV and 1/2 DCV. This
-        applies both to when he makes attacks in HTH Combat, and is
-        attacked in HTH Combat.
-      - In Ranged Combat, the character is at 0 OCV and 1/2 DCV. This
-        applies both to when he makes attacks in Ranged Combat, and is
-        attacked in Ranged Combat."
+    A character normally needs a TARGETING Sense to detect an opponent in
+    combat, and while he has one his CVs are unaffected. When he can
+    perceive an opponent with no Targeting Sense at all -- blinded by a
+    Flash, say, or facing someone Invisible -- he takes CV penalties, and
+    the page is explicit that each applies whether he is attacking or
+    being attacked in that kind of combat:
 
-    "If a character can make a PER Roll with a Nontargeting Sense (a Half
-    Phase Action) to perceive a particular target, then against that
-    target only he is at -1 DCV, 1/2 OCV when attacked or attacking in
-    HTH Combat, and full DCV, 1/2 OCV when attacked from or attacking at
-    Range. Against all other targets he is affected by the standard 'lack
-    of Targeting Sense' modifiers described above. The benefits of making
-    this roll last until the beginning of the character's next Phase; if
-    he wants them to continue, he has to use another Half Phase Action
-    and succeed with another PER Roll."
+      * hand-to-hand: half OCV and half DCV;
+      * at Range: OCV drops to zero, DCV is halved.
 
-**Three things that quote forces, and any design missing one is wrong:**
+    He can mitigate that against ONE opponent by spending a Half Phase
+    Action on a PER Roll with a NONTARGETING Sense. Against that opponent
+    only, he is then at -1 DCV and half OCV hand-to-hand, and at FULL DCV
+    and half OCV at Range. Against everyone else the unmitigated
+    penalties above still stand. The benefit lapses at the start of his
+    next Phase, and continuing it costs another Half Phase Action and
+    another successful roll.
+
+**Three things that rule forces, and any design missing one is wrong:**
 
 1. **Per-opponent.** The 6E2 p.9 worked example (Orion, blinded by a
    Flash, who makes his Hearing PER Roll against Durak) has the same
@@ -42,8 +42,8 @@ claims made here, and both were read before this was written):
    A single "blind, mitigated" boolean folded into one factor cannot
    express that; the table below is read per (combat_type, mitigated).
 
-**Why "combat_type" and not "attack_type".** The p.9 text is explicit
-that each row "applies both to when he makes attacks... and is attacked"
+**Why "combat_type" and not "attack_type".** p.9 is explicit that each
+row applies to a character both when he attacks and when he is attacked
 in that kind of combat. The parameter names the KIND OF COMBAT taking
 place between these two combatants, and it governs this combatant's OCV
 and DCV alike. ``Flash.modifiers``'s older ``attack_type`` parameter
@@ -58,11 +58,11 @@ callers want ``sense_penalty_modifiers`` or, better, the
 ``effective_*_for`` functions in ``cv_modifiers``. See that function's
 docstring for the pointer back here.
 
-**What counts as "cannot perceive with a Targeting Sense".** 6E2 p.9
-draws the Targeting/Nontargeting line explicitly: "A Targeting Sense is a
-Sense a character can use to determine the exact location of a target.
-For normal humans, Sight is the only Targeting Sense... Hearing and Smell
-are Nontargeting Senses." So a Flash against the Hearing Group costs a
+**What counts as being unable to perceive with a Targeting Sense.** 6E2
+p.9 draws the Targeting/Nontargeting line explicitly, and defines a
+Targeting Sense as one that locates a target EXACTLY. It names Sight as
+the only Targeting Sense a normal human has, with Hearing and Smell
+Nontargeting. So a Flash against the Hearing Group costs a
 normal human no CV at all, while one against the Sight Group costs him
 everything — and a character who bought Active Sonar (a Targeting Sense
 in the Hearing Group, ``perception._TARGETING_SENSE_XMLIDS``) still aims
@@ -106,14 +106,14 @@ RANGED = "ranged"
 # are added afterwards. An absent key means "unmodified", which is how
 # "full DCV" in the mitigated Ranged row is expressed.
 _SENSE_PENALTY_TABLE: dict[tuple[str, bool], dict[str, float]] = {
-    # "In HTH Combat, the character is at 1/2 OCV and 1/2 DCV."
+    # Unmitigated, hand-to-hand: half OCV, half DCV.
     (HTH, False): {"ocv_factor": 0.5, "dcv_factor": 0.5},
-    # "In Ranged Combat, the character is at 0 OCV and 1/2 DCV."
+    # Unmitigated, at Range: OCV to zero, DCV halved.
     (RANGED, False): {"ocv_factor": 0.0, "dcv_factor": 0.5},
-    # "...against that target only he is at -1 DCV, 1/2 OCV when attacked
-    # or attacking in HTH Combat..."
+    # Nontargeting PER Roll made, hand-to-hand: -1 DCV, half OCV.
     (HTH, True): {"ocv_factor": 0.5, "dcv_delta": -1.0},
-    # "...and full DCV, 1/2 OCV when attacked from or attacking at Range."
+    # Nontargeting PER Roll made, at Range: FULL DCV, half OCV -- the
+    # absent dcv key is the "full DCV" half of that row.
     (RANGED, True): {"ocv_factor": 0.5},
 }
 
@@ -137,8 +137,7 @@ def _targeting_senses_blocked(
     session: "CombatSession", observer_id: str, opponent_id: str,
 ) -> bool:
     """True when NO Targeting Sense of ``observer_id`` can reach
-    ``opponent_id`` — 6E2 p.9's "cannot perceive his opponent with any
-    Targeting Sense".
+    ``opponent_id`` — the condition 6E2 p.9 attaches its CV penalties to.
 
     Deterministic by construction: it consults only sense-disabling state
     (Flash today; Darkness from Task 3), never a die roll. A CV is read
@@ -307,8 +306,8 @@ class NontargetingPerception:
         ``Flash.is_flashed`` / ``is_entangled`` / ``is_grabbed``. The last
         event about this (observer, target) pair wins: a later expiry
         clears an earlier success, and a later success re-establishes it
-        (which is exactly p.9's "he has to use another Half Phase Action
-        and succeed with another PER Roll").
+        (which is what p.9 requires to keep the benefit going: another
+        Half Phase Action and another successful roll).
         """
         held = False
         for evt in session.event_log:
@@ -342,9 +341,8 @@ class NontargetingPerception:
     ) -> tuple["CombatSession", list[str]]:
         """Clear every PER-Roll benefit ``observer_id`` holds.
 
-        6E2 p.9: "The benefits of making this roll last until the
-        beginning of the character's next Phase." Called by the driver at
-        that edge, mirroring
+        6E2 p.9 ends the benefit at the start of the character's next
+        Phase. Called by the driver at that edge, mirroring
         ``HeldAction.expire_for_combatant_next_phase`` (6E2 p.61) — see
         this class's docstring for why the engine does not derive the edge
         itself. Returns the ids whose benefit was cleared, so a caller can

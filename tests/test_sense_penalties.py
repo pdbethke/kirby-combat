@@ -75,14 +75,14 @@ def test_omitting_against_keeps_todays_behaviour():
 # ---------------------------------------------------------------------------
 
 def test_unperceiving_combatant_is_half_ocv_half_dcv_in_hth():
-    """6E2 p.9: in HTH Combat the character is at 1/2 OCV and 1/2 DCV."""
+    """6E2 p.9 halves both OCV and DCV in hand-to-hand combat."""
     s = _blind(_session())
     assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 4
     assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
 
 
 def test_unperceiving_combatant_is_zero_ocv_half_dcv_at_range():
-    """6E2 p.9: in Ranged Combat the character is at 0 OCV and 1/2 DCV.
+    """6E2 p.9 drops OCV to zero and halves DCV at Range.
 
     This is the first source in the engine to produce a 0.0 CV factor --
     the branch ``_fold_cv_factors`` documents as untested by construction.
@@ -93,7 +93,7 @@ def test_unperceiving_combatant_is_zero_ocv_half_dcv_at_range():
 
 
 def test_zero_ocv_wins_over_a_simultaneous_halving():
-    """6E2 p.39: a reduction of OCV to 0 is applied as the very last step.
+    """6E2 p.39 applies a reduction of OCV to 0 as the very last step.
 
     Composed with any other active factor the answer is still 0, never a
     halved 0 or a 0 that a later halving turns into something else.
@@ -108,9 +108,9 @@ def test_zero_ocv_wins_over_a_simultaneous_halving():
 # ---------------------------------------------------------------------------
 
 def test_flash_to_a_nontargeting_sense_costs_no_cv():
-    """6E2 p.9: the penalty applies when a character cannot perceive his
-    opponent with **any Targeting Sense**. For a normal human, Hearing is
-    Nontargeting -- a Hearing Flash blinds nothing that aims.
+    """6E2 p.9 attaches the penalty to having NO Targeting Sense that
+    reaches the opponent. It names Hearing as Nontargeting for a normal
+    human, so a Hearing Flash blinds nothing that aims.
     """
     s = _session()
     s, _ = Flash.apply(
@@ -145,9 +145,9 @@ def _orion_hears_durak(session):
 
 
 def test_orion_against_durak_is_minus_one_dcv_half_ocv_in_hth():
-    """6E2 p.9: "against that target only he is at -1 DCV, 1/2 OCV when
-    attacked or attacking in HTH Combat". -1 is a FLAT modifier, not a
-    second halving: 8 DCV becomes 7, not 4 and not 2.
+    """Against the one opponent he heard, 6E2 p.9 puts him at -1 DCV and
+    half OCV hand-to-hand. -1 is a FLAT modifier, not a second halving:
+    8 DCV becomes 7, not 4 and not 2.
     """
     s = _orion_hears_durak(_blind(_session()))
     assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 7
@@ -155,18 +155,18 @@ def test_orion_against_durak_is_minus_one_dcv_half_ocv_in_hth():
 
 
 def test_orion_against_durak_is_full_dcv_half_ocv_at_range():
-    """6E2 p.9: "...and full DCV, 1/2 OCV when attacked from or attacking
-    at Range". Full DCV -- the halving is gone, not softened."""
+    """At Range against that same opponent, 6E2 p.9 gives him FULL DCV and
+    half OCV. Full -- the halving is gone, not softened."""
     s = _orion_hears_durak(_blind(_session()))
     assert effective_dcv_for(s, "orion", against="durak", combat_type="ranged") == 8
     assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 4
 
 
 def test_orion_against_everyone_else_is_still_a_sitting_duck():
-    """6E2 p.9: "He's still at 1/2 OCV and DCV in HTH and 1/2 DCV, 0 OCV at
-    Range against all other opponents." The same combatant, the same
-    Segment, different CVs per opponent -- the constraint that forces the
-    seam to be per-opponent at all.
+    """6E2 p.9 leaves the unmitigated penalties in force against everyone
+    he did not hear. The same combatant, the same Segment, different CVs
+    per opponent -- the constraint that forces the seam to be
+    per-opponent at all.
     """
     s = _orion_hears_durak(_blind(_session()))
     assert effective_ocv_for(s, "orion", against="fiacho", combat_type="hth") == 4
@@ -186,9 +186,9 @@ def test_a_failed_per_roll_mitigates_nothing():
 
 
 def test_mitigation_expires_at_the_start_of_the_observers_next_phase():
-    """6E2 p.9: "The benefits of making this roll last until the beginning
-    of the character's next Phase; if he wants them to continue, he has to
-    use another Half Phase Action and succeed with another PER Roll."
+    """6E2 p.9 ends the benefit at the start of the character's next
+    Phase; keeping it costs another Half Phase Action and another
+    successful roll.
     """
     s = _orion_hears_durak(_blind(_session()))
     assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 7
@@ -214,8 +214,8 @@ def test_mitigation_does_not_leak_between_observers():
 # ---------------------------------------------------------------------------
 
 def test_stunned_and_unperceiving_compose_sequentially():
-    """Two halvings apply one at a time (6E1 p.14, "round at each separate
-    step"), never as a pre-multiplied 0.25: 8 -> 4 -> 2.
+    """Two halvings apply one at a time -- 6E1 p.14 rounds at each separate
+    step of a calculation -- never as a pre-multiplied 0.25: 8 -> 4 -> 2.
     """
     from kirby_combat.cv_modifiers import _fold_cv_factors
     assert _fold_cv_factors(8, [0.5, 0.5]) == 2
