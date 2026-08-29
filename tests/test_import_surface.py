@@ -1,4 +1,10 @@
-"""The engine has a front door, and this is its contract.
+"""The engine's IMPORT SURFACE — the names it exposes, and its contract.
+
+**"Import surface", not "public API".** In this platform "API" means the
+HTTP service (`kirby-api`); this is a library contract about which Python
+names a consumer may rely on. See
+`kirby/docs/superpowers/specs/2026-08-27-kirby-owns-its-vocabulary-design.md`
+§4a.
 
 `__all__` is the supported surface. Anything in it is versioned and may not
 move or vanish without a deliberate decision; anything NOT in it is internal
@@ -89,11 +95,11 @@ def test_the_measured_consumer_surface_is_covered():
 
 
 def test_no_private_name_is_exported():
-    """A leading underscore in the public surface is a contradiction. The
+    """A leading underscore in the import surface is a contradiction. The
     five privates kirby-api reaches for are a real gap, but the answer is a
     deliberate public function, never re-exporting the private."""
     private = [n for n in kirby_combat.__all__ if n.startswith("_")]
-    assert private == [], f"private names in the public surface: {private}"
+    assert private == [], f"private names in the import surface: {private}"
 
 
 def test_star_import_gives_exactly_the_surface():
@@ -149,7 +155,7 @@ def test_deep_imports_still_work():
 #:   into this engine, ask again whether anything still needs them in public.
 #: * **Gaps.** `to_dict` / `from_dict`, `make_author_gm`, `disbelieve_image`,
 #:   `per_roll_target` and the sense-group readers are plausibly legitimate
-#:   public API that simply has no worked example yet. The fix there is to
+#:   import surface that simply has no worked example yet. The fix there is to
 #:   write one.
 UNDEMONSTRATED = {
     # symptoms of rules math in the wrong repo
@@ -183,7 +189,7 @@ def _undemonstrated_now() -> set[str]:
 def test_the_undemonstrated_set_never_grows():
     """A RATCHET, not a snapshot.
 
-    The engine's public surface was derived from what kirby-api imports —
+    The engine's import surface was derived from what kirby-api imports —
     the right way to find the names people need, and the wrong way to decide
     what the engine should VOUCH for, since kirby-api is a consumer we have
     already agreed is architecturally wrong. This test is the guard against

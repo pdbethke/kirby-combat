@@ -28,7 +28,7 @@ from kirby_cost.engine import damage as _damage  # noqa: F401,E402
 from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 
 # ---------------------------------------------------------------------------
-# THE PUBLIC SURFACE
+# THE IMPORT SURFACE
 # ---------------------------------------------------------------------------
 #
 # `__all__` below is the CONTRACT. A name in it is supported: it will not move,
@@ -42,7 +42,7 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 # plus five underscore-prefixed privates. A published surface of 3 against a
 # real coupling surface of 74 meant every internal refactor was a cross-repo
 # break, and every private a consumer reached had quietly frozen. `tests/
-# test_public_api.py` holds the measured consumer list and fails if the door
+# test_import_surface.py` holds the measured consumer list and fails if the door
 # stops covering it.
 #
 # ADDITIVE BY DESIGN. Nothing here hides or renames anything: every deep path
@@ -78,7 +78,7 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 # while kirby-api is set aside. They are recorded here so that when the
 # carve-out moves rules math into this engine, the question gets asked again:
 # does anything still need this in public, or was it only ever a symptom?
-# `tests/test_public_api.py::test_the_provisional_subset_is_recorded` keeps the
+# `tests/test_import_surface.py::test_the_undemonstrated_set_never_grows` keeps the
 # list honest.
 
 # NOT exported, deliberately: the world OPERATIONS (movement_reach,

@@ -84,7 +84,7 @@ def test_place_combatant_out_of_bounds_raises():
 
 
 def test_wall_top_surface_and_mode_requires_support_are_exported_from_scene_package():
-    """The branch's main public API — the two symbols a consumer actually
+    """The branch's main import surface — the two symbols a consumer actually
     needs to call — must be importable from `kirby_combat.scene`, matching
     every other scene symbol's export."""
     import kirby_combat.scene as scene_pkg
