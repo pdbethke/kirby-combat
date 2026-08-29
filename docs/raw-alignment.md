@@ -70,6 +70,53 @@ example, rather than citing the page, is what caught it.
 
 ---
 
+## Fighting an opponent you cannot perceive — 6E2 p.9
+
+**Script:** `examples/raw_orion.py` · **Verdict:** rule and example agree; conformance asserted
+
+**The book's scenario, paraphrased.** Orion is blinded by a Flash and can
+perceive nobody with a Targeting Sense. He is halved on both OCV and DCV
+hand-to-hand; at Range his OCV drops to zero and his DCV is halved. He then
+spends a Half Phase Action on a Hearing PER Roll against one attacker, Durak,
+and makes it — and against Durak **only** he is at -1 DCV and half OCV
+hand-to-hand, and at full DCV and half OCV at Range. Against everyone else the
+unmitigated numbers still stand, until the benefit lapses at the start of his
+next Phase.
+
+**What Kirby produces**, giving Orion 8 OCV / 8 DCV (the page states ratios and
+a flat modifier, not his CVs):
+
+| | HTH OCV | HTH DCV | Ranged OCV | Ranged DCV |
+|---|---|---|---|---|
+| Before the Flash | 8 | 8 | 8 | 8 |
+| Blinded, vs anyone | 4 | 4 | 0 | 4 |
+| Blinded, vs **Durak** after the Hearing PER Roll | 4 | **7** | **4** | **8** |
+| Blinded, vs everyone else, same Segment | 4 | 4 | 0 | 4 |
+| After the benefit lapses | 4 | 4 | 0 | 4 |
+
+**Why this example is worth executing.** Read the third and fourth rows
+together: the same combatant, in the same Segment, at DCV 7 against one
+opponent and DCV 4 against another. Three things follow, and each breaks a
+design that treats "blind" as one global CV factor.
+
+- The penalty is **per-opponent**. A `(session, combatant_id) -> factors` seam
+  cannot express two answers at once.
+- The mitigation is a **flat -1**, not a second halving. Halving twice gives 2
+  where the book gives 7.
+- The mitigation is **asymmetric**: full DCV at Range, but only -1 in
+  hand-to-hand — and Ranged OCV comes off zero while HTH OCV stays halved.
+
+**Two defects this script found that the tests did not.** It was written second
+by design, not last, on the theory that running the book catches what per-item
+review misses. Both faults it caught were the same shape: the rule worked for a
+build-backed combatant and silently did nothing for a `StatBlockCombatant`,
+which has no `senses()` — so the penalty never applied to the combatant type
+every example and much of the suite uses, and asking one for a PER roll raised
+`AttributeError`. Fixed at the source and pinned in
+`tests/test_sense_penalties.py`.
+
+---
+
 ## Move By — 6E2 p.72
 
 **Script:** `examples/raw_starburst.py` · **Verdict:** the page's example contradicts the page's own rule; the engine follows the RULE
@@ -105,9 +152,8 @@ Honest gaps, listed so the absence is visible rather than implied:
 
 | Example | Page | Needs |
 |---|---|---|
-| Fighting an opponent you cannot perceive | 6E2 p.9 / p.127 | the ½ OCV / ½ DCV penalties and their per-opponent mitigation — the sense-affecting-powers work |
 | Aborting to Dodge | 6E2 p.24 | a driver that spends the aborted Phase |
 | Adding damage to a weapon | 6E2 p.101 | turns on a GM ruling rather than a rule; not mechanically reproducible |
 
-The first is the acceptance criterion for the sense-affecting-powers spec: when
-that lands, this page gains an entry asserting 6E2 p.9's table.
+Orion fighting blind used to head this table. It was the acceptance criterion
+for the sense-affecting-powers spec, and it now has an entry of its own above.
