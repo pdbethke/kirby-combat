@@ -53,6 +53,34 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 # "reimplement the rule over here", which is the failure this platform has
 # already paid for once.
 #
+# PROVISIONAL SUBSET -- read this before treating all 80 names as equal.
+#
+# This surface was DERIVED from what kirby-api imports. That is the right way
+# to find the names people actually need, and the wrong way to decide what the
+# engine should VOUCH for -- because kirby-api is a consumer we have already
+# agreed is architecturally wrong (it holds ~5,100 lines of rules math it
+# should not; see kirby/docs/superpowers/notes/2026-08-28-rules-math-stranded-
+# in-api.md). Deriving a contract from a mistaken consumer risks canonising the
+# mistake.
+#
+# Measured 2026-08-28: eight exported names have NO usage anywhere in
+# `examples/` -- the engine never demonstrates them as things a caller uses:
+#
+#     scale_variable_slot_dice, compute_impact_damage_dice, range_penalty,
+#     apply_attack_to_construct, apply_autofire_to_construct,
+#     gate_ranged_attack, has_line_of_sight, blocking_wall_for_shot
+#
+# They are exported because kirby-api reaches for them, and several are
+# resolution internals a well-behaved consumer would never touch: you call
+# `resolve_attack` and read the result, you do not compute the damage yourself.
+#
+# They are NOT removed today -- removing them would be churn that helps nobody
+# while kirby-api is set aside. They are recorded here so that when the
+# carve-out moves rules math into this engine, the question gets asked again:
+# does anything still need this in public, or was it only ever a symptom?
+# `tests/test_public_api.py::test_the_provisional_subset_is_recorded` keeps the
+# list honest.
+
 # NOT exported, deliberately: the world OPERATIONS (movement_reach,
 # nearest_visible_point, cover, falling, the geometry primitives). Those are
 # `kirby-world`'s surface. The place TYPES (Scene, Position, Wall, ...) ARE

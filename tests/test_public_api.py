@@ -132,3 +132,75 @@ def test_deep_imports_still_work():
                  "kirby_combat.resolution.damage",
                  "kirby_combat.actions.reactive.block"):
         assert importlib.import_module(path) is not None
+
+
+#: Exported, but never shown in `examples/` — the engine does not demonstrate
+#: these as part of how it is meant to be used. Measured 2026-08-28: 19 of 80.
+#:
+#: Two different problems wear this label, and the set does not distinguish
+#: them because the remedy is the same either way (look at it and decide):
+#:
+#: * **Symptoms.** `scale_variable_slot_dice`, `compute_impact_damage_dice`,
+#:   `range_penalty`, `apply_attack_to_construct`, `apply_autofire_to_construct`,
+#:   `gate_ranged_attack`, `has_line_of_sight`, `blocking_wall_for_shot` are
+#:   resolution internals exported ONLY because kirby-api reaches for them. A
+#:   well-behaved consumer calls `resolve_attack` and reads the result; it does
+#:   not compute the damage itself. When the carve-out moves that rules math
+#:   into this engine, ask again whether anything still needs them in public.
+#: * **Gaps.** `to_dict` / `from_dict`, `make_author_gm`, `disbelieve_image`,
+#:   `per_roll_target` and the sense-group readers are plausibly legitimate
+#:   public API that simply has no worked example yet. The fix there is to
+#:   write one.
+UNDEMONSTRATED = {
+    # symptoms of rules math in the wrong repo
+    "scale_variable_slot_dice", "compute_impact_damage_dice", "range_penalty",
+    "apply_attack_to_construct", "apply_autofire_to_construct",
+    "gate_ranged_attack", "has_line_of_sight", "blocking_wall_for_shot",
+    # gaps in the engine's own demonstrations
+    "darkness_groups", "darkness_personal_immunity", "disbelieve_image",
+    "flash_groups", "from_dict", "is_surprised", "make_author_gm",
+    "modifiers_for_maneuver_view", "per_roll_target", "resolve_object_throw",
+    "to_dict",
+}
+
+
+def _undemonstrated_now() -> set[str]:
+    import pathlib as _p
+    corpus = " ".join(
+        f.read_text() for f in (_p.Path(__file__).parent.parent / "examples").glob("*.py")
+    )
+    # Types and classes are NAMED in signatures rather than called, so a
+    # capitalised export needs no example to justify itself.
+    callables = {n for n in kirby_combat.__all__ if n[:1].islower()}
+    return {n for n in callables if n not in corpus}
+
+
+def test_the_undemonstrated_set_never_grows():
+    """A RATCHET, not a snapshot.
+
+    The engine's public surface was derived from what kirby-api imports —
+    the right way to find the names people need, and the wrong way to decide
+    what the engine should VOUCH for, since kirby-api is a consumer we have
+    already agreed is architecturally wrong. This test is the guard against
+    that surface quietly becoming "whatever a mistaken consumer happened to
+    import".
+
+    Adding a NEW export with no example fails here. Writing an example for an
+    existing one is rewarded by the sibling test below. The only way through
+    is to demonstrate the thing or to argue it off the list deliberately.
+    """
+    grew = sorted(_undemonstrated_now() - UNDEMONSTRATED)
+    assert grew == [], (
+        "new exports with no example in examples/ — demonstrate them, or add "
+        f"them to UNDEMONSTRATED with a reason: {grew}"
+    )
+
+
+def test_the_undemonstrated_set_is_not_stale():
+    """The other half of the ratchet: once something IS demonstrated, it must
+    leave the list, or the list stops meaning anything."""
+    stale = sorted(UNDEMONSTRATED - _undemonstrated_now())
+    assert stale == [], (
+        "these are demonstrated in examples/ now — remove them from "
+        f"UNDEMONSTRATED: {stale}"
+    )
