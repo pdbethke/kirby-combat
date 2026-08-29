@@ -24,3 +24,8 @@ dist/
 tests/fixtures/*.hdc
 .movement-*.md
 .superpowers/
+
+# Any venv variant, not just the exact name .venv — a renamed one
+# (.venv-dead-py312) slipped past `.venv/` and put 5.8G of CUDA libraries
+# into a commit, which GitHub rejected on push.
+.venv*/
