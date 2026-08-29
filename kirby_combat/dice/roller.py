@@ -1,4 +1,8 @@
-"""Dice rolling protocol and default RandomRoller."""
+"""Dice rolling protocol and default RandomRoller.
+
+Based in part on the work of Bill Bame — see this package's ``__init__``
+for the attribution note.
+"""
 from __future__ import annotations
 
 import random
