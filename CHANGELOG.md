@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.7.0 — 2026-08-28
+
+The sense-affecting family, Presence Attack consequences, and a front door.
+
+### Added
+- **Inability to sense an opponent (6E2 p.9 / p.127)** — the CV penalty is
+  now real, and it is PER-OPPONENT. `cv_modifiers` grew a second seam for
+  opponent-dependent conditions plus an additive `*_delta` channel, because
+  6E2 p.9's mitigated case is a flat -1 DCV that no factor can express.
+  `effective_dcv/ocv/dmcv_for` take optional `against=` / `combat_type=`;
+  omitting them returns exactly the previous behaviour.
+- **`kirby_combat/sense_penalties.py`** — owns that rule, the
+  Targeting/Nontargeting distinction, and the Nontargeting PER Roll that
+  mitigates it (a Half Phase Action, expiring at the holder's next Phase via
+  a driver call, following `HeldAction`'s precedent).
+- **Darkness (`actions/darkness.py`, 6E1 p.188)** — an Attack Roll against
+  DCV 3 places a field that is impenetrable, not merely harder to see
+  through; Nightvision does not help. Converges on the same CV predicate as
+  Flash rather than reimplementing it. One zone per Sense Group.
+- **Images (`actions/images.py`, 6E1 p.238-239)** — placement at DCV 3,
+  Line-Of-Sight perception, and disbelief tracked PER OBSERVER. A spotted
+  Image does not disappear. Built by composing existing primitives against a
+  point, so a Sight Image is correctly imperceptible inside a Sight Darkness
+  with no special case.
+- **Presence Attack consequences (6E2 p.138-139)** — a landed PA now costs
+  the target something. Five tiers with `yields` / `half_phase` /
+  `no_action` / DCV factor, held forward via `PresenceApplied` /
+  `PresenceFaded` and folded in `session/effects.py`. `IN_COMBAT_DICE_MODIFIER`
+  and `STUNNED_IMMUNE_REASON` moved in from a consumer.
+- **A public API.** `__all__` went from 3 names to 80, covering the whole
+  measured consumer surface, pinned by `tests/test_public_api.py`. Purely
+  additive: every deep import path still works.
+- **`examples/raw_orion.py`** — 6E2 p.9's worked example, asserted.
+- Attribution for **Bill Bame**, whose work the dice roller is based on in
+  part. It was missing entirely.
+
+### Fixed
+- `Flash.modifiers` reported a blinded character after a Flash to ANY Sense
+  Group, including Hearing. 6E2 p.9 counts only TARGETING Senses. Superseded
+  rather than deleted; the new predicate reads the character's real senses.
+- Presence Attack durations were 12/24/36/48/60 segments, preserving only
+  the book's ordering. 6E2 p.18 gives a Turn as 12 seconds and 12 Segments,
+  so they convert exactly: 12/60/300/1200/3600 — up to 60x longer.
+- `perception.per_roll_target` raised `AttributeError` for any
+  `StatBlockCombatant`, having read `observer.hero` unconditionally.
+- The inability-to-sense rule silently did nothing for `StatBlockCombatant`,
+  which has no `senses()` — i.e. for every example script and much of the
+  suite. Now falls back to 6E2 p.9's normal human.
+- `_fold_cv_factors`'s "a 0.0 factor applies last" branch had no producer and
+  was untested by construction. It now has two.
+
+### Notes
+- **0.4.0, 0.5.0 and 0.6.0 have no entries in this file.** They shipped
+  without them; the gap is recorded rather than reconstructed from memory.
+  0.6.0 was published by local twine rather than by tag, so the `v0.6.0` tag
+  does not mark its contents.
+
+
 ## 0.3.0 — 2026-04-25
 
 Phase 2 Plan 2 (engine advanced). Tier-4 parallel systems for mental
