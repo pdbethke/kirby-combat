@@ -129,7 +129,11 @@ from kirby_combat.perception import (  # noqa: E402
     flash_groups, is_surprised, per_roll_target, perceive,
 )
 from kirby_combat.pre_attacks.presence import (  # noqa: E402
+    IN_COMBAT_DICE_MODIFIER, STUNNED_IMMUNE_REASON,
     base_pre_dice, resolve_presence_attack,
+)
+from kirby_combat.pre_attacks.presence_effects import (  # noqa: E402
+    PRESENCE_TIERS, PresenceEffects, PresenceTier, effect_for_tier,
 )
 from kirby_combat.resolution.damage import (  # noqa: E402
     compute_damage, scale_variable_slot_dice,
@@ -180,6 +184,8 @@ __all__ = [
     "flash_groups", "is_surprised", "per_roll_target", "perceive",
     # Presence Attacks
     "base_pre_dice", "resolve_presence_attack",
+    "IN_COMBAT_DICE_MODIFIER", "STUNNED_IMMUNE_REASON",
+    "PRESENCE_TIERS", "PresenceEffects", "PresenceTier", "effect_for_tier",
     # Resolution helpers
     "ImpactTarget", "apply_attack_to_construct", "apply_autofire_to_construct",
     "blocking_wall_for_shot", "compute_damage", "compute_defense",

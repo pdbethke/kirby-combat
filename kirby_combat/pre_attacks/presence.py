@@ -31,6 +31,20 @@ class PresenceAttackResult:
     audit: list[str] = field(default_factory=list)
 
 
+#: 6E2 p.138's Presence Attack Modifiers table: "In combat, -1d6". Every PA
+#: resolved during a fight takes it, so a driver resolving one inside a combat
+#: session adds this unconditionally. It lives here, beside `base_pre_dice`,
+#: because it is a rule about how many dice you roll -- not a driver setting.
+IN_COMBAT_DICE_MODIFIER = -1
+
+#: Why a Stunned target is immune, quotable in an audit trail. The rule itself
+#: is enforced by `resolve_presence_attack`'s `target_stunned` branch.
+STUNNED_IMMUNE_REASON = (
+    "target is Stunned or recovering from being Stunned and cannot be "
+    "affected by Presence Attacks (6E2 p.106)"
+)
+
+
 def base_pre_dice(attacker: StatBlockCombatant) -> int:
     """PRE/5 dice (round normally) per 6E2 p138."""
     return attacker.pre // 5

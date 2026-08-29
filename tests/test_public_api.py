@@ -161,6 +161,11 @@ UNDEMONSTRATED = {
     "flash_groups", "from_dict", "is_surprised", "make_author_gm",
     "modifiers_for_maneuver_view", "per_roll_target", "resolve_object_throw",
     "to_dict",
+    # Added 2026-08-28 with the Presence-effects work. `effect_for_tier` is a
+    # small lookup helper; the headline API is `PresenceEffects.apply`, which
+    # is a class and therefore exempt from this check. A worked example for
+    # the whole Presence ladder is OWED and would remove this entry.
+    "effect_for_tier",
 }
 
 
