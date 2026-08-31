@@ -11,8 +11,8 @@ def test_target_inside_reach_is_in_reach():
 
 
 def test_target_exactly_at_reach_is_in_reach():
-    # A target at exactly reach_m is within Reach: the book's band is
-    # "within Reach (1m)" inclusive (6E2 p40), and positions are floats.
+    # A target at exactly reach_m is within Reach: the reach band is
+    # inclusive and positions are floats (6E2 p40).
     v = within_reach(distance_m=1.0, reach_m=1.0)
     assert v.in_reach is True
 

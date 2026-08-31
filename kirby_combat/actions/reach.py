@@ -1,10 +1,11 @@
 """The reach rule — may this hand-to-hand attack happen at all?
 
-6E2 p56: Hand-To-Hand Combat is combat between two characters who are within
-Reach of one another, and a character's Reach is 1 metre around himself.
-6E2 p36 says the same and adds the other direction: combat between characters
-who are NOT within Reach is Ranged Combat. 6E2 p40's Range Modifier table
-lists "within Reach (1m)" as its own band, separate from "2-8m".
+6E2 p56 defines Hand-To-Hand Combat as combat between characters close
+enough to be within one another's Reach, with a character's base Reach set
+at 1 metre around himself. 6E2 p36 states the same boundary from the other
+side: combat between characters who are not within Reach is Ranged Combat
+instead. 6E2 p40's Range Modifier table gives the reach band its own row,
+distinct from the next band up.
 
 This module applies that rule to a distance. It does NOT decide what a
 character's Reach is — that is `hero_view._base_reach_m` (1m base plus 1m per
