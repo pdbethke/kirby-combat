@@ -87,6 +87,14 @@ class _BlindRoller:
         return [6] * count
 
 
+class _SharpRoller:
+    """Every die a 1, so any 3d6 roll totals 3 and succeeds — the observer
+    makes its PER roll."""
+
+    def roll_dice(self, count: int) -> list[int]:
+        return [1] * count
+
+
 def _session_with_a_stunned_combatant() -> CombatSession:
     """A live session in which "bob" is Stunned and "attacker" is not --
     mirrors the recipe in `tests/test_stunned_enforcement.py`."""
@@ -218,7 +226,7 @@ def test_reach_is_judged_before_perception():
 
 
 def test_closing_on_an_unperceivable_target_strikes_blind():
-    """6E2 p127: the close does not confer perception. An attacker who
+    """6E2 p9 (restated p127): the close does not confer perception. An attacker who
     arrives beside an enemy it still cannot sense may swing, but at half CV --
     it does not get a clean full-CV blow out of walking into the dark."""
     scene = _rooftop_arena()
@@ -370,8 +378,14 @@ def test_a_teleporter_closes_onto_the_rooftop_the_runner_cannot_reach():
         actor_id="cheshire",
     )
     assert out.strike == StrikePlan(blind=False)
-    assert out.landing.z == pytest.approx(6.0)
     assert out.reach.in_reach is True
+    # The retry lands the actor ON the enemy's square, which the ordinary
+    # path refuses (see `_point_short_of`). Pinned deliberately: the retry
+    # runs only when the point one Reach short cannot be landed on, so this
+    # is the sole arrival the mode allows, and the caller — not this pure
+    # resolver — decides what two combatants in one square do about it.
+    assert out.landing == Position(15, 10, 6)
+    assert out.distance_after_m == pytest.approx(0.0)
 
 
 def test_the_scene_less_path_ignores_movement_mode_by_design():
@@ -410,6 +424,65 @@ def test_a_sceneless_close_still_applies_the_reach_rule():
     assert out.strike is None
     assert out.reason == "out_of_reach"
     assert out.distance_after_m == pytest.approx(24.0)
+
+
+def test_perception_is_judged_where_the_close_LANDED():
+    """The Fringe of an Invisible enemy is only perceivable close up, so the
+    position perception is measured at changes the answer.
+
+    The attacker starts six metres from an Invisible enemy — too far for the
+    Fringe — and closes to one metre, where a successful PER roll spots it.
+    Judged at the PRE-close position the strike would come back blind, which
+    is the wrong geometry: the actor is not standing there any more.
+    """
+    scene = _rooftop_arena()
+    observer, target = _observer(), _unseeable_target()
+    scene.combatant_positions.update({
+        observer.id: Position(2, 2, 0), target.id: Position(8, 2, 0),
+    })
+    out = resolve_move_strike(
+        scene=scene,
+        actor_pos=Position(2, 2, 0),
+        target_pos=Position(8, 2, 0),       # 6m away: beyond Fringe range
+        mode="running",
+        half_move_m=6.0,
+        reach_m=1.0,
+        actor_id=observer.id,
+        observer=observer,
+        target=target,
+        target_invisible=True,
+        roller=_SharpRoller(),              # the PER roll succeeds
+    )
+    assert out.distance_after_m == pytest.approx(1.0)
+    assert out.strike == StrikePlan(blind=False)
+
+
+def test_perception_follows_the_OBSERVER_id_not_the_movement_id():
+    """The same close, with the movement id left at its default while the
+    observer carries its own. `perceive` looks a position up under the
+    observer's id, so that is the id the post-close position must be written
+    under — keying on the movement id instead silently reinstates the
+    stale-position bug for any caller whose two ids differ.
+    """
+    scene = _rooftop_arena()
+    observer, target = _observer(), _unseeable_target()
+    scene.combatant_positions.update({
+        observer.id: Position(2, 2, 0), target.id: Position(8, 2, 0),
+    })
+    out = resolve_move_strike(
+        scene=scene,
+        actor_pos=Position(2, 2, 0),
+        target_pos=Position(8, 2, 0),
+        mode="running",
+        half_move_m=6.0,
+        reach_m=1.0,
+        # actor_id deliberately left at its "mover" default: NOT observer.id
+        observer=observer,
+        target=target,
+        target_invisible=True,
+        roller=_SharpRoller(),
+    )
+    assert out.strike == StrikePlan(blind=False)
 
 
 def test_the_composite_is_on_the_import_surface():

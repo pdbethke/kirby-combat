@@ -149,7 +149,7 @@ def main() -> None:
     )
 
     # 5. Closing on an enemy you cannot perceive: the blow may be thrown,
-    #    but blind -- half OCV and half DCV (6E2 p127). Closing the distance
+    #    but blind -- half OCV and half DCV (6E2 p9, p127). Closing the distance
     #    does not confer perception.
     attacker, enemy = _combatant("attacker"), _combatant("enemy")
     blind_scene = _urban_block()

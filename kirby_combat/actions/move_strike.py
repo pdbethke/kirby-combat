@@ -24,7 +24,8 @@ What it settles, in order:
    `movement_reach` reports the same way.
 4. **Perception.** An attacker who closed but still cannot perceive the target
    does not land a clean full-CV blow; adjacent-but-unperceived strikes blind
-   (6E2 p127, inability to sense an opponent: ½ OCV and ½ DCV in HTH). This is
+   (6E2 p9, restated on p127: ½ OCV and ½ DCV in HTH when no Targeting
+   Sense reaches the opponent). This is
    the anti-metagaming gate, preserved from the kirby-api implementation this
    module replaces.
 
@@ -62,7 +63,7 @@ class StrikePlan:
     """The attack the caller should now resolve.
 
     `blind` ⇒ the target was closed to but is still unperceived: resolve at
-    ½ OCV / ½ DCV (6E2 p127) rather than full CV.
+    ½ OCV / ½ DCV (6E2 p9, p127) rather than full CV.
     """
 
     blind: bool
@@ -152,6 +153,16 @@ def resolve_move_strike(
         )
         if not (outcome.reachable and _arrives(outcome.landing, target_pos, reach_m)):
             # The mid-air retry: aim at the target's own (supported) square.
+            #
+            # This deliberately accepts CO-LOCATION, which `_point_short_of`
+            # refuses on the ordinary path. The two are not in conflict: on
+            # the ordinary path stopping one Reach short is available and is
+            # simply better, whereas the retry only ever runs BECAUSE that
+            # point cannot be landed on — the target's own square is then the
+            # only arrival the mode allows, and a teleporter that can legally
+            # get there should not be told it cannot. The caller resolves the
+            # overlap (shove, share the hex, GM call); this module reports the
+            # landing it computed and does not invent a nearby one.
             retry = movement_reach(
                 mode, actor_pos, target_pos, half_move_m, scene,
                 combatant_id=actor_id, session=session,
@@ -192,7 +203,7 @@ def resolve_move_strike(
         from kirby_combat.perception import perceive
 
         perc = perceive(
-            observer, target, _scene_after_close(scene, actor_id, landing),
+            observer, target, _scene_after_close(scene, observer.id, landing),
             target_invisible=target_invisible, target_hidden=target_hidden,
             roller=roller,
         )
@@ -211,19 +222,25 @@ def resolve_move_strike(
     )
 
 
-def _scene_after_close(scene: Any, actor_id: str, landing: Position) -> Any:
-    """The scene as perception should see it: the actor standing where the
+def _scene_after_close(scene: Any, observer_id: str, landing: Position) -> Any:
+    """The scene as perception should see it: the mover standing where the
     close actually left it.
 
     Perception is range- and line-of-sight-sensitive, so consulting it against
-    the actor's PRE-close position would judge the wrong geometry. Returns a
-    NEW scene (this module mutates nothing), and only when the scene already
-    tracks this actor — inventing a position for an untracked combatant would
-    change what `perceive` measures rather than correct it.
+    the PRE-close position would judge the wrong geometry. Returns a NEW scene
+    (this module mutates nothing), and only when the scene already tracks this
+    combatant — inventing a position for an untracked one would change what
+    `perceive` measures rather than correct it.
+
+    Keyed on the OBSERVER's id, because that is the id `perceive` looks the
+    position up under. `actor_id` is the movement key (what `movement_reach`
+    threads to a fall), and the two need not be the same string — writing the
+    landing under `actor_id` would silently restore the stale-position bug
+    this helper exists to fix whenever a caller's two ids differ.
     """
     positions = getattr(scene, "combatant_positions", None)
-    if not positions or actor_id not in positions:
+    if not positions or observer_id not in positions:
         return scene
     return replace(
-        scene, combatant_positions={**positions, actor_id: landing},
+        scene, combatant_positions={**positions, observer_id: landing},
     )
