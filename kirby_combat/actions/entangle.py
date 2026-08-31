@@ -78,6 +78,55 @@ def can_teleport_escape(entangle_power, teleportation_power=None) -> bool:
 
 
 @dataclass(frozen=True)
+class BreakoutResult:
+    """One breakout attempt's outcome tier (6E2 p126)."""
+    escaped: bool
+    action_regained: str   # "full" | "half" | "none"
+
+
+def breakout(damage_body: int, remaining_body: int) -> BreakoutResult:
+    """The breakout-margin rule, 6E2 p126: damage of at least TWICE the
+    Entangle's remaining BODY frees the victim with a Full Phase still to
+    act; at least the remaining BODY frees with a Half Phase; anything
+    less leaves them trapped with no more actions that Phase."""
+    if remaining_body <= 0:
+        return BreakoutResult(escaped=True, action_regained="full")
+    if damage_body >= 2 * remaining_body:
+        return BreakoutResult(escaped=True, action_regained="full")
+    if damage_body >= remaining_body:
+        return BreakoutResult(escaped=True, action_regained="half")
+    return BreakoutResult(escaped=False, action_regained="none")
+
+
+def stacked_entangle(
+    existing_body: int, existing_pd: int, existing_ed: int,
+    new_body: int, new_pd: int, new_ed: int,
+) -> tuple[int, int, int]:
+    """Combine a fresh Entangle hit with one already holding the target.
+
+    6E1 p217: the combined Entangle has the HIGHEST BODY of all the
+    Entangles, +1 BODY for each additional Entangle, and the highest PD
+    and ED. With no live existing Entangle the new one applies as-is."""
+    if existing_body <= 0:
+        return new_body, new_pd, new_ed
+    return (max(existing_body, new_body) + 1,
+            max(existing_pd, new_pd), max(existing_ed, new_ed))
+
+
+def str_escape_dice(str_value: int, *, casual: bool = False) -> int:
+    """Normal-damage dice for a STR breakout attempt.
+
+    Full STR: STR//5 dice (the standard STR-to-damage conversion). Casual
+    STR is HALF the character's STR (6E1 p134), a Zero Phase attempt --
+    win or lose, the character keeps their action (6E1 p133-134). The
+    CALLER rolls these dice and counts BODY; this function never touches
+    dice."""
+    if casual:
+        str_value = str_value // 2
+    return max(0, str_value // 5)
+
+
+@dataclass(frozen=True)
 class EntangleResult:
     target_id: str
     method: str                          # "applied" | "casual_str" | "full_str"
@@ -167,14 +216,18 @@ class Entangle:
         session: CombatSession,
         *,
         target_id: str,
-        str_used: int,
+        damage_body: int,
         escape_type: str,
     ) -> tuple[CombatSession, EntangleResult]:
-        """Attempt to escape an entangle.
+        """Attempt to escape an entangle with BODY the CALLER already rolled.
 
-        escape_type: "casual" (half-phase, STR/10) or "full" (full-phase, STR/5).
-        Damage to entangle body = (raw_dice) − entangle_pd, clamped at 0.
-        """
+        ``damage_body`` is the escape attempt's counted BODY with the
+        Entangle's own defense already applied (escape damage soaks against
+        the ENTANGLE's PD/ED, 6E1 p218 -- never the victim's). The margin
+        rule decides the outcome (``breakout``, 6E2 p126). escape_type:
+        "full" = the Phase's action; "casual" = the 6E1 p133-134 Zero Phase
+        half-STR attempt (the caller keeps its action either way -- phase
+        economy is the caller's job; this method only moves BODY)."""
         from kirby_combat.session.apply import apply_event
 
         if escape_type not in ("casual", "full"):
@@ -184,18 +237,10 @@ class Entangle:
         if not is_e:
             raise ValueError(f"{target_id} is not entangled; cannot escape")
 
-        # Find the most recent EntangleApplied for this target to get pd
-        entangle_pd = 0
-        for evt in reversed(session.event_log):
-            if evt.kind == "EntangleApplied" and getattr(evt, "target_id", None) == target_id:
-                entangle_pd = evt.entangle_pd
-                break
-
-        raw = str_used // 10 if escape_type == "casual" else str_used // 5
-        damage = max(0, raw - entangle_pd)
-
-        body_remaining = max(0, (current_body or 0) - damage)
-        escaped = body_remaining <= 0
+        damage = max(0, damage_body)
+        res = breakout(damage, current_body or 0)
+        escaped = res.escaped
+        body_remaining = 0 if escaped else max(0, (current_body or 0) - damage)
         method = "casual_str" if escape_type == "casual" else "full_str"
 
         evt = EntangleEscape(

@@ -106,14 +106,14 @@ def test_modifiers_empty_when_not_entangled():
 # ---- escape: casual STR ----
 
 def test_casual_str_escape_reduces_body_by_str_over_10_minus_pd():
-    # str_used=30 → 30/10 = 3 raw → minus PD 4 → 0 damage
+    # caller rolled 3 BODY; entangle PD 4 soaked it all -> damage_body=0
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     s3, esc = Entangle.escape_attempt(
-        s2, target_id="bob", str_used=30, escape_type="casual",
+        s2, target_id="bob", damage_body=0, escape_type="casual",
     )
     assert esc.method == "casual_str"
     assert esc.damage_to_entangle_body == 0      # 30//10 = 3, minus pd 4 → 0
@@ -122,14 +122,14 @@ def test_casual_str_escape_reduces_body_by_str_over_10_minus_pd():
 
 
 def test_casual_str_escape_with_high_str_chips_away():
-    # str_used=80 → 80/10 = 8 raw → minus PD 4 → 4 damage
+    # caller counted 8 BODY; entangle PD 4 -> damage_body=4
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     s3, esc = Entangle.escape_attempt(
-        s2, target_id="bob", str_used=80, escape_type="casual",
+        s2, target_id="bob", damage_body=4, escape_type="casual",
     )
     assert esc.damage_to_entangle_body == 4
     assert esc.body_remaining == 4
@@ -139,14 +139,14 @@ def test_casual_str_escape_with_high_str_chips_away():
 # ---- escape: full STR ----
 
 def test_full_str_escape_uses_str_over_5_minus_pd():
-    # str_used=30 → 30/5 = 6 raw → minus pd 4 → 2 damage
+    # caller counted 6 BODY; entangle PD 4 -> damage_body=2
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     s3, esc = Entangle.escape_attempt(
-        s2, target_id="bob", str_used=30, escape_type="full",
+        s2, target_id="bob", damage_body=2, escape_type="full",
     )
     assert esc.method == "full_str"
     assert esc.damage_to_entangle_body == 2
@@ -154,14 +154,14 @@ def test_full_str_escape_uses_str_over_5_minus_pd():
 
 
 def test_full_str_escape_can_break_free_in_one_attempt():
-    # str_used=80 → 80/5 = 16 raw → minus pd 4 → 12 damage. Body 8 → escapes.
+    # caller counted 16 BODY; entangle PD 4 -> damage_body=12 >= BODY 8: free
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     s3, esc = Entangle.escape_attempt(
-        s2, target_id="bob", str_used=80, escape_type="full",
+        s2, target_id="bob", damage_body=12, escape_type="full",
     )
     assert esc.escaped is True
     assert esc.body_remaining == 0
@@ -174,7 +174,7 @@ def test_escape_emits_entangleescape_event():
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     s3, _ = Entangle.escape_attempt(
-        s2, target_id="bob", str_used=80, escape_type="full",
+        s2, target_id="bob", damage_body=12, escape_type="full",
     )
     kinds = [e.kind for e in s3.event_log]
     assert "EntangleEscape" in kinds
@@ -184,7 +184,7 @@ def test_escape_when_not_entangled_raises():
     s = _session()
     with pytest.raises(ValueError, match="not entangled"):
         Entangle.escape_attempt(
-            s, target_id="bob", str_used=30, escape_type="full",
+            s, target_id="bob", damage_body=2, escape_type="full",
         )
 
 
@@ -196,7 +196,7 @@ def test_unknown_escape_type_raises():
     )
     with pytest.raises(ValueError, match="escape_type"):
         Entangle.escape_attempt(
-            s2, target_id="bob", str_used=30, escape_type="bogus",
+            s2, target_id="bob", damage_body=0, escape_type="bogus",
         )
 
 
@@ -208,13 +208,13 @@ def test_multiple_casual_attempts_eventually_break_through():
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=2, entangle_ed=4,    # weak entangle
     )
-    # str_used=80 casual → 80/10 = 8 raw - pd 2 = 6 damage. After 1 attempt: body=2.
-    s3, esc1 = Entangle.escape_attempt(s2, target_id="bob", str_used=80, escape_type="casual")
+    # caller counted 8 BODY; entangle PD 2 -> damage_body=6. After 1 attempt: body=2.
+    s3, esc1 = Entangle.escape_attempt(s2, target_id="bob", damage_body=6, escape_type="casual")
     assert esc1.body_remaining == 2
     assert esc1.escaped is False
 
     # Another 6 damage attempt → body 2 - 6 → escaped, body_remaining=0
-    s4, esc2 = Entangle.escape_attempt(s3, target_id="bob", str_used=80, escape_type="casual")
+    s4, esc2 = Entangle.escape_attempt(s3, target_id="bob", damage_body=6, escape_type="casual")
     assert esc2.escaped is True
     assert esc2.body_remaining == 0
 
@@ -228,7 +228,7 @@ def test_modifiers_clear_after_escape():
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
-    s3, _ = Entangle.escape_attempt(s2, target_id="bob", str_used=80, escape_type="full")
+    s3, _ = Entangle.escape_attempt(s2, target_id="bob", damage_body=12, escape_type="full")
     assert Entangle.modifiers(s3, "bob") == {}
 
 
@@ -313,3 +313,58 @@ def test_teleport_escape_armor_piercing_cancels():
     s3, res = Entangle.teleport_escape(s2, target_id="bob", teleport_ap_levels=2)
     assert res.escaped is True
     assert Entangle.is_entangled(s3, "bob") == (False, None)
+
+
+# ---- breakout margins (6E2 p126) ----
+
+def test_breakout_margin_tiers():
+    from kirby_combat.actions.entangle import breakout
+    # >= 2x remaining -> free + Full Phase
+    assert breakout(8, 4) == breakout(8, 4)  # deterministic
+    assert breakout(8, 4).escaped and breakout(8, 4).action_regained == "full"
+    assert breakout(4, 2).action_regained == "full"      # exactly 2x
+    # >= 1x but < 2x -> free + Half Phase
+    r = breakout(5, 4)
+    assert r.escaped and r.action_regained == "half"
+    assert breakout(4, 4).action_regained == "half"      # exactly 1x
+    # < remaining -> still trapped
+    r = breakout(3, 4)
+    assert not r.escaped and r.action_regained == "none"
+    assert not breakout(0, 4).escaped
+
+
+def test_stacked_entangle_highest_plus_one():
+    from kirby_combat.actions.entangle import stacked_entangle
+    # 6E1 p217: highest BODY +1 for the additional Entangle; highest PD/ED
+    assert stacked_entangle(6, 4, 4, 3, 2, 5) == (7, 4, 5)
+    assert stacked_entangle(3, 2, 2, 6, 5, 3) == (7, 5, 3)
+    # no existing entangle -> the new one, unmodified
+    assert stacked_entangle(0, 0, 0, 6, 5, 3) == (6, 5, 3)
+
+
+def test_str_escape_dice():
+    from kirby_combat.actions.entangle import str_escape_dice
+    assert str_escape_dice(30) == 6                 # full STR: STR//5 dice
+    assert str_escape_dice(30, casual=True) == 3    # casual = half STR (6E1 p134)
+    assert str_escape_dice(43) == 8
+    assert str_escape_dice(43, casual=True) == 4    # (43//2)//5
+    assert str_escape_dice(4) == 0
+
+
+def test_escape_attempt_takes_rolled_body():
+    s = _session()
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    # caller rolled 5 BODY (already past the entangle's defense)
+    s3, res = Entangle.escape_attempt(
+        s2, target_id="bob", damage_body=5, escape_type="full",
+    )
+    assert not res.escaped and res.body_remaining == 3
+    # 2x the remaining 3 -> full-phase breakout
+    s4, res = Entangle.escape_attempt(
+        s3, target_id="bob", damage_body=6, escape_type="full",
+    )
+    assert res.escaped
+    assert Entangle.is_entangled(s4, "bob") == (False, None)

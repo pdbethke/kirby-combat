@@ -71,4 +71,13 @@ freed = movement_reach("teleportation", inside, outside, 20.0, scene,
                        teleport_ap_levels=1)
 assert freed.reachable is True                        # AP meets the levels
 
+# -- breakout margins (6E2 p126) and STR dice (6E1 p134) --------------------
+from kirby_combat import breakout, stacked_entangle, str_escape_dice
+
+assert breakout(8, 4).action_regained == "full"     # 2x remaining: full Phase
+assert breakout(4, 4).action_regained == "half"
+assert not breakout(3, 4).escaped
+assert stacked_entangle(6, 4, 4, 3, 2, 5) == (7, 4, 5)   # highest +1; highest defs
+assert str_escape_dice(30) == 6 and str_escape_dice(30, casual=True) == 3
+
 print("no_exit_teleport: NOTELEPORT blocks the blink; Armor Piercing cancels it.")
