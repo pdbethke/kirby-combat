@@ -78,7 +78,7 @@ def test_ended_condition_appears_in_removed():
         entangle_body=8, entangle_pd=4, entangle_ed=4,
     )
     escaped_session, _ = Entangle.escape_attempt(
-        entangled_session, target_id="bob", str_used=100, escape_type="full",
+        entangled_session, target_id="bob", damage_body=99, escape_type="full",
     )
 
     deltas = status_deltas(

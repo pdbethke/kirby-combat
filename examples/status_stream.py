@@ -198,7 +198,7 @@ def main() -> None:
     rule("5. Vanguard breaks free of the entangle (full STR)")
     before = session
     session, _ = Entangle.escape_attempt(
-        session, target_id="vanguard", str_used=100, escape_type="full",
+        session, target_id="vanguard", damage_body=99, escape_type="full",
     )
     show_step("Full-STR escape (6E2, damage = STR/5 - entangle PD)",
                before, session)
