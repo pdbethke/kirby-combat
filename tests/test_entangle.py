@@ -368,3 +368,27 @@ def test_escape_attempt_takes_rolled_body():
     )
     assert res.escaped
     assert Entangle.is_entangled(s4, "bob") == (False, None)
+
+
+def test_str_escape_end_cost():
+    from kirby_combat.actions.entangle import str_escape_end_cost
+    assert str_escape_end_cost(30) == 3          # 1 per 10 STR used (6E2 p41)
+    assert str_escape_end_cost(30, casual=True) == 1   # half used (6E1 p134)
+    assert str_escape_end_cost(60, casual=True) == 3
+    assert str_escape_end_cost(5) == 0
+
+
+def test_entangle_default_defenses():
+    from kirby_combat.actions.entangle import entangle_default_defenses
+    assert entangle_default_defenses(6) == (6, 6)      # 1 PD + 1 ED per 1d6
+    assert entangle_default_defenses(0) == (0, 0)
+
+
+def test_entangled_dcv_factor_single_source():
+    from kirby_combat.actions.entangle import ENTANGLED_DCV_FACTOR
+    s = _session()
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    assert Entangle.modifiers(s2, "bob")["dcv_factor"] == ENTANGLED_DCV_FACTOR

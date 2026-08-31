@@ -125,8 +125,10 @@ from kirby_combat.session.events import (  # noqa: E402
 )
 
 from kirby_combat.actions.entangle import (
-    BreakoutResult, armor_piercing_levels, breakout, can_teleport_escape,
-    noteleport_levels, stacked_entangle, str_escape_dice,
+    ENTANGLE_ESCAPE_AUTO_HITS, ENTANGLED_DCV_FACTOR, BreakoutResult,
+    armor_piercing_levels, breakout, can_teleport_escape,
+    entangle_default_defenses, noteleport_levels, stacked_entangle,
+    str_escape_dice, str_escape_end_cost,
 )
 from kirby_combat.perception import (  # noqa: E402
     darkness_groups, darkness_personal_immunity, disbelieve_image,
@@ -184,9 +186,10 @@ __all__ = [
     "StatusChanged",
     "make_author_combatant", "make_author_engine", "make_author_gm",
     # Perception and senses
-    "BreakoutResult", "armor_piercing_levels", "breakout",
-    "can_teleport_escape", "noteleport_levels", "stacked_entangle",
-    "str_escape_dice",
+    "BreakoutResult", "ENTANGLE_ESCAPE_AUTO_HITS", "ENTANGLED_DCV_FACTOR",
+    "armor_piercing_levels", "breakout", "can_teleport_escape",
+    "entangle_default_defenses", "noteleport_levels", "stacked_entangle",
+    "str_escape_dice", "str_escape_end_cost",
     "darkness_groups", "darkness_personal_immunity", "disbelieve_image",
     "flash_groups", "is_surprised", "per_roll_target", "perceive",
     # Presence Attacks

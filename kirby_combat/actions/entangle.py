@@ -77,6 +77,35 @@ def can_teleport_escape(entangle_power, teleportation_power=None) -> bool:
     return noteleport_levels(entangle_power) <= ap
 
 
+#: 6E1 p217: an Entangled character is at DCV 0. The one authority for the
+#: factor -- ``Entangle.modifiers`` and any row-based driver read THIS, so
+#: the number cannot drift between the event-sourced and relational paths.
+ENTANGLED_DCV_FACTOR: float = 0.0
+
+#: 6E1 p218: breaking out of an Entangle "doesn't have to make an Attack
+#: Roll" -- an escape attempt against the Entangle always connects. Drivers
+#: consult this rather than encoding the absence of a to-hit themselves.
+ENTANGLE_ESCAPE_AUTO_HITS: bool = True
+
+
+def str_escape_end_cost(str_value: int, *, casual: bool = False) -> int:
+    """END for a STR breakout attempt.
+
+    6E2 p41: STR costs 1 END per 10 points USED. Casual Use is half the
+    character's STR and pays only for the amount used (6E1 p134), so the
+    casual attempt charges half's worth."""
+    used = (str_value // 2) if casual else str_value
+    return max(0, used // 10)
+
+
+def entangle_default_defenses(dice: int) -> tuple[int, int]:
+    """The Entangle's own PD and ED when the build states no split.
+
+    6E1 p217: each 1d6 of Entangle has 1 PD and 1 ED (both Resistant), so a
+    document that writes no PDLEVELS/EDLEVELS defends at (dice, dice)."""
+    return max(0, dice), max(0, dice)
+
+
 @dataclass(frozen=True)
 class BreakoutResult:
     """One breakout attempt's outcome tier (6E2 p126)."""
@@ -362,4 +391,5 @@ class Entangle:
         base_dcv * dcv_factor; effective_ocv = base_ocv * ocv_factor.
         """
         is_e, _ = Entangle.is_entangled(session, combatant_id)
-        return {"ocv_factor": 0.5, "dcv_factor": 0.0} if is_e else {}
+        return ({"ocv_factor": 0.5, "dcv_factor": ENTANGLED_DCV_FACTOR}
+                if is_e else {})

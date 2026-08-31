@@ -80,4 +80,11 @@ assert not breakout(3, 4).escaped
 assert stacked_entangle(6, 4, 4, 3, 2, 5) == (7, 4, 5)   # highest +1; highest defs
 assert str_escape_dice(30) == 6 and str_escape_dice(30, casual=True) == 3
 
+# -- END and default defenses (6E2 p41; 6E1 p217) ---------------------------
+from kirby_combat import entangle_default_defenses, str_escape_end_cost
+
+assert str_escape_end_cost(30) == 3                 # 1 END per 10 STR used
+assert str_escape_end_cost(30, casual=True) == 1    # pays for the half used
+assert entangle_default_defenses(6) == (6, 6)       # 1 PD + 1 ED per 1d6
+
 print("no_exit_teleport: NOTELEPORT blocks the blink; Armor Piercing cancels it.")
