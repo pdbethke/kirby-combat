@@ -1,8 +1,8 @@
 """The reach rule — may this hand-to-hand attack happen at all?
 
 6E2 p56 defines Hand-To-Hand Combat as combat between characters close
-enough to be within one another's Reach, with a character's base Reach set
-at 1 metre around himself. 6E2 p36 states the same boundary from the other
+enough to be within one another's Reach, and sets a character's base Reach
+at one metre. 6E2 p36 states the same boundary from the other
 side: combat between characters who are not within Reach is Ranged Combat
 instead. 6E2 p40's Range Modifier table gives the reach band its own row,
 distinct from the next band up.

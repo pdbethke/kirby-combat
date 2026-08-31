@@ -925,15 +925,17 @@ class HeroCombatant(Stunnable, CombatParticipant):
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Reach constants (reach spec §1; corrected 2026-08-31)
-# _BASE_REACH_M: 1m, per THREE citations — 6E2 p56 (a character's Reach is one
-#   metre around himself), 6E2 p40 (the Range Modifier table gives the reach
+# _BASE_REACH_M: 1m, per THREE citations — 6E2 p56 (which sets a character's
+#   base Reach at one metre), 6E2 p40 (the Range Modifier table gives the reach
 #   band its own row at 1m, listed separately from the next band up), and
 #   6E1 p231 (a character with no Growth can hit only targets within his own
 #   Reach, one metre).
 #   This was 2.0, justified in a comment as 6E hex-adjacency (2m) with no
 #   page behind it. A codex search finds no rule supporting a 2m reach.
-#   Consequence: many attacks that used to resolve as a direct strike now
-#   require a real close, so the move_strike composite carries more traffic.
+#   Consequence (once the move_strike gate lands — nothing in this engine
+#   gates on reach yet): many attacks that used to resolve as a direct strike
+#   will require a real close, so the move_strike composite carries more
+#   traffic.
 # _STRETCH_M_PER_LEVEL: each level of the Stretching power extends reach by
 #   1 metre. Verified against Main6E.hdt: LVLCOST="1" LVLVAL="1" → 1 CP per
 #   1m, so LEVELS == metres of stretching. Evidence: Ravel.hdc LEVELS="8"
@@ -945,7 +947,8 @@ _STRETCH_M_PER_LEVEL: float = 1.0
 def _base_reach_m(hero) -> float:
     """Effective melee reach in metres: 1m base + Stretching levels (in metres).
 
-    Base Reach is one metre (6E2 p56, 6E2 p40, 6E1 p231).
+    6E2 p56 sets a character's base Reach at one metre; 6E2 p40 and 6E1 p231
+    agree.
 
     Mirrors the power-walk pattern used for FORCEFIELD/can_swim().
     """

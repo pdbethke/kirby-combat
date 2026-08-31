@@ -52,7 +52,8 @@ def _combatant(*, powers=None, cv=None):
 
 
 def test_melee_attack_is_not_ranged_and_reach_is_base_1m():
-    # Base Reach is one metre (6E2 p56; 6E1 p231 for the no-Growth case).
+    # 6E2 p56 sets a character's base Reach at one metre; 6E1 p231 agrees
+    # for the no-Growth case.
     # Was 2.0, an uncited hex-adjacency inference.
     c = _combatant(powers=[_Pow("HANDTOHANDATTACK", "Punch", levels=8)])
     ap = c.attack_view("HANDTOHANDATTACK")
@@ -78,7 +79,7 @@ def test_stretching_extends_reach():
 
 
 def test_combat_stats_carries_base_reach():
-    # Base Reach is one metre (6E2 p56, 6E2 p40, 6E1 p231), so 3 levels of
+    # 6E2 p56 sets base Reach at one metre (6E2 p40, 6E1 p231 agree), so 3 levels of
     # Stretching give 4.0m and a bare character 1.0m.
     c_stretch = _combatant(powers=[_Pow("STRETCHING", "Stretch", levels=3)])
     assert c_stretch.combat_stats().reach_m == 4.0
