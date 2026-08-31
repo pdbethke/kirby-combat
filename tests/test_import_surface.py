@@ -172,6 +172,12 @@ UNDEMONSTRATED = {
     # is a class and therefore exempt from this check. A worked example for
     # the whole Presence ladder is OWED and would remove this entry.
     "effect_for_tier",
+    # Added 2026-08-31 (Task 1 of the move-strike-reach migration): the
+    # reach rule itself has no worked example yet because nothing calls it
+    # -- that is the job of the close-and-strike composite later tasks in
+    # this line build on top of it. A worked example is owed once that
+    # composite exists.
+    "within_reach",
 }
 
 
