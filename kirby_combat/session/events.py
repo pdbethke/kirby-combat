@@ -173,6 +173,9 @@ class EntangleApplied(_BaseEvent):
     entangle_body: int = 0
     entangle_pd: int = 0
     entangle_ed: int = 0
+    #: Levels of "Cannot Be Escaped With Teleportation" (+1/4 each) on the
+    #: source Entangle (6E1 p220). 0 = teleport escape works normally.
+    no_teleport_levels: int = 0
 
 
 @dataclass

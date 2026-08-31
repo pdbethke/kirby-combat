@@ -49,6 +49,11 @@ class Construct:
     blocks_movement: bool = False
     permeability: Permeability = "porous"
     cover_level: int = 0
+    #: Levels of "Cannot Be Escaped With Teleportation" on the source
+    #: Barrier (6E1 p175): a teleport path may not pass this construct
+    #: unless the Teleportation carries at least as many levels of
+    #: Armor Piercing (movement_legality gates on it). 0 = no effect.
+    no_teleport_levels: int = 0
     # durability (both None => indestructible). `body` is CURRENT body.
     def_value: int | None = None
     body: int | None = None

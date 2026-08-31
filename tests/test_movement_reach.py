@@ -418,3 +418,47 @@ def test_climb_refused_when_from_pos_is_not_on_any_face():
     out = movement_reach("climbing", Position(-9.0, -10.0, 0.0),
                          Position(-9.0, -5.0, 0.0), 6.0, sc)
     assert out.reachable is False
+
+
+# ---- NOTELEPORT barriers (6E1 p175): teleport may not pass them ----
+
+def _arena_with_noteleport_wall(levels: int = 1) -> Scene:
+    from kirby_combat.scene.construct import Construct
+    scene = _arena()
+    scene.constructs = [Construct(
+        obj_id="ntw", kind="force_wall",
+        segment=(Position(8, 0, 0), Position(8, 20, 0)), height_m=8.0,
+        blocks_los=True, blocks_movement=True, permeability="impermeable",
+        no_teleport_levels=levels,
+    )]
+    return scene
+
+
+def test_teleport_normally_ignores_walls():
+    out = movement_reach("teleportation", A_GROUND, B_GROUND_ACROSS_WALL, 20.0, _arena())
+    assert out.reachable is True
+
+
+def test_teleport_blocked_crossing_noteleport_barrier():
+    scene = _arena_with_noteleport_wall(1)
+    out = movement_reach("teleportation", A_GROUND, B_GROUND_ACROSS_WALL, 20.0, scene)
+    assert out.reachable is False and out.landing == A_GROUND
+
+
+def test_teleport_armor_piercing_cancels_noteleport():
+    scene = _arena_with_noteleport_wall(1)
+    out = movement_reach("teleportation", A_GROUND, B_GROUND_ACROSS_WALL, 20.0, scene,
+                         teleport_ap_levels=1)
+    assert out.reachable is True
+    # but two levels of NOTELEPORT outbid one AP (6E1 p175: levels stack)
+    scene2 = _arena_with_noteleport_wall(2)
+    out2 = movement_reach("teleportation", A_GROUND, B_GROUND_ACROSS_WALL, 20.0, scene2,
+                          teleport_ap_levels=1)
+    assert out2.reachable is False
+
+
+def test_teleport_not_crossing_barrier_unaffected():
+    scene = _arena_with_noteleport_wall(3)
+    # short hop on the near side of the wall — path never crosses it
+    out = movement_reach("teleportation", A_GROUND, Position(5, 10, 0), 20.0, scene)
+    assert out.reachable is True

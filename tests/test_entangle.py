@@ -230,3 +230,86 @@ def test_modifiers_clear_after_escape():
     )
     s3, _ = Entangle.escape_attempt(s2, target_id="bob", str_used=80, escape_type="full")
     assert Entangle.modifiers(s3, "bob") == {}
+
+
+# ---- Cannot Be Escaped With Teleportation (NOTELEPORT, 6E1 p220) ----
+
+class _Stub:
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+def _power(xmlid, mods=()):
+    return _Stub(xmlid=xmlid, assigned_modifiers=[
+        _Stub(xmlid=x, levels=lv) for x, lv in mods])
+
+
+def test_noteleport_levels_reads_stacked_levels():
+    from kirby_combat.actions.entangle import noteleport_levels
+    assert noteleport_levels(_power("ENTANGLE")) == 0
+    assert noteleport_levels(_power("ENTANGLE", [("NOTELEPORT", 0)])) == 1
+    # corpus shape: "Cannot Be Escaped With Teleportation (x2; +1/2)"
+    assert noteleport_levels(_power("FORCEWALL", [("NOTELEPORT", 2)])) == 2
+    # repeated purchases also stack
+    assert noteleport_levels(
+        _power("ENTANGLE", [("NOTELEPORT", 1), ("NOTELEPORT", 1)])) == 2
+
+
+def test_can_teleport_escape_ap_cancels_level_for_level():
+    from kirby_combat.actions.entangle import can_teleport_escape
+    plain_ent = _power("ENTANGLE")
+    locked_ent = _power("ENTANGLE", [("NOTELEPORT", 2)])
+    plain_tp = _power("TELEPORTATION")
+    ap1_tp = _power("TELEPORTATION", [("ARMORPIERCING", 1)])
+    ap2_tp = _power("TELEPORTATION", [("ARMORPIERCING", 2)])
+    # 6E1 p218: teleport escape works normally
+    assert can_teleport_escape(plain_ent, plain_tp)
+    assert can_teleport_escape(plain_ent, None)
+    # 6E1 p220: NOTELEPORT blocks; AP cancels level for level
+    assert not can_teleport_escape(locked_ent, plain_tp)
+    assert not can_teleport_escape(locked_ent, ap1_tp)
+    assert can_teleport_escape(locked_ent, ap2_tp)
+
+
+def test_teleport_escape_frees_target():
+    s = _session()
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    s3, res = Entangle.teleport_escape(s2, target_id="bob")
+    assert res.escaped is True and res.method == "teleport"
+    assert res.damage_to_entangle_body == 0     # no BODY done — just gone
+    is_e, _body = Entangle.is_entangled(s3, "bob")
+    assert is_e is False
+
+
+def test_teleport_escape_blocked_by_noteleport():
+    s = _session()
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+        no_teleport_levels=1,
+    )
+    s3, res = Entangle.teleport_escape(s2, target_id="bob")
+    assert res.escaped is False and res.method == "teleport_blocked"
+    is_e, body = Entangle.is_entangled(s3, "bob")
+    assert is_e is True and body == 8
+    # a blocked attempt leaves no event behind
+    assert len(s3.event_log) == len(s2.event_log)
+
+
+def test_teleport_escape_armor_piercing_cancels():
+    s = _session()
+    s2, _ = Entangle.apply(
+        s, attacker_id="alice", target_id="bob",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+        no_teleport_levels=2,
+    )
+    # AP 1 < NOTELEPORT 2 → still trapped
+    _s, res = Entangle.teleport_escape(s2, target_id="bob", teleport_ap_levels=1)
+    assert res.escaped is False
+    # AP 2 meets NOTELEPORT 2 → free (6E1 p220: AP cancels the advantage)
+    s3, res = Entangle.teleport_escape(s2, target_id="bob", teleport_ap_levels=2)
+    assert res.escaped is True
+    assert Entangle.is_entangled(s3, "bob") == (False, None)

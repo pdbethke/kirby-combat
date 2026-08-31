@@ -28,6 +28,55 @@ from kirby_combat.session.events import (
 )
 
 
+def _modifier_list(power) -> list:
+    return list(getattr(power, "assigned_modifiers", None)
+                or getattr(power, "modifiers", None) or [])
+
+
+def _levels_of(power, xmlid: str) -> int:
+    """Total levels of a modifier across every instance on ``power``.
+
+    HD writes stacked purchases either as one modifier with LEVELS=n (the
+    corpus shape: "Cannot Be Escaped With Teleportation (x2; +1/2)") or as
+    repeated modifier elements; both count, and a level-less instance counts
+    as one level."""
+    total = 0
+    for m in _modifier_list(power):
+        if (getattr(m, "xmlid", "") or "").upper() == xmlid:
+            total += max(1, int(getattr(m, "levels", 0) or 0))
+    return total
+
+
+def noteleport_levels(power) -> int:
+    """Levels of Cannot Be Escaped With Teleportation (NOTELEPORT) on a power.
+
+    6E1 p220 (Entangle) / p175 (Barrier): the advantage stops the one escape
+    route an Entangle normally leaves open — 6E1 p217 has an Entangle block
+    every Movement Power EXCEPT Teleportation, and 6E1 p218 lists Teleporting
+    out among the escape methods. Multiple levels may be bought to outbid an
+    escaper's Armor Piercing (see ``can_teleport_escape``)."""
+    return _levels_of(power, "NOTELEPORT")
+
+
+def armor_piercing_levels(power) -> int:
+    """Levels of Armor Piercing on a power (each cancels one NOTELEPORT
+    level when the power is the Teleportation doing the escaping —
+    6E1 p220/p175)."""
+    return _levels_of(power, "ARMORPIERCING")
+
+
+def can_teleport_escape(entangle_power, teleportation_power=None) -> bool:
+    """May this Teleportation escape that Entangle/Barrier?
+
+    6E1 p218: Teleportation is a normal escape route. 6E1 p220 (and p175 for
+    an englobing Barrier): Cannot Be Escaped With Teleportation blocks it,
+    UNLESS the Teleportation is Armor Piercing, which cancels the advantage —
+    both sides stack levels, so the escape works when AP levels >= NOTELEPORT
+    levels. ``teleportation_power=None`` means a plain teleport (0 AP)."""
+    ap = armor_piercing_levels(teleportation_power) if teleportation_power is not None else 0
+    return noteleport_levels(entangle_power) <= ap
+
+
 @dataclass(frozen=True)
 class EntangleResult:
     target_id: str
@@ -50,6 +99,7 @@ class Entangle:
         entangle_body: int,
         entangle_pd: int,
         entangle_ed: int,
+        no_teleport_levels: int = 0,
     ) -> tuple[CombatSession, EntangleResult]:
         """Apply an entangle to target. Emits ActionDeclared + ActionResolved + EntangleApplied."""
         from kirby_combat.session.apply import apply_event
@@ -69,6 +119,7 @@ class Entangle:
                 "entangle_body": entangle_body,
                 "entangle_pd": entangle_pd,
                 "entangle_ed": entangle_ed,
+                "no_teleport_levels": no_teleport_levels,
             },
         )
         s = apply_event(session, declared)
@@ -98,6 +149,7 @@ class Entangle:
             entangle_body=entangle_body,
             entangle_pd=entangle_pd,
             entangle_ed=entangle_ed,
+            no_teleport_levels=no_teleport_levels,
         )
         s = apply_event(s, applied)
 
@@ -165,6 +217,67 @@ class Entangle:
             damage_to_entangle_body=damage,
             body_remaining=body_remaining,
             escaped=escaped,
+        )
+
+    # ------------------------------------------------------------------ teleport_escape
+    @staticmethod
+    def teleport_escape(
+        session: CombatSession,
+        *,
+        target_id: str,
+        teleport_ap_levels: int = 0,
+    ) -> tuple[CombatSession, EntangleResult]:
+        """Escape the entangle by Teleporting out of it.
+
+        6E1 p218 lists Teleportation among an Entangle's escape routes; it
+        needs no Attack Roll and does no BODY to the Entangle — the victim is
+        simply elsewhere. 6E1 p220: an Entangle bought with Cannot Be Escaped
+        With Teleportation refuses it, unless the Teleportation carries at
+        least as many levels of Armor Piercing (``teleport_ap_levels``, from
+        ``armor_piercing_levels`` on the escaper's TELEPORTATION power).
+
+        A blocked attempt emits NO event and returns ``escaped=False`` with
+        ``method="teleport_blocked"`` — nothing changed; callers should not
+        have offered it (gate with ``can_teleport_escape``)."""
+        from kirby_combat.session.apply import apply_event
+
+        is_e, current_body = Entangle.is_entangled(session, target_id)
+        if not is_e:
+            raise ValueError(f"{target_id} is not entangled; cannot escape")
+
+        ntl = 0
+        for evt in reversed(session.event_log):
+            if evt.kind == "EntangleApplied" and getattr(evt, "target_id", None) == target_id:
+                ntl = int(getattr(evt, "no_teleport_levels", 0) or 0)
+                break
+
+        if ntl > teleport_ap_levels:
+            return session, EntangleResult(
+                target_id=target_id,
+                method="teleport_blocked",
+                damage_to_entangle_body=0,
+                body_remaining=current_body or 0,
+                escaped=False,
+            )
+
+        evt = EntangleEscape(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_combatant(target_id),
+            target_id=target_id,
+            method="teleport",
+            damage_to_entangle_body=0,
+            escaped=True,
+        )
+        s = apply_event(session, evt)
+        return s, EntangleResult(
+            target_id=target_id,
+            method="teleport",
+            damage_to_entangle_body=0,
+            body_remaining=0,
+            escaped=True,
         )
 
     # ------------------------------------------------------------------ is_entangled

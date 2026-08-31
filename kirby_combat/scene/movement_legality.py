@@ -175,6 +175,7 @@ def movement_reach(
     scene: Scene,
     combatant_id: str = "mover",
     session: "CombatSession | None" = None,
+    teleport_ap_levels: int = 0,
 ) -> MovementOutcome:
     """Resolve whether `to_pos` is reachable from `from_pos` via `mode` with
     `distance_m` of movement capacity. Returns a MovementOutcome with the actual
@@ -217,7 +218,8 @@ def movement_reach(
     if mode == "flight":
         return _flight(from_pos, to_pos, distance_m, scene)
     if mode == "teleportation":
-        return _teleportation(from_pos, to_pos, distance_m, scene)
+        return _teleportation(from_pos, to_pos, distance_m, scene,
+                              ap_levels=teleport_ap_levels)
     if mode == "swimming":
         return _swimming(from_pos, to_pos, distance_m, scene)
     if mode == "tunneling":
@@ -355,12 +357,71 @@ def _flight_clamp(
     )
 
 
+def _noteleport_blocked(
+    from_pos: Position, to_pos: Position, scene: Scene, ap_levels: int,
+) -> bool:
+    """True when the straight blink path crosses a Construct carrying more
+    levels of Cannot Be Escaped With Teleportation than the mover's
+    Teleportation has Armor Piercing (6E1 p175 — AP cancels the advantage
+    level for level; both sides stack).
+
+    Segment barriers block when the path's interpolated z at the crossing
+    point lies within the barrier's vertical extent (same over-the-top
+    semantics as wall LoS/movement). Polygon zones block a transit of their
+    boundary within their elevation range — the "englobing" case: teleporting
+    from inside to outside (or across) is refused."""
+    import math as _math
+    from kirby_combat.scene.geometry import (
+        path_crosses_polygon, point_in_polygon_xy, segment_intersection_xy,
+    )
+    for c in (getattr(scene, "constructs", None) or []):
+        lv = int(getattr(c, "no_teleport_levels", 0) or 0)
+        if lv <= 0 or lv <= ap_levels:
+            continue
+        seg = getattr(c, "segment", None)
+        if seg is not None:
+            hit = segment_intersection_xy(
+                (from_pos.x, from_pos.y), (to_pos.x, to_pos.y),
+                (seg[0].x, seg[0].y), (seg[1].x, seg[1].y))
+            if hit is None:
+                continue
+            total = _math.hypot(to_pos.x - from_pos.x, to_pos.y - from_pos.y)
+            t = (_math.hypot(hit[0] - from_pos.x, hit[1] - from_pos.y) / total
+                 if total > _EPS else 0.0)
+            z_at = from_pos.z + t * (to_pos.z - from_pos.z)
+            base = min(seg[0].z, seg[1].z)
+            top = base + (getattr(c, "height_m", 0.0) or 0.0)
+            if base <= z_at < top:
+                return True
+        else:
+            poly = getattr(c, "polygon_xy", None) or []
+            if not poly:
+                continue
+            lo, hi = getattr(c, "elevation_range_m", (0.0, 0.0))
+            a_in = (lo <= from_pos.z <= hi) and point_in_polygon_xy(
+                (from_pos.x, from_pos.y), poly)
+            b_in = (lo <= to_pos.z <= hi) and point_in_polygon_xy(
+                (to_pos.x, to_pos.y), poly)
+            if a_in != b_in:
+                return True
+            if (a_in or b_in) and path_crosses_polygon(
+                    (from_pos.x, from_pos.y), (to_pos.x, to_pos.y), poly):
+                return True
+    return False
+
+
 def _teleportation(
-    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene
+    from_pos: Position, to_pos: Position, distance_m: float, scene: Scene,
+    ap_levels: int = 0,
 ) -> MovementOutcome:
     d3 = distance_3d(from_pos, to_pos)
     reachable = d3 <= distance_m + _EPS and is_supported_at(to_pos, scene)
     # No path → ignores walls; either lands at the supported target or doesn't go.
+    # EXCEPT a Barrier with Cannot Be Escaped With Teleportation (6E1 p175):
+    # the blink may not pass it unless the Teleportation's Armor Piercing
+    # levels meet the Barrier's NOTELEPORT levels.
+    if reachable and _noteleport_blocked(from_pos, to_pos, scene, ap_levels):
+        reachable = False
     landing = to_pos if reachable else from_pos
     return MovementOutcome(reachable=reachable, landing=landing, fall=None)
 
