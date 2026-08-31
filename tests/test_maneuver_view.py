@@ -111,7 +111,9 @@ def test_ranged_maneuvers_have_no_reach_and_hth_maneuvers_do():
         _Maneuver("H", "Strike", category="Hand To Hand", maneuver_id="h"),
     )
     assert ranged.category_is_ranged is True and ranged.reach_m == 0.0
-    assert hth.category_is_ranged is False and hth.reach_m >= 2.0
+    # A HTH maneuver carries its wielder's Reach, at least the one-metre base
+    # (6E2 p56); a ranged one carries none. Was >= 2.0 under the old base.
+    assert hth.category_is_ranged is False and hth.reach_m >= 1.0
 
 
 def test_non_maneuver_entries_are_filtered_out():

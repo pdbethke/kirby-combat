@@ -2,8 +2,9 @@
 
 Stretching factor verified against Main6E.hdt: LVLCOST="1" LVLVAL="1"
 → 1 CP per 1 metre of Stretching → LEVELS = metres of stretch.
-Total combat reach = _BASE_REACH_M (2m hex adjacency) + LEVELS * 1.0 m/level.
-Evidence: Ravel.hdc LEVELS="8" → 8m stretch + 2m base = 10m total reach.
+Total combat reach = _BASE_REACH_M (1m, 6E2 p56 / 6E2 p40 / 6E1 p231)
++ LEVELS * 1.0 m/level.
+Evidence: Ravel.hdc LEVELS="8" → 8m stretch + 1m base = 9m total reach.
 """
 from dataclasses import dataclass, field
 
@@ -50,11 +51,13 @@ def _combatant(*, powers=None, cv=None):
     )
 
 
-def test_melee_attack_is_not_ranged_and_reach_is_base_2m():
+def test_melee_attack_is_not_ranged_and_reach_is_base_1m():
+    # Base Reach is one metre (6E2 p56; 6E1 p231 for the no-Growth case).
+    # Was 2.0, an uncited hex-adjacency inference.
     c = _combatant(powers=[_Pow("HANDTOHANDATTACK", "Punch", levels=8)])
     ap = c.attack_view("HANDTOHANDATTACK")
+    assert ap.reach_m == 1.0
     assert ap.is_ranged is False
-    assert ap.reach_m == 2.0
 
 
 def test_ranged_attack_is_ranged():
@@ -65,16 +68,18 @@ def test_ranged_attack_is_ranged():
 
 def test_stretching_extends_reach():
     # LVLCOST="1" LVLVAL="1" in Main6E.hdt → 1 CP per 1m → _STRETCH_M_PER_LEVEL = 1.0
-    # 3 levels → reach = 2 + 3*1.0 = 5.0 m
+    # 3 levels → reach = 1 (base Reach, 6E2 p56) + 3*1.0 = 4.0 m
     c = _combatant(powers=[
         _Pow("HANDTOHANDATTACK", "Punch", levels=8),
         _Pow("STRETCHING", "Stretch", levels=3),
     ])
     ap = c.attack_view("HANDTOHANDATTACK")
-    assert ap.reach_m == 5.0
+    assert ap.reach_m == 4.0
 
 
 def test_combat_stats_carries_base_reach():
+    # Base Reach is one metre (6E2 p56, 6E2 p40, 6E1 p231), so 3 levels of
+    # Stretching give 4.0m and a bare character 1.0m.
     c_stretch = _combatant(powers=[_Pow("STRETCHING", "Stretch", levels=3)])
-    assert c_stretch.combat_stats().reach_m == 5.0
-    assert _combatant().combat_stats().reach_m == 2.0
+    assert c_stretch.combat_stats().reach_m == 4.0
+    assert _combatant().combat_stats().reach_m == 1.0

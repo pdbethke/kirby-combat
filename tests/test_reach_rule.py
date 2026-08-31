@@ -47,3 +47,29 @@ def test_the_rule_is_on_the_import_surface():
 
     assert kirby_combat.within_reach is within_reach
     assert kirby_combat.ReachVerdict is ReachVerdict
+
+
+def test_a_bare_character_reaches_one_metre():
+    # 6E1 p231 (Growth): a character with no points in Growth can hit only
+    # targets within his own Reach, one metre. The engine's old 2m was an
+    # uncited inference from hex size.
+    from kirby_combat.hero_view import _base_reach_m
+
+    class _Hero:
+        powers: list = []
+
+    assert _base_reach_m(_Hero()) == 1.0
+
+
+def test_stretching_adds_a_metre_per_level_on_top_of_one():
+    from kirby_combat.hero_view import _base_reach_m
+
+    class _Stretch:
+        xmlid = "STRETCHING"
+        levels = 8
+
+    class _Hero:
+        powers = [_Stretch()]
+
+    # Ravel: 8 levels -> 8m of stretch, 9m total reach.
+    assert _base_reach_m(_Hero()) == 9.0
