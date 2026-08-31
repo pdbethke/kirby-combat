@@ -15,6 +15,9 @@ def test_target_exactly_at_reach_is_in_reach():
     # inclusive and positions are floats (6E2 p40).
     v = within_reach(distance_m=1.0, reach_m=1.0)
     assert v.in_reach is True
+    # 6E2 p40's Range Modifier table gives reach its own row, distinct
+    # from the next band up at 2m.
+    assert within_reach(distance_m=2.0, reach_m=1.0).in_reach is False
 
 
 def test_target_beyond_reach_reports_the_shortfall():
@@ -27,6 +30,12 @@ def test_float_noise_does_not_push_a_target_out_of_reach():
     # Landing positions are computed, so a "1.0m" gap arrives as 1.0000000004.
     v = within_reach(distance_m=1.0 + 4e-10, reach_m=1.0)
     assert v.in_reach is True
+
+
+def test_beyond_reach_is_not_hand_to_hand():
+    # 6E2 p36 divides combat into two categories: hand-to-hand (within reach)
+    # and ranged (beyond it). A target beyond the reach distance is not HTH.
+    assert within_reach(distance_m=1.5, reach_m=1.0).in_reach is False
 
 
 def test_stretching_extends_the_reach_that_is_passed_in():
