@@ -104,7 +104,7 @@ from kirby_combat.actions.grab import Grab  # noqa: E402
 from kirby_combat.actions.martial_arts import modifiers_for_maneuver_view  # noqa: E402
 from kirby_combat.actions.move_by import MoveBy  # noqa: E402
 from kirby_combat.actions.move_through import MoveThrough  # noqa: E402
-# Close-and-strike composite (6E2 p56)
+# Close-and-strike composite (6E2 p36, p56)
 from kirby_combat.actions.move_strike import (  # noqa: E402
     MoveStrikeOutcome, StrikePlan, resolve_move_strike,
 )
@@ -210,7 +210,7 @@ __all__ = [
     "CombatTemplate", "RAW_SUPERHEROIC",
     # The reach rule (6E2 p56)
     "ReachVerdict", "within_reach",
-    # Close-and-strike composite (6E2 p56)
+    # Close-and-strike composite (6E2 p36, p56)
     "MoveStrikeOutcome", "StrikePlan", "resolve_move_strike",
     # Dice
     "DiceRoller", "FakeRoller", "RandomRoller",

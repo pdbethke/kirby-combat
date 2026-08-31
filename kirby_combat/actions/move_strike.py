@@ -9,26 +9,51 @@ What it settles, in order:
 1. **The close.** Resolved through `movement_reach`, so per-mode legality
    holds — running is same-elevation only, leaping has a vertical capacity,
    flight is free 3D. `movement_reach` CLAMPS: an illegal or over-long move
-   lands the actor short rather than failing loudly.
+   lands the actor short rather than failing loudly, and it reports a REFUSED
+   move (an unmodelled mode, a mode that cannot operate here, a Stunned
+   combatant who may not move at all) as `reachable=False` with the landing
+   back at the start.
 2. **Reach (6E2 p36, 6E2 p56).** Measured at the landing position, never at
    the position the action was chosen from. This is the check whose absence
    let a martial throw resolve between combatants separated by six metres of
    elevation.
-3. **Perception.** An attacker who closed but still cannot perceive the target
+3. **The refusal.** Landing in reach is not enough: the close must also have
+   been ALLOWED. Without this an actor who already stands adjacent gets a free
+   strike out of a mode that was refused outright — swimming on dry land, a
+   mode this engine does not model, or a Stunned combatant, whose refusal
+   `movement_reach` reports the same way.
+4. **Perception.** An attacker who closed but still cannot perceive the target
    does not land a clean full-CV blow; adjacent-but-unperceived strikes blind
-   (½ OCV / ½ DCV). This is the anti-metagaming gate, preserved from the
-   kirby-api implementation this module replaces.
+   (6E2 p127, inability to sense an opponent: ½ OCV and ½ DCV in HTH). This is
+   the anti-metagaming gate, preserved from the kirby-api implementation this
+   module replaces.
 
 Reach before perception is deliberate: an attacker who never arrived has no
-attack to gate, and "unperceived" would describe the wrong failure.
+attack to gate, and "unperceived" would describe the wrong failure. The
+refusal sits between them because it only ever bites when the reach test has
+already passed — that is precisely the already-adjacent case.
+
+**The mid-air retry.** The close aims at a point one Reach short of the
+target, which for an elevated target hangs in mid-air. Modes that must finish
+on a supported surface (teleportation among them) cannot accept such a
+destination, so when the short-of point is refused or lands out of reach the
+close is retried at the target's OWN position, which is supported by
+construction. Carried over from kirby-api, where a teleporter that could
+legally arrive adjacent was otherwise told it could not.
+
+**The scene-less path is an approximation.** With `scene=None` there is no
+geometry to consult, so the close is a straight line clamped to the movement
+budget and `mode` is IGNORED — no elevation rule, no walls, no support, no
+refusal. A running actor will happily "close" straight down a six-metre drop.
+Only the reach rule still bites. Pass a scene whenever mode legality matters.
 """
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Optional
 
 from kirby_combat.actions.reach import ReachVerdict, within_reach
+from kirby_combat.scene.geometry import distance_3d
 from kirby_combat.scene.scene import Position
 
 
@@ -37,7 +62,7 @@ class StrikePlan:
     """The attack the caller should now resolve.
 
     `blind` ⇒ the target was closed to but is still unperceived: resolve at
-    ½ OCV / ½ DCV rather than full CV.
+    ½ OCV / ½ DCV (6E2 p127) rather than full CV.
     """
 
     blind: bool
@@ -51,20 +76,20 @@ class MoveStrikeOutcome:
     reach: ReachVerdict
     fell: bool
     strike: Optional[StrikePlan]
-    reason: str          # "" when striking; else "out_of_reach" | "unperceived" | "fell"
+    reason: str          # "" when striking; else "out_of_reach" | "move_refused" | "fell"
 
 
-def _distance(a: Position, b: Position) -> float:
-    return math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
-
-
-def _point_short_of(target: Position, actor: Position, reach_m: float) -> Position:
+def _point_short_of(actor: Position, target: Position, reach_m: float) -> Position:
     """A point on the actor→target line sitting `reach_m` short of the target,
-    so a mover landing there is exactly within reach. Returns the target's own
-    position when already inside reach (nothing to close)."""
-    d = _distance(actor, target)
-    if d <= reach_m or d <= 0.0:
-        return target
+    so a mover landing there is exactly within reach.
+
+    Returns the ACTOR's own position when the target is already inside reach:
+    there is nothing to close, and walking on toward an adjacent enemy would
+    put the two combatants in the same square.
+    """
+    d = distance_3d(actor, target)
+    if d <= reach_m:
+        return actor
     frac = (d - reach_m) / d
     return Position(
         x=actor.x + (target.x - actor.x) * frac,
@@ -72,6 +97,10 @@ def _point_short_of(target: Position, actor: Position, reach_m: float) -> Positi
         z=actor.z + (target.z - actor.z) * frac,
         facing=actor.facing,
     )
+
+
+def _arrives(landing: Position, target_pos: Position, reach_m: float) -> bool:
+    return within_reach(distance_3d(landing, target_pos), reach_m).in_reach
 
 
 def resolve_move_strike(
@@ -96,12 +125,14 @@ def resolve_move_strike(
     needs. Omit them (or omit `scene`) and perception is not consulted — the
     reach rule still is.
     """
-    desired = _point_short_of(target_pos, actor_pos, reach_m)
+    desired = _point_short_of(actor_pos, target_pos, reach_m)
 
     fell = False
+    refused = False
     if scene is None:
-        # Scene-less: a straight-line close, clamped to the budget.
-        d_full = _distance(actor_pos, desired)
+        # Scene-less: a straight-line close, clamped to the budget. See the
+        # module docstring — `mode` is not consulted on this path.
+        d_full = distance_3d(actor_pos, desired)
         if d_full <= half_move_m or d_full <= 0.0:
             landing = desired
         else:
@@ -119,42 +150,55 @@ def resolve_move_strike(
             mode, actor_pos, desired, half_move_m, scene,
             combatant_id=actor_id, session=session,
         )
+        if not (outcome.reachable and _arrives(outcome.landing, target_pos, reach_m)):
+            # The mid-air retry: aim at the target's own (supported) square.
+            retry = movement_reach(
+                mode, actor_pos, target_pos, half_move_m, scene,
+                combatant_id=actor_id, session=session,
+            )
+            if retry.reachable and _arrives(retry.landing, target_pos, reach_m):
+                outcome = retry
         landing = outcome.landing
         fell = outcome.fall is not None
+        refused = not outcome.reachable
 
-    travelled = _distance(actor_pos, landing)
-    distance_after = _distance(landing, target_pos)
+    travelled = distance_3d(actor_pos, landing)
+    distance_after = distance_3d(landing, target_pos)
     verdict = within_reach(distance_after, reach_m)
 
-    if not verdict.in_reach:
+    def _no_strike(reason: str) -> MoveStrikeOutcome:
         return MoveStrikeOutcome(
             landing=landing, travelled_m=travelled,
             distance_after_m=distance_after, reach=verdict, fell=fell,
-            strike=None, reason="out_of_reach",
+            strike=None, reason=reason,
         )
+
+    if not verdict.in_reach:
+        return _no_strike("out_of_reach")
+
+    if refused:
+        # In reach, but only because the actor never had to move. The mode
+        # refused the close outright, so there is no half-move-and-strike to
+        # be had out of standing still.
+        return _no_strike("move_refused")
 
     if fell:
         # Landed in reach but fell getting there: the phase is spent on the
         # fall, not on a punch.
-        return MoveStrikeOutcome(
-            landing=landing, travelled_m=travelled,
-            distance_after_m=distance_after, reach=verdict, fell=True,
-            strike=None, reason="fell",
-        )
+        return _no_strike("fell")
 
     blind = False
     if scene is not None and observer is not None and target is not None:
         from kirby_combat.perception import perceive
 
         perc = perceive(
-            observer, target, scene,
+            observer, target, _scene_after_close(scene, actor_id, landing),
             target_invisible=target_invisible, target_hidden=target_hidden,
             roller=roller,
         )
-        perceivable = bool(
-            getattr(perc, "targetable_physical", False)
-            or getattr(perc, "targetable_mental", False)
-        )
+        # Read the flags directly: a renamed field must break loudly here
+        # rather than degrade every strike in the game to a blind one.
+        perceivable = bool(perc.targetable_physical or perc.targetable_mental)
         # In reach but unperceived ⇒ the blow may land, blind. (Out of reach
         # was already returned above, so there is no unperceived-and-distant
         # case to consider here.)
@@ -164,4 +208,22 @@ def resolve_move_strike(
         landing=landing, travelled_m=travelled,
         distance_after_m=distance_after, reach=verdict, fell=False,
         strike=StrikePlan(blind=blind), reason="",
+    )
+
+
+def _scene_after_close(scene: Any, actor_id: str, landing: Position) -> Any:
+    """The scene as perception should see it: the actor standing where the
+    close actually left it.
+
+    Perception is range- and line-of-sight-sensitive, so consulting it against
+    the actor's PRE-close position would judge the wrong geometry. Returns a
+    NEW scene (this module mutates nothing), and only when the scene already
+    tracks this actor — inventing a position for an untracked combatant would
+    change what `perceive` measures rather than correct it.
+    """
+    positions = getattr(scene, "combatant_positions", None)
+    if not positions or actor_id not in positions:
+        return scene
+    return replace(
+        scene, combatant_positions={**positions, actor_id: landing},
     )
