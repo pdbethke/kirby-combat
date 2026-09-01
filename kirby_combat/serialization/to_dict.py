@@ -73,6 +73,7 @@ def to_dict(obj: Any) -> Any:
             "active_slot_per_framework": dict(obj.state.active_slot_per_framework),
             "last_acted_segment": obj.state.last_acted_segment,
             "aborted": obj.state.aborted,
+            "in_hero_id": obj.state.in_hero_id,
             "knockback_resistance": obj.knockback_resistance,
             # Public-view projection of attacks/defenses (the lossy
             # fields that round-trip through synthetic_combatant on

@@ -515,10 +515,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     @staticmethod
     def _compute_stats_skeleton(hero: "LoadedHero") -> HeroCombatStats:
-        """Initial-vital seed for from_hdc(). Reads cost-engine
-        characteristic values via ``hero.characteristic_value(xmlid)``
-        and walks defense-type powers for resistant/mental/power/flash
-        totals.
+        """Initial-vital seed for from_hdc(). Reads temporal
+        characteristic values via ``hero.temporal_characteristic(xmlid, ctx)``
+        (Hero identity active by default, matching ``HeroCombatState``'s own
+        default) and walks defense-type powers for resistant/mental/power/
+        flash totals.
 
         This is a sub-piece of the full ``combat_stats()`` that runs
         without a CombatState (since at from_hdc() time there's no
@@ -534,10 +535,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
     def combat_stats(self) -> HeroCombatStats:
         """Effective integer stats at this moment.
 
-        Reads cost-engine-computed characteristic values from
-        ``hero.characteristic_value(xmlid)``, walks defense powers for
-        resistant/mental/power/flash totals, then applies any active
-        drains/aids from ``state``.
+        Reads cost-engine-computed temporal characteristic values from
+        ``hero.temporal_characteristic(xmlid, ctx)`` — base plus any
+        contributions conditional on ``state.in_hero_id`` — walks defense
+        powers for resistant/mental/power/flash totals, then applies any
+        active drains/aids from ``state``.
 
         rPD/rED post-cap: resistant defenses derived from a
         characteristic (via NAKEDMODIFIER+RESISTANT) cannot exceed

@@ -140,7 +140,14 @@ def _hero_combatant_from_dict(data: dict) -> Any:
             # A snapshot has no purchase list to walk (self.powers is
             # empty above), so there is nothing conditional left to
             # apply — the snapshotted value already IS the temporal
-            # value at the moment it was recorded.
+            # value at the moment it was recorded. Consequence: this
+            # is frozen, not live. Flipping identity on a rehydrated
+            # combatant (``restored.state.in_hero_id = False``) is a
+            # silent no-op in both directions — the stats stay exactly
+            # what they were at record time regardless of ``ctx``.
+            # Anyone needing a real identity flip must resume against
+            # the canonical character via ``HeroCombatant.from_hdc(...)``
+            # or ``hero_combatant_from_db(...)`` instead of this stub.
             return self.characteristic_value(xmlid)
 
     char_values = {
@@ -168,6 +175,7 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         active_slot_per_framework=dict(data.get("active_slot_per_framework") or {}),
         last_acted_segment=data.get("last_acted_segment"),
         aborted=bool(data.get("aborted", False)),
+        in_hero_id=bool(data.get("in_hero_id", True)),
     )
     hc = HeroCombatant(
         id=data["id"],
