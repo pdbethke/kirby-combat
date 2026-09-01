@@ -178,6 +178,9 @@ def test_attack_input_accepts_hero_combatant():
                 xmlid.upper(), 0,
             )
 
+        def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+            return self.characteristic_value(xmlid)
+
     hc = HeroCombatant(
         id="hero", hero=_StubHero(),  # type: ignore[arg-type]
         state=HeroCombatState(current_stun=30, current_body=10, current_end=30),
@@ -334,6 +337,9 @@ def test_compute_stats_coerces_engine_floats_to_int():
                 "PD": 25.0, "ED": 20.0,
                 "STUN": 50.0, "BODY": 15.0, "END": 60.0,
             }.get(xmlid, 0.0)
+
+        def temporal_characteristic(self, xmlid: str, ctx=None) -> float:
+            return self.characteristic_value(xmlid)
 
     stats = _compute_stats_from_hero(_FloatHero())
     for field_name in (

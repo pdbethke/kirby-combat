@@ -48,6 +48,9 @@ class StubHero:
     def characteristic_value(self, xmlid: str) -> int:
         return self._char_values.get(xmlid.upper(), 0)
 
+    def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+        return self.characteristic_value(xmlid)
+
 
 def _make_combatant(*, str_=10, dex=10, con=10, ego=10, pre=10,
                     powers=None, name="Test", id="test"):

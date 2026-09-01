@@ -58,6 +58,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from kirby_cost.model.activation import ActivationContext
+
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 from kirby_combat.participant import CombatParticipant, Stunnable
 
@@ -153,6 +155,15 @@ class HeroCombatState:
     last_acted_segment: Optional[int] = None
     aborted: bool = False
     """True if this combatant has aborted their next action this phase."""
+
+    in_hero_id: bool = True
+    """Whether the character is currently in their Hero identity.
+
+    Purchases limited to that identity (the OIHID limitation) apply only when
+    this is true. Defaults true: a character in a fight is overwhelmingly in
+    costume, and defaulting the other way would silently weaken everyone whose
+    abilities are bought that way.
+    """
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -535,7 +546,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Aids on rPD/rED are NOT capped — they represent external
         bonuses (e.g. Force Wall Aid).
         """
-        stats = _compute_stats_from_hero(self.hero)
+        stats = _compute_stats_from_hero(
+            self.hero, ActivationContext(in_hero_id=self.state.in_hero_id))
         # Apply drains (negative deltas) + aids (positive deltas).
         # Drain stats keys match HeroCombatStats field names.
         for stat, delta in self.state.drains.items():
@@ -1207,14 +1219,20 @@ def _has_assigned_modifier(power, target_xmlid: str) -> bool:
     return False
 
 
-def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
-    """Read cost-engine characteristic values + sum defense powers.
+def _compute_stats_from_hero(
+    hero: "LoadedHero", ctx: ActivationContext | None = None,
+) -> HeroCombatStats:
+    """Read the temporal characteristic values + sum defense powers.
 
-    ``hero.characteristic_value(xmlid)`` returns the effective integer
-    after all bumps + figured-from-primary derivations, so the
-    primaries (STR/DEX/CON/INT/EGO/PRE) and combat values
-    (OCV/DCV/OMCV/DMCV/SPD) plus PD/ED/REC/END/STUN/BODY come straight
-    from there.
+    ``hero.temporal_characteristic(xmlid, ctx)`` returns the effective
+    value after all bumps + figured-from-primary derivations PLUS any
+    contributions conditional on ``ctx`` (e.g. a purchase limited to the
+    character's Hero identity, 6E1 p.386), so the primaries
+    (STR/DEX/CON/INT/EGO/PRE) and combat values (OCV/DCV/OMCV/DMCV/SPD)
+    plus PD/ED/REC/END/STUN/BODY come straight from there. ``ctx``
+    defaults to ``ActivationContext()`` (Hero identity active) when the
+    caller has no state yet (``_compute_stats_skeleton`` at from_hdc()
+    time).
 
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
     powers, not characteristics. We walk hero.powers to total them.
@@ -1226,7 +1244,7 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     ``resolution.defense.compute_defense``) compose on top of these
     values without staleness. Don't cache per-combatant.
 
-    Int boundary: ``hero.characteristic_value()`` returns float (the
+    Int boundary: ``hero.temporal_characteristic()`` returns float (the
     cost engine computes in floats; canon HDC/build-doc imports yield
     whole-valued floats like ``OCV=4.0``). HeroCombatStats declares
     int fields and the whole resolution layer assumes integer stats
@@ -1236,8 +1254,10 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     the one legitimately fractional case (5E figured SPD, e.g. 2.7
     plays as SPD 2).
     """
+    active_ctx = ctx if ctx is not None else ActivationContext()
+
     def cv(xmlid: str) -> int:
-        return int(hero.characteristic_value(xmlid))
+        return int(hero.temporal_characteristic(xmlid, active_ctx))
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows

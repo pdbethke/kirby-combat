@@ -136,6 +136,13 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         def characteristic_value(self, xmlid: str) -> int:
             return self._char_values.get(xmlid.upper(), 0)
 
+        def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+            # A snapshot has no purchase list to walk (self.powers is
+            # empty above), so there is nothing conditional left to
+            # apply — the snapshotted value already IS the temporal
+            # value at the moment it was recorded.
+            return self.characteristic_value(xmlid)
+
     char_values = {
         "OCV": data["ocv"], "DCV": data["dcv"],
         "OMCV": data["omcv"], "DMCV": data["dmcv"],

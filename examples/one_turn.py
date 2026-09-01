@@ -123,6 +123,9 @@ class _MinimalHero:
     def characteristic_value(self, xmlid: str) -> int:
         return self._char_values.get(xmlid.upper(), 0)
 
+    def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+        return self.characteristic_value(xmlid)
+
 
 def _lightning_reflexes_talent(*, levels: int, option_id: str, option_alias: str):
     """A real ``LightningReflexesAll`` object built to the verbatim XML
