@@ -490,3 +490,82 @@ def test_the_composite_is_on_the_import_surface():
 
     assert kirby_combat.resolve_move_strike is resolve_move_strike
     assert kirby_combat.MoveStrikeOutcome is MoveStrikeOutcome
+
+
+def test_a_leaper_closes_onto_the_rooftop_instead_of_falling_short_of_it():
+    """The mid-air retry, reached by the FALL door rather than the refusal one.
+
+    A leap at the point one metre short of a rooftop enemy is perfectly legal
+    -- it is within both the horizontal and the vertical capacity -- so the
+    close is `reachable`, and it arrives in reach. It just happens to arrive
+    in EMPTY AIR beside the roof, so the leaper drops. Judging the retry on
+    reachability alone never fires here, and the whole phase is spent falling.
+    The retry must therefore also fire when the short-of attempt FELL: falling
+    is what "that point is unsupported" looks like from the outside.
+    """
+    scene = _rooftop_arena()
+    out = resolve_move_strike(
+        scene=scene,
+        actor_pos=Position(5, 10, 0),       # on the street, west of the roof
+        target_pos=Position(15, 10, 6),     # on the roof
+        mode="leaping",
+        half_move_m=12.0,                   # 12m across, 6m up: enough for both
+        reach_m=1.0,
+        actor_id="cheshire",
+    )
+    assert out.reason == ""
+    assert out.strike == StrikePlan(blind=False)
+    assert out.fell is False
+    # Same arrival as the teleporter's: the enemy's own supported square is
+    # the only landing the mode allows. See the note in that test.
+    assert out.landing == Position(15, 10, 6)
+
+
+def test_a_leap_that_cannot_be_rescued_still_reports_the_fall():
+    """The other half of the retry decision, pinned. Here the retry itself
+    fails -- the enemy's roof is beyond the leap's vertical capacity -- so
+    there is no rescue to be had, and the original attempt's fall must survive
+    the attempt to rescue it. A falling character is prone and hurt; the
+    composite must not swallow that just because it went looking for a better
+    landing and did not find one.
+    """
+    scene = _rooftop_arena()
+    out = resolve_move_strike(
+        scene=scene,
+        actor_pos=Position(5, 10, 0),
+        target_pos=Position(15, 10, 6),
+        mode="leaping",
+        half_move_m=11.0,   # 5.5m of lift: clears the mid-air point, not the roof
+        reach_m=1.0,
+        actor_id="cheshire",
+    )
+    assert out.strike is None
+    assert out.reason == "fell"
+    assert out.fell is True
+    assert out.reach.in_reach is True    # it arrived; it just arrived falling
+
+
+def test_a_retry_that_also_falls_leaves_the_original_landing_alone():
+    """The retry is a rescue, not a replacement. Against an enemy hovering in
+    mid-air there is no supported square to retry onto either, so the retry
+    falls as well -- and an attempt that is no better must not displace the
+    one already resolved. The leaper stays where its own leap put it and the
+    fall is reported once, from that spot.
+    """
+    scene = _rooftop_arena()
+    out = resolve_move_strike(
+        scene=scene,
+        actor_pos=Position(5, 10, 0),
+        target_pos=Position(8, 10, 4),      # airborne, west of the roof
+        mode="leaping",
+        half_move_m=8.0,                    # 8m across, 4m up: both reachable
+        reach_m=1.0,
+        actor_id="cheshire",
+    )
+    assert out.strike is None
+    assert out.reason == "fell"
+    assert out.fell is True
+    # The short-of point, NOT the enemy's own square: adopting a retry that
+    # is itself a fall would move the actor for nothing.
+    assert out.landing.x == pytest.approx(7.4)
+    assert out.landing.z == pytest.approx(3.2)

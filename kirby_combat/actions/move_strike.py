@@ -35,12 +35,21 @@ refusal sits between them because it only ever bites when the reach test has
 already passed — that is precisely the already-adjacent case.
 
 **The mid-air retry.** The close aims at a point one Reach short of the
-target, which for an elevated target hangs in mid-air. Modes that must finish
-on a supported surface (teleportation among them) cannot accept such a
-destination, so when the short-of point is refused or lands out of reach the
-close is retried at the target's OWN position, which is supported by
-construction. Carried over from kirby-api, where a teleporter that could
-legally arrive adjacent was otherwise told it could not.
+target, which for an elevated target hangs in mid-air — a destination no mode
+that must finish on something solid can accept. So whenever the short-of
+attempt is not CLEAN — refused, landed out of reach, or FELL — the close is
+retried at the target's OWN position, which is supported by construction.
+The fall leg carries as much weight as the other two: a leap at that mid-air
+point is legal and does arrive in reach, so it never trips a reachability
+test, yet the leaper drops and spends the phase falling. Falling is simply
+what "that destination is unsupported" looks like from outside
+`movement_reach`. The retry is a rescue and nothing more: it is adopted only
+when IT is clean, so a retry that is itself refused, short or falling leaves
+the original outcome — and its `fell=True` — exactly as it was, and a close
+that was clean to begin with never retries at all. Carried over from
+kirby-api, where a teleporter that could legally arrive adjacent was otherwise
+told it could not, and where the unsupported short-of point was likewise
+retried.
 
 **The scene-less path is an approximation.** With `scene=None` there is no
 geometry to consult, so the close is a straight line clamped to the movement
@@ -151,7 +160,23 @@ def resolve_move_strike(
             mode, actor_pos, desired, half_move_m, scene,
             combatant_id=actor_id, session=session,
         )
-        if not (outcome.reachable and _arrives(outcome.landing, target_pos, reach_m)):
+        def _clean(o: Any) -> bool:
+            """Did this attempt land the close, intact, in reach?
+
+            All three legs matter. `reachable` alone was the defect: a leap at
+            the mid-air point one Reach short of a rooftop enemy is perfectly
+            legal AND arrives in reach — it simply arrives with nothing
+            underneath, so `movement_reach` hands back a fall. Falling IS the
+            symptom of an unsupported destination, which is exactly the case
+            the retry exists for.
+            """
+            return (
+                o.reachable
+                and o.fall is None
+                and _arrives(o.landing, target_pos, reach_m)
+            )
+
+        if not _clean(outcome):
             # The mid-air retry: aim at the target's own (supported) square.
             #
             # This deliberately accepts CO-LOCATION, which `_point_short_of`
@@ -167,7 +192,14 @@ def resolve_move_strike(
                 mode, actor_pos, target_pos, half_move_m, scene,
                 combatant_id=actor_id, session=session,
             )
-            if retry.reachable and _arrives(retry.landing, target_pos, reach_m):
+            # The retry is a RESCUE, never a replacement: it is adopted only
+            # when it is clean on all three legs. A retry that is refused,
+            # falls, or lands short leaves the ORIGINAL outcome standing, so
+            # the actor can neither collect a strike it did not earn nor have
+            # a fall it genuinely suffered quietly swapped for some other
+            # failure. A real fall that no rescue can lift still reports
+            # `reason="fell"` with `fell=True`.
+            if _clean(retry):
                 outcome = retry
         landing = outcome.landing
         fell = outcome.fall is not None

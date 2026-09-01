@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.1 — 2026-08-31
+
+### Fixed
+- **`resolve_move_strike` no longer loses every leap-strike onto an elevated
+  target to a fall.** The composite aims the close at a point one Reach short
+  of the target; when the target stands on a rooftop that point hangs in the
+  air beside the roof. The mid-air retry that exists precisely for this case
+  — re-running the close at the target's own, supported square — was gated on
+  the short-of attempt having been REFUSED or landed out of reach. A leap to
+  that mid-air point is neither: it is within both the horizontal and the
+  vertical capacity and it does arrive in reach, so `movement_reach` reports
+  it reachable and simply attaches a fall. The retry therefore never fired,
+  the phase was spent falling, and `reason="fell"` came back instead of a
+  `StrikePlan`. The retry now fires whenever the short-of attempt was not
+  clean — refused, short, OR fallen — since falling is what an unsupported
+  destination looks like from outside `movement_reach`. This restores the
+  pre-migration kirby-api behaviour, which retried when the point one metre
+  short was unsupported.
+- **A retry is a rescue, never a replacement.** The retried close is adopted
+  only when it is itself clean (reachable, no fall, arrives in reach); a
+  retry that is refused, lands short, or falls in turn leaves the original
+  outcome standing. So no actor collects a strike it did not earn, and a
+  genuine fall that no retry can lift is still reported as `reason="fell"`
+  with `fell=True`, from the landing its own close produced.
+
 ## 0.8.0 — 2026-08-31
 
 The reach rule as a first-class engine surface, and the close-and-strike
