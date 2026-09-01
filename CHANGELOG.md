@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.8.1 — 2026-08-31
+
+### Fixed
+- **`resolve_move_strike` no longer loses every leap-strike onto an elevated
+  target to a fall.** The composite aims the close at a point one Reach short
+  of the target; when the target stands on a rooftop that point hangs in the
+  air beside the roof. The mid-air retry that exists precisely for this case
+  — re-running the close at the target's own, supported square — was gated on
+  the short-of attempt having been REFUSED or landed out of reach. A leap to
+  that mid-air point is neither: it is within both the horizontal and the
+  vertical capacity and it does arrive in reach, so `movement_reach` reports
+  it reachable and simply attaches a fall. The retry therefore never fired,
+  the phase was spent falling, and `reason="fell"` came back instead of a
+  `StrikePlan`. The retry now fires whenever the short-of attempt was not
+  clean — refused, short, OR fallen — since falling is what an unsupported
+  destination looks like from outside `movement_reach`. This restores the
+  pre-migration kirby-api behaviour, which retried when the point one metre
+  short was unsupported.
+- **A retry is a rescue, never a replacement.** The retried close is adopted
+  only when it is itself clean (reachable, no fall, arrives in reach); a
+  retry that is refused, lands short, or falls in turn leaves the original
+  outcome standing. So no actor collects a strike it did not earn, and a
+  genuine fall that no retry can lift is still reported as `reason="fell"`
+  with `fell=True`, from the landing its own close produced.
+
+## 0.8.0 — 2026-08-31
+
+The reach rule as a first-class engine surface, and the close-and-strike
+composite that consumes it.
+
+### Changed
+- **BEHAVIOUR CHANGE — base Hand-To-Hand Reach corrected from 2m to 1m
+  (6E2 p56, 6E2 p40, 6E1 p231).** 6E2 p56 sets a character's base Reach at
+  one metre, not two; 6E2 p40's Range Modifier table and 6E1 p231 corroborate
+  the same boundary. Any consumer that measured HTH range against the old 2m
+  figure — including anything that inferred adjacency from distance — will
+  see melee reach halved after this upgrade. `hero_view._base_reach_m`
+  still adds 1m per level of Stretching on top of the corrected base.
+
+### Added
+- **The reach rule as an engine surface (`kirby_combat/actions/reach.py`,
+  6E2 p56).** `within_reach(distance_m, reach_m)` applies the rule to a
+  measured distance and returns a `ReachVerdict` — `in_reach`, `distance_m`,
+  `reach_m`, and `shortfall_m` — rather than a bare bool, so a failed close
+  can say how short it fell instead of failing silently. 6E2 p36 gives the
+  same boundary from the other side (combat outside Reach is Ranged Combat);
+  6E2 p40's Range Modifier table gives the reach band its own row.
+- **Close-and-strike composite (`kirby_combat/actions/move_strike.py`,
+  6E2 p56).** `resolve_move_strike(...)` returns a `MoveStrikeOutcome` built
+  from a `StrikePlan`, and settles, in order: (1) the close, resolved through
+  the scene-aware `movement_reach` path so per-mode legality holds (running
+  is same-elevation only, leaping has a vertical capacity, flight is free
+  3D, and an illegal or over-long move clamps short rather than failing
+  loudly); (2) the reach rule from this release, applied at the LANDING
+  position rather than the position the action was chosen from — the check
+  whose earlier absence let a martial throw resolve between combatants six
+  metres apart in elevation; (3) refusal of a free strike when the close
+  itself was refused (an unmodelled mode, a mode that cannot operate here, a
+  Stunned combatant); (4) perception, gated at the landing position too, so
+  an attacker who closed but still cannot perceive the target strikes blind
+  per 6E2 p9/p127 rather than at full CV. With `scene=None` the close falls
+  back to a straight line clamped to the movement budget and `mode` is
+  ignored — no elevation, walls, or support are modelled in that path; only
+  the reach rule still bites.
+
 ## 0.7.0 — 2026-08-28
 
 The sense-affecting family, Presence Attack consequences, and a front door.

@@ -104,8 +104,13 @@ from kirby_combat.actions.grab import Grab  # noqa: E402
 from kirby_combat.actions.martial_arts import modifiers_for_maneuver_view  # noqa: E402
 from kirby_combat.actions.move_by import MoveBy  # noqa: E402
 from kirby_combat.actions.move_through import MoveThrough  # noqa: E402
+# Close-and-strike composite (6E2 p36, p56)
+from kirby_combat.actions.move_strike import (  # noqa: E402
+    MoveStrikeOutcome, StrikePlan, resolve_move_strike,
+)
 from kirby_combat.actions.multiple_attack import MultipleAttack  # noqa: E402
 from kirby_combat.actions.rapid_fire import RapidFire  # noqa: E402
+from kirby_combat.actions.reach import ReachVerdict, within_reach  # noqa: E402
 from kirby_combat.actions.reactive.block import Block, BlockResult  # noqa: E402
 from kirby_combat.actions.throw import Throw, resolve_object_throw  # noqa: E402
 from kirby_combat.breakables.object_combatant import ObjectCombatant  # noqa: E402
@@ -203,6 +208,10 @@ __all__ = [
     "range_penalty", "scale_variable_slot_dice",
     # Rules configuration
     "CombatTemplate", "RAW_SUPERHEROIC",
+    # The reach rule (6E2 p56)
+    "ReachVerdict", "within_reach",
+    # Close-and-strike composite (6E2 p36, p56)
+    "MoveStrikeOutcome", "StrikePlan", "resolve_move_strike",
     # Dice
     "DiceRoller", "FakeRoller", "RandomRoller",
     # Serialization

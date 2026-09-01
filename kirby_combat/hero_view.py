@@ -205,7 +205,7 @@ class HeroCombatStats:
     max_end: int
 
     # Movement / reach
-    reach_m: float = 0.0         # effective melee reach in metres (2m + Stretching)
+    reach_m: float = 0.0         # effective melee reach in metres (1m base + Stretching)
 
     #: 6E2 p.21 names INT as the GM's tie-break alternative to a DEX Roll.
     #: Carried here because timeline sorts on it; it was absent until
@@ -924,20 +924,31 @@ class HeroCombatant(Stunnable, CombatParticipant):
 # resolution layer consumes.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Reach constants (reach spec §1)
-# _BASE_REACH_M: 6E hex-adjacency (2m). Combatants in adjacent hexes can
-#   make melee attacks; beyond this range HTH is not available without
-#   Stretching or a move-and-strike action.
+# Reach constants (reach spec §1; corrected 2026-08-31)
+# _BASE_REACH_M: 1m, per THREE citations — 6E2 p56 (which sets a character's
+#   base Reach at one metre), 6E2 p40 (the Range Modifier table gives the reach
+#   band its own row at 1m, listed separately from the next band up), and
+#   6E1 p231 (a character with no Growth can hit only targets within his own
+#   Reach, one metre).
+#   This was 2.0, justified in a comment as 6E hex-adjacency (2m) with no
+#   page behind it. A codex search finds no rule supporting a 2m reach.
+#   Consequence (once the move_strike gate lands — nothing in this engine
+#   gates on reach yet): many attacks that used to resolve as a direct strike
+#   will require a real close, so the move_strike composite carries more
+#   traffic.
 # _STRETCH_M_PER_LEVEL: each level of the Stretching power extends reach by
 #   1 metre. Verified against Main6E.hdt: LVLCOST="1" LVLVAL="1" → 1 CP per
 #   1m, so LEVELS == metres of stretching. Evidence: Ravel.hdc LEVELS="8"
-#   → 8m stretch, total reach 10m.
-_BASE_REACH_M: float = 2.0
+#   → 8m stretch, total reach 9m.
+_BASE_REACH_M: float = 1.0
 _STRETCH_M_PER_LEVEL: float = 1.0
 
 
 def _base_reach_m(hero) -> float:
-    """Effective melee reach in metres: 2m base + Stretching levels (in metres).
+    """Effective melee reach in metres: 1m base + Stretching levels (in metres).
+
+    6E2 p56 sets a character's base Reach at one metre; 6E2 p40 and 6E1 p231
+    agree.
 
     Mirrors the power-walk pattern used for FORCEFIELD/can_swim().
     """
@@ -1580,7 +1591,7 @@ def _build_attack_power(
 
     ``hero`` (optional): the attacker's hero object. When provided,
     ``is_ranged`` and ``reach_m`` are set on the returned AttackPower.
-    Melee attacks carry the attacker's effective reach (2m + Stretching);
+    Melee attacks carry the attacker's effective reach (1m base + Stretching);
     ranged attacks carry 0.0 for reach_m.
     """
     from kirby_cost.io.framework_access import framework_kind, avad_alternate_defense
