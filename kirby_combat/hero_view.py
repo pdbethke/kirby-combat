@@ -58,7 +58,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from kirby_cost.model.activation import ActivationContext
+from kirby_cost.model.activation import (
+    ActivationContext, CharacteristicState, Contribution,
+)
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 from kirby_combat.participant import CombatParticipant, Stunnable
@@ -76,6 +78,19 @@ MENTAL_POWER_XMLIDS = frozenset({
     "MINDSCAN",
     "TELEPATHY",
 })
+
+
+#: Which ``HeroCombatStats`` fields ARE characteristics, and the HD xmlid of
+#: each. A Drain or Aid naming one of these becomes a ``Contribution`` on that
+#: characteristic; anything else (rpd/red/md/power_defense/flash_defense) is
+#: bought as a Power in 6E and has no characteristic to attach to.
+_CHARACTERISTIC_FOR_STAT: dict[str, str] = {
+    "ocv": "OCV", "dcv": "DCV", "omcv": "OMCV", "dmcv": "DMCV",
+    "spd": "SPD", "dex": "DEX", "ego": "EGO", "int_": "INT",
+    "str_": "STR", "con": "CON", "pre": "PRE", "rec": "REC",
+    "pd": "PD", "ed": "ED",
+    "max_stun": "STUN", "max_body": "BODY", "max_end": "END",
+}
 
 
 if TYPE_CHECKING:
@@ -535,11 +550,26 @@ class HeroCombatant(Stunnable, CombatParticipant):
     def combat_stats(self) -> HeroCombatStats:
         """Effective integer stats at this moment.
 
-        Reads cost-engine-computed temporal characteristic values from
-        ``hero.temporal_characteristic(xmlid, ctx)`` — base plus any
-        contributions conditional on ``state.in_hero_id`` — walks defense
-        powers for resistant/mental/power/flash totals, then applies any
-        active drains/aids from ``state``.
+        Every adjustment to a characteristic — a purchase conditional on
+        ``state.in_hero_id``, a Drain, an Aid — is a ``Contribution`` on that
+        characteristic's ``CharacteristicState``, and the value is read once
+        with all of them in place. Drain and Aid used to be applied
+        afterwards, to a number that had already been decided; that second
+        mechanism is gone, so a Drain now lands on the characteristic the
+        character actually has this Phase rather than on a total that ignored
+        the condition.
+
+        Only the stats that ARE characteristics move this way. rPD/rED, MD,
+        Power Defense and Flash Defense are bought as Powers, not
+        characteristics (6E1 lists them among the Defense Powers), so a
+        Drain or Aid naming one of those has no characteristic to attach to
+        and is still applied to the computed stat block directly.
+
+        A Drain cannot take a characteristic below 0. That floor is measured
+        against the undrained value, which is why ``_undrained`` is computed
+        first when any drain is present: it reproduces exactly the floor the
+        previous post-hoc form applied, including the case where an Aid on
+        the same characteristic follows a Drain that overshot 0.
 
         rPD/rED post-cap: resistant defenses derived from a
         characteristic (via NAKEDMODIFIER+RESISTANT) cannot exceed
@@ -548,18 +578,50 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Aids on rPD/rED are NOT capped — they represent external
         bonuses (e.g. Force Wall Aid).
         """
-        stats = _compute_stats_from_hero(
-            self.hero, ActivationContext(in_hero_id=self.state.in_hero_id))
-        # Apply drains (negative deltas) + aids (positive deltas).
-        # Drain stats keys match HeroCombatStats field names.
+        ctx = ActivationContext(in_hero_id=self.state.in_hero_id)
+
+        # A Drain's floor is the characteristic's undrained value, and for
+        # PD/ED that value includes the bonus from PD/ED-power rows, which
+        # only _compute_stats_from_hero knows how to total. So when there
+        # are drains, price the stat block once without them to read the
+        # floor off, then once more with every adjustment in place.
+        adjustments: list[Contribution] = []
+        if self.state.drains:
+            undrained = _compute_stats_from_hero(self.hero, ctx)
+            for stat, delta in self.state.drains.items():
+                xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
+                if xmlid is None:
+                    continue
+                floor = getattr(undrained, stat, 0)
+                adjustments.append(Contribution(
+                    xmlid=xmlid,
+                    delta=-float(min(delta, floor)),
+                    source_label="Drained",
+                ))
+        for stat, delta in self.state.aids.items():
+            xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
+            if xmlid is None:
+                continue
+            adjustments.append(Contribution(
+                xmlid=xmlid, delta=float(delta), source_label="Aided"))
+
+        stats = _compute_stats_from_hero(self.hero, ctx, adjustments)
+
+        # What is left: Drains and Aids on the power-derived defenses, which
+        # have no characteristic to be a contribution to.
         for stat, delta in self.state.drains.items():
+            if stat in _CHARACTERISTIC_FOR_STAT:
+                continue
             current = getattr(stats, stat, None)
             if current is not None:
                 setattr(stats, stat, max(0, current - delta))
         for stat, delta in self.state.aids.items():
+            if stat in _CHARACTERISTIC_FOR_STAT:
+                continue
             current = getattr(stats, stat, None)
             if current is not None:
                 setattr(stats, stat, current + delta)
+
         # Cap derived rPD/rED at current PD/ED (post-drain). This is
         # what makes the naked-mod-resistant promotion real-time-safe:
         # a Drain on PD shrinks the rPD pool through this cap.
@@ -1221,8 +1283,46 @@ def _has_assigned_modifier(power, target_xmlid: str) -> bool:
     return False
 
 
+def _characteristic_value(
+    hero: "LoadedHero",
+    xmlid: str,
+    ctx: ActivationContext,
+    extra: "list[Contribution]",
+) -> float:
+    """One characteristic's value with ``extra`` contributions in play.
+
+    Prefers ``hero.characteristic_state(xmlid)`` — the cost engine's own
+    base-plus-contributions object — and appends ``extra`` to its list, so a
+    Drain, an Aid and a purchase limited to the Hero identity are all weighed
+    by the same ``CharacteristicState.value()``.
+
+    Falls back to ``temporal_characteristic`` for heroes that do not offer
+    ``characteristic_state``: the replay snapshot stub in
+    ``serialization/from_dict.py`` and the test stubs. Those carry a flat
+    table of values and no purchase list, so their temporal value IS their
+    base, and standing ``extra`` on top of it is the whole computation.
+    """
+    read_state = getattr(hero, "characteristic_state", None)
+    if read_state is not None:
+        state = read_state(xmlid)
+        state = CharacteristicState(
+            xmlid=state.xmlid,
+            base=state.base,
+            contributions=tuple(state.contributions) + tuple(extra),
+        )
+    else:
+        state = CharacteristicState(
+            xmlid=xmlid,
+            base=float(hero.temporal_characteristic(xmlid, ctx)),
+            contributions=tuple(extra),
+        )
+    return state.value(ctx)
+
+
 def _compute_stats_from_hero(
-    hero: "LoadedHero", ctx: ActivationContext | None = None,
+    hero: "LoadedHero",
+    ctx: ActivationContext | None = None,
+    adjustments: "list[Contribution] | None" = None,
 ) -> HeroCombatStats:
     """Read the temporal characteristic values + sum defense powers.
 
@@ -1239,10 +1339,15 @@ def _compute_stats_from_hero(
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
     powers, not characteristics. We walk hero.powers to total them.
 
+    ``adjustments`` are extra ``Contribution`` records to weigh alongside the
+    hero's own purchases — this is how ``combat_stats()`` hands Drains and
+    Aids in. Each one is matched to its characteristic by xmlid, so a Drain
+    on DEX is judged in the same list as the DEX bought only in the Hero
+    identity, rather than subtracted from the answer afterwards.
+
     Real-time-correctness: this function is called fresh from
-    ``combat_stats()`` on every read, so Drain/Aid effects (applied
-    via ``state.drains``/``state.aids``) and Armor-Piercing
-    advantages (applied at attack-resolve time in
+    ``combat_stats()`` on every read, so Drain/Aid effects and
+    Armor-Piercing advantages (applied at attack-resolve time in
     ``resolution.defense.compute_defense``) compose on top of these
     values without staleness. Don't cache per-combatant.
 
@@ -1257,9 +1362,11 @@ def _compute_stats_from_hero(
     plays as SPD 2).
     """
     active_ctx = ctx if ctx is not None else ActivationContext()
+    all_adjustments = list(adjustments or ())
 
     def cv(xmlid: str) -> int:
-        return int(hero.temporal_characteristic(xmlid, active_ctx))
+        extra = [c for c in all_adjustments if c.xmlid == xmlid]
+        return int(_characteristic_value(hero, xmlid, active_ctx, extra))
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows

@@ -197,3 +197,43 @@ def test_aid_on_rpd_persists_through_compute() -> None:
     c.state.aids["rpd"] = 5
     s = c.combat_stats()
     assert s.rpd == 35           # 30 derived + 5 aid (uncapped by current pd=30 since aid is post-compute)
+
+
+def test_aid_on_pd_widens_the_rpd_cap_up_to_the_naked_modifier() -> None:
+    """The cap is against the CURRENT PD, not the pre-adjustment PD.
+
+    "for 45 PD" promotes up to 45 points of PD to resistant; the character
+    only has 30, so 30 of them are resistant. Aid the characteristic to 40
+    and 40 of them are — the promotion has 45 points of headroom. Before
+    Drain/Aid became contributions the cap was computed on the number before
+    the Aid landed, so rPD stayed at 30 while PD read 40.
+    """
+    powers = [
+        StubPower(
+            xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
+            input_value="for 45 PD",
+            assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
+        ),
+    ]
+    c = _make(pd=30, powers=powers)
+    c.state.aids["pd"] = 10
+    s = c.combat_stats()
+    assert s.pd == 40
+    assert s.rpd == 40
+
+
+def test_the_naked_modifier_still_bounds_an_aided_pd() -> None:
+    """Aid PD past what the naked modifier bought and the excess is not
+    resistant: PD 50, but only the 45 promoted points are rPD."""
+    powers = [
+        StubPower(
+            xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
+            input_value="for 45 PD",
+            assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
+        ),
+    ]
+    c = _make(pd=30, powers=powers)
+    c.state.aids["pd"] = 20
+    s = c.combat_stats()
+    assert s.pd == 50
+    assert s.rpd == 45
