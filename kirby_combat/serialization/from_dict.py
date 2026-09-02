@@ -150,6 +150,30 @@ def _hero_combatant_from_dict(data: dict) -> Any:
             # or ``hero_combatant_from_db(...)`` instead of this stub.
             return self.characteristic_value(xmlid)
 
+    # The characteristic values the snapshot's stats are built from must be
+    # the ones BEFORE drains and aids, because combat_stats() applies those to
+    # whatever the hero reports. Reading the current (already-adjusted) values
+    # applied every drain twice.
+    #
+    # "undrained" is written by to_dict whenever there is anything to apply.
+    # Snapshots recorded before it existed are reconstructed by adding the
+    # recorded adjustment back: exact, EXCEPT where a drain hit its floor and
+    # clamped, which destroys the amount really taken — the same reason the
+    # opening row exists in kirby-api rather than the log being walked
+    # backwards.
+    adjusted = data
+    if "undrained" in data:
+        adjusted = {**data, **data["undrained"]}
+    elif data.get("drains") or data.get("aids"):
+        adjusted = dict(data)
+        for stat, delta in (data.get("drains") or {}).items():
+            if stat in adjusted:
+                adjusted[stat] = adjusted[stat] + delta
+        for stat, delta in (data.get("aids") or {}).items():
+            if stat in adjusted:
+                adjusted[stat] = adjusted[stat] - delta
+
+    data = adjusted
     char_values = {
         "OCV": data["ocv"], "DCV": data["dcv"],
         "OMCV": data["omcv"], "DMCV": data["dmcv"],
