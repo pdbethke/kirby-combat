@@ -1288,11 +1288,22 @@ def _has_assigned_modifier(power, target_xmlid: str) -> bool:
     return False
 
 
+#: Every characteristic the stat block reads, so the purchase tree can be
+#: walked once for all of them. Kept beside _CHARACTERISTIC_FOR_STAT, whose
+#: values this mirrors: a characteristic missing here simply falls back to the
+#: per-xmlid walk, so the two drifting is a slowdown, never a wrong answer.
+_STAT_XMLIDS = (
+    "OCV", "DCV", "OMCV", "DMCV", "SPD", "DEX", "EGO", "INT", "STR",
+    "CON", "PRE", "REC", "PD", "ED", "END", "BODY", "STUN",
+)
+
+
 def _characteristic_value(
     hero: "LoadedHero",
     xmlid: str,
     ctx: ActivationContext,
     extra: "list[Contribution]",
+    states: "dict[str, CharacteristicState] | None" = None,
 ) -> float:
     """One characteristic's value with ``extra`` contributions in play.
 
@@ -1301,12 +1312,25 @@ def _characteristic_value(
     Drain, an Aid and a purchase limited to the Hero identity are all weighed
     by the same ``CharacteristicState.value()``.
 
+    ``states`` is the whole block read in one walk (see
+    ``LoadedHero.characteristic_states``); it is the same object
+    ``characteristic_state`` would return, fetched once for every
+    characteristic instead of once each.
+
     Falls back to ``temporal_characteristic`` for heroes that do not offer
     ``characteristic_state``: the replay snapshot stub in
     ``serialization/from_dict.py`` and the test stubs. Those carry a flat
     table of values and no purchase list, so their temporal value IS their
     base, and standing ``extra`` on top of it is the whole computation.
     """
+    if states is not None and xmlid in states:
+        state = states[xmlid]
+        state = CharacteristicState(
+            xmlid=state.xmlid,
+            base=state.base,
+            contributions=tuple(state.contributions) + tuple(extra),
+        )
+        return state.value(ctx)
     read_state = getattr(hero, "characteristic_state", None)
     if read_state is not None:
         state = read_state(xmlid)
@@ -1369,9 +1393,17 @@ def _compute_stats_from_hero(
     active_ctx = ctx if ctx is not None else ActivationContext()
     all_adjustments = list(adjustments or ())
 
+    # One walk of the purchase tree for the whole stat block, rather than one
+    # per characteristic. Nothing is cached: the walk happens on every read,
+    # because Drains, Aids and identity flips must compose live — it is paid
+    # once instead of ~18 times. Stubs (the replay snapshot hero, test heroes)
+    # do not offer it and fall through to the per-xmlid path below.
+    read_states = getattr(hero, "characteristic_states", None)
+    states = read_states(_STAT_XMLIDS) if read_states is not None else None
+
     def cv(xmlid: str) -> int:
         extra = [c for c in all_adjustments if c.xmlid == xmlid]
-        return int(_characteristic_value(hero, xmlid, active_ctx, extra))
+        return int(_characteristic_value(hero, xmlid, active_ctx, extra, states))
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows
