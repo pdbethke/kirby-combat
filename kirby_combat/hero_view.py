@@ -62,6 +62,8 @@ from kirby_cost.model.activation import (
     ActivationContext, CharacteristicState, Contribution,
 )
 
+from kirby_cost.model.modifiers import has_modifier, modifier_levels
+
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 from kirby_combat.participant import CombatParticipant, Stunnable
 
@@ -1215,23 +1217,26 @@ _DEFENSE_XMLIDS = {
 
 
 def _has_modifier(power, mod_xmlid: str) -> bool:
-    """True if the power has an assigned modifier matching xmlid."""
-    mods = getattr(power, "assigned_modifiers", None) or []
-    target = mod_xmlid.upper()
-    for m in mods:
-        if (getattr(m, "xmlid", None) or "").upper() == target:
-            return True
-    return False
+    """True if the modifier binds this power. Delegates to the engine.
+
+    This used to be a flat loop over ``assigned_modifiers``, which answered a
+    narrower question than every caller was asking. It did not recurse into a
+    container (a List holds its contents in ``objects``, a CompoundPower in
+    ``powers``) and it did not read an enclosing purchase's modifiers, so a
+    Multipower slot fought without the Advantage its POOL carries. Everything
+    behind it — ARMORPIERCING, PENETRATING, HARDENED, IMPENETRABLE, DOESBODY —
+    was silently under-reported for exactly those powers.
+
+    Both rules belong to the object model, so they live in kirby-cost with the
+    objects rather than being re-derived here. See
+    ``kirby_cost.model.modifiers``.
+    """
+    return has_modifier(power, mod_xmlid)
 
 
 def _modifier_levels(power, mod_xmlid: str) -> int:
-    """Return the levels on a specific modifier (0 if missing)."""
-    mods = getattr(power, "assigned_modifiers", None) or []
-    target = mod_xmlid.upper()
-    for m in mods:
-        if (getattr(m, "xmlid", None) or "").upper() == target:
-            return int(getattr(m, "levels", 0) or 0)
-    return 0
+    """Levels on that modifier, 0 when absent. See ``_has_modifier``."""
+    return modifier_levels(power, mod_xmlid)
 
 
 # NAKEDMODIFIER INPUT-field parsing.
