@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.9.0 — 2026-09-02
+
+**Combat now fights the character on the sheet.** It read the CHARACTERISTICS
+section alone, so every characteristic bought as a POWER was invisible to it.
+Requires kirby-cost >= 0.6.0.
+
+### Changed — this moves numbers, for 325 of 794 corpus characters
+
+`combat_stats()` reads the TEMPORAL characteristic (base plus whatever is
+currently applying) instead of the base sheet value. Measured across the whole
+corpus, main vs this release:
+
+| | characters |
+|---|---|
+| identical | 469 |
+| changed | 325 |
+| unexplained | **0** |
+
+Of the 325: **319** buy a characteristic as a power that HD counts toward the
+total (`AFFECTS_TOTAL="Yes"`) — Gorgon fought at PD 15 where his sheet says 35
+— and **6** carry purchases limited to their Hero identity (6E1 p.386), which
+combat had been ignoring entirely. White Wolf fought as a civilian: DEX 10
+instead of 25, SPD 2 instead of 6. Ravel goes from SPD 2 to SPD 5.
+
+Every mover was classified; none is unaccounted for. A character with no
+characteristic-granting powers and no conditional purchases is byte-identical.
+
+### Added
+- **Identity is combat state.** `HeroCombatState.in_hero_id` (default True — a
+  character in a fight is in costume unless someone says otherwise), on the
+  wire in both directions, so a recorded fight knows which identity it was
+  fought in.
+- **Pushing** (6E2 p135-136), as a temporal contribution: 1 END per Character
+  Point Pushed. It needed nothing beyond declaring a `Contribution`, which is
+  what the design was meant to demonstrate.
+- Drains and Aids are `Contribution`s weighed in the same list as a
+  character's own purchases, rather than deltas subtracted afterwards.
+
+### Fixed
+- **A slot fights with the modifiers its pool carries.** `_has_modifier` /
+  `_modifier_levels` were a flat scan doing neither recursion into containers
+  nor inheritance from an enclosing purchase, so ARMORPIERCING, PENETRATING,
+  HARDENED, IMPENETRABLE and DOESBODY were all under-reported for any power
+  inside a Power Framework. Both now delegate to `kirby_cost.model.modifiers`.
+- **A Drain is applied once across a snapshot round trip.** The snapshot
+  recorded already-drained stats alongside the drains dict, and rehydration
+  applied them again: Ravel read DEX 15 live and 11 after a round trip. Since
+  replay folds forward from a captured snapshot, every recorded fight
+  containing a Drain replayed with wrong numbers. Snapshots written before this
+  release still replay — the pre-adjustment value is reconstructed by adding
+  the recorded adjustment back.
+- **rPD/rED track CURRENT PD/ED** rather than a frozen quantity of points
+  (6E1 p149: an Advantage bought for a character's PD or ED applies to that PD
+  or ED). An Aid on PD now raises rPD; the purchased ceiling still binds.
+
+### Performance
+- `combat_stats()` prices the stat block from ONE walk of the purchases instead
+  of one per characteristic: **1.53 ms → 0.138 ms**, and 3.00 → 0.281 ms with a
+  Drain active. Nothing is cached — Drains, Aids and identity flips have to
+  compose live — the walk is simply paid once.
+
 ## 0.8.1 — 2026-08-31
 
 ### Fixed

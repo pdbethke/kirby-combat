@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.8.1"
+version = "0.9.0"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 # Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
@@ -14,7 +14,7 @@ dependencies = [
     # It was undeclared and imported lazily behind try/except, which let the
     # same dice arithmetic grow a second home here -- three copies of "5 STR
     # to the die" across two repositories, agreeing only by luck.
-    "kirby-cost>=0.4.0",
+    "kirby-cost>=0.6.0",
 ]
 
 [project.urls]
