@@ -58,6 +58,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from kirby_cost.model.activation import (
+    ActivationContext, CharacteristicState, Contribution,
+)
+
+from kirby_cost.model.modifiers import has_modifier, modifier_levels
+
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 from kirby_combat.participant import CombatParticipant, Stunnable
 
@@ -74,6 +80,19 @@ MENTAL_POWER_XMLIDS = frozenset({
     "MINDSCAN",
     "TELEPATHY",
 })
+
+
+#: Which ``HeroCombatStats`` fields ARE characteristics, and the HD xmlid of
+#: each. A Drain or Aid naming one of these becomes a ``Contribution`` on that
+#: characteristic; anything else (rpd/red/md/power_defense/flash_defense) is
+#: bought as a Power in 6E and has no characteristic to attach to.
+_CHARACTERISTIC_FOR_STAT: dict[str, str] = {
+    "ocv": "OCV", "dcv": "DCV", "omcv": "OMCV", "dmcv": "DMCV",
+    "spd": "SPD", "dex": "DEX", "ego": "EGO", "int_": "INT",
+    "str_": "STR", "con": "CON", "pre": "PRE", "rec": "REC",
+    "pd": "PD", "ed": "ED",
+    "max_stun": "STUN", "max_body": "BODY", "max_end": "END",
+}
 
 
 if TYPE_CHECKING:
@@ -153,6 +172,15 @@ class HeroCombatState:
     last_acted_segment: Optional[int] = None
     aborted: bool = False
     """True if this combatant has aborted their next action this phase."""
+
+    in_hero_id: bool = True
+    """Whether the character is currently in their Hero identity.
+
+    Purchases limited to that identity (the OIHID limitation) apply only when
+    this is true. Defaults true: a character in a fight is overwhelmingly in
+    costume, and defaulting the other way would silently weaken everyone whose
+    abilities are bought that way.
+    """
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -504,10 +532,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     @staticmethod
     def _compute_stats_skeleton(hero: "LoadedHero") -> HeroCombatStats:
-        """Initial-vital seed for from_hdc(). Reads cost-engine
-        characteristic values via ``hero.characteristic_value(xmlid)``
-        and walks defense-type powers for resistant/mental/power/flash
-        totals.
+        """Initial-vital seed for from_hdc(). Reads temporal
+        characteristic values via ``hero.temporal_characteristic(xmlid, ctx)``
+        (Hero identity active by default, matching ``HeroCombatState``'s own
+        default) and walks defense-type powers for resistant/mental/power/
+        flash totals.
 
         This is a sub-piece of the full ``combat_stats()`` that runs
         without a CombatState (since at from_hdc() time there's no
@@ -523,10 +552,26 @@ class HeroCombatant(Stunnable, CombatParticipant):
     def combat_stats(self) -> HeroCombatStats:
         """Effective integer stats at this moment.
 
-        Reads cost-engine-computed characteristic values from
-        ``hero.characteristic_value(xmlid)``, walks defense powers for
-        resistant/mental/power/flash totals, then applies any active
-        drains/aids from ``state``.
+        Every adjustment to a characteristic — a purchase conditional on
+        ``state.in_hero_id``, a Drain, an Aid — is a ``Contribution`` on that
+        characteristic's ``CharacteristicState``, and the value is read once
+        with all of them in place. Drain and Aid used to be applied
+        afterwards, to a number that had already been decided; that second
+        mechanism is gone, so a Drain now lands on the characteristic the
+        character actually has this Phase rather than on a total that ignored
+        the condition.
+
+        Only the stats that ARE characteristics move this way. rPD/rED, MD,
+        Power Defense and Flash Defense are bought as Powers, not
+        characteristics (6E1 lists them among the Defense Powers), so a
+        Drain or Aid naming one of those has no characteristic to attach to
+        and is still applied to the computed stat block directly.
+
+        A Drain cannot take a characteristic below 0. That floor is measured
+        against the undrained value, which is why ``_undrained`` is computed
+        first when any drain is present: it reproduces exactly the floor the
+        previous post-hoc form applied, including the case where an Aid on
+        the same characteristic follows a Drain that overshot 0.
 
         rPD/rED post-cap: resistant defenses derived from a
         characteristic (via NAKEDMODIFIER+RESISTANT) cannot exceed
@@ -535,17 +580,50 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Aids on rPD/rED are NOT capped — they represent external
         bonuses (e.g. Force Wall Aid).
         """
-        stats = _compute_stats_from_hero(self.hero)
-        # Apply drains (negative deltas) + aids (positive deltas).
-        # Drain stats keys match HeroCombatStats field names.
+        ctx = ActivationContext(in_hero_id=self.state.in_hero_id)
+
+        # A Drain's floor is the characteristic's undrained value, and for
+        # PD/ED that value includes the bonus from PD/ED-power rows, which
+        # only _compute_stats_from_hero knows how to total. So when there
+        # are drains, price the stat block once without them to read the
+        # floor off, then once more with every adjustment in place.
+        adjustments: list[Contribution] = []
+        if self.state.drains:
+            undrained = _compute_stats_from_hero(self.hero, ctx)
+            for stat, delta in self.state.drains.items():
+                xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
+                if xmlid is None:
+                    continue
+                floor = getattr(undrained, stat, 0)
+                adjustments.append(Contribution(
+                    xmlid=xmlid,
+                    delta=-float(min(delta, floor)),
+                    source_label="Drained",
+                ))
+        for stat, delta in self.state.aids.items():
+            xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
+            if xmlid is None:
+                continue
+            adjustments.append(Contribution(
+                xmlid=xmlid, delta=float(delta), source_label="Aided"))
+
+        stats = _compute_stats_from_hero(self.hero, ctx, adjustments)
+
+        # What is left: Drains and Aids on the power-derived defenses, which
+        # have no characteristic to be a contribution to.
         for stat, delta in self.state.drains.items():
+            if stat in _CHARACTERISTIC_FOR_STAT:
+                continue
             current = getattr(stats, stat, None)
             if current is not None:
                 setattr(stats, stat, max(0, current - delta))
         for stat, delta in self.state.aids.items():
+            if stat in _CHARACTERISTIC_FOR_STAT:
+                continue
             current = getattr(stats, stat, None)
             if current is not None:
                 setattr(stats, stat, current + delta)
+
         # Cap derived rPD/rED at current PD/ED (post-drain). This is
         # what makes the naked-mod-resistant promotion real-time-safe:
         # a Drain on PD shrinks the rPD pool through this cap.
@@ -1139,23 +1217,26 @@ _DEFENSE_XMLIDS = {
 
 
 def _has_modifier(power, mod_xmlid: str) -> bool:
-    """True if the power has an assigned modifier matching xmlid."""
-    mods = getattr(power, "assigned_modifiers", None) or []
-    target = mod_xmlid.upper()
-    for m in mods:
-        if (getattr(m, "xmlid", None) or "").upper() == target:
-            return True
-    return False
+    """True if the modifier binds this power. Delegates to the engine.
+
+    This used to be a flat loop over ``assigned_modifiers``, which answered a
+    narrower question than every caller was asking. It did not recurse into a
+    container (a List holds its contents in ``objects``, a CompoundPower in
+    ``powers``) and it did not read an enclosing purchase's modifiers, so a
+    Multipower slot fought without the Advantage its POOL carries. Everything
+    behind it — ARMORPIERCING, PENETRATING, HARDENED, IMPENETRABLE, DOESBODY —
+    was silently under-reported for exactly those powers.
+
+    Both rules belong to the object model, so they live in kirby-cost with the
+    objects rather than being re-derived here. See
+    ``kirby_cost.model.modifiers``.
+    """
+    return has_modifier(power, mod_xmlid)
 
 
 def _modifier_levels(power, mod_xmlid: str) -> int:
-    """Return the levels on a specific modifier (0 if missing)."""
-    mods = getattr(power, "assigned_modifiers", None) or []
-    target = mod_xmlid.upper()
-    for m in mods:
-        if (getattr(m, "xmlid", None) or "").upper() == target:
-            return int(getattr(m, "levels", 0) or 0)
-    return 0
+    """Levels on that modifier, 0 when absent. See ``_has_modifier``."""
+    return modifier_levels(power, mod_xmlid)
 
 
 # NAKEDMODIFIER INPUT-field parsing.
@@ -1207,26 +1288,99 @@ def _has_assigned_modifier(power, target_xmlid: str) -> bool:
     return False
 
 
-def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
-    """Read cost-engine characteristic values + sum defense powers.
+#: Every characteristic the stat block reads, so the purchase tree can be
+#: walked once for all of them. Kept beside _CHARACTERISTIC_FOR_STAT, whose
+#: values this mirrors: a characteristic missing here simply falls back to the
+#: per-xmlid walk, so the two drifting is a slowdown, never a wrong answer.
+_STAT_XMLIDS = (
+    "OCV", "DCV", "OMCV", "DMCV", "SPD", "DEX", "EGO", "INT", "STR",
+    "CON", "PRE", "REC", "PD", "ED", "END", "BODY", "STUN",
+)
 
-    ``hero.characteristic_value(xmlid)`` returns the effective integer
-    after all bumps + figured-from-primary derivations, so the
-    primaries (STR/DEX/CON/INT/EGO/PRE) and combat values
-    (OCV/DCV/OMCV/DMCV/SPD) plus PD/ED/REC/END/STUN/BODY come straight
-    from there.
+
+def _characteristic_value(
+    hero: "LoadedHero",
+    xmlid: str,
+    ctx: ActivationContext,
+    extra: "list[Contribution]",
+    states: "dict[str, CharacteristicState] | None" = None,
+) -> float:
+    """One characteristic's value with ``extra`` contributions in play.
+
+    Prefers ``hero.characteristic_state(xmlid)`` — the cost engine's own
+    base-plus-contributions object — and appends ``extra`` to its list, so a
+    Drain, an Aid and a purchase limited to the Hero identity are all weighed
+    by the same ``CharacteristicState.value()``.
+
+    ``states`` is the whole block read in one walk (see
+    ``LoadedHero.characteristic_states``); it is the same object
+    ``characteristic_state`` would return, fetched once for every
+    characteristic instead of once each.
+
+    Falls back to ``temporal_characteristic`` for heroes that do not offer
+    ``characteristic_state``: the replay snapshot stub in
+    ``serialization/from_dict.py`` and the test stubs. Those carry a flat
+    table of values and no purchase list, so their temporal value IS their
+    base, and standing ``extra`` on top of it is the whole computation.
+    """
+    if states is not None and xmlid in states:
+        state = states[xmlid]
+        state = CharacteristicState(
+            xmlid=state.xmlid,
+            base=state.base,
+            contributions=tuple(state.contributions) + tuple(extra),
+        )
+        return state.value(ctx)
+    read_state = getattr(hero, "characteristic_state", None)
+    if read_state is not None:
+        state = read_state(xmlid)
+        state = CharacteristicState(
+            xmlid=state.xmlid,
+            base=state.base,
+            contributions=tuple(state.contributions) + tuple(extra),
+        )
+    else:
+        state = CharacteristicState(
+            xmlid=xmlid,
+            base=float(hero.temporal_characteristic(xmlid, ctx)),
+            contributions=tuple(extra),
+        )
+    return state.value(ctx)
+
+
+def _compute_stats_from_hero(
+    hero: "LoadedHero",
+    ctx: ActivationContext | None = None,
+    adjustments: "list[Contribution] | None" = None,
+) -> HeroCombatStats:
+    """Read the temporal characteristic values + sum defense powers.
+
+    ``hero.temporal_characteristic(xmlid, ctx)`` returns the effective
+    value after all bumps + figured-from-primary derivations PLUS any
+    contributions conditional on ``ctx`` (e.g. a purchase limited to the
+    character's Hero identity, 6E1 p.386), so the primaries
+    (STR/DEX/CON/INT/EGO/PRE) and combat values (OCV/DCV/OMCV/DMCV/SPD)
+    plus PD/ED/REC/END/STUN/BODY come straight from there. ``ctx``
+    defaults to ``ActivationContext()`` (Hero identity active) when the
+    caller has no state yet (``_compute_stats_skeleton`` at from_hdc()
+    time).
 
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
     powers, not characteristics. We walk hero.powers to total them.
 
+    ``adjustments`` are extra ``Contribution`` records to weigh alongside the
+    hero's own purchases — this is how ``combat_stats()`` hands Drains and
+    Aids in. Each one is matched to its characteristic by xmlid, so a Drain
+    on DEX is judged in the same list as the DEX bought only in the Hero
+    identity, rather than subtracted from the answer afterwards.
+
     Real-time-correctness: this function is called fresh from
-    ``combat_stats()`` on every read, so Drain/Aid effects (applied
-    via ``state.drains``/``state.aids``) and Armor-Piercing
-    advantages (applied at attack-resolve time in
+    ``combat_stats()`` on every read, so Drain/Aid effects and
+    Armor-Piercing advantages (applied at attack-resolve time in
     ``resolution.defense.compute_defense``) compose on top of these
     values without staleness. Don't cache per-combatant.
 
-    Int boundary: ``hero.characteristic_value()`` returns float (the
+    Int boundary: ``hero.temporal_characteristic()`` returns float (the
     cost engine computes in floats; canon HDC/build-doc imports yield
     whole-valued floats like ``OCV=4.0``). HeroCombatStats declares
     int fields and the whole resolution layer assumes integer stats
@@ -1236,8 +1390,20 @@ def _compute_stats_from_hero(hero: "LoadedHero") -> HeroCombatStats:
     the one legitimately fractional case (5E figured SPD, e.g. 2.7
     plays as SPD 2).
     """
+    active_ctx = ctx if ctx is not None else ActivationContext()
+    all_adjustments = list(adjustments or ())
+
+    # One walk of the purchase tree for the whole stat block, rather than one
+    # per characteristic. Nothing is cached: the walk happens on every read,
+    # because Drains, Aids and identity flips must compose live — it is paid
+    # once instead of ~18 times. Stubs (the replay snapshot hero, test heroes)
+    # do not offer it and fall through to the per-xmlid path below.
+    read_states = getattr(hero, "characteristic_states", None)
+    states = read_states(_STAT_XMLIDS) if read_states is not None else None
+
     def cv(xmlid: str) -> int:
-        return int(hero.characteristic_value(xmlid))
+        extra = [c for c in all_adjustments if c.xmlid == xmlid]
+        return int(_characteristic_value(hero, xmlid, active_ctx, extra, states))
 
     pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
     ed_bonus = 0   # extra non-resistant ED bought via ED-power rows

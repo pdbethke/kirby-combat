@@ -110,3 +110,38 @@ def test_hero_combatant_round_trip_when_state_is_default():
     assert restored.state.statuses == set()
     assert restored.state.drains == {}
     assert restored.state.aborted is False
+
+
+def test_a_civilian_snapshot_round_trips_with_the_flag_and_the_stats():
+    """Ravel snapshotted as a civilian comes back a civilian, not a Hero.
+
+    Before this fix, ``in_hero_id`` was dropped on the wire and always
+    restored ``True`` — so a civilian snapshot's *stats* round-tripped
+    correctly (they're frozen numbers, not recomputed), but the *flag*
+    silently lied about which identity had been recorded.
+    """
+    import json
+
+    from kirby_cost.io.build_json import build_from_json
+    from kirby_combat.hero_view import HeroCombatState
+
+    RAVEL = ("/home/pdbethke/PycharmProjects/Kirby/kirby-cost/tests/"
+             "fixtures/authored/Ravel.json")
+    hero = build_from_json(json.load(open(RAVEL)))
+    civilian = HeroCombatant(
+        id="ravel", hero=hero,
+        state=HeroCombatState(current_stun=1, current_body=1, current_end=1,
+                              in_hero_id=False),
+    )
+    assert civilian.combat_stats().dex == 10
+    assert civilian.combat_stats().spd == 2
+
+    d = to_dict(civilian)
+    assert d["in_hero_id"] is False
+    assert d["dex"] == 10
+    assert d["spd"] == 2
+
+    restored = from_dict(d)
+    assert restored.state.in_hero_id is False
+    assert restored.combat_stats().dex == 10
+    assert restored.combat_stats().spd == 2

@@ -56,6 +56,9 @@ class StubHero:
     def characteristic_value(self, xmlid: str) -> int:
         return self._char_values.get(xmlid.upper(), 0)
 
+    def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+        return self.characteristic_value(xmlid)
+
 
 def _make(*, str_=10, pd=10, ed=10, powers=None) -> HeroCombatant:
     chars = {
@@ -194,3 +197,83 @@ def test_aid_on_rpd_persists_through_compute() -> None:
     c.state.aids["rpd"] = 5
     s = c.combat_stats()
     assert s.rpd == 35           # 30 derived + 5 aid (uncapped by current pd=30 since aid is post-compute)
+
+
+def test_aid_on_pd_widens_the_rpd_cap_up_to_the_naked_modifier() -> None:
+    """The cap is against the CURRENT PD, not the pre-adjustment PD.
+
+    6E1 p149: an Advantage bought for a character's PD or ED applies to that
+    PD or ED — it tracks the characteristic, not a frozen quantity of points.
+    So the resistant slice is measured against whatever PD the character has
+    right now.
+
+    "for 45 PD" promotes up to 45 points of PD to resistant; the character
+    only has 30, so 30 of them are resistant. Aid the characteristic to 40
+    and 40 of them are — the promotion has 45 points of headroom. Before
+    Drain/Aid became contributions the cap was computed on the number before
+    the Aid landed, so rPD stayed at 30 while PD read 40.
+    """
+    powers = [
+        StubPower(
+            xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
+            input_value="for 45 PD",
+            assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
+        ),
+    ]
+    c = _make(pd=30, powers=powers)
+    c.state.aids["pd"] = 10
+    s = c.combat_stats()
+    assert s.pd == 40
+    assert s.rpd == 40
+
+
+def test_the_naked_modifier_still_bounds_an_aided_pd() -> None:
+    """Aid PD past what the naked modifier bought and the excess is not
+    resistant: PD 50, but only the 45 promoted points are rPD.
+
+    The other side of 6E1 p149: the Advantage follows the PD, but only as far
+    as it was bought — 45 points' worth here, so the 5 Aided points beyond
+    that are ordinary PD.
+    """
+    powers = [
+        StubPower(
+            xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
+            input_value="for 45 PD",
+            assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
+        ),
+    ]
+    c = _make(pd=30, powers=powers)
+    c.state.aids["pd"] = 20
+    s = c.combat_stats()
+    assert s.pd == 50
+    assert s.rpd == 45
+
+
+def test_drain_on_pd_shrinks_rpd_even_when_an_aid_on_rpd_skips_the_cap() -> None:
+    """A Drain on PD reaches rPD through the derivation, not only the cap.
+
+    An Aid on rPD represents external resistant defense, so it makes
+    ``combat_stats()`` skip the final rPD-vs-PD cap. That skip used to be the
+    only thing standing between a drained character and an rPD total larger
+    than their whole PD: naked-45 on PD 30, drained 25 and Aided 5 on rPD,
+    read PD 5 / rPD 35 — 35 points of resistant defense on a 5 PD
+    characteristic.
+
+    With the Drain folded into the characteristic the promoted slice is
+    derived from the PD the character currently has (6E1 p149 — the Advantage
+    applies to the PD, so it moves with it), which bounds it at 5 before the
+    external +5 is added. PD 5 / rPD 10.
+    """
+    powers = [
+        StubPower(
+            xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
+            input_value="for 45 PD",
+            assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
+        ),
+    ]
+    c = _make(pd=30, powers=powers)
+    c.state.drains["pd"] = 25
+    c.state.aids["rpd"] = 5
+    s = c.combat_stats()
+    assert s.pd == 5
+    assert s.rpd == 10

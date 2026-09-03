@@ -51,7 +51,7 @@ def to_dict(obj: Any) -> Any:
     from kirby_combat.hero_view import HeroCombatant
     if isinstance(obj, HeroCombatant):
         s = obj.combat_stats()
-        return {
+        snapshot = {
             "__type__": "HeroCombatant",
             "id": obj.id,
             "name": obj.name,
@@ -73,6 +73,7 @@ def to_dict(obj: Any) -> Any:
             "active_slot_per_framework": dict(obj.state.active_slot_per_framework),
             "last_acted_segment": obj.state.last_acted_segment,
             "aborted": obj.state.aborted,
+            "in_hero_id": obj.state.in_hero_id,
             "knockback_resistance": obj.knockback_resistance,
             # Public-view projection of attacks/defenses (the lossy
             # fields that round-trip through synthetic_combatant on
@@ -80,6 +81,35 @@ def to_dict(obj: Any) -> Any:
             "attacks": [to_dict(a) for a in obj.attacks],
             "defenses": [to_dict(d) for d in obj.defenses],
         }
+        # The stat keys above are CURRENT — drains and aids already in them.
+        # The drains/aids dicts are recorded too, and combat_stats() applies
+        # them to whatever the hero reports, so a rehydrated combatant applied
+        # them a SECOND time: Ravel with drains={"dex": 4} read DEX 15 live and
+        # 11 after a round trip. Since replay folds forward from a captured
+        # snapshot, every recorded fight containing a Drain replayed with wrong
+        # numbers.
+        #
+        # So when there is anything to apply, record the block as it stands
+        # BEFORE application — which is exactly what combat_stats computes
+        # first, to read a Drain's floor off. The reader rebuilds from this and
+        # applies once. Written only when non-empty, so the common snapshot is
+        # byte-identical to what it was.
+        if obj.state.drains or obj.state.aids:
+            from kirby_cost.model.activation import ActivationContext
+
+            from kirby_combat.hero_view import _compute_stats_from_hero
+            base = _compute_stats_from_hero(
+                obj.hero, ActivationContext(in_hero_id=obj.state.in_hero_id))
+            snapshot["undrained"] = {
+                "ocv": base.ocv, "dcv": base.dcv, "omcv": base.omcv,
+                "dmcv": base.dmcv, "spd": base.spd, "dex": base.dex,
+                "ego": base.ego, "int_": base.int_, "str_": base.str_,
+                "con": base.con, "pre": base.pre, "rec": base.rec,
+                "pd": base.pd, "ed": base.ed,
+                "max_stun": base.max_stun, "max_body": base.max_body,
+                "max_end": base.max_end,
+            }
+        return snapshot
 
     if is_dataclass(obj):
         type_tag = _STABLE_WIRE_TAGS.get(type(obj), type(obj).__name__)

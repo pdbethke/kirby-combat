@@ -124,6 +124,9 @@ def _hero_combatant(*, stun: int, end: int, rec: int):
         def characteristic_value(self, xmlid: str) -> int:
             return char_values.get(xmlid.upper(), 0)
 
+        def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+            return self.characteristic_value(xmlid)
+
     return HeroCombatant(
         id="test",
         hero=_StubHero(),  # type: ignore[arg-type]  # quacks like LoadedHero

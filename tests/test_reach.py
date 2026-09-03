@@ -33,6 +33,9 @@ class _Hero:
     def characteristic_value(self, xmlid: str) -> float:
         return float(self._cv.get(xmlid.upper(), 0))
 
+    def temporal_characteristic(self, xmlid: str, ctx=None) -> float:
+        return self.characteristic_value(xmlid)
+
 
 def _combatant(*, powers=None, cv=None):
     base = {

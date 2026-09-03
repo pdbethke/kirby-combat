@@ -136,6 +136,44 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         def characteristic_value(self, xmlid: str) -> int:
             return self._char_values.get(xmlid.upper(), 0)
 
+        def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+            # A snapshot has no purchase list to walk (self.powers is
+            # empty above), so there is nothing conditional left to
+            # apply — the snapshotted value already IS the temporal
+            # value at the moment it was recorded. Consequence: this
+            # is frozen, not live. Flipping identity on a rehydrated
+            # combatant (``restored.state.in_hero_id = False``) is a
+            # silent no-op in both directions — the stats stay exactly
+            # what they were at record time regardless of ``ctx``.
+            # Anyone needing a real identity flip must resume against
+            # the canonical character via ``HeroCombatant.from_hdc(...)``
+            # or ``hero_combatant_from_db(...)`` instead of this stub.
+            return self.characteristic_value(xmlid)
+
+    # The characteristic values the snapshot's stats are built from must be
+    # the ones BEFORE drains and aids, because combat_stats() applies those to
+    # whatever the hero reports. Reading the current (already-adjusted) values
+    # applied every drain twice.
+    #
+    # "undrained" is written by to_dict whenever there is anything to apply.
+    # Snapshots recorded before it existed are reconstructed by adding the
+    # recorded adjustment back: exact, EXCEPT where a drain hit its floor and
+    # clamped, which destroys the amount really taken — the same reason the
+    # opening row exists in kirby-api rather than the log being walked
+    # backwards.
+    adjusted = data
+    if "undrained" in data:
+        adjusted = {**data, **data["undrained"]}
+    elif data.get("drains") or data.get("aids"):
+        adjusted = dict(data)
+        for stat, delta in (data.get("drains") or {}).items():
+            if stat in adjusted:
+                adjusted[stat] = adjusted[stat] + delta
+        for stat, delta in (data.get("aids") or {}).items():
+            if stat in adjusted:
+                adjusted[stat] = adjusted[stat] - delta
+
+    data = adjusted
     char_values = {
         "OCV": data["ocv"], "DCV": data["dcv"],
         "OMCV": data["omcv"], "DMCV": data["dmcv"],
@@ -161,6 +199,7 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         active_slot_per_framework=dict(data.get("active_slot_per_framework") or {}),
         last_acted_segment=data.get("last_acted_segment"),
         aborted=bool(data.get("aborted", False)),
+        in_hero_id=bool(data.get("in_hero_id", True)),
     )
     hc = HeroCombatant(
         id=data["id"],

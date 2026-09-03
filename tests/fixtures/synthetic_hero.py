@@ -43,6 +43,9 @@ class _SyntheticHero:
     + the legacy-shaped read properties consume:
       - ``.name``, ``.template_name``
       - ``.characteristic_value(xmlid)`` returns from a fixed dict
+      - ``.temporal_characteristic(xmlid, ctx)`` returns the same fixed
+        value — synthetic heroes carry no conditional purchases, so the
+        activation context never changes the result
       - ``.powers`` is an empty list (or a list of pre-built attack
         records the test wants surfaced via the ``attacks`` legacy field)
       - ``.skills`` / ``.perks`` / ``.talents`` / ``.complications``
@@ -67,6 +70,12 @@ class _SyntheticHero:
 
     def characteristic_value(self, xmlid: str) -> int:
         return self._char_values.get(xmlid.upper(), 0)
+
+    def temporal_characteristic(self, xmlid: str, ctx: Any = None) -> int:
+        """No synthetic hero carries a conditional (Hero-ID-limited)
+        purchase, so the temporal value is always the base value
+        regardless of ``ctx``."""
+        return self.characteristic_value(xmlid)
 
 
 class _SyntheticCombatant(HeroCombatant):
