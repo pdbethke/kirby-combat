@@ -68,10 +68,25 @@ class Wall:
     cover_level: int = 4                    # partial cover granted to those behind
     body: int = 6                           # BODY to break through
     def_value: int | None = None            # resistant DEF an attack must beat (None = legacy/indestructible)
+    ed_value: int | None = None             # ED, when it differs from PD (6E2 p173)
+    resistant: bool = True                  # False = Normal Defense, not applied vs Killing
     walkable_width_m: float = 0.0           # 0 = nothing to stand on
     # 6E1 p70: None = cannot be climbed; 0 = ordinary (a ladder — no Climbing
     # Skill needed); > 0 = difficult, and subtracts from the Climbing roll.
     climb_difficulty: int | None = None
+
+    @property
+    def pd(self) -> int | None:
+        """Physical defense. `def_value` has always meant PD; this names it."""
+        return self.def_value
+
+    @property
+    def ed(self) -> int | None:
+        """Energy defense, falling back to PD when the wall does not state
+        one. The fallback is what keeps every pre-existing wall -- here and
+        in kirby-api, which constructs these by keyword -- behaving exactly
+        as it did before PD and ED were separated."""
+        return self.def_value if self.ed_value is None else self.ed_value
 
 
 def is_climbable(obj: "Wall | Surface") -> bool:

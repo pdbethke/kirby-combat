@@ -56,6 +56,8 @@ class Construct:
     no_teleport_levels: int = 0
     # durability (both None => indestructible). `body` is CURRENT body.
     def_value: int | None = None
+    ed_value: int | None = None             # ED, when it differs from PD (6E2 p173)
+    resistant: bool = True                  # False = Normal Defense, not applied vs Killing
     body: int | None = None
     # effect / provenance
     effect: ConstructEffect | None = None
@@ -69,6 +71,19 @@ class Construct:
     @property
     def destructible(self) -> bool:
         return self.def_value is not None and self.body is not None
+
+    @property
+    def pd(self) -> int | None:
+        """Physical defense. `def_value` has always meant PD; this names it."""
+        return self.def_value
+
+    @property
+    def ed(self) -> int | None:
+        """Energy defense, falling back to PD when the construct does not state
+        one. The fallback is what keeps every pre-existing construct -- here and
+        in kirby-api, which constructs these by keyword -- behaving exactly
+        as it did before PD and ED were separated."""
+        return self.def_value if self.ed_value is None else self.ed_value
 
 
 def construct_from_spawn_spec(
@@ -130,7 +145,8 @@ def construct_from_wall(wall: Wall) -> Construct:
         blocks_los=wall.blocks_los, blocks_movement=wall.blocks_movement,
         permeability="impermeable" if wall.blocks_movement else "porous",
         cover_level=wall.cover_level,
-        def_value=wall.def_value, body=wall.body,
+        def_value=wall.def_value, ed_value=wall.ed_value, resistant=wall.resistant,
+        body=wall.body,
     )
 
 
