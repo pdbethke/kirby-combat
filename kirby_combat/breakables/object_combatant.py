@@ -1,6 +1,6 @@
 """ObjectCombatant — objects (doors, walls, vases) as Combatants with BODY/DEF.
 
-6E2 p152: Inanimate objects have BODY and DEF (rPD/rED). They take Normal or
+6E2 p172-173: Inanimate objects have BODY and DEF (rPD/rED). They take Normal or
 Killing damage like characters but have no STUN, cannot Dodge or Abort, and
 cannot use powers. Some materials are vulnerable to specific damage types.
 """
@@ -13,7 +13,11 @@ from kirby_combat.models import StatBlockCombatant
 from kirby_combat.participant import Breakable
 
 
-# Material -> typical (DEF, BODY) ranges per 6E2 p152.
+# Material -> typical (DEF, BODY) for an HDC-encoded object, per 6E2 p172-173.
+# The page was cited as p152 until 2026-09-04; p152 is electricity and
+# chemicals. For TERRAIN prefer `object_table.OBJECT_DURABILITY`, which is
+# the book's own Objects Table keyed by object kind and carries PD and ED
+# separately -- these seven generic materials collapse that distinction.
 MATERIAL_DEFAULTS: dict[str, tuple[int, int]] = {
     "paper":   (0, 1),
     "glass":   (1, 1),
