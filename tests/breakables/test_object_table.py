@@ -24,6 +24,12 @@ from kirby_combat.breakables.object_table import OBJECT_DURABILITY, ObjectDurabi
     ("metal fire door", 5, 5, 5),
     ("safe door", 10, 15, 9),
     ("large vault door", 16, 24, 9),
+    ("spaceship interior wall", 8, 8, 6),
+    ("airlock door", 8, 12, 7),
+    ("city gates, small", 5, 8, 10),
+    ("interior spaceship door", 6, 6, 4),
+    ("glass", 1, 1, 1),
+    ("reinforced glass", 2, 2, 1),
 ])
 def test_row_matches_the_book(kind, pd, ed, body):
     row = OBJECT_DURABILITY[kind]

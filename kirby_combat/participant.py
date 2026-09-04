@@ -122,7 +122,7 @@ class Stunnable:
         -> current_stun=0  is_ko=True
 
     An intact door reported itself unconscious. ``ObjectCombatant.make``
-    hardcodes ``current_stun=0`` because, per 6E2 p152 and ``Breakable``'s own
+    hardcodes ``current_stun=0`` because, per 6E2 p172 and ``Breakable``'s own
     docstring below, objects "take BODY and break; they have no STUN behaviour
     at all" -- so ``current_stun <= 0`` is its permanent resting state, not a
     condition. Nothing had caught fire only because ``is_ko`` had no

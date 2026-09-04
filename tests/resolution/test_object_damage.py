@@ -70,12 +70,6 @@ def test_autofire_chips_steel_over_multiple_shots():
     assert res[-1].body_after == 10 and res[-1].destroyed is False
 
 
-from kirby_combat.scene.construct import Construct
-from kirby_combat.resolution.object_damage import apply_attack_to_construct
-from kirby_combat.models import AttackPower, DiceValues
-from kirby_combat.template import CombatTemplate
-
-
 def _brick() -> Construct:
     """6E2 p173: brick wall, 5 PD / 10 ED / 3 BODY."""
     return Construct(obj_id="brick", kind="wall", def_value=5, ed_value=10, body=3)

@@ -47,7 +47,11 @@ def apply_attack_to_construct(
         raise ValueError(f"construct {construct.obj_id!r} is not destructible")
     dmg = compute_damage(power, dice, template)
     body_rolled = dmg.body
-    defense = construct.ed if power.defense_type == "ed" else construct.pd
+    # defense_type is one of "pd", "ed", "md", "power", "flash" (models.py).
+    # Only "ed" routes to ED here; every other value deliberately falls to
+    # PD -- not an oversight, just the only two defenses a construct has.
+    used_ed = power.defense_type == "ed"
+    defense = construct.ed if used_ed else construct.pd
     # 6E2 p173: a defense the table prints in parentheses is Normal Defense
     # and does not apply against Killing damage. Glass is (1)/(1)/1.
     if power.damage_type == "killing" and not construct.resistant:
@@ -58,7 +62,7 @@ def apply_attack_to_construct(
     destroyed = body_after <= 0
     audit = [
         f"{body_rolled} BODY rolled vs "
-        f"{'ED' if power.defense_type == 'ed' else 'PD'} {defense} "
+        f"{'ED' if used_ed else 'PD'} {defense} "
         f"-> {body_through} through; BODY {body_before}->{max(0, body_after)}"
         + (" (DESTROYED)" if destroyed else "")
     ]
