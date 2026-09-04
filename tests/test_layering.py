@@ -33,8 +33,9 @@ OWN = {"kirby_combat"}
 #: Declared runtime dependencies — must match pyproject's `dependencies`.
 #: kirby-cost is the engine that owns build facts; anything deriving a cost,
 #: a number of dice or a roll belongs there, and this package acts on the
-#: numbers it is given.
-DECLARED = {"kirby_cost"}
+#: numbers it is given. kirby-dice rolls them: it owns the RNG, its fairness
+#: tests and the seed, and it holds no rules — what a roll MEANS stays here.
+DECLARED = {"kirby_cost", "kirby_dice"}
 
 #: Modules that ship with Python. `sys.stdlib_module_names` is authoritative
 #: (3.10+) and needs no hand-maintained list to drift.
@@ -72,7 +73,7 @@ def test_the_package_has_files_to_check():
 def test_the_allowlist_is_not_vacuous():
     """A second guard on the guard: if ALLOWED accidentally became everything
     — a stdlib set that failed to load, say — the real test could not fail."""
-    assert "kirby_cost" in ALLOWED and "os" in ALLOWED
+    assert "kirby_cost" in ALLOWED and "kirby_dice" in ALLOWED and "os" in ALLOWED
     assert "sqlalchemy" not in ALLOWED, "the allowlist has stopped excluding anything"
 
 

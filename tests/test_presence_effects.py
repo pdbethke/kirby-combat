@@ -22,7 +22,7 @@ Segments, each 1 second, so the book's wall-clock figures convert exactly.
 """
 
 from fixtures.synthetic_hero import synthetic_combatant
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.pre_attacks.presence_effects import (
     PRESENCE_TIERS, PresenceEffects, effect_for_tier,
 )

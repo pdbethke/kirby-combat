@@ -64,8 +64,10 @@ REQUIRED_BY_CONSUMERS = {
     "CombatTemplate", "RAW_SUPERHEROIC",
     # The setting hierarchy
     "Campaign", "World", "Encounter",
-    # Dice
-    "RandomRoller", "DiceRoller", "FakeRoller",
+    # NO dice. `RandomRoller`, `DiceRoller` and `FakeRoller` were on this
+    # surface until 0.10.0 and now live in the `kirby-dice` package, which
+    # consumers import directly. Deliberately not re-exported: a second name
+    # for one thing is how a consumer ends up depending on the wrong repo.
     # Serialization
     "to_dict", "from_dict",
 }

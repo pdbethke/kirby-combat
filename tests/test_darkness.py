@@ -17,7 +17,7 @@ through `sense_penalties`, exactly as Flash does.
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.darkness import Darkness
 from kirby_combat.cv_modifiers import effective_dcv_for, effective_ocv_for
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.scene.construct import Construct
 from kirby_combat.scene.scene import AmbientConditions, Position, Scene, SceneBounds
 from kirby_combat.session import CombatSession

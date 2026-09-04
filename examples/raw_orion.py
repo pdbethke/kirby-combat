@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from kirby_combat.actions.flash import Flash
 from kirby_combat.cv_modifiers import effective_dcv_for, effective_ocv_for
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import StatBlockCombatant
 from kirby_combat.sense_penalties import NontargetingPerception
 from kirby_combat.session import CombatSession

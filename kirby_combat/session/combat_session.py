@@ -23,7 +23,7 @@ from kirby_combat.session.events import (
 if TYPE_CHECKING:
     from kirby_combat.scene.scene import Scene
     from kirby_combat.template import CombatTemplate
-    from kirby_combat.dice.roller import DiceRoller
+    from kirby_dice import DiceRoller
 
 
 # Every kind of thing that can be in a fight. CombatParticipant in

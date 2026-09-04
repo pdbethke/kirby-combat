@@ -41,7 +41,7 @@ from __future__ import annotations
 from kirby_combat.actions.reactive.dodge import Dodge
 from kirby_combat.actions.recording import resolve_attack_in_session
 from kirby_combat.cv_modifiers import effective_dcv_for
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues, StatBlockCombatant
 from kirby_combat.session import CombatSession
 from kirby_combat.session.apply import apply_event

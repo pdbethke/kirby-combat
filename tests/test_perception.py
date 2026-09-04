@@ -46,7 +46,7 @@ def test_senses_are_targeting_only_set():
 # --- Task 2: PER + Stealth roll helpers ---------------------------------------
 
 from kirby_combat.perception import per_roll_target, _roll_3d6_succeeds
-from kirby_combat.dice import RandomRoller
+from kirby_dice import RandomRoller
 
 
 def test_per_target_is_the_engine_s_characteristic_roll():

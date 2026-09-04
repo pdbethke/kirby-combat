@@ -17,7 +17,7 @@ import pytest
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.entangle import Entangle
 from kirby_combat.actions.reactive.abort import mark_aborting
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.events import SegmentAdvanced, make_author_engine
 from kirby_combat.status_emission import (

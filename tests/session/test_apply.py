@@ -18,7 +18,7 @@ from kirby_combat.session.events import (
 from kirby_combat.session.tie_rule import TieRule
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.session.timeline import ActingSlot, ActionIntent
 from kirby_combat.talents.lightning_reflexes import LightningReflexesGrant
 

@@ -35,7 +35,7 @@ from kirby_combat.cv_modifiers import (
     cv_modifiers_for, effective_dcv_for, effective_dmcv_for,
     effective_ocv_for,
 )
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
 from kirby_combat.session.apply import apply_event

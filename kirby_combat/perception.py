@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from kirby_combat.dice import RandomRoller
+from kirby_dice import RandomRoller
 from kirby_combat.resolution.line_of_sight import has_line_of_sight
 from kirby_combat.scene.geometry import (
     first_blocking_surface, first_blocking_wall, path_crosses_polygon,

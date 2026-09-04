@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.effects import (

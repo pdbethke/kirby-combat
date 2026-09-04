@@ -15,6 +15,10 @@ dependencies = [
     # same dice arithmetic grow a second home here -- three copies of "5 STR
     # to the die" across two repositories, agreeing only by luck.
     "kirby-cost>=0.6.0",
+    # The roller moved out at 0.10.0. It is a real dependency, not a shim:
+    # `kirby_combat.dice` is GONE, and consumers import `kirby_dice`
+    # directly. A re-export here would just be a second name for one thing.
+    "kirby-dice>=0.1.0",
 ]
 
 [project.urls]

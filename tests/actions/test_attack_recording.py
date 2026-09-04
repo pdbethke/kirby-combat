@@ -13,7 +13,7 @@ from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.recording import (
     ACCEPTED_ACTION_KINDS, resolve_attack_in_session,
 )
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate

@@ -5,7 +5,7 @@ from kirby_combat.session import CombatSession, apply_event, rewind_to_sequence
 from kirby_combat.session.events import SegmentAdvanced, make_author_engine
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 
 
 def _session() -> CombatSession:

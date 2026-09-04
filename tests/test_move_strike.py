@@ -15,7 +15,7 @@ from kirby_combat.scene import (
 )
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.recording import resolve_attack_in_session
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.hero_view import HeroCombatState, HeroCombatant
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session.combat_session import CombatSession

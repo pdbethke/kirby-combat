@@ -70,7 +70,7 @@ from kirby_combat.actions.flash import Flash
 from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.actions.reactive.abort import mark_aborting
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import StatBlockCombatant
 from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.session import CombatSession

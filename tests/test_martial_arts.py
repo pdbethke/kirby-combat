@@ -5,7 +5,7 @@ Per 6E2 p90-93 §MARTIAL MANEUVERS, verified via Codex (throwback) on 2026-04-25
 from __future__ import annotations
 
 from kirby_combat.actions.martial_arts import MartialArts
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate

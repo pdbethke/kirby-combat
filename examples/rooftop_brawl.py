@@ -18,7 +18,7 @@ from dataclasses import replace
 
 from kirby_combat.actions.movement.knockback_movement import resolve_knockback_movement
 from kirby_combat.actions.reactive.dodge import Dodge
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.models import (
     AttackInput, AttackPower, DefenseItem, DiceValues, StatBlockCombatant,
 )

@@ -13,7 +13,7 @@ from __future__ import annotations
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.reactive.block import Block, BlockResult
 from kirby_combat.actions.recording import resolve_block_in_session
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate
 

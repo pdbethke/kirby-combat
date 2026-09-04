@@ -2,11 +2,31 @@
 
 ## 0.10.0 — 2026-09-04
 
-**The dice are now provably fair, and every fight can be replayed.** Groundwork
-for the eventual `kirby-dice` carve-out; the module stays here until there is a
-second consumer.
+**The dice moved out.** `kirby_combat.dice` is gone; the roller now ships as
+the standalone [`kirby-dice`](https://github.com/pdbethke/kirby-dice) package,
+item 6 of the carve-out program. Requires `kirby-dice>=0.1.0`.
 
 ### Removed — BREAKING
+
+`kirby_combat.dice` no longer exists, and `DiceRoller`, `RandomRoller` and
+`FakeRoller` are no longer re-exported from `kirby_combat`.
+
+**Migration:** `from kirby_combat.dice import RandomRoller` becomes
+`from kirby_dice import RandomRoller`. Nothing else changes — same classes,
+same behaviour.
+
+There is deliberately **no compatibility shim**. A re-export would leave two
+names for one thing, and a consumer that kept using the old one would go on
+depending on this package for something it no longer owns.
+
+The extraction is not about size — the package is under 100 lines. It is
+about what a dice module is for. Bill Bame's attribution, missing entirely
+until 2026-08-28, now has a module of its own and a release guard that fails
+the build if it ever stops shipping. And "here is the RNG, here are its
+fairness tests, here is the seed" is something a standalone package can be
+and a private helper inside a combat engine cannot.
+
+### Removed — BREAKING, and unrelated to the move
 
 `roll_half_die()` is gone from `DiceRoller`, `RandomRoller` and `FakeRoller`,
 along with `FakeRoller(half_die_results=...)`.
@@ -41,9 +61,12 @@ face coverage, and the seed-replay property above. Two of them guard the
 guards: a loaded die must trip the uniformity assertion, and unseeded rollers
 must not all share one seed.
 
-The dice package goes from 82% to **100%** coverage; `roller.py` was the
-worst-covered file in the engine at 71%, and the gap was entirely the dead
-method.
+The dice package went from 82% to **100%** coverage before moving out;
+`roller.py` was the worst-covered file in the engine at 71%, and the gap was
+entirely the dead method. All of that work — the fairness suite, the seed,
+the 100% — travelled with the package to kirby-dice 0.1.0.
+
+Suite here: 1404 passed (the 28 dice tests now live in kirby-dice).
 
 ## 0.9.0 — 2026-09-02
 

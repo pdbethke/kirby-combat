@@ -75,7 +75,7 @@ from dataclasses import replace
 
 from kirby_combat.actions import resolve_attack
 from kirby_combat.actions.recording import resolve_attack_in_session
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.encounter import Encounter
 from kirby_combat.models import AttackInput, AttackPower, DiceValues, StatBlockCombatant
 from kirby_combat.session.combat_session import CombatSession

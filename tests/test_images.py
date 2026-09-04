@@ -17,7 +17,7 @@ must not spoil it for the room.
 
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.images import Images
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.scene.scene import AmbientConditions, Position, Scene, SceneBounds
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate

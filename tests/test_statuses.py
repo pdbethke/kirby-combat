@@ -13,7 +13,7 @@ from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
 from kirby_combat.actions.reactive.abort import mark_aborting
 from kirby_combat.actions.recording import resolve_attack_in_session
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.encounter import Encounter
 from kirby_combat.models import AttackInput, AttackPower, DiceValues
 from kirby_combat.session import CombatSession

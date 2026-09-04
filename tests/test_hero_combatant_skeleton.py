@@ -361,7 +361,7 @@ def test_canon_hdc_combatant_stats_are_int_and_rollable():
     pytest.importorskip("kirby_cost")
     require_authored("Bokor")
 
-    from kirby_combat.dice import RandomRoller
+    from kirby_dice import RandomRoller
     from kirby_combat.pre_attacks.presence import base_pre_dice
 
     c = HeroCombatant.from_hdc(require_authored("Bokor"))

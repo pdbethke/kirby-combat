@@ -2,7 +2,7 @@
 from kirby_combat.session import CombatSession, Timeline
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 
 
 def _mk_c(id_: str, spd: int, dex: int) -> "HeroCombatant":

@@ -19,7 +19,7 @@ from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.actions.recording import (
     ACCEPTED_ACTION_KINDS, resolve_mental_blast_in_session,
 )
-from kirby_combat.dice import FakeRoller
+from kirby_dice import FakeRoller
 from kirby_combat.mental.mental_blast import resolve_mental_blast
 from kirby_combat.session import CombatSession
 from kirby_combat.statuses import statuses_for

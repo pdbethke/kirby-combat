@@ -162,7 +162,6 @@ from kirby_combat.resolution.object_damage import (  # noqa: E402
 from kirby_combat.tables import range_penalty  # noqa: E402
 from kirby_combat.template import CombatTemplate, RAW_SUPERHEROIC  # noqa: E402
 from kirby_combat.serialization import from_dict, to_dict  # noqa: E402
-from kirby_combat.dice import DiceRoller, FakeRoller, RandomRoller  # noqa: E402
 
 # Place TYPES only -- see the note above on why the operations are absent.
 from kirby_combat.scene.scene import (  # noqa: E402
@@ -213,7 +212,6 @@ __all__ = [
     # Close-and-strike composite (6E2 p36, p56)
     "MoveStrikeOutcome", "StrikePlan", "resolve_move_strike",
     # Dice
-    "DiceRoller", "FakeRoller", "RandomRoller",
     # Serialization
     "from_dict", "to_dict",
     # Place TYPES (operations live in kirby-world)
