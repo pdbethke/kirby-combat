@@ -67,3 +67,8 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # A release published by hand with twine leaves the tag to be
+          # added later; without this the retroactive tag re-uploads a
+          # version PyPI already has and the job fails on it.
+          skip-existing: true
