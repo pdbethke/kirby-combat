@@ -31,10 +31,13 @@ def test_fake_roller_raises_when_exhausted():
         f.roll_dice(3, sides=6)
 
 
-def test_fake_roller_half_die():
-    f = FakeRoller([[3, 4, 5]], half_die_results=[2])
-    assert f.roll_dice(3, sides=6) == [3, 4, 5]
-    assert f.roll_half_die() == 2
+def test_fake_roller_rejects_a_fixture_of_the_wrong_size():
+    """A fixture that does not match the call is a test authoring mistake,
+    and a silent mismatch would feed the resolver the wrong dice."""
+    import pytest
+    f = FakeRoller([[3, 4, 5]])
+    with pytest.raises(ValueError, match="asked for 2 dice"):
+        f.roll_dice(2, sides=6)
 
 
 def test_fake_roller_isolates_inputs():
@@ -60,8 +63,8 @@ def test_random_roller_accepts_whole_valued_float_count():
 
 def test_random_roller_rejects_fractional_count():
     """A fractional count means a half-die leaked into the d6 count.
-    HERO half-dice must go through roll_half_die(); reject rather than
-    silently truncate (truncation would drop the half die)."""
+    A half die is an extra whole d6 that resolution.damage converts;
+    reject rather than silently truncate (truncation drops the half die)."""
     import pytest
     r = RandomRoller(seed=7)
     with pytest.raises(ValueError, match="whole number"):

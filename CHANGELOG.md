@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.10.0 — 2026-09-04
+
+**The dice are now provably fair, and every fight can be replayed.** Groundwork
+for the eventual `kirby-dice` carve-out; the module stays here until there is a
+second consumer.
+
+### Removed — BREAKING
+
+`roll_half_die()` is gone from `DiceRoller`, `RandomRoller` and `FakeRoller`,
+along with `FakeRoller(half_die_results=...)`.
+
+It had **no callers anywhere** — not in this package, not in kirby-api. Half
+dice are, and always were, resolved elsewhere: the caller rolls one extra whole
+d6 and `resolution/damage.py` reads the last value of the batch, converting it
+to `STUN += raw // 2` and `BODY += 1 if raw >= 5`. The two definitions did not
+agree — `roll_half_die` mapped 1-2 to 1, 3-4 to 2, 5-6 to 3, a different
+distribution entirely — so anyone who reached for the obvious-looking API would
+have silently changed damage. This is exactly the second-copy-of-the-arithmetic
+problem `tests/test_dice_have_one_source.py` exists to prevent; it slipped
+through because the duplicate lived inside the dice package rather than being
+compared against kirby-cost.
+
+Nothing to migrate: no caller existed. The live path is unchanged.
+
+### Added
+
+`RandomRoller.seed` — the seed the roller rolls from, always a real number.
+
+An unseeded `RandomRoller()` used to draw from OS entropy, so the seed never
+existed as a value and a fight could not be replayed once fought. It now
+chooses its own seed with `secrets.randbits(64)` (unguessable, so recordable
+does not mean predictable) and hands it back. Record `roller.seed` alongside a
+fight and `RandomRoller(seed=<recorded>)` reproduces it die for die.
+
+`tests/test_dice_fairness.py` — 20 seeded, deterministic tests the roller has
+never had: chi-square uniformity over 60,000 rolls, independence of consecutive
+rolls across all 36 ordered pairs, mean within five sigma of 3.5, range and
+face coverage, and the seed-replay property above. Two of them guard the
+guards: a loaded die must trip the uniformity assertion, and unseeded rollers
+must not all share one seed.
+
+The dice package goes from 82% to **100%** coverage; `roller.py` was the
+worst-covered file in the engine at 71%, and the gap was entirely the dead
+method.
+
 ## 0.9.0 — 2026-09-02
 
 **Combat now fights the character on the sheet.** It read the CHARACTERISTICS

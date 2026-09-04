@@ -7,21 +7,18 @@ class FakeRoller:
 
     Usage::
 
-        f = FakeRoller([[3, 4, 5], [1, 2, 3]], half_die_results=[2])
+        f = FakeRoller([[3, 4, 5], [1, 2, 3]])
         f.roll_dice(3, sides=6)   # -> [3, 4, 5]
         f.roll_dice(3, sides=6)   # -> [1, 2, 3]
-        f.roll_half_die()         # -> 2
+
+    A half die needs no special fixture: append one more value to the batch
+    that carries it, because `resolution.damage` reads the last value of
+    `dice.damage` as the half-die raw roll.
     """
 
-    def __init__(
-        self,
-        dice_results: list[list[int]],
-        half_die_results: list[int] | None = None,
-    ) -> None:
+    def __init__(self, dice_results: list[list[int]]) -> None:
         self._dice = [list(inner) for inner in dice_results]
-        self._half = list(half_die_results or [])
         self._dice_idx = 0
-        self._half_idx = 0
 
     def roll_dice(self, count: int, sides: int = 6) -> list[int]:
         if self._dice_idx >= len(self._dice):
@@ -33,10 +30,3 @@ class FakeRoller:
                 f"FakeRoller: caller asked for {count} dice, fixture has {len(result)}"
             )
         return list(result)
-
-    def roll_half_die(self) -> int:
-        if self._half_idx >= len(self._half):
-            raise IndexError("FakeRoller half-die pool exhausted")
-        result = self._half[self._half_idx]
-        self._half_idx += 1
-        return result
