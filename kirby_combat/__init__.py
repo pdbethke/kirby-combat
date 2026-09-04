@@ -114,6 +114,7 @@ from kirby_combat.actions.reach import ReachVerdict, within_reach  # noqa: E402
 from kirby_combat.actions.reactive.block import Block, BlockResult  # noqa: E402
 from kirby_combat.actions.throw import Throw, resolve_object_throw  # noqa: E402
 from kirby_combat.breakables.object_combatant import ObjectCombatant  # noqa: E402
+from kirby_combat.breakables.object_table import OBJECT_DURABILITY, ObjectDurability  # noqa: E402
 from kirby_combat.vehicles.vehicle import Vehicle  # noqa: E402
 from kirby_combat.hero_view import HeroCombatState, HeroCombatant  # noqa: E402
 
@@ -207,6 +208,8 @@ __all__ = [
     "range_penalty", "scale_variable_slot_dice",
     # Rules configuration
     "CombatTemplate", "RAW_SUPERHEROIC",
+    # Terrain durability, 6E2 p173
+    "OBJECT_DURABILITY", "ObjectDurability",
     # The reach rule (6E2 p56)
     "ReachVerdict", "within_reach",
     # Close-and-strike composite (6E2 p36, p56)

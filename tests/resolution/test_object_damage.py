@@ -68,3 +68,66 @@ def test_autofire_chips_steel_over_multiple_shots():
     res = apply_autofire_to_construct(_power(3), shots, _wall_construct(9, 10), tmpl)
     assert len(res) == 5 and all(r.body_through == 0 for r in res)
     assert res[-1].body_after == 10 and res[-1].destroyed is False
+
+
+def _brick() -> Construct:
+    """6E2 p173: brick wall, 5 PD / 10 ED / 3 BODY."""
+    return Construct(obj_id="brick", kind="wall", def_value=5, ed_value=10, body=3)
+
+
+def _attack(defense_type: str, damage_type: str = "normal") -> AttackPower:
+    return AttackPower(
+        xmlid="TEST", name="Test", damage_dice=6, half_die=False, plus_one=False,
+        damage_type=damage_type, defense_type=defense_type, range_m=100,
+        uses_str=False, str_min=0, armor_piercing=0, penetrating=0,
+        increased_stun_mult=0,
+    )
+
+
+def _six_sixes() -> DiceValues:
+    return DiceValues(to_hit=[3, 3, 3], damage=[6, 6, 6, 6, 6, 6])
+
+
+def test_a_physical_attack_meets_pd():
+    r = apply_attack_to_construct(_attack("pd"), _six_sixes(), _brick(),
+                                  CombatTemplate.default_6e_superheroic())
+    assert r.def_value == 5
+
+
+def test_an_energy_attack_meets_ed():
+    """The whole point of the split: the same wall, the same dice, a
+    different defense."""
+    r = apply_attack_to_construct(_attack("ed"), _six_sixes(), _brick(),
+                                  CombatTemplate.default_6e_superheroic())
+    assert r.def_value == 10
+
+
+def test_killing_damage_ignores_a_non_resistant_defense():
+    """6E2 p173's parenthesised defenses are Normal Defense. Glass is
+    (1)/(1)/1 -- a knife goes straight through."""
+    glass = Construct(obj_id="pane", kind="wall", def_value=1, ed_value=1,
+                      body=1, resistant=False)
+    r = apply_attack_to_construct(_attack("pd", damage_type="killing"),
+                                  _six_sixes(), glass,
+                                  CombatTemplate.default_6e_superheroic())
+    assert r.def_value == 0
+    assert r.destroyed is True
+
+
+def test_a_resistant_defense_still_applies_to_killing_damage():
+    """Guards the guard: if the resistant check were inverted, every wall
+    would stop resisting Killing attacks and the test above would still
+    pass."""
+    r = apply_attack_to_construct(_attack("pd", damage_type="killing"),
+                                  _six_sixes(), _brick(),
+                                  CombatTemplate.default_6e_superheroic())
+    assert r.def_value == 5
+
+
+def test_a_wall_with_no_ed_stated_uses_pd_for_both():
+    legacy = Construct(obj_id="old", kind="wall", def_value=6, body=5)
+    pd_hit = apply_attack_to_construct(_attack("pd"), _six_sixes(), legacy,
+                                       CombatTemplate.default_6e_superheroic())
+    ed_hit = apply_attack_to_construct(_attack("ed"), _six_sixes(), legacy,
+                                       CombatTemplate.default_6e_superheroic())
+    assert pd_hit.def_value == ed_hit.def_value == 6

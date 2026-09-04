@@ -1,6 +1,6 @@
 """ObjectCombatant — objects (doors, walls, vases) as Combatants with BODY/DEF.
 
-6E2 p152: Inanimate objects have BODY and DEF (rPD/rED). They take Normal or
+6E2 p172-173: Inanimate objects have BODY and DEF (rPD/rED). They take Normal or
 Killing damage like characters but have no STUN, cannot Dodge or Abort, and
 cannot use powers. Some materials are vulnerable to specific damage types.
 """
@@ -13,7 +13,17 @@ from kirby_combat.models import StatBlockCombatant
 from kirby_combat.participant import Breakable
 
 
-# Material -> typical (DEF, BODY) ranges per 6E2 p152.
+# Material -> typical (DEF, BODY) for an HDC-encoded object.
+# 6E2 p172-173 is the RULE that objects have DEF and BODY -- it is NOT the
+# source of these seven numbers. These are engine approximations, not rows
+# of the Objects Table: the book has no generic "wood"/"stone"/"metal"
+# object row, and several of these values disagree with the real table
+# (e.g. stone per cubic metre is 5/10/19 PD/ED/BODY on the table, not the
+# (5, 7) DEF/BODY pair below; a concrete wall is 6/10/5, not (6, 8)). Only
+# glass (1, 1) happens to coincide. The page was cited as p152 until
+# 2026-09-04; p152 is electricity and chemicals. For TERRAIN prefer
+# `object_table.OBJECT_DURABILITY`, which IS the book's own Objects Table,
+# keyed by object kind and carrying PD and ED separately.
 MATERIAL_DEFAULTS: dict[str, tuple[int, int]] = {
     "paper":   (0, 1),
     "glass":   (1, 1),
@@ -72,7 +82,7 @@ class ObjectCombatant(Breakable, StatBlockCombatant):
             hdc_source_xml=hdc_source_xml,
         )
 
-    # ── objects have no STUN behaviour at all (6E2 p152) ──────────────
+    # ── objects have no STUN behaviour at all (6E2 p172) ──────────────
     #
     # ``StatBlockCombatant`` mixes in ``Stunnable``; an object inherits from
     # it for the stat-block fields, not for the STUN track. ``make()`` above
@@ -90,7 +100,7 @@ class ObjectCombatant(Breakable, StatBlockCombatant):
     # ``is_destroyed()`` is the question to ask an object.
 
     _NO_STUN = (
-        "ObjectCombatant has no STUN track (6E2 p152: objects take BODY and "
+        "ObjectCombatant has no STUN track (6E2 p172: objects take BODY and "
         "break, they are never knocked out) -- ask is_destroyed() instead"
     )
 

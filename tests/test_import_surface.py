@@ -62,6 +62,8 @@ REQUIRED_BY_CONSUMERS = {
     "range_penalty",
     # Rules configuration
     "CombatTemplate", "RAW_SUPERHEROIC",
+    # Terrain durability, 6E2 p173 -- the importer and kirby-api both need it
+    "OBJECT_DURABILITY", "ObjectDurability",
     # The setting hierarchy
     "Campaign", "World", "Encounter",
     # NO dice. `RandomRoller`, `DiceRoller` and `FakeRoller` were on this
