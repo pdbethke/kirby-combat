@@ -120,19 +120,10 @@ def test_a_civilian_snapshot_round_trips_with_the_flag_and_the_stats():
     correctly (they're frozen numbers, not recomputed), but the *flag*
     silently lied about which identity had been recorded.
     """
-    import json
+    from tests.corpus import require_authored
 
-    from kirby_cost.io.build_json import build_from_json
-    from kirby_combat.hero_view import HeroCombatState
-
-    RAVEL = ("/home/pdbethke/PycharmProjects/Kirby/kirby-cost/tests/"
-             "fixtures/authored/Ravel.json")
-    hero = build_from_json(json.load(open(RAVEL)))
-    civilian = HeroCombatant(
-        id="ravel", hero=hero,
-        state=HeroCombatState(current_stun=1, current_body=1, current_end=1,
-                              in_hero_id=False),
-    )
+    civilian = HeroCombatant.from_hdc(require_authored("Ravel"), id="ravel")
+    civilian.state.in_hero_id = False
     assert civilian.combat_stats().dex == 10
     assert civilian.combat_stats().spd == 2
 

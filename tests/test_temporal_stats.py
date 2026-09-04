@@ -1,17 +1,13 @@
 """Ravel fights as the Hero, not as the civilian."""
-import json
+from kirby_combat.hero_view import HeroCombatant
 
-from kirby_cost.io.build_json import build_from_json
-from kirby_combat.hero_view import HeroCombatant, HeroCombatState
-
-RAVEL = "/home/pdbethke/PycharmProjects/Kirby/kirby-cost/tests/fixtures/authored/Ravel.json"
+from tests.corpus import require_authored
 
 
 def _ravel(in_hero_id: bool = True) -> HeroCombatant:
-    hero = build_from_json(json.load(open(RAVEL)))
-    st = HeroCombatState(current_stun=1, current_body=1, current_end=1,
-                         in_hero_id=in_hero_id)
-    return HeroCombatant(id="ravel", hero=hero, state=st)
+    combatant = HeroCombatant.from_hdc(require_authored("Ravel"), id="ravel")
+    combatant.state.in_hero_id = in_hero_id
+    return combatant
 
 
 def test_in_hero_id_he_fights_with_the_stats_he_bought():
