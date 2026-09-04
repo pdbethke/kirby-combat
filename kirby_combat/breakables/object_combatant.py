@@ -76,7 +76,7 @@ class ObjectCombatant(Breakable, StatBlockCombatant):
             hdc_source_xml=hdc_source_xml,
         )
 
-    # ── objects have no STUN behaviour at all (6E2 p152) ──────────────
+    # ── objects have no STUN behaviour at all (6E2 p172) ──────────────
     #
     # ``StatBlockCombatant`` mixes in ``Stunnable``; an object inherits from
     # it for the stat-block fields, not for the STUN track. ``make()`` above
@@ -94,7 +94,7 @@ class ObjectCombatant(Breakable, StatBlockCombatant):
     # ``is_destroyed()`` is the question to ask an object.
 
     _NO_STUN = (
-        "ObjectCombatant has no STUN track (6E2 p152: objects take BODY and "
+        "ObjectCombatant has no STUN track (6E2 p172: objects take BODY and "
         "break, they are never knocked out) -- ask is_destroyed() instead"
     )
 
