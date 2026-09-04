@@ -2,10 +2,26 @@ name: Release
 
 # Publishes to PyPI when a version tag is pushed, and NOT otherwise.
 #
-# No credentials live here. The publish job uses PyPI Trusted Publishing
-# (OIDC), so there is no API token in a secret to leak or rotate -- which is
-# why the old publish job was deleted from this repo in the first place. See
-# the note at the top of tests.yml.
+# The publish job authenticates with an API token in the `PYPI_API_TOKEN`
+# secret. That is a step DOWN from Trusted Publishing (OIDC), which this
+# workflow used to declare, and the reason is worth writing down so nobody
+# "fixes" it back and breaks releases again:
+#
+#   * The OIDC path never actually worked. No trusted publisher was ever
+#     registered on the PyPI side, so every tagged run died at the token
+#     exchange with `invalid-publisher`, and every release to date went up
+#     by hand with twine. The header claimed a mechanism that was configured
+#     on GitHub only.
+#   * Registering a publisher is a pypi.org web-UI action, and the account's
+#     2FA was lost on 2026-09-04. API tokens keep working when 2FA is lost;
+#     the web session does not. So the token is currently the ONLY way for a
+#     release to flow from GitHub to PyPI.
+#
+# Restore Trusted Publishing once the account is recoverable: register the
+# publisher (owner/repo/`release.yml`/environment `pypi`), add back
+# `permissions: id-token: write` on this job, drop `password:` and the
+# secret. Until then this token is a real credential -- it is USER-scoped,
+# not project-scoped, so it can publish anything the account owns.
 #
 # The guards in `scripts/check_release.py` run BEFORE the upload, and each one
 # exists because the failure it catches actually shipped:
@@ -59,8 +75,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
-    permissions:
-      id-token: write  # Trusted Publishing; no token secret required
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -68,6 +82,7 @@ jobs:
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
           # A release published by hand with twine leaves the tag to be
           # added later; without this the retroactive tag re-uploads a
           # version PyPI already has and the job fails on it.
