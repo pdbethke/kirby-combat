@@ -1,8 +1,16 @@
 """Object-damage resolver — break a destructible Construct via DEF + BODY
-(HERO 6E2 p176-177). A focused pure unit, NOT a branch inside resolve_attack:
+(HERO 6E2 p172-173). A focused pure unit, NOT a branch inside resolve_attack:
 a construct has no OCV/DCV/defenses/knockback/status, and a deliberate attack on
 an immobile construct auto-hits. Reuses compute_damage for BODY (never re-rolls
 dice by hand). Spec 2026-06-09 §1.2.
+
+The citation here read p176-177 until 2026-09-04; that page is improvised
+weapons. p172 is the rule, p173 is the Objects Table.
+
+Note a known divergence, deliberately not fixed here because it belongs to
+the attack path rather than this resolver: 6E2 p172 gives an inanimate
+object a DCV of 3 with Target Size modifiers applied to the attacker's OCV,
+where kirby-api's `_resolve_attack_construct` auto-hits.
 """
 from __future__ import annotations
 
@@ -39,17 +47,23 @@ def apply_attack_to_construct(
         raise ValueError(f"construct {construct.obj_id!r} is not destructible")
     dmg = compute_damage(power, dice, template)
     body_rolled = dmg.body
-    body_through = max(0, body_rolled - construct.def_value)
+    defense = construct.ed if power.defense_type == "ed" else construct.pd
+    # 6E2 p173: a defense the table prints in parentheses is Normal Defense
+    # and does not apply against Killing damage. Glass is (1)/(1)/1.
+    if power.damage_type == "killing" and not construct.resistant:
+        defense = 0
+    body_through = max(0, body_rolled - defense)
     body_before = construct.body
     body_after = body_before - body_through
     destroyed = body_after <= 0
     audit = [
-        f"{body_rolled} BODY rolled vs DEF {construct.def_value} "
+        f"{body_rolled} BODY rolled vs "
+        f"{'ED' if power.defense_type == 'ed' else 'PD'} {defense} "
         f"-> {body_through} through; BODY {body_before}->{max(0, body_after)}"
         + (" (DESTROYED)" if destroyed else "")
     ]
     return ConstructDamageResult(
-        obj_id=construct.obj_id, body_rolled=body_rolled, def_value=construct.def_value,
+        obj_id=construct.obj_id, body_rolled=body_rolled, def_value=defense,
         body_through=body_through, body_before=body_before,
         body_after=max(0, body_after), destroyed=destroyed, audit=audit,
     )
