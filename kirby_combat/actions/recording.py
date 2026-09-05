@@ -10,7 +10,7 @@ The gap it leaves is that nothing ever records the outcome anywhere —
 callers that DO have a session (and want the attack's effects on the
 event log) had no session-aware entry point to call, so kirby-api grew
 its own ``ActionResolved`` construction instead
-(``llm_driver.py:_emit_resolution``). This module adds that entry point
+(its own resolution emitter). This module adds that entry point
 inside kirby-combat, following the same shape already used by
 ``Flash.apply`` (``actions/flash.py``) and ``Grab.declare_and_resolve``
 (``actions/grab.py``): run the pure calculation, then emit the event(s)
@@ -121,13 +121,12 @@ def resolve_attack_in_session(
         decl_id = declared.id
 
     # Established payload keys, matched to what kirby-api's own
-    # _emit_resolution-style construction already writes (llm_driver.py
-    # reads "hit" at situation_builder.py:690 / soliloquy.py:256-258,
-    # "stun_dealt" at soliloquy.py:139,260, "body_dealt" at
-    # soliloquy.py:140,263). "status_changes" is new: nothing persists it
-    # today even though llm_driver.py checks `result.status_changes` for
-    # "Stunned" in six places (2757, 6215, 7997, 8176, 9861, 9938) —
-    # re-deriving it every request because it was never recorded. "Knocked
+    # resolution-emitting construction already writes: it reads "hit",
+    # "stun_dealt" and "body_dealt" out of this payload in its rendering
+    # and narration paths. "status_changes" is new: nothing persists it
+    # today even though the consumer checks `result.status_changes` for
+    # "Stunned" in six separate places, re-deriving it every request
+    # because it was never recorded. "Knocked
     # Out" is one of the strings `determine_status_changes` may return
     # (kirby_combat/resolution/status.py), so it is already carried inside
     # status_changes rather than duplicated as a separate boolean key.
