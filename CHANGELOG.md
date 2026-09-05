@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.11.0 — 2026-09-05
+
+**The Objects Table has one home, and it is not here.** Requires
+`kirby-terrain>=0.1.0`.
+
+### Changed
+
+`kirby_combat.breakables.object_table` is DELETED. `OBJECT_DURABILITY` and
+`ObjectDurability` are still importable from `kirby_combat` exactly as before —
+they are now re-exported from `kirby-terrain`, the dependency-free leaf that
+owns what terrain IS.
+
+**Migration: none for supported callers.** `from kirby_combat import
+OBJECT_DURABILITY` is unchanged. Only the deep path
+`kirby_combat.breakables.object_table` is gone, and `tests/test_import_surface.py`
+has always said anything outside `__all__` is internal.
+
+The table was added here on 2026-09-04 and moved out a day later, which is
+worth explaining rather than hiding: it belongs beside the geometry and object
+model that describe terrain, not inside the engine that fights on it. A
+transcribed rulebook table with two homes is exactly the drift this codebase
+has a history of — "5 STR to the die" once lived in three places across two
+repositories, agreeing only by luck.
+
+`tests/breakables/test_object_table.py` no longer tests the table's contents;
+kirby-terrain's suite pins all 18 rows against the book. It now tests IDENTITY —
+that this package's name and kirby-terrain's name are the same object — plus a
+guard that fails if a second definition ever reappears here.
+
 ## 0.10.0 — 2026-09-04
 
 **The dice moved out.** `kirby_combat.dice` is gone; the roller now ships as

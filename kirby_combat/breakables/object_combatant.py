@@ -22,7 +22,7 @@ from kirby_combat.participant import Breakable
 # (5, 7) DEF/BODY pair below; a concrete wall is 6/10/5, not (6, 8)). Only
 # glass (1, 1) happens to coincide. The page was cited as p152 until
 # 2026-09-04; p152 is electricity and chemicals. For TERRAIN prefer
-# `object_table.OBJECT_DURABILITY`, which IS the book's own Objects Table,
+# `kirby_terrain.OBJECT_DURABILITY`, which IS the book's own Objects Table,
 # keyed by object kind and carrying PD and ED separately.
 MATERIAL_DEFAULTS: dict[str, tuple[int, int]] = {
     "paper":   (0, 1),

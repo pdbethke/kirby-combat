@@ -114,7 +114,10 @@ from kirby_combat.actions.reach import ReachVerdict, within_reach  # noqa: E402
 from kirby_combat.actions.reactive.block import Block, BlockResult  # noqa: E402
 from kirby_combat.actions.throw import Throw, resolve_object_throw  # noqa: E402
 from kirby_combat.breakables.object_combatant import ObjectCombatant  # noqa: E402
-from kirby_combat.breakables.object_table import OBJECT_DURABILITY, ObjectDurability  # noqa: E402
+# The Objects Table (6E2 p173) lives in kirby-terrain, the leaf that owns
+# what terrain IS. Re-exported here because combat is where it is used;
+# defined there because a transcribed rulebook table gets ONE home.
+from kirby_terrain import OBJECT_DURABILITY, ObjectDurability  # noqa: E402
 from kirby_combat.vehicles.vehicle import Vehicle  # noqa: E402
 from kirby_combat.hero_view import HeroCombatState, HeroCombatant  # noqa: E402
 

@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.10.0"
+version = "0.11.0"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 # Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
@@ -19,6 +19,10 @@ dependencies = [
     # `kirby_combat.dice` is GONE, and consumers import `kirby_dice`
     # directly. A re-export here would just be a second name for one thing.
     "kirby-dice>=0.1.0",
+    # Terrain: what is physically there and how hard it is to break.
+    # Owns the 6E2 p173 Objects Table, which this package re-exports
+    # rather than copying -- one home for a transcribed rulebook table.
+    "kirby-terrain>=0.1.0",
 ]
 
 [project.urls]
