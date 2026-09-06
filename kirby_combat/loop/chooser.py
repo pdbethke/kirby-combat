@@ -77,6 +77,16 @@ class PhaseSituation:
     def action_ids(self) -> list[str]:
         return [a.action_id for a in self.menu]
 
+    def brief(self):
+        """This Phase written down, for a chooser that reads text.
+
+        See ``kirby_combat.brief``. Imported lazily because a Brief is a
+        view of a situation and a situation must not need one to exist.
+        """
+        from kirby_combat.brief import Brief
+
+        return Brief(self)
+
     def tactical_situation(self) -> Situation:
         """This Phase as the ``Situation`` the tactic catalogue consumes."""
         return Situation(
