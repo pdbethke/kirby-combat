@@ -1,6 +1,7 @@
 """Climbing — status tokens, rates and combat modifiers (6E1 p70, 6E2 p48-49).
 
-Kept in its own module rather than added to llm_driver.py because it is pure:
+Kept in its own module rather than folded into the consumer's driver because
+it is pure:
 no DB, no session, no dice. That makes the rulebook numbers testable on their
 own, which matters here because two rulebook passages disagree (see below).
 """
