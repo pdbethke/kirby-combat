@@ -33,7 +33,9 @@ from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
-from kirby_combat.loop.sides import last_side_standing, side_of
+from kirby_combat.loop.sides import (
+    last_side_standing, side_of, validate_sides,
+)
 
 if TYPE_CHECKING:
     from kirby_combat.encounter import Encounter
@@ -213,6 +215,7 @@ def run_encounter(
     until: StopCondition | None = None,
     max_turns: int = 20,
     on_unresolvable: str = "raise",
+    expected_sides=None,
     campaign: Any = None,
 ) -> EncounterResult:
     """Drive a fight to its end, or to ``max_turns``.
@@ -226,7 +229,15 @@ def run_encounter(
     ``max_turns`` is a guard, not a rule. A fight that reaches it returns
     ``complete=False`` with a note saying so, rather than looping forever
     on a chooser that will not commit.
+
+    Sides are validated before the first Phase. Two labels differing only
+    in case or spacing raise ``AmbiguousSides`` --- a typo that adds an
+    army changes who wins, and is otherwise invisible. Pass
+    ``expected_sides`` to also reject a side that was never declared,
+    which is the only thing that catches a real misspelling.
     """
+    validate_sides(encounter.sessions[0], expected=expected_sides)
+
     stop: StopCondition = until or last_side_standing
     skipped: dict[str, int] = {}
 

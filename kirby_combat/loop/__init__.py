@@ -19,7 +19,10 @@ from kirby_combat.loop.run import (
     EncounterResult, PhaseResult, StopCondition, TurnResult,
     next_actor_id, run_encounter, run_phase,
 )
-from kirby_combat.loop.sides import last_side_standing, side_of, standing_sides
+from kirby_combat.loop.sides import (
+    AmbiguousSides, UnexpectedSide, canonical_side, last_side_standing,
+    side_of, standing_sides, validate_sides,
+)
 
 __all__ = [
     "Chooser", "FirstLegalChooser", "InvalidChoice", "PhaseSituation",
@@ -29,4 +32,5 @@ __all__ = [
     "EncounterResult", "PhaseResult", "StopCondition", "TurnResult",
     "next_actor_id", "run_encounter", "run_phase",
     "last_side_standing", "side_of", "standing_sides",
+    "AmbiguousSides", "UnexpectedSide", "canonical_side", "validate_sides",
 ]
