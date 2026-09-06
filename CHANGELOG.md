@@ -1,5 +1,73 @@
 # Changelog
 
+## 0.14.0 — 2026-09-06
+
+**The engine can run a fight.** Damage lands, the turn loop lives here, and
+sides are objects.
+
+### Added
+
+`kirby_combat.loop` — the turn loop (sub-project D of the driver carve-out).
+Whose Phase it is (6E2 p.18), who acts first (6E2 p.19-21), when the Turn
+wraps and the free Post-Segment 12 Recovery fires (6E2 p.131), and when the
+fight is decided (6E1 p.421) are all rules, and every one of them lived in a
+web service's driver until now — 258 lines of database-bound "whose Phase is
+it" and 38 more of SQL-backed "is it over".
+
+- `Chooser` — the one thing the engine does not decide. `FirstLegalChooser`
+  (deterministic, makes the loop testable) and `TacticChooser` (picks by
+  `classify_role` and `tactics_for`). A pick outside the menu raises at the
+  seat.
+- A resolver registry. **52 action kinds are enumerable; 4 are resolvable.**
+  An unregistered kind RAISES rather than skipping silently, and
+  `registered_kinds()` is pinned by a test — so each resolver that migrates
+  out of the parked driver moves a number rather than disappearing into a
+  silence. `on_unresolvable="skip"` records the kind; a skip is never
+  invisible.
+- `run_phase` / `run_encounter`, with `until=` to replace last-side-standing
+  and a `max_turns` guard that reports rather than loops.
+
+`kirby_combat.Side` and `kirby_combat.Roster`. A side is an object: `Side.named`
+folds case and spacing into one identity, so `"Golden"` and `"golden"` are one
+army **by construction** rather than by validation — as strings they made a
+fifth army in a four-army battle, changing who won, with nothing to look at.
+`side=None` means a side of one, so an N-way free-for-all works under the same
+rule as a team battle. `Roster` replaces four module-level helpers that all
+took the same session; `Verdict` replaces a `(bool, Side | None)` tuple.
+
+`kirby_combat.apply_vitals_delta` — one fold for every STUN/BODY/END change.
+
+`side` on both combatant shapes.
+
+### Fixed
+
+**`resolve_attack_in_session` now applies its damage.** It computed
+`stun_dealt`, recorded it on the event log, and left `current_stun` untouched,
+so every consumer subtracted by hand — the parked driver at 15 separate call
+sites, none clamping, none handling both combatant shapes. A fight could
+resolve one exchange and then repeat it forever against a target that never
+got hurt. Nothing is clamped: `is_ko` is `current_stun <= 0`, and 6E reads how
+far below zero a character went.
+
+**`advance_segment` left a stale acting order behind.** Each `ActingSlot`
+carries the Segment it was resolved for and nothing cleared the list, so a
+Segment 3 order — `has_acted` flags and all — still described Segment 6.
+Nothing caught it because nothing consumed `acting_order` in a loop; the
+driver tracked its cursor in the database. `apply_event` now clears it on
+`SegmentAdvanced`.
+
+**`enumerate_actions` crashed with a bare `AttributeError` on a
+`StatBlockCombatant`.** It reads `actor.hero` at 21 sites, so it needs a
+build-backed combatant — but a stat block is a first-class participant
+everywhere else (vehicles and objects subclass it; `resolve_attack` takes
+either shape). It now raises a `TypeError` naming the limitation at the
+boundary. Widening enumeration to flat stat blocks is real work and is not
+smuggled in behind a `getattr` default that would return a shorter menu.
+
+### Removed
+
+`kirby_combat.loop.sides` — replaced by `kirby_combat.roster`.
+
 ## 0.11.0 — 2026-09-05
 
 **The Objects Table has one home, and it is not here.** Requires
