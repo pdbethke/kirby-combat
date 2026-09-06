@@ -21,12 +21,18 @@ TEMPLATE = CombatTemplate.default_6e_superheroic()
 
 def test_the_registered_kinds_are_pinned():
     """52 kinds are enumerable; these are the ones the engine can execute.
-    This set GROWING is the measure of the driver carve-out's progress --
-    when a resolver migrates out of the parked kirby-api driver, this
-    assertion is what says so."""
-    assert registered_kinds() == frozenset(
-        {"attack", "strike", "mental_blast", "recover"}
-    )
+
+    This set GROWING is the measure of the driver carve-out's progress, and
+    it is the assertion the engine never had. Three mental kinds joined on
+    2026-09-06 -- their resolvers had been correct and tested in
+    `kirby_combat/mental/` for a long time with nothing in production
+    calling them, because the parked driver wrote its own copies. Every one
+    of those suites was green the whole time; only this number could tell
+    the difference between a rule that works and a rule that is reached."""
+    assert registered_kinds() == frozenset({
+        "attack", "strike", "mental_blast", "recover",
+        "mind_control", "mental_illusion", "telepathy",
+    })
 
 
 def test_an_unregistered_kind_raises_and_names_itself():

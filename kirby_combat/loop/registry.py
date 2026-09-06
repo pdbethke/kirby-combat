@@ -33,6 +33,10 @@ from typing import TYPE_CHECKING, Any, Callable
 from kirby_combat.actions.recording import (
     resolve_attack_in_session, resolve_mental_blast_in_session,
 )
+from kirby_combat.mental.recording import (
+    resolve_mental_illusion_in_session, resolve_mind_control_in_session,
+    resolve_telepathy_in_session,
+)
 from kirby_combat.enumeration import LegalAction
 
 if TYPE_CHECKING:
@@ -153,6 +157,72 @@ def _resolve_mental_blast(
     dice = max(1, int(getattr(power, "damage_dice", 1) or 1))
     new_session, result = resolve_mental_blast_in_session(
         session, actor, target, roller.roll_dice(dice),
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+def _effect_dice(action: LegalAction, roller) -> list[int]:
+    """Roll a mental power's effect dice.
+
+    The dice count is the power's ``levels`` --- which is how enumeration
+    built the offer's own summary, so the menu and the resolution agree by
+    construction rather than by two readings of the same power.
+    """
+    power = action._attack_view
+    levels = int(getattr(power, "levels", 0) or 0)
+    return roller.roll_dice(max(1, levels))
+
+
+@resolves("mind_control")
+def _resolve_mind_control(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Mind Control. The outcome is a DEGREE against the target's EGO ---
+    ego_push / simple / contrary / violent --- not damage.
+
+    Reconnects ``kirby_combat.mental.mind_control``, which held a correct,
+    tested resolver that nothing in production ever called: the parked
+    driver wrote its own copy inside a 1,070-line dispatcher.
+    """
+    target = session.combatants[action.target_id]
+    new_session, result = resolve_mind_control_in_session(
+        session, actor, target, _effect_dice(action, roller),
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("mental_illusion")
+def _resolve_mental_illusion(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """A Mental Illusion, classified against EGO on the same degree ladder."""
+    target = session.combatants[action.target_id]
+    new_session, result = resolve_mental_illusion_in_session(
+        session, actor, target, _effect_dice(action, roller),
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("telepathy")
+def _resolve_telepathy(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Telepathy --- read the target's mind, and possibly be noticed doing it."""
+    target = session.combatants[action.target_id]
+    new_session, result = resolve_telepathy_in_session(
+        session, actor, target, _effect_dice(action, roller),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
