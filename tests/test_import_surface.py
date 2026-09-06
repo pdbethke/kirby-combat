@@ -133,6 +133,21 @@ def test_place_and_geometry_operations_are_not_the_combat_surface():
     assert leaked == set(), f"world operations exported from combat: {sorted(leaked)}"
 
 
+def test_enumeration_is_part_of_the_public_surface():
+    """The engine can be asked what a combatant may legally do.
+
+    This is the point of the carve-out: before it, `enumerate_actions` lived
+    in the web wrapper, so the engine could not answer its own rules question
+    and no fight could be driven without a database behind it.
+    """
+    assert "enumerate_actions" in kirby_combat.__all__
+    assert "LegalAction" in kirby_combat.__all__
+    assert kirby_combat.enumerate_actions is not None
+    # A menu with no session, no scene and no enemies is still a legal
+    # position -- the defensive offers remain.
+    assert callable(kirby_combat.enumerate_actions)
+
+
 def test_deep_imports_still_work():
     """This change is ADDITIVE. Nothing is hidden, nothing is renamed, and no
     existing consumer breaks -- kirby-api is deliberately not being migrated.
