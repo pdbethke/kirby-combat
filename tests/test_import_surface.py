@@ -148,6 +148,19 @@ def test_enumeration_is_part_of_the_public_surface():
     assert callable(kirby_combat.enumerate_actions)
 
 
+def test_role_and_tactics_are_part_of_the_public_surface():
+    """The engine can say what kind of combatant this is, and what to try.
+
+    Enumeration answered "what is legal". This answers "who is choosing" and
+    "what does the book advise" -- and the classification is load-bearing:
+    abort-readiness gates a brawler OFF at or above 50% STUN, so a martial
+    artist misread as a brawler eats hits instead of aborting.
+    """
+    for name in ("classify_role", "tactics_for", "Tactic", "Basis"):
+        assert name in kirby_combat.__all__, name
+    assert kirby_combat.classify_role is not None
+
+
 def test_deep_imports_still_work():
     """This change is ADDITIVE. Nothing is hidden, nothing is renamed, and no
     existing consumer breaks -- kirby-api is deliberately not being migrated.
