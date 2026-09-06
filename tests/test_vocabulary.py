@@ -54,16 +54,28 @@ ALLOW: dict[tuple[str, str], str] = {
 
 
 def _tracked_files() -> list[str]:
-    """Every file git tracks -- source, README, pyproject, CI workflows.
+    """Every file git tracks, PLUS every untracked file it would offer to add.
 
-    Uses git rather than rglob so the scan covers exactly what is published
-    and nothing that is not: no .venv, no build artefacts, no local scratch.
+    Uses git rather than rglob so the scan covers exactly what is publishable
+    and nothing that is not: no .venv, no build artefacts, no ignored scratch.
+
+    The second half is not tidiness -- it closes a hole that produced two
+    false greens in one day. `ls-files` alone lists only TRACKED files, and a
+    suite normally runs BEFORE `git add`, so a brand-new file was invisible
+    exactly when it most needed checking. Both times the offending file was
+    reported clean, committed, and only then failed. `--others
+    --exclude-standard` adds the untracked-but-not-ignored files, which is
+    what "about to be published" actually means.
     """
-    out = subprocess.run(
+    tracked = subprocess.run(
         ["git", "-C", str(ROOT), "ls-files"],
         capture_output=True, text=True, check=True,
-    )
-    return out.stdout.split()
+    ).stdout.split()
+    untracked = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--others", "--exclude-standard"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    return tracked + untracked
 
 
 def _offenders() -> list[str]:

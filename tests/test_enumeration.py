@@ -1,6 +1,6 @@
-"""Pure-function tests for the LLM combat driver's action enumeration.
+"""Pure-function tests for the combat driver's action enumeration.
 
-No DB, no Ollama — just synthetic combatants exercising the rules
+No DB, no model — just synthetic combatants exercising the rules
 that decide which actions get into the legal-action menu.
 """
 from __future__ import annotations
@@ -171,7 +171,7 @@ def test_two_powers_sharing_xmlid_and_name_get_distinct_action_ids() -> None:
 
     A character may legitimately carry two powers of the same type with the
     same name ("Blast" twice, differently modified). Keying the action_id on
-    xmlid + name gave both the SAME token, so the LLM could not express which
+    xmlid + name gave both the SAME token, so the picker could not express which
     one it wanted and the first match always won.
     """
     a = _StubPower(id=101, xmlid="ENERGYBLAST", name="Blast", levels=8)

@@ -386,9 +386,9 @@ def _is_fragile_vs(actor: HeroCombatant, enemy: HeroCombatant) -> bool:
 
 
 # ── shared capability predicates ─────────────────────────────────────────────
-# These are the single-source-of-truth predicates for both enumerate_actions
-# and situation_builder._build_terrain_lines.  Both call sites MUST use these
-# helpers so the capability logic can't drift.
+# These are the single-source-of-truth predicates for enumerate_actions and
+# for whatever renders a terrain summary for a chooser. Both call sites MUST
+# use these helpers so the capability logic can't drift.
 
 
 def has_live_own_force_wall(
@@ -1534,8 +1534,8 @@ def enumerate_actions(
             ),
         ))
     # PR-69: release a previously-declared held action. One option
-    # per open SceneHeldActionRow (passed in via open_held_action_ids
-    # since action_enumeration is layer-clean and shouldn't query DB).
+    # per open held-action row, passed in via open_held_action_ids: this
+    # module is layer-clean and reads no database.
     if open_held_action_ids and alive_enemies:
         for held_id in open_held_action_ids:
             actions.append(LegalAction(

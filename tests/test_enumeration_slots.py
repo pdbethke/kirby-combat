@@ -4,7 +4,7 @@ Two Multipower slots with the SAME xmlid (ENERGYBLAST) but distinct
 slot_ids must produce TWO distinct action_ids — one must carry an NND
 (AVAD) label in its summary.
 
-No DB, no Ollama — pure function, self-contained stub actors.
+No DB, no model — pure function, self-contained stub actors.
 """
 from __future__ import annotations
 
@@ -178,7 +178,7 @@ def test_two_same_xmlid_slots_yield_two_distinct_actions() -> None:
 
 
 def test_avad_slot_summary_flags_bypass() -> None:
-    """The AVAD slot's summary must carry 'NND' and 'bypass' so the LLM
+    """The AVAD slot's summary must carry 'NND' and 'bypass' so the picker
     knows it ignores normal PD/ED."""
     actor, enemy = _make_scene()
     actions = enumerate_actions(actor, [enemy])
