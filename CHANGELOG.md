@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.15.0 — 2026-09-06
+
+**A Phase can be written down.** The third and last gap between the engine
+and a fight it can run alone — damage application and the turn loop closed
+the first two in 0.14.0.
+
+### Added
+
+`kirby_combat.Brief` and `kirby_combat.CombatantLine`, with
+`PhaseSituation.brief()` as the entry point. A written description of one
+Phase: who is acting, what shape they are in, who is standing where, and
+what they may legally do.
+
+The equivalent builder in the parked wrapper is 160-odd lines that —
+measured 2026-09-06 — touch the database **zero** times. It was already a
+pure function of engine state; only its location was wrong.
+
+Two other homes were considered and rejected. `kirby-ai` looked obvious and
+is wrong by its own charter: it owns the network hop and the policy around
+it, explicitly not content, rules or rows. A module of its own would hold
+one class with no second occupant. The engine, meanwhile, already renders
+itself to text and always has — `LegalAction.summary` is a readable label
+and `Tactic.narrative_summary` is "the one-liner shown to whatever picks
+one". A Brief is those, gathered into a page.
+
+It names nothing about what might read it, and `tests/test_vocabulary.py`
+enforces that. Same seam as `Chooser`: the engine asks, and never learns
+what answered.
+
+Each offer is listed as `[action_id] summary`. The summary is for the
+reader; the bracketed token is the contract, and is exactly what
+`validate_choice` checks. Enemy numbers are shown as freely as the actor's,
+deliberately — the anti-metagaming line in this system is drawn by
+PERCEPTION, not by hiding stat blocks from whoever is choosing.
+
+A Brief reads state and changes none.
+
 ## 0.14.0 — 2026-09-06
 
 **The engine can run a fight.** Damage lands, the turn loop lives here, and
