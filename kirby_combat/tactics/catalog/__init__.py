@@ -1,0 +1,50 @@
+"""Concrete tactics. Importing this module auto-registers all
+tactic classes via the @register decorator at class definition."""
+from kirby_combat.tactics.catalog import (
+    # Existing tactics (original + T2 offensive)
+    bait_enraged,
+    close_and_strike,
+    coordinated_focus_fire,
+    exploit_hazards,
+    exploit_susceptibility,
+    fight_from_cover,
+    grab_and_throw,
+    keep_range,
+    presence_attack_demoralize,
+    push_when_winning,
+    smash_cover,
+    sustained_fire,
+    # T3 defensive tactics
+    abort_to_block,
+    dodge_under_fire,
+    mobility_defense,
+    raise_force_wall_t,
+    reposition_when_spotted,
+    shield_allies,
+    stand_and_take_it,
+    take_cover_when_hurt,
+)
+
+__all__ = [
+    "bait_enraged",
+    "close_and_strike",
+    "coordinated_focus_fire",
+    "exploit_hazards",
+    "exploit_susceptibility",
+    "fight_from_cover",
+    "grab_and_throw",
+    "keep_range",
+    "presence_attack_demoralize",
+    "push_when_winning",
+    "smash_cover",
+    "sustained_fire",
+    # T3 defensive
+    "abort_to_block",
+    "dodge_under_fire",
+    "mobility_defense",
+    "raise_force_wall_t",
+    "reposition_when_spotted",
+    "shield_allies",
+    "stand_and_take_it",
+    "take_cover_when_hurt",
+]
