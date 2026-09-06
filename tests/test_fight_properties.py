@@ -9,8 +9,8 @@ message below prints the seed that produced it.
 
 **An honest limit, stated rather than papered over.** The engine does NOT
 apply damage to combatant state. `resolve_attack_in_session` computes and
-records `stun_dealt` but leaves `current_stun` untouched — kirby-api's
-driver subtracts it by hand (`llm_driver.py` ~2886 and ~6551), and applies
+records `stun_dealt` but leaves `current_stun` untouched — the consumer's
+driver subtracts it by hand in two separate places, and applies
 Recovery by hand too. So `_apply_damage` below is this harness mirroring the
 wrapper, not the engine's own ledger, and the termination property is only
 as good as that mirror. What it genuinely exercises is the RESOLUTION path —

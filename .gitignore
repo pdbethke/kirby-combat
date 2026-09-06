@@ -29,3 +29,22 @@ tests/fixtures/*.hdc
 # (.venv-dead-py312) slipped past `.venv/` and put 5.8G of CUDA libraries
 # into a commit, which GitHub rejected on push.
 .venv*/
+
+# ── Book-derived corpora are never committed ──────────────────────────
+# A HERO Designer file is a machine-readable build, and the published ones
+# are paid Hero Games content -- committing them redistributes stat blocks.
+# PeterB, 2026-09-06: "never publish that ledger" / "keep them local".
+#
+# Deliberately broad and unanchored: a .hdc dropped in a scratch directory is
+# the same problem as one under tests/. kirby-cost settled this first and
+# carries explicit negations for the three characters PeterB authored
+# himself; nothing here is meant to be an exception.
+*.hdc
+*.hdp
+*.hdt
+
+# Exported corpora -- power_library projections, character dumps. Ids, names
+# and numbers may live in a PRIVATE module; the ledger and its rulebook prose
+# never leave the machine.
+*power_library*.json
+*power_library*.sql
