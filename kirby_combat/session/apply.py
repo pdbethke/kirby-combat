@@ -36,10 +36,23 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
 
     if kind == "SegmentAdvanced":
         assert isinstance(event, SegmentAdvanced)
+        # The resolved acting order describes ONE Segment -- every ActingSlot
+        # carries the `segment` it was built for -- so leaving the Segment
+        # invalidates it. Clearing it here, rather than in
+        # `Encounter.advance_segment`, keeps any consumer that applies this
+        # event coherent, including one replaying a log.
+        #
+        # This is timeline bookkeeping, not a combatant stat mutation: it
+        # does not put this dispatcher in the business the comment further
+        # down rules out. The `has_acted` flags are the sharp edge -- a
+        # surviving order would carry them into the next Segment and skip a
+        # combatant who had only acted in the previous one.
         new_timeline = replace(
             session.timeline,
             segment=event.to_segment,
             turn=event.to_turn,
+            acting_order=[],
+            current_slot_index=0,
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 

@@ -30,6 +30,7 @@ Limitations vs. real HeroCombatant.from_hdc():
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState
@@ -78,40 +79,94 @@ class _SyntheticHero:
         return self.characteristic_value(xmlid)
 
 
+@dataclasses.dataclass
 class _SyntheticCombatant(HeroCombatant):
     """HeroCombatant subclass that lets tests preserve the flat
-    ``attacks`` / ``defenses`` / ``is_npc`` / ``is_mentalist`` lists
-    that legacy ``Combatant`` had as fields.
+    ``attacks`` / ``defenses`` / ``is_npc`` / ``is_mentalist`` lists that
+    legacy ``Combatant`` had as fields.
 
     The base HeroCombatant computes ``attacks`` and ``defenses`` from
-    ``hero.powers``; for synthetic tests we want the test to specify
-    them directly so the resolution layer sees exactly what the test
-    constructed.
+    ``hero.powers``; for synthetic tests we want the test to specify them
+    directly so the resolution layer sees exactly what the test constructed.
+
+    THESE ARE REAL DATACLASS FIELDS, AND THAT IS LOAD-BEARING. They were
+    plain instance attributes (``sc._explicit_attacks = ...``, set after
+    construction) plus a monkeypatched ``combat_stats`` closure until
+    2026-09-06. ``dataclasses.replace`` rebuilds through ``__init__`` and
+    carries FIELDS ONLY, so every one of them was silently dropped the
+    moment the engine replaced a combatant --- which it does on any vitals
+    change. Measured against the then-current code::
+
+        c = synthetic_combatant(..., rpd=7, attacks=[<one AttackPower>])
+        d = _decrement_end(c, 3)          # an ordinary movement END spend
+        d.attacks             -> []       (was [<AttackPower>])
+        d.combat_stats().rpd  ->  0       (was 7)
+
+    So a synthetic combatant that moved, or took its free Post-Segment-12
+    Recovery, came out the other side with no attacks and no resistant
+    defenses. No test caught it because none asserted on those AFTER a
+    vitals change --- until damage application put a replace on the attack
+    path, where the target's own attacks and defenses plainly still matter.
+
+    Overriding ``__replace__`` does NOT fix this: ``dataclasses.replace``
+    calls its own ``_replace`` rather than dispatching to the class's
+    ``__replace__``, so the hook never fires. Fields are the fix.
 
     ``knockback_resistance`` is a dataclass field on the base
-    ``HeroCombatant`` (not a property), so it's set via the
-    constructor directly and inherited as-is.
+    ``HeroCombatant`` (not a property), so it is set via the constructor
+    directly and inherited as-is.
     """
+
+    _explicit_attacks: list = dataclasses.field(default_factory=list)
+    _explicit_defenses: list = dataclasses.field(default_factory=list)
+    _explicit_csls: list = dataclasses.field(default_factory=list)
+    _explicit_is_npc: bool = False
+    _explicit_is_mentalist: bool = False
+    #: Resistant/mental/special defenses the caller asked for. The base
+    #: ``_compute_stats_from_hero`` returns 0 for all of these because a
+    #: synthetic hero has no defense powers to derive them from, so
+    #: ``combat_stats`` below layers the requested values back on.
+    _ov_rpd: int = 0
+    _ov_red: int = 0
+    _ov_md: int = 0
+    _ov_power_defense: int = 0
+    _ov_flash_defense: int = 0
 
     @property
     def attacks(self) -> list[AttackPower]:
-        return getattr(self, "_explicit_attacks", [])
+        return self._explicit_attacks
 
     @property
     def defenses(self) -> list[DefenseItem]:
-        return getattr(self, "_explicit_defenses", [])
+        return self._explicit_defenses
 
     @property
     def is_npc(self) -> bool:
-        return getattr(self, "_explicit_is_npc", False)
+        return self._explicit_is_npc
 
     @property
     def is_mentalist(self) -> bool:
-        return getattr(self, "_explicit_is_mentalist", False)
+        return self._explicit_is_mentalist
 
     @property
     def csls(self) -> list:
-        return getattr(self, "_explicit_csls", [])
+        return self._explicit_csls
+
+    def combat_stats(self):
+        """Base stats with the caller's requested defenses layered on.
+
+        Replaces a per-instance monkeypatch (``sc.combat_stats =
+        _patched_combat_stats``) that, being an instance attribute rather
+        than a field, did not survive ``dataclasses.replace`` --- see the
+        class docstring.
+        """
+        s = super().combat_stats()
+        s.rpd = self._ov_rpd
+        s.red = self._ov_red
+        s.md = self._ov_md
+        s.power_defense = self._ov_power_defense
+        s.flash_defense = self._ov_flash_defense
+        return s
 
 
 def synthetic_combatant(
@@ -143,6 +198,7 @@ def synthetic_combatant(
     current_stun: int | None = None,
     current_body: int | None = None,
     current_end: int | None = None,
+    side: str | None = None,
     attacks: list[AttackPower] | None = None,
     defenses: list[DefenseItem] | None = None,
     csls: list[Any] | None = None,
@@ -179,36 +235,25 @@ def synthetic_combatant(
         current_end=current_end if current_end is not None else max_end,
     )
 
-    sc = _SyntheticCombatant(
+    return _SyntheticCombatant(
         id=id,
         hero=hero,  # type: ignore[arg-type]  # quacks like LoadedHero
         state=state,
         knockback_resistance=int(knockback_resistance),
+        side=side,
+        # Flat-Combatant explicit lists/flags, and the defenses the base
+        # `_compute_stats_from_hero` cannot derive (a synthetic hero owns no
+        # defense powers). All are real fields so they survive the
+        # `dataclasses.replace` the engine performs on every vitals change --
+        # see _SyntheticCombatant's docstring for the defect that caused.
+        _explicit_attacks=list(attacks or []),
+        _explicit_defenses=list(defenses or []),
+        _explicit_csls=list(csls or []),
+        _explicit_is_npc=bool(is_npc),
+        _explicit_is_mentalist=bool(is_mentalist),
+        _ov_rpd=rpd,
+        _ov_red=red,
+        _ov_md=md,
+        _ov_power_defense=power_defense,
+        _ov_flash_defense=flash_defense,
     )
-
-    # Preserve the flat-Combatant explicit lists/flags
-    sc._explicit_attacks = list(attacks or [])
-    sc._explicit_defenses = list(defenses or [])
-    sc._explicit_is_npc = bool(is_npc)
-    sc._explicit_is_mentalist = bool(is_mentalist)
-
-    # Patch combat_stats() to return rPD/rED/MD/POWD/FLASHD that the
-    # caller specified (overriding the default-0 from _compute_stats_from_hero
-    # since synthetic has no defense powers).
-    base_compute = sc.combat_stats
-
-    def _patched_combat_stats():
-        s = base_compute()
-        s.rpd = rpd
-        s.red = red
-        s.md = md
-        s.power_defense = power_defense
-        s.flash_defense = flash_defense
-        return s
-
-    sc.combat_stats = _patched_combat_stats  # type: ignore[method-assign]
-
-    if csls is not None:
-        sc._explicit_csls = list(csls)
-
-    return sc

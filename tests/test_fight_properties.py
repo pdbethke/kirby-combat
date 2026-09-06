@@ -7,15 +7,19 @@ build here would have told you a fight broke and given you no way back to
 it. `RandomRoller().seed` is what makes the loop closeable, so every failure
 message below prints the seed that produced it.
 
-**An honest limit, stated rather than papered over.** The engine does NOT
-apply damage to combatant state. `resolve_attack_in_session` computes and
-records `stun_dealt` but leaves `current_stun` untouched — the consumer's
-driver subtracts it by hand in two separate places, and applies
-Recovery by hand too. So `_apply_damage` below is this harness mirroring the
-wrapper, not the engine's own ledger, and the termination property is only
-as good as that mirror. What it genuinely exercises is the RESOLUTION path —
-thousands of real attacks through `resolve_attack`, the recording wrapper
-and the event log — which is where the interesting behaviour lives.
+**The limit this file used to carry is gone (2026-09-06).** It read: "the
+engine does NOT apply damage to combatant state... `_apply_damage` below is
+this harness mirroring the wrapper, not the engine's own ledger, and the
+termination property is only as good as that mirror." That was true --
+`resolve_attack_in_session` computed `stun_dealt` and left `current_stun`
+alone, so every consumer subtracted by hand (the parked kirby-api driver did
+it at 15 separate sites) and this harness had to as well.
+
+It now applies the damage itself, so the mirror is deleted and this fight
+reads its combatants straight out of `session.combatants`. The termination
+property below is therefore a property OF THE ENGINE now, not of a
+test-local reimplementation of it: these fights end because the engine's own
+ledger says a combatant ran out of STUN.
 
 These are deliberately the two cheapest properties. Determinism comes first
 because every other property worth writing depends on it being true.
@@ -59,27 +63,23 @@ def _fighter(id_: str):
     )
 
 
-def _apply_damage(target, result) -> None:
-    """What kirby-api's driver does after a resolved attack. See module doc:
-    this is the wrapper's job today, not the engine's."""
-    if result.hit:
-        target.state.current_stun -= result.stun_dealt
-        target.state.current_body -= result.body_dealt
-
-
 def _run_fight(seed: int) -> dict:
     """One fight, driven entirely by `seed`. Returns what it did."""
     roller = RandomRoller(seed=seed)
-    a, b = _fighter("a"), _fighter("b")
     session = CombatSession.create(
-        id="fight", combatants=[a, b], scene=None,
+        id="fight", combatants=[_fighter("a"), _fighter("b")], scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=roller,
     ).start()
 
     phases = 0
-    attacker, target = a, b
+    attacker_id, target_id = "a", "b"
     while phases < PHASE_CAP:
+        # Re-read both fighters from the session every phase. The engine
+        # returns a NEW session with the damaged combatant folded in, so a
+        # handle captured before the exchange is stale by the next one.
+        attacker = session.combatants[attacker_id]
+        target = session.combatants[target_id]
         if target.state.current_stun <= 0 or attacker.state.current_stun <= 0:
             break
         attack = AttackInput(
@@ -90,11 +90,11 @@ def _run_fight(seed: int) -> dict:
                 damage=roller.roll_dice(_ATTACK.damage_dice),
             ),
         )
-        session, result = resolve_attack_in_session(session, attack, session.template)
-        _apply_damage(target, result)
+        session, _result = resolve_attack_in_session(session, attack, session.template)
         phases += 1
-        attacker, target = target, attacker
+        attacker_id, target_id = target_id, attacker_id
 
+    a, b = session.combatants["a"], session.combatants["b"]
     return {
         "seed": roller.seed,
         "phases": phases,

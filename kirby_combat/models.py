@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from kirby_combat.side import Side
 from kirby_combat.participant import CombatParticipant, Stunnable
 
 
@@ -217,6 +218,15 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
         """
         return self
 
+    #: Which side of the fight this combatant is on, as a
+    #: :class:`kirby_combat.side.Side` --- not a string. Any number of sides
+    #: is legal: two teams, a three-way, the battle of four armies.
+    #:
+    #: ``None`` means "their own side" (``Side.solo(self.id)``), NOT a shared
+    #: default. A roster of unlabelled combatants is an N-way free-for-all
+    #: rather than one team that has already won. Resolve it through
+    #: ``kirby_combat.loop.sides.side_of``, which applies that default.
+    side: "Side | None" = None
 
 @dataclass
 class AttackInput:

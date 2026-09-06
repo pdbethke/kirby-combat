@@ -564,6 +564,30 @@ def enumerate_actions(
     framework_id + slot_id) so it's enumerated and resolves like any
     native attack. Merged before the empty-attacks str-strike fallback.
     """
+    # BUILD-BACKED ACTORS ONLY, said plainly rather than as an AttributeError.
+    #
+    # This function reads `actor.hero` at 21 sites -- powers, skills, RUNNING,
+    # the Force Wall / Darkness / Images power lookups -- so it enumerates for
+    # a `HeroCombatant` and not for a flat `StatBlockCombatant`. That is
+    # inherited, not chosen: it was carved out of a driver whose actors were
+    # always build-backed.
+    #
+    # It matters because `StatBlockCombatant` is a first-class participant
+    # elsewhere in this engine -- vehicles and breakable objects subclass it,
+    # and `resolve_attack` takes either shape without dispatch. So a caller
+    # can build a fight the resolver handles fine and the enumerator cannot,
+    # which surfaced the moment the turn loop tried to drive one.
+    #
+    # Raising here names the limitation at the boundary. Widening enumeration
+    # to flat stat blocks is real work (what does a wall's menu contain?) and
+    # is deliberately not smuggled in behind a getattr default that would
+    # silently return a shorter menu.
+    if not hasattr(actor, "hero"):
+        raise TypeError(
+            f"enumerate_actions needs a build-backed combatant (HeroCombatant); "
+            f"{type(actor).__name__} {getattr(actor, 'id', '?')!r} is a flat stat "
+            f"block, which carries no `hero` to read powers and skills from."
+        )
     actions: list[LegalAction] = []
     if is_down(actor):
         return actions

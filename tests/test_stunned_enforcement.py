@@ -702,11 +702,13 @@ def test_stunned_combatant_still_receives_the_free_post_12_recovery():
     from kirby_combat.statuses import STUNNED, statuses_for
 
     attacker = _attacker_for_stun()
-    # `resolve_attack_in_session` records the Stunned status via the
-    # ActionResolved payload (see `_stun`'s docstring-adjacent sanity
-    # assert) but does NOT mutate `state.current_stun` itself -- so bob's
-    # starting current_stun is set directly here, below its max, purely
-    # so the free Recovery below has visible room to raise it.
+    # Bob starts below his max purely so the free Recovery below has
+    # visible room to raise him. (Until 2026-09-06 this was also the ONLY
+    # thing that moved his STUN: `resolve_attack_in_session` recorded the
+    # Stunned status in the ActionResolved payload but never applied the
+    # damage. It does now, so the Stunning hit drives him well below this
+    # starting value -- which is why the assertion below reads the
+    # post-hit figure rather than the constant 14.)
     target = synthetic_combatant(
         id="bob", name="bob", ocv=8, dcv=9, omcv=5, dmcv=7,
         spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
@@ -719,7 +721,7 @@ def test_stunned_combatant_still_receives_the_free_post_12_recovery():
 
     assert STUNNED in statuses_for(session, "bob")
     stun_before = session.combatants["bob"].state.current_stun
-    assert stun_before == 14
+    assert stun_before < 14, "the Stunning hit must actually have been applied"
 
     enc = Encounter(id="e1", segment=12, sessions=[session])
     out = enc.advance_segment()
