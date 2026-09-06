@@ -30,7 +30,7 @@ def blast(source_id: str, dice: int = 8) -> AttackPower:
 
 
 def fighter(
-    id: str, *, side: str | None = None, dex: int = 20,
+    id: str, *, side=None, dex: int = 20,
     stun: int = 40, dice: int = 8, spd: int = 4, armed: bool = True,
 ):
     return synthetic_combatant(

@@ -189,8 +189,8 @@ from kirby_combat.scene.construct import Construct, ConstructEffect  # noqa: E40
 from kirby_combat.loop import (  # noqa: E402
     Chooser, EncounterResult, FirstLegalChooser, InvalidChoice, PhaseResult,
     PhaseSituation, ResolvedAction, TacticChooser, UnresolvableAction,
-    last_side_standing, next_actor_id, registered_kinds, run_encounter,
-    run_phase, side_of, standing_sides,
+    LastSideStanding, Roster, Side, StopCondition, Verdict,
+    next_actor_id, registered_kinds, run_encounter, run_phase,
 )
 
 __all__ = [
@@ -205,7 +205,7 @@ __all__ = [
     "InvalidChoice", "UnresolvableAction", "ResolvedAction",
     "PhaseResult", "EncounterResult",
     "run_phase", "run_encounter", "next_actor_id", "registered_kinds",
-    "side_of", "standing_sides", "last_side_standing",
+    "Side", "Roster", "Verdict", "LastSideStanding", "StopCondition",
     # Combatants
     "Basis",
     "LegalAction",

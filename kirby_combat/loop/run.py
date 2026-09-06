@@ -33,18 +33,13 @@ from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
-from kirby_combat.loop.sides import (
-    last_side_standing, side_of, validate_sides,
-)
+from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.side import Side
 
 if TYPE_CHECKING:
     from kirby_combat.encounter import Encounter
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.template import CombatTemplate
-
-#: A caller-supplied stop condition: ``(is_over, winner)``.
-StopCondition = Callable[["CombatSession"], "tuple[bool, str | None]"]
-
 
 @dataclass
 class PhaseResult:
@@ -72,7 +67,7 @@ class TurnResult:
     encounter: "Encounter"
     phases: list[PhaseResult] = field(default_factory=list)
     complete: bool = False
-    winner: str | None = None
+    winner: "Side | None" = None
 
 
 @dataclass
@@ -83,30 +78,9 @@ class EncounterResult:
     turns: int = 0
     phases: int = 0
     complete: bool = False
-    winner: str | None = None
+    winner: "Side | None" = None
     skipped_kinds: dict[str, int] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
-
-
-def _living_enemies(session: "CombatSession", actor) -> list[Any]:
-    """Everyone still up who is not on the actor's side.
-
-    Uses ``side_of``, so an unlabelled roster is a free-for-all rather than
-    one team with no opponents --- see ``loop/sides.py``.
-    """
-    mine = side_of(actor)
-    return [
-        c for c in session.combatants.values()
-        if side_of(c) != mine and not is_down(c)
-    ]
-
-
-def _living_allies(session: "CombatSession", actor) -> list[Any]:
-    mine = side_of(actor)
-    return [
-        c for c in session.combatants.values()
-        if c.id != actor.id and side_of(c) == mine and not is_down(c)
-    ]
 
 
 def next_actor_id(session: "CombatSession") -> str | None:
@@ -168,7 +142,8 @@ def run_phase(
         return PhaseResult(session=session, notes=["no unspent slot in this Segment"])
 
     actor = session.combatants[actor_id]
-    enemies = _living_enemies(session, actor)
+    roster = Roster(session)
+    enemies = roster.enemies_of(actor)
     menu = enumerate_actions(actor, enemies)
     if not menu:
         _mark_acted(session, actor_id)
@@ -179,7 +154,7 @@ def run_phase(
 
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
-        allies=_living_allies(session, actor),
+        allies=roster.allies_of(actor),
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
     )
@@ -236,9 +211,9 @@ def run_encounter(
     ``expected_sides`` to also reject a side that was never declared,
     which is the only thing that catches a real misspelling.
     """
-    validate_sides(encounter.sessions[0], expected=expected_sides)
+    Roster(encounter.sessions[0]).validate(expected=expected_sides)
 
-    stop: StopCondition = until or last_side_standing
+    stop: StopCondition = until or LastSideStanding()
     skipped: dict[str, int] = {}
 
     # TWO ROLLER CONTRACTS, RECONCILED HERE. `roller` is a dice object
@@ -256,11 +231,10 @@ def run_encounter(
     phases = 0
     turns = 0
 
-    session = encounter.sessions[0]
-    over, winner = stop(session)
-    if over:
+    verdict = Roster(encounter.sessions[0]).decide(stop)
+    if verdict:
         return EncounterResult(
-            encounter=encounter, complete=True, winner=winner,
+            encounter=encounter, complete=True, winner=verdict.winner,
             notes=["fight was already decided before the first Phase"],
         )
 
@@ -283,11 +257,11 @@ def run_encounter(
             phases += 1
             encounter = replace(encounter, sessions=[phase.session])
 
-            over, winner = stop(phase.session)
-            if over:
+            verdict = Roster(phase.session).decide(stop)
+            if verdict:
                 return EncounterResult(
                     encounter=encounter, turns=turns, phases=phases,
-                    complete=True, winner=winner, skipped_kinds=skipped,
+                    complete=True, winner=verdict.winner, skipped_kinds=skipped,
                 )
 
         encounter = encounter.advance_segment(campaign=campaign)

@@ -41,10 +41,10 @@ import dataclasses
 
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop import (
-    FirstLegalChooser, PhaseSituation, TacticChooser,
-    last_side_standing, next_actor_id, registered_kinds, run_encounter,
-    run_phase, side_of, standing_sides,
+    FirstLegalChooser, PhaseSituation, Roster, TacticChooser, Verdict,
+    next_actor_id, registered_kinds, run_encounter, run_phase,
 )
+from kirby_combat.side import Side
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState
 from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
@@ -127,7 +127,7 @@ class _Soldier(HeroCombatant):
         return []
 
 
-def _soldier(id: str, side: str | None, dex: int) -> HeroCombatant:
+def _soldier(id: str, side: Side | None, dex: int) -> HeroCombatant:
     hero = _MinimalHero(id, {
         "OCV": 9, "DCV": 5, "OMCV": 5, "DMCV": 5, "SPD": 4, "DEX": dex,
         "EGO": 14, "STR": 15, "CON": 18, "PRE": 15, "REC": 6, "INT": 13,
@@ -160,8 +160,8 @@ def _report(title: str, result) -> None:
         print(f"    skipped : {result.skipped_kinds}")
     if result.notes:
         print(f"    notes   : {'; '.join(result.notes)}")
-    standing = standing_sides(result.encounter.sessions[0])
-    print(f"    standing: { {k: len(v) for k, v in standing.items()} }")
+    standing = Roster(result.encounter.sessions[0]).standing
+    print(f"    standing: { {s.name: len(v) for s, v in standing.items()} }")
 
 
 def main() -> None:
@@ -173,7 +173,7 @@ def main() -> None:
 
     # ---- Four armies, three soldiers each ----
     roster = [
-        _soldier(f"{army}-{n + 1}", army, 24 - n)
+        _soldier(f"{army}-{n + 1}", Side.named(army), 24 - n)
         for army in ARMIES
         for n in range(3)
     ]
@@ -194,25 +194,31 @@ def main() -> None:
 
     # ---- Doctrine in the seat ----
     result = run_encounter(
-        _encounter([_soldier("Paragon", "heroes", 23),
-                    _soldier("Tyrant", "villains", 21)], seed=3),
+        _encounter([_soldier("Paragon", Side.named("heroes"), 23),
+                    _soldier("Tyrant", Side.named("villains"), 21)], seed=3),
         TacticChooser(),
         roller=RandomRoller(seed=3), on_unresolvable="skip", max_turns=20,
     )
     _report("A duel, picked by role and doctrine:", result)
 
     # ---- A caller-supplied ending ----
-    def first_blood(session):
-        """Over the moment anyone has lost a point of STUN."""
-        for c in session.combatants.values():
-            if c.state.current_stun < c.combat_stats().max_stun:
-                return True, c.id
-        return False, None
+    class FirstBlood:
+        """A caller's own ending, as a class implementing StopCondition.
+
+        Objects over strings, classes over functions: a stop condition is a
+        thing with a rule, not a bare callable."""
+
+        def decide(self, roster):
+            for c in roster.combatants:
+                if c.state.current_stun < c.combat_stats().max_stun:
+                    return Verdict(over=True, winner=Side.of(c))
+            return Verdict(over=False)
 
     result = run_encounter(
-        _encounter([_soldier("Duellist", "a", 25), _soldier("Rival", "b", 20)], seed=3),
+        _encounter([_soldier("Duellist", Side.named("a"), 25),
+         _soldier("Rival", Side.named("b"), 20)], seed=3),
         FirstLegalChooser(), roller=RandomRoller(seed=3),
-        until=first_blood, on_unresolvable="skip", max_turns=10,
+        until=FirstBlood(), on_unresolvable="skip", max_turns=10,
     )
     _report("A duel to first blood — the caller's rule, not the engine's:", result)
 
@@ -224,7 +230,8 @@ def main() -> None:
     # is the same function `run_encounter` calls in its own inner loop.
     print("\n  Stepping a fight one Phase at a time:")
     encounter = _encounter(
-        [_soldier("Vanguard", "north", 24), _soldier("Warden", "south", 19)], seed=13,
+        [_soldier("Vanguard", Side.named("north"), 24),
+         _soldier("Warden", Side.named("south"), 19)], seed=13,
     )
     stepper = RandomRoller(seed=13)
     encounter = encounter.run_segment(roller=lambda: stepper.roll_dice(3))
@@ -239,7 +246,7 @@ def main() -> None:
         encounter = dataclasses.replace(encounter, sessions=[phase.session])
         dealt = getattr(phase.result, "stun_dealt", None)
         print(
-            f"    {actor.hero.name} ({side_of(actor)}) -> {phase.kind}"
+            f"    {actor.hero.name} ({Side.of(actor)}) -> {phase.kind}"
             + (f", {dealt} STUN" if dealt else "")
             + f"   [{len(phase.events)} events to broadcast]"
         )

@@ -65,6 +65,7 @@ from kirby_cost.model.activation import (
 from kirby_cost.model.modifiers import has_modifier, modifier_levels
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
+from kirby_combat.side import Side
 from kirby_combat.participant import CombatParticipant, Stunnable
 
 
@@ -314,13 +315,15 @@ class HeroCombatant(Stunnable, CombatParticipant):
     # rare state changes like a permanent KB-RES gain)
     knockback_resistance: int = 0
 
-    #: Which side of the fight this combatant is on. A free string: any
-    #: number of sides is legal --- two teams, a three-way, the battle of
-    #: four armies. ``None`` means "their own side", NOT a shared default,
-    #: so a roster of unlabelled combatants is an N-way free-for-all rather
-    #: than one team that has already won. See
-    #: ``kirby_combat.loop.sides.side_of``.
-    side: str | None = None
+    #: Which side of the fight this combatant is on, as a
+    #: :class:`kirby_combat.side.Side` --- not a string. Any number of sides
+    #: is legal: two teams, a three-way, the battle of four armies.
+    #:
+    #: ``None`` means "their own side" (``Side.solo(self.id)``), NOT a shared
+    #: default. A roster of unlabelled combatants is an N-way free-for-all
+    #: rather than one team that has already won. Resolve it through
+    #: ``kirby_combat.loop.sides.side_of``, which applies that default.
+    side: "Side | None" = None
 
     # ─────────────────────────────────────────────────────────────────────
     # Stat-block-shaped read API
