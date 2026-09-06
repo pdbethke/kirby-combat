@@ -91,6 +91,7 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 
 from kirby_combat.campaign import Campaign  # noqa: E402
 from kirby_combat.encounter import Encounter  # noqa: E402
+from kirby_combat.vitals import apply_vitals_delta
 from kirby_combat.world import World  # noqa: E402
 
 from kirby_combat.models import (  # noqa: E402
@@ -184,6 +185,7 @@ __all__ = [
     # Building and resolving an attack
     "AttackInput", "AttackPower", "Combatant", "DiceValues",
     "RangedAttackAction", "StrikeAction", "resolve_attack",
+    "apply_vitals_delta",
     # Combatants
     "Basis",
     "LegalAction",

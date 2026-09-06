@@ -57,29 +57,19 @@ def _apply_stun_end_recovery(combatant, stun_delta: int, end_delta: int):
     """Return a NEW combatant with ``stun_delta``/``end_delta`` added to its
     current STUN/END.
 
-    Mirrors ``actions/movement/base.py``'s ``_decrement_end`` dispatch (the
-    established pattern for this exact StatBlockCombatant/HeroCombatant
-    split): ``StatBlockCombatant.state`` returns ``self`` -- its flat
-    ``current_*`` fields ARE its state -- so ``combatant.state is
-    combatant`` distinguishes it from ``HeroCombatant``, whose vitals live
-    on a separate ``HeroCombatState`` dataclass. See
-    ``StatBlockCombatant.state``'s docstring (models.py) for why that
-    identity check, not an equality check, is load-bearing.
+    Thin wrapper over ``kirby_combat.vitals.apply_vitals_delta``, which owns
+    the StatBlockCombatant/HeroCombatant shape dispatch and documents why it
+    is an identity check. This function carried its own copy of that logic
+    until 2026-09-06, when a third caller (damage application in
+    ``actions/recording.py``) made the duplication untenable — and revealed
+    that neither copy could apply BODY.
+
+    The delta passed here is already bounded by ``compute_recovery``
+    (``min(rec, max_stun - current_stun)``), which is why the shared helper
+    deliberately does no clamping of its own.
     """
-    if combatant.state is not combatant:
-        # HeroCombatant: STUN/END live on a separate `state` dataclass.
-        new_state = replace(
-            combatant.state,
-            current_stun=combatant.state.current_stun + stun_delta,
-            current_end=combatant.state.current_end + end_delta,
-        )
-        return replace(combatant, state=new_state)
-    # StatBlockCombatant: current_stun/current_end are fields on self.
-    return replace(
-        combatant,
-        current_stun=combatant.current_stun + stun_delta,
-        current_end=combatant.current_end + end_delta,
-    )
+    from kirby_combat.vitals import apply_vitals_delta
+    return apply_vitals_delta(combatant, stun=stun_delta, end=end_delta)
 
 
 def _apply_post_12_recovery(

@@ -30,25 +30,18 @@ from kirby_combat.session.events import MovementResolved, make_author_combatant
 
 def _decrement_end(combatant, cost: int):
     """Subtract ``cost`` from ``combatant.current_end`` and return the
-    updated combatant. Handles both the flat ``StatBlockCombatant`` (END is
-    a dataclass field) and ``HeroCombatant`` (END lives on a separate
-    ``state`` dataclass via ``state.current_end``).
+    updated combatant.
 
-    Detection: ``StatBlockCombatant.state`` returns ``self`` (its flat
-    ``current_*`` fields ARE its state), so ``combatant.state is combatant``
-    distinguishes the two shapes. That identity is load-bearing here -- see
-    the comment on ``StatBlockCombatant.state`` in models.py; making it
-    return a copy would route every stat-block END spend into the
-    HeroCombatant branch below, which ``dataclasses.replace``s a nonexistent
-    ``state`` field.
+    Thin wrapper over ``kirby_combat.vitals.apply_vitals_delta``, which
+    owns the two-shape dispatch (StatBlockCombatant's flat ``current_*``
+    fields vs. HeroCombatant's separate ``state`` dataclass) and explains
+    why that dispatch is an identity check. This function had its own copy
+    of that logic until 2026-09-06; it is kept as a named wrapper because
+    ``cost`` is a POSITIVE amount to spend here, while `apply_vitals_delta`
+    takes a signed delta.
     """
-    from dataclasses import replace as _replace
-    if combatant.state is not combatant:
-        # HeroCombatant: state is a separate HeroCombatState dataclass
-        new_state = _replace(combatant.state, current_end=combatant.current_end - cost)
-        return _replace(combatant, state=new_state)
-    # StatBlockCombatant: current_end is a field on the combatant itself.
-    return _replace(combatant, current_end=combatant.current_end - cost)
+    from kirby_combat.vitals import apply_vitals_delta
+    return apply_vitals_delta(combatant, end=-cost)
 
 
 _VALID_MOVE_TYPES = frozenset({"half", "full", "noncombat"})

@@ -650,11 +650,23 @@ def _is_knocked_out_from_payload(session: "CombatSession", combatant_id: str) ->
     0``). This is a SECOND, additive source for ``KNOCKED_OUT`` --
     ``statuses_for`` also still reads the live ``is_ko`` /
     ``current_stun <= 0`` predicate, unioned with this one -- added
-    because ``resolve_attack_in_session`` deliberately never mutates
-    vitals (``session/apply.py``'s log-only design), so a payload naming
-    "Stunned"/"Knocked Out"/"Dead" together, on a session that never
-    touches ``current_stun``, previously produced ``dead``+``stunned``
+    because ``resolve_attack_in_session`` then never mutated vitals, so a
+    payload naming "Stunned"/"Knocked Out"/"Dead" together, on a session
+    that never touched ``current_stun``, produced ``dead``+``stunned``
     with NO ``knockedOut`` -- self-contradictory to any consumer.
+
+    THAT PRIMARY SOURCE NOW WORKS (2026-09-06):
+    ``resolve_attack_in_session`` applies its damage to
+    ``session.combatants``, so live ``is_ko`` answers correctly on its own
+    for any session the engine drove end to end. This fold is KEPT, and
+    kept additive, because it still covers the case it was built for: a
+    session rehydrated from its event log alone, whose combatants carry
+    starting vitals that no attack was ever applied to. Removing it would
+    reintroduce the contradiction for exactly those consumers. What has
+    changed is that it is no longer the ONLY source, so the tests that
+    isolate it now suppress live ``is_ko`` deliberately (see
+    ``tests/test_statuses.py::_revive``) rather than relying on the engine
+    not to move vitals.
 
     CLEAR EDGE, decided deliberately: this flag clears on the next
     ``RecoveryTaken`` event for this combatant (``combatant_id`` field),

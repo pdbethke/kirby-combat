@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from fixtures.synthetic_hero import synthetic_combatant
@@ -608,6 +609,31 @@ def test_statuses_for_dead_does_not_also_read_as_recovering_from_stunned():
 # `_is_knocked_out_from_payload`, the same payload fold STUNNED/DEAD use.
 # ---------------------------------------------------------------------------
 
+def _revive(session: CombatSession, combatant_id: str, to_stun: int = 30) -> CombatSession:
+    """Put ``combatant_id``'s current STUN back above 0, so live ``is_ko`` is
+    False again.
+
+    WHY THESE TESTS NEED THIS. Each test below isolates a NON-vitals source
+    of KNOCKED_OUT --- the ``ActionResolved`` payload fold, or DEAD's
+    unconditional implication. To prove the source is really that one, live
+    ``is_ko`` must be False, otherwise the assertion passes on vitals alone
+    and pins nothing.
+
+    Until 2026-09-06 they got that for free, because
+    ``resolve_attack_in_session`` computed damage without ever applying it
+    and every target came out of a lethal hit at full STUN --- which is why
+    these tests read ``assert ... .is_ko is False  # vitals untouched``.
+    That gap is now closed: damage lands on ``session.combatants``. The
+    property each test pins is unchanged and still worth pinning, so the
+    isolation is now performed deliberately here rather than inherited from
+    a defect.
+    """
+    from kirby_combat.vitals import apply_vitals_delta
+    c = session.combatants[combatant_id]
+    revived = apply_vitals_delta(c, stun=to_stun - c.state.current_stun)
+    return replace(session, combatants={**session.combatants, combatant_id: revived})
+
+
 def _recover(
     session: CombatSession, combatant_id: str,
     stun_recovered: int = 5, end_recovered: int = 5,
@@ -643,7 +669,9 @@ def test_statuses_for_lethal_hit_yields_both_dead_and_knocked_out():
     session, result = resolve_attack_in_session(session, attack, session.template)
     assert result.status_changes == ["Stunned", "Knocked Out", "Dead"]
 
-    # Sanity: vitals genuinely never moved -- is_ko alone would miss this.
+    # Isolate the non-vitals sources: with live is_ko False, KNOCKED_OUT can
+    # only arrive from the payload fold or from DEAD's implication.
+    session = _revive(session, "bob")
     assert session.combatants["bob"].is_ko is False
 
     result_ids = statuses_for(session, "bob")
@@ -664,7 +692,8 @@ def test_statuses_for_knocked_out_from_payload_alone_when_vitals_never_move():
     assert "Knocked Out" in result.status_changes  # sanity: 30 - 36 <= 0
     assert "Dead" not in result.status_changes
 
-    assert session.combatants["bob"].is_ko is False  # vitals untouched
+    session = _revive(session, "bob")
+    assert session.combatants["bob"].is_ko is False
     assert KNOCKED_OUT in statuses_for(session, "bob")
 
 
@@ -681,6 +710,11 @@ def test_statuses_for_knocked_out_payload_clears_on_recovery_taken():
     session, _ = resolve_attack_in_session(session, attack, session.template)
     assert KNOCKED_OUT in statuses_for(session, "bob")
 
+    # Revive first: this test is about the PAYLOAD source clearing, and a
+    # combatant left at negative STUN would keep KNOCKED_OUT true via live
+    # `is_ko` no matter what the payload fold did -- correctly, but that
+    # would make the assertion below vacuous.
+    session = _revive(session, "bob")
     session = _recover(session, "bob")
 
     assert KNOCKED_OUT not in statuses_for(session, "bob")
@@ -781,7 +815,8 @@ def test_statuses_for_dead_implies_knocked_out_even_with_no_payload_source():
     attack = _hitting_attack_for_stun(attacker, target)
 
     session, _ = resolve_attack_in_session(session, attack, session.template)
-    assert session.combatants["bob"].is_ko is False  # live KO source never available
+    session = _revive(session, "bob")
+    assert session.combatants["bob"].is_ko is False  # live KO source ruled out
 
     # Clear the payload-derived KO source directly, same as any other
     # payload-KO test does -- if DEAD's implication lived only inside

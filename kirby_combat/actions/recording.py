@@ -42,6 +42,7 @@ to wire further.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Literal, get_args
 
@@ -56,6 +57,7 @@ from kirby_combat.session.events import (
     ActionDeclared, ActionResolved, make_author_combatant,
 )
 from kirby_combat.template import CombatTemplate
+from kirby_combat.vitals import apply_vitals_delta
 
 #: The only ``action_type``/payload ``"kind"`` values kirby-api's own filter
 #: accepts (``situation_builder.py:687-688``: ``kind not in ("attack",
@@ -68,6 +70,44 @@ ACCEPTED_ACTION_KINDS: tuple[str, ...] = get_args(
     Literal["attack", "strike", "grab"]
 )
 ActionKind = Literal["attack", "strike", "grab"]
+
+
+def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: int) -> CombatSession:
+    """Fold an attack's damage onto the session's own combatant for
+    ``target_id``, returning a new session.
+
+    MUTATE-THEN-LOG, NOT APPLY-TIME. ``session/apply.py`` deliberately
+    treats ``ActionResolved`` as log-only: "combatant stat mutations in
+    apply would force log replay to mirror combatant state, which is more
+    brittle." So damage is applied here, beside the resolution, exactly as
+    ``encounter.py``'s ``_apply_post_12_recovery`` applies Recovery and
+    ``actions/movement/base.py``'s ``MovementAction.resolve`` applies an END
+    spend ("apply_event won't do it for us"). Rewind and log replay are
+    untouched by this.
+
+    THE SESSION'S COMBATANT, NOT THE CALLER'S. The caller passes an
+    ``AttackInput`` holding a combatant object that may be a stale copy
+    taken before an earlier exchange in the same fight. Damage folds onto
+    ``session.combatants[target_id]`` so successive attacks accumulate;
+    resolving against the caller's handle would silently compute every hit
+    after the first against a combatant that never took the previous one.
+
+    A ``target_id`` the session does not know is a caller bug — it means
+    the attack and the session disagree about who is in the fight — so it
+    raises rather than no-opping, which would look exactly like a miss.
+    """
+    if target_id not in session.combatants:
+        raise KeyError(
+            f"target {target_id!r} is not a combatant in session {session.id!r}; "
+            f"known combatants: {sorted(session.combatants)}"
+        )
+    if stun == 0 and body == 0:
+        return session
+    new_combatants = dict(session.combatants)
+    new_combatants[target_id] = apply_vitals_delta(
+        session.combatants[target_id], stun=-stun, body=-body,
+    )
+    return replace(session, combatants=new_combatants)
 
 
 def resolve_attack_in_session(
@@ -103,7 +143,12 @@ def resolve_attack_in_session(
     target_id = attack.target.id
     now = datetime.now(timezone.utc)
 
-    s = session
+    # Apply the damage to the session's combatants, THEN log it -- the
+    # two-step `_apply_post_12_recovery` and `MovementAction.resolve`
+    # already use. See `_apply_damage` for why not in `apply_event`.
+    s = _apply_damage(
+        session, target_id, stun=result.stun_dealt, body=result.body_dealt,
+    )
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
@@ -241,7 +286,12 @@ def resolve_mental_blast_in_session(
     target_id = target.id
     now = datetime.now(timezone.utc)
 
-    s = session
+    # Apply the damage to the session's combatants, THEN log it -- the
+    # two-step `_apply_post_12_recovery` and `MovementAction.resolve`
+    # already use. See `_apply_damage` for why not in `apply_event`.
+    s = _apply_damage(
+        session, target_id, stun=result.stun_dealt, body=result.body_dealt,
+    )
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
