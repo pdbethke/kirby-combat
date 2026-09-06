@@ -198,6 +198,7 @@ def synthetic_combatant(
     current_stun: int | None = None,
     current_body: int | None = None,
     current_end: int | None = None,
+    side: str | None = None,
     attacks: list[AttackPower] | None = None,
     defenses: list[DefenseItem] | None = None,
     csls: list[Any] | None = None,
@@ -239,6 +240,7 @@ def synthetic_combatant(
         hero=hero,  # type: ignore[arg-type]  # quacks like LoadedHero
         state=state,
         knockback_resistance=int(knockback_resistance),
+        side=side,
         # Flat-Combatant explicit lists/flags, and the defenses the base
         # `_compute_stats_from_hero` cannot derive (a synthetic hero owns no
         # defense powers). All are real fields so they survive the

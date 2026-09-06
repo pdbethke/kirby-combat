@@ -179,6 +179,20 @@ from kirby_combat.scene.scene import (  # noqa: E402
 )
 from kirby_combat.scene.construct import Construct, ConstructEffect  # noqa: E402
 
+# The turn loop, imported LAST and deliberately.
+#
+# `loop.chooser` imports `enumeration`, which does `from kirby_combat import
+# within_reach` -- a name bound further up THIS module. Importing the loop
+# with the other packages above puts it ahead of that binding and the
+# package fails to import at all, with an error that reads like a missing
+# name rather than a cycle. Everything the loop needs exists by this point.
+from kirby_combat.loop import (  # noqa: E402
+    Chooser, EncounterResult, FirstLegalChooser, InvalidChoice, PhaseResult,
+    PhaseSituation, ResolvedAction, TacticChooser, UnresolvableAction,
+    last_side_standing, next_actor_id, registered_kinds, run_encounter,
+    run_phase, side_of, standing_sides,
+)
+
 __all__ = [
     # The setting hierarchy
     "Campaign", "World", "Encounter",
@@ -186,6 +200,12 @@ __all__ = [
     "AttackInput", "AttackPower", "Combatant", "DiceValues",
     "RangedAttackAction", "StrikeAction", "resolve_attack",
     "apply_vitals_delta",
+    # The turn loop (sub-project D)
+    "Chooser", "FirstLegalChooser", "TacticChooser", "PhaseSituation",
+    "InvalidChoice", "UnresolvableAction", "ResolvedAction",
+    "PhaseResult", "EncounterResult",
+    "run_phase", "run_encounter", "next_actor_id", "registered_kinds",
+    "side_of", "standing_sides", "last_side_standing",
     # Combatants
     "Basis",
     "LegalAction",

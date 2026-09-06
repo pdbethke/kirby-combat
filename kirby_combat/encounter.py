@@ -202,25 +202,31 @@ class Encounter:
     #: (Regression coverage: `tests/session/test_apply.py::
     #: test_lightning_reflexes_restriction_fires_at_a_non_segment_12_phase`.)
     #:
-    #: STILL OPEN, precisely: `advance_segment` below moves ONLY the
-    #: Encounter's own `turn`/`segment` (plus, on the Segment-12 wrap,
-    #: applies Post-Segment 12 Recovery to combatants) -- it does not touch
-    #: any session's `Timeline.turn`/`segment` at all. So between an
-    #: `advance_segment` call and the NEXT `run_segment` call, a session's
-    #: Timeline lags the Encounter it belongs to by however many
-    #: `advance_segment` calls have happened since that last `run_segment`
-    #: -- not by a fixed "one step" (measured: `run_segment@3` then three
+    #: RESOLVED 2026-09-06, and the note that stood here was half stale.
+    #: It read: "`advance_segment` moves ONLY the Encounter's own
+    #: `turn`/`segment` ... measured: `run_segment@3` then three
     #: `advance_segment` calls leaves `enc.segment=6` against
-    #: `tl.segment=3`, still carrying segment 3's resolved order); the
-    #: two are only back in agreement once `run_segment` runs again. And
-    #: `session/apply.py`'s own `SegmentAdvanced` handler remains a wholly
-    #: separate path: a caller can advance a `CombatSession`'s Timeline
-    #: directly (`to_turn`/`to_segment` taken verbatim off the event, no
-    #: Segment-12 wrap applied) without going through any `Encounter` at
-    #: all, and `run_segment`'s fix does nothing to reconcile that path
-    #: with `Encounter.advance_segment`'s. Collapsing these into one clock
-    #: remains later work (see this plan's sequencing note), not something
-    #: this fix attempted.
+    #: `tl.segment=3`, still carrying segment 3's resolved order."
+    #:
+    #: The CLOCKS half had already fixed itself: `advance_segment` emits a
+    #: `SegmentAdvanced` per session (`_record_segment_advanced`) and
+    #: `session/apply.py` syncs `Timeline.turn`/`segment` from it, so
+    #: re-running that example gives `enc.segment=6` against
+    #: `tl.segment=6`. The docstring simply predated the emitter.
+    #:
+    #: The ORDER half was real and is now fixed. Each `ActingSlot` carries
+    #: the `segment` it was resolved for, and nothing cleared the list, so
+    #: the example really did leave Segment 3's order --- `has_acted` flags
+    #: and all --- describing Segment 6. `apply_event`'s `SegmentAdvanced`
+    #: branch now clears `acting_order` and resets `current_slot_index`,
+    #: which also covers the separate path noted below (a caller advancing
+    #: a `CombatSession`'s Timeline directly, without any `Encounter`).
+    #: Pinned by `tests/test_segment_advance_invalidates_order.py`,
+    #: including the worked example above.
+    #:
+    #: This mattered because the engine's own turn loop reads
+    #: `acting_order`; the parked kirby-api driver tracked its cursor in
+    #: the database and so never touched the stale list.
     #:
     #: This is precisely why kirby-api's live clock path (`apply_event`'s
     #: `SegmentAdvanced` branch, above, is its ONLY clock path) re-inerts

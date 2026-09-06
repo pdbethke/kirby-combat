@@ -217,6 +217,13 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
         """
         return self
 
+    #: Which side of the fight this combatant is on. A free string: any
+    #: number of sides is legal --- two teams, a three-way, the battle of
+    #: four armies. ``None`` means "their own side", NOT a shared default,
+    #: so a roster of unlabelled combatants is an N-way free-for-all rather
+    #: than one team that has already won. See
+    #: ``kirby_combat.loop.sides.side_of``.
+    side: str | None = None
 
 @dataclass
 class AttackInput:
