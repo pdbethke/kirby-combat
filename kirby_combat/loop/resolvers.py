@@ -642,18 +642,22 @@ def _resolve_mental_entangle(
 # ---------------------------------------------------------------------------
 # Adjustment powers.
 #
-# AN HONEST LIMIT, STATED RATHER THAN PAPERED OVER: these emit
-# `AdjustmentApplied`, and `AdjustmentFaded` STILL HAS NO EMITTER anywhere
-# in the engine -- the event class exists, `apply_event` passes it through
-# and `session/effects.py` folds it, but nothing constructs one. So an Aid
-# or Drain applied here never fades, and 6E says both should at 5 AP per
-# Turn. That gap predates this wiring (same "class + reducer exist, emitter
-# does not" shape as the Krackle RecoveryTaken finding) and is NOT created
-# by it; wiring these makes it reachable, which is the first step toward
-# it being fixable.
+# THESE NOW FADE (2026-09-07). When this was written, `AdjustmentFaded` had
+# no emitter anywhere in the engine -- the class existed, `apply_event`
+# passed it through, `session/effects.py` folded it, and nothing ever
+# constructed one, so an Aid or Drain lasted forever. `encounter.py`'s
+# `_apply_adjustment_fade` is that emitter, firing on the Turn wrap beside
+# the Post-Segment 12 Recovery.
 #
-# The fade rate is carried on the event, so a future emitter has the number
-# it needs without re-deriving it.
+# The fade rate is carried on the event, which is why a power with a
+# bought-up rate keeps its own rather than being fixed at 5.
+#
+# STILL TRUE, AND SEPARATE: nothing in this engine READS an adjustment.
+# `adjustment_delta` and `adjustments_for` fold correctly and no stat
+# consumer consults them, so an Aid raises nothing and a Drain lowers
+# nothing yet. Applying them means threading the session into stat reads
+# (the shape `cv_modifiers_for` uses for Stunned), which is its own piece
+# of work and is not smuggled in here.
 # ---------------------------------------------------------------------------
 
 

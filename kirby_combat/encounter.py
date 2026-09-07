@@ -137,6 +137,56 @@ def _apply_post_12_recovery(
     return replace(session, combatants=new_combatants)
 
 
+def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
+    """Fade every active Adjustment by its own rate, once per Turn.
+
+    THE EMITTER THAT DID NOT EXIST. ``AdjustmentFaded`` has been declared
+    in ``session/events.py`` since Adjustment was written, ``apply_event``
+    passes it through, and ``session/effects.py`` folds it --- and a grep
+    for ``AdjustmentFaded(`` found only the class definition. Nothing ever
+    constructed one, so an Aid or a Drain applied in this engine lasted
+    forever. Exactly the "class + reducer exist, emitter does not" shape as
+    the Krackle ``RecoveryTaken`` finding.
+
+    6E1 p.133 (Aid) and p.139 (Drain): the effect fades at a rate of Active
+    Points per Turn --- 5 by default, carried on the ``AdjustmentApplied``
+    that started it, so a power with a bought-up fade rate keeps its own.
+
+    FADES TOWARD ZERO, NOT PAST IT. An Aid of +7 with a rate of 5 goes to
+    +2 and then to 0; a Drain of -7 goes to -2 and then to 0. The magnitude
+    shrinks and the sign never flips, because a Drain that kept "fading"
+    would start boosting the stat it drained.
+
+    THE EVENT CARRIES THE RESULTING VALUE, absolute, not the amount faded.
+    That is the discipline `session/effects.py` requires of every
+    state-changing event here, and the reason its fold can walk forward
+    safely: `AdjustmentFaded` SETS the running total rather than adjusting
+    it. A delta would be unrecoverable the moment one was missed.
+    """
+    from kirby_combat.session.effects import adjustments_for
+    from kirby_combat.session.events import AdjustmentFaded
+
+    for combatant_id in list(session.combatants):
+        for effect in adjustments_for(session, combatant_id):
+            magnitude = abs(effect.net_delta)
+            rate = max(0, int(effect.fade_rate_per_turn))
+            if magnitude == 0 or rate == 0:
+                continue
+            remaining = max(0, magnitude - rate)
+            signed = remaining if effect.net_delta > 0 else -remaining
+            session = apply_event(session, AdjustmentFaded(
+                id=str(uuid.uuid4()),
+                session_id=session.id,
+                sequence=len(session.event_log) + 1,
+                timestamp=datetime.now(timezone.utc),
+                author=make_author_engine(),
+                target_id=combatant_id,
+                stat=effect.stat,
+                remaining_delta=signed,
+            ))
+    return session
+
+
 def _record_segment_advanced(
     session: "CombatSession", from_segment: int, to_segment: int, to_turn: int,
 ) -> "CombatSession":
@@ -384,9 +434,17 @@ class Encounter:
             template = self._resolve_template(campaign)
             to_turn = self.turn + 1
 
+            # ORDERING: Recovery, then the Adjustment fade, then the
+            # SegmentAdvanced that closes the Turn. Both belong to the Turn
+            # that is ENDING -- 6E1 p.133's fade is "per Turn", and logging
+            # them before the advance keeps a replayer's "what Turn did this
+            # happen in" answer on the Turn they happened in, exactly as the
+            # RecoveryTaken ordering note above requires.
             new_sessions = [
                 _record_segment_advanced(
-                    _apply_post_12_recovery(session, template),
+                    _apply_adjustment_fade(
+                        _apply_post_12_recovery(session, template),
+                    ),
                     from_segment=self.segment, to_segment=1, to_turn=to_turn,
                 )
                 for session in self.sessions
