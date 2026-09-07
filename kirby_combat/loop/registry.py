@@ -230,6 +230,102 @@ def _resolve_telepathy(
     )
 
 
+#: How far from the enemy a conjured decoy stands, in metres. A JUDGEMENT,
+#: not RAW: 6E1 p.238 governs whether an Image is CREATED (an Attack Roll
+#: against DCV 3) and whether it is BELIEVED (a PER Roll to disbelieve), and
+#: says nothing about where a caster chooses to put one. Somewhere the target
+#: can plainly see, close enough to be mistaken for a real combatant, is the
+#: reading that makes the offer's own promise true.
+DECOY_STANDOFF_M = 2.0
+
+
+def _decoy_position(session: "CombatSession", actor) -> tuple[float, float, float] | None:
+    """Where to conjure a decoy: between the actor and the nearest enemy.
+
+    Enumeration's offer already committed to the policy --- its summary reads
+    "Conjure an Image decoy near the nearest enemy" --- so the resolver
+    honours that rather than inventing a second one. The point sits
+    ``DECOY_STANDOFF_M`` short of that enemy, on the line back toward the
+    caster: in the target's view, and not standing inside them.
+
+    Returns ``None`` when the scene cannot answer --- no map, or either
+    party absent from it --- and the caller refuses rather than guessing a
+    coordinate.
+    """
+    from kirby_combat.roster import Roster
+    from kirby_combat.scene.geometry import distance_3d
+
+    scene = session.scene
+    positions = getattr(scene, "combatant_positions", None) or {}
+    here = positions.get(actor.id)
+    if here is None:
+        return None
+
+    reachable = [
+        (distance_3d(here, positions[e.id]), e.id)
+        for e in Roster(session).enemies_of(actor)
+        if e.id in positions
+    ]
+    if not reachable:
+        return None
+
+    _, nearest_id = min(reachable, key=lambda pair: (pair[0], pair[1]))
+    there = positions[nearest_id]
+    gap = distance_3d(here, there)
+    if gap <= DECOY_STANDOFF_M:
+        # Already nose to nose: put the decoy on the enemy's spot rather
+        # than behind the caster, which is what a negative step would do.
+        return (there.x, there.y, there.z)
+
+    t = (gap - DECOY_STANDOFF_M) / gap
+    return (
+        here.x + (there.x - here.x) * t,
+        here.y + (there.y - here.y) * t,
+        here.z + (there.z - here.z) * t,
+    )
+
+
+@resolves("image_decoy")
+def _resolve_image_decoy(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Conjure an Image decoy near the nearest enemy.
+
+    Reconnects ``kirby_combat.actions.images`` --- 480 lines whose only
+    importer, until now, was its own test file. The parked kirby-api driver
+    re-derived the placement itself in ``_resolve_create_image_decoy``,
+    which is why the engine's version sat unreachable behind a green suite.
+
+    ``Images.place`` owns everything the books govern: the Attack Roll
+    against the Image's DCV, the events, and the projected Image itself.
+    This function contributes only the two things that resolver takes as
+    given --- WHERE (see ``_decoy_position``, a judgement) and WHICH SENSE
+    GROUPS (``images_groups``, read off the power exactly as Flash and
+    Darkness read theirs).
+    """
+    from kirby_combat.actions.images import Images
+    from kirby_combat.enumeration import images_power
+    from kirby_combat.perception import images_groups
+
+    power = images_power(actor.hero)
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    position = _decoy_position(session, actor)
+    if position is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    new_session, placement = Images.place(
+        session, caster_id=actor.id, position=position,
+        sense_groups=sorted(images_groups(power)), roller=roller,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=placement, events=_events_since(session, new_session),
+    )
+
+
 @resolves("recover")
 def _resolve_recover(
     session: "CombatSession", actor, action: LegalAction, *,

@@ -32,6 +32,7 @@ def test_the_registered_kinds_are_pinned():
     assert registered_kinds() == frozenset({
         "attack", "strike", "mental_blast", "recover",
         "mind_control", "mental_illusion", "telepathy",
+        "image_decoy",
     })
 
 

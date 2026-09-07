@@ -275,6 +275,25 @@ def darkness_groups(power) -> frozenset[str]:
     return frozenset(found or {SIGHT})   # never empty for a present DARKNESS power
 
 
+def images_groups(power) -> frozenset[str]:
+    """The Sense Group(s) an IMAGES power projects to (sense-affecting §3).
+
+    Third occupant of a shape that already had two: an IMAGES power encodes
+    its Sense Group(s) exactly as INVISIBILITY, FLASH and DARKNESS do --- the
+    primary group in ``option_id`` (a ``*GROUP`` token) plus extra groups as
+    ``assigned_adders`` GROUP tokens. Defaults to the Sight Group (the HERO
+    default) for a present-but-unparsed IMAGES power; returns an empty set
+    for a non-IMAGES power so callers can probe any power uniformly.
+
+    Reuses ``_power_invisibility_groups`` rather than re-reading the fields,
+    for the same reason ``flash_groups`` and ``darkness_groups`` do: a
+    spelling change in that shape must only need fixing once."""
+    if (getattr(power, "xmlid", None) or "").upper() != "IMAGES":
+        return frozenset()
+    found = _power_invisibility_groups(power)
+    return frozenset(found or {SIGHT})   # never empty for a present IMAGES power
+
+
 def darkness_personal_immunity(power) -> bool:
     """True if a DARKNESS power carries the Personal Immunity adder (XMLID
     ``PERSONALIMMUNITY`` on ``assigned_adders``; falls back to ``adders`` /
