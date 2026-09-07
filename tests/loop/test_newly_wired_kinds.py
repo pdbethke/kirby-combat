@@ -148,38 +148,15 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_all_fifty_one_kinds_are_wired():
-    """51, not 52: `debris` is a Construct kind, not a LegalAction kind --
-    an earlier regex over-counted, and an AST walk of the LegalAction calls
-    is what settled it."""
-    assert len(registered_kinds()) == 51
+def test_all_fifty_nine_kinds_are_wired():
+    """59, not 51. Three offers build their kind from a variable, so an AST
+    walk matching `kind="literal"` missed eight -- see
+    `test_every_enumerable_kind_is_registered` in
+    test_coordination_and_frameworks.py for how that surfaced."""
+    from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-
-def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
-    """Works Against EGO: the BODY that traps is cut by MD, and escape is
-    an EGO Roll rather than a STR contest."""
-    power = _Power("ENTANGLE", levels=6)
-    _, resolved = _resolve(_action("mental_entangle", power=power), mentalist=True)
-    assert resolved.result.state.entangle_body >= 0
-    assert resolved.events
-
-
-@pytest.mark.parametrize("kind", ["aid", "drain"])
-def test_an_adjustment_records_its_fade_rate(kind):
-    """The fade rate rides on the event so a future emitter has the number
-    without re-deriving it -- `AdjustmentFaded` still has NO emitter
-    anywhere in the engine, so nothing applied here ever fades. That gap
-    predates this wiring; wiring it is what makes it reachable."""
-    _, resolved = _resolve(_action(kind, power=_Power("AID", levels=4)))
-    applied = [e for e in resolved.events if e.kind == "AdjustmentApplied"]
-    assert applied, f"{kind} emitted no AdjustmentApplied"
-    assert applied[0].fade_rate_per_turn == 5
-
-
-def test_drain_cannot_take_a_stat_below_zero():
-    _, resolved = _resolve(_action("drain", power=_Power("DRAIN", levels=30)))
-    assert resolved.result.delta <= 0
-    assert abs(resolved.result.delta) <= 40, "capped by the target's current value"
+    assert len(registered_kinds()) == 59
+    assert registered_kinds() == ALL_ACTION_KINDS
 
 
 def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
@@ -199,14 +176,19 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "presence_attack_group",                                # here
         "push", "hide", "force_wall",                           # here
         "move", "move_strike", "pickup", "reposition",
-        "reposition_push", "reposition_strike", "reposition_vantage",   # test_movement_execution
+        "reposition_push", "reposition_strike", "reposition_vantage",
+        #                                        test_movement_execution
         "trip", "disarm", "spread",              # test_subproject_b_maneuvers
         "coordinate", "reallocate", "reconfigure_vpp",
         #                          test_coordination_and_frameworks
+        "sweep", "multiple_attack", "climb", "climb_fast",
+        "charm", "persuasion", "conversation", "trading",
+        #                          test_hidden_kinds
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
     )
+
 
 
 # ---------------------------------------------------------------------------

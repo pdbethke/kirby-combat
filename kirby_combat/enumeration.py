@@ -506,6 +506,37 @@ class PhysicalEntangleState:
     takes_no_damage: bool
 
 
+#: EVERY kind ``enumerate_actions`` can put on a menu.
+#:
+#: DECLARED, NOT DERIVED, and that is the point. Three of the offers below
+#: build their kind from a VARIABLE rather than a literal --- ``kind =
+#: "sweep" if is_hth else "multiple_attack"``, the interaction-skill loop,
+#: and the climb loop --- so a scan matching ``kind="..."`` sees 51 of them
+#: and misses eight. A test asserting "every offered kind has a resolver"
+#: passed for a while against that incomplete set, and the gap only
+#: surfaced when a real fight spent 27 of 31 Phases picking
+#: ``multiple_attack`` and having it skipped.
+#:
+#: So the list lives here, by hand, and ``tests/loop/test_run.py`` checks
+#: the resolver registry against it. Adding an offer means adding its kind
+#: here, which is a deliberate step rather than something an AST walk can
+#: quietly get wrong.
+ALL_ACTION_KINDS = frozenset({
+    "aid", "attack", "attack_construct", "block", "charm", "climb",
+    "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
+    "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_str",
+    "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
+    "hide", "hold", "image_decoy", "maneuver", "mental_blast",
+    "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
+    "move_strike", "move_through", "multiple_attack", "persuasion",
+    "pickup", "presence_attack", "presence_attack_group", "push",
+    "rapid_fire", "reallocate", "reconfigure_vpp", "recover",
+    "release_held", "reposition", "reposition_push", "reposition_strike",
+    "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
+    "throw", "throw_object", "trading", "trip",
+})
+
+
 def enumerate_actions(
     actor: HeroCombatant,
     enemies: list[HeroCombatant],

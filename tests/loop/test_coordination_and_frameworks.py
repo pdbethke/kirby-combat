@@ -90,21 +90,55 @@ def _act(kind: str, action_id: str, target: str | None = "mark") -> LegalAction:
 # ---- The whole menu is now executable ----
 
 def test_every_enumerable_kind_is_registered():
-    """51 of 51. The number this session started at was 4."""
+    """59 of 59. The number this session started at was 4.
+
+    Checked against `ALL_ACTION_KINDS`, which enumeration DECLARES, rather
+    than against an AST walk. The walk was the earlier test and it was
+    wrong: three offers build their kind from a variable (`kind = "sweep"
+    if is_hth else "multiple_attack"`, the interaction-skill loop, the
+    climb loop), so matching `kind="literal"` saw 51 and missed eight.
+
+    That test passed while `sweep`, `multiple_attack`, `climb`,
+    `climb_fast`, `charm`, `persuasion`, `conversation` and `trading` had
+    no resolver at all. The gap surfaced only when a real fight -- the
+    O.K. Corral, eight men -- spent 27 of 31 Phases picking
+    `multiple_attack` and having it skipped.
+    """
+    from kirby_combat.enumeration import ALL_ACTION_KINDS
+
+    assert ALL_ACTION_KINDS - registered_kinds() == set(), (
+        f"offered but not executable: "
+        f"{sorted(ALL_ACTION_KINDS - registered_kinds())}"
+    )
+    assert registered_kinds() - ALL_ACTION_KINDS == set(), (
+        f"registered but never offered: "
+        f"{sorted(registered_kinds() - ALL_ACTION_KINDS)}"
+    )
+    assert len(ALL_ACTION_KINDS) == 59
+
+
+def test_the_declared_kinds_cover_every_literal_in_enumeration():
+    """Guards the guard. `ALL_ACTION_KINDS` is maintained by hand, so a
+    literal kind added to an offer without being declared would slip past
+    the check above. The AST walk cannot see dynamic kinds, but it is a
+    perfectly good check that no LITERAL one was forgotten."""
     import ast
     import pathlib
 
-    tree = ast.parse(pathlib.Path("kirby_combat/enumeration.py").read_text())
-    offered = {
+    from kirby_combat.enumeration import ALL_ACTION_KINDS
+
+    src = pathlib.Path("kirby_combat/enumeration.py").read_text()
+    literals = {
         kw.value.value
-        for node in ast.walk(tree)
+        for node in ast.walk(ast.parse(src))
         if isinstance(node, ast.Call)
         and getattr(node.func, "id", None) == "LegalAction"
         for kw in node.keywords
         if kw.arg == "kind" and isinstance(kw.value, ast.Constant)
     }
-    assert offered - registered_kinds() == set(), (
-        f"offered but not executable: {sorted(offered - registered_kinds())}"
+    assert literals - ALL_ACTION_KINDS == set(), (
+        f"offered as a literal but not declared: "
+        f"{sorted(literals - ALL_ACTION_KINDS)}"
     )
 
 

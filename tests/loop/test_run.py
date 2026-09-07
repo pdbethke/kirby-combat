@@ -29,22 +29,9 @@ def test_the_registered_kinds_are_pinned():
     calling them, because the parked driver wrote its own copies. Every one
     of those suites was green the whole time; only this number could tell
     the difference between a rule that works and a rule that is reached."""
-    assert registered_kinds() == frozenset({
-        "attack", "strike", "mental_blast", "recover",
-        "mind_control", "mental_illusion", "telepathy", "image_decoy",
-        "dodge", "set", "haymaker", "presence_attack",
-        "flash", "entangle", "grab", "block",
-        "mental_entangle", "aid", "drain",
-        "move_by", "move_through", "rapid_fire", "throw", "throw_object",
-        "maneuver", "hold", "release_held", "darkness_zone",
-        "escape_str", "escape_attack", "escape_teleport",
-        "attack_construct", "heal", "dispel", "presence_attack_group",
-        "push", "hide", "force_wall",
-        "move", "move_strike", "pickup", "reposition",
-        "reposition_push", "reposition_strike", "reposition_vantage",
-        "trip", "disarm", "spread",
-        "coordinate", "reallocate", "reconfigure_vpp",
-    })
+    from kirby_combat.enumeration import ALL_ACTION_KINDS
+
+    assert registered_kinds() == ALL_ACTION_KINDS
 
 
 def test_an_unregistered_kind_raises_and_names_itself():

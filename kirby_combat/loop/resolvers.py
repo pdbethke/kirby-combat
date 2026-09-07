@@ -1696,3 +1696,158 @@ def _resolve_reconfigure_vpp(
         "combatant_id": actor.id,
         "framework_id": framework_id,
     })
+
+
+# ---------------------------------------------------------------------------
+# The eight kinds a literal-only AST scan could not see.
+#
+# `enumerate_actions` builds three of its offers with a COMPUTED kind --
+# `kind = "sweep" if is_hth else "multiple_attack"`, the interaction-skill
+# loop, and the climb loop -- so a scan matching `kind="literal"` counted 51
+# where the real total is 59. The "every offered kind is registered" test was
+# passing against an incomplete set, which is why `ALL_ACTION_KINDS` now
+# names them all in one place instead.
+#
+# Found by running the O.K. Corral: 27 of 31 model picks came back
+# `multiple_attack` and were skipped, in a fight the count said was fully
+# covered.
+# ---------------------------------------------------------------------------
+
+
+def _multi_attack(session, actor, action, *, roller, sweep: bool):
+    """Sweep (6E2 p.56) and Multiple Attack (6E2 p.71): several targets in
+    one Phase at a widening OCV penalty, and half DCV for the whole Phase.
+
+    Identical arithmetic --- `Sweep.compute` delegates to
+    `MultipleAttack.compute` --- and the engine keeps them as two names
+    because the book does: a Sweep is hand-to-hand and can only reach what
+    is already within Reach, which enumeration has already gated.
+
+    TWO TARGETS, for the same reason Rapid Fire takes two shots: it is the
+    fewest that make it a Multiple Attack and the cheapest in OCV. How many
+    MORE to take is a tactical decision the offer does not carry.
+    """
+    from kirby_combat.actions.multiple_attack import MultipleAttack
+    from kirby_combat.actions.sweep import Sweep
+
+    compute = Sweep.compute if sweep else MultipleAttack.compute
+    outcome = compute(base_ocv=int(actor.combat_stats().ocv), num_targets=2)
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id,
+        "per_target_ocv": list(outcome.per_shot_ocv),
+        "dcv_factor": outcome.dcv_factor,
+    })
+
+
+@resolves("sweep")
+def _resolve_sweep(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Sweep --- a hand-to-hand Multiple Attack (6E2 p.56)."""
+    return _multi_attack(session, actor, action, roller=roller, sweep=True)
+
+
+@resolves("multiple_attack")
+def _resolve_multiple_attack(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Multiple Attack --- the ranged form (6E2 p.71)."""
+    return _multi_attack(session, actor, action, roller=roller, sweep=False)
+
+
+def _climb(session, actor, action: LegalAction, *, fast: bool):
+    """Climb a wall (6E1 p.70, 6E2 p.48-49).
+
+    `climbing.py` owns the rule, including the contradiction it resolves:
+    6E1 p.70 halves OCV *and* DCV, 6E2 p.48-49 halves DCV only and takes -2
+    DC. The engine implements 6E2. What this adds is the wall id, read off
+    the offer, and whether the climber is hurrying.
+    """
+    from kirby_combat.climbing import climb_modifiers, climb_status
+
+    # `climb_wall_id` is the offer's own field; the action_id is the
+    # fallback for a hand-built action. Split only when there IS a
+    # separator -- `"climb".split(":", 1)[-1]` returns "climb", so an
+    # unqualified id would name the KIND as the wall and climb it.
+    wall_id = action.climb_wall_id
+    if not wall_id and ":" in action.action_id:
+        wall_id = action.action_id.split(":", 1)[1]
+    if not wall_id:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    mods = climb_modifiers(0)
+    return _recorded(session, actor, action, mods, {
+        "kind": action.kind,
+        "wall_id": wall_id,
+        "status": climb_status(wall_id),
+        "dcv_delta": mods.dcv_delta,
+        "dcv_multiplier": mods.dcv_multiplier,
+        "dc_penalty": mods.dc_penalty,
+        "hurried": fast,
+    })
+
+
+@resolves("climb")
+def _resolve_climb(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Climb at the ordinary rate."""
+    return _climb(session, actor, action, fast=False)
+
+
+@resolves("climb_fast")
+def _resolve_climb_fast(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Climb faster, for a worse roll."""
+    return _climb(session, actor, action, fast=True)
+
+
+#: The interaction skills 6E1 p.60 makes Skill-vs-Skill contests. Kept as a
+#: set rather than four near-identical resolvers, because the RULE is the
+#: same for all of them and only the Skill named changes.
+INTERACTION_SKILLS = ("charm", "persuasion", "conversation", "trading")
+
+
+@resolves(*INTERACTION_SKILLS)
+def _resolve_interaction(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """An interaction skill used in combat --- Charm, Persuasion,
+    Conversation, Trading.
+
+    THE FOURTH RULE WITH NO ENGINE HOME. Sub-project B named four: trip,
+    disarm, spread and interaction. The first three were wired earlier;
+    this is the last, and it was invisible to the count because
+    enumeration builds these four offers from a loop variable rather than
+    a literal.
+
+    A Skill Roll (6E1 p.58: 9 + CHAR/5) against the target's EGO-based
+    resistance. The margin is what matters --- how much you talked them
+    round --- so the payload carries it rather than a bare success flag.
+    """
+    target = session.combatants[action.target_id]
+    stats, target_stats = actor.combat_stats(), target.combat_stats()
+
+    #: Interaction Skills are PRE-based (6E1 p.60).
+    skill_target = 9 + int(stats.pre) // 5
+    #: The target resists with EGO, the characteristic that says how hard
+    #: they are to talk into anything.
+    resist = 9 + int(target_stats.ego) // 5
+    roll = sum(roller.roll_dice(3))
+    margin = skill_target - roll
+
+    return _recorded(session, actor, action, margin, {
+        "kind": action.kind,
+        "target_id": target.id,
+        "skill_target": skill_target,
+        "resistance": resist,
+        "roll": roll,
+        "margin": margin,
+        "succeeded": roll <= skill_target and margin >= (resist - skill_target),
+    })
