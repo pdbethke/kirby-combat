@@ -43,6 +43,7 @@ def test_the_registered_kinds_are_pinned():
         "move", "move_strike", "pickup", "reposition",
         "reposition_push", "reposition_strike", "reposition_vantage",
         "trip", "disarm", "spread",
+        "coordinate", "reallocate", "reconfigure_vpp",
     })
 
 
@@ -50,15 +51,17 @@ def test_an_unregistered_kind_raises_and_names_itself():
     from kirby_combat.enumeration import LegalAction
     from kirby_combat.loop.registry import resolve_chosen
 
-    # `reconfigure_vpp` is deliberately the example: of the three kinds
-    # still unregistered it is the one that needs a DESIGN decision (VPP
-    # pool state was DB-backed in the parked wrapper and has no engine home
-    # yet), so it will outlast the other two.
+    # A kind the engine will NEVER offer. Every one of the 51 that
+    # `enumerate_actions` can produce is now registered, so no real offer
+    # can exercise this path -- but the raise still guards a consumer that
+    # invents a kind, or a future one added to enumeration before its
+    # resolver. Using a registered kind here would test its own refusal
+    # path instead, which is a different thing.
     action = LegalAction(
-        action_id="reconfigure_vpp:", kind="reconfigure_vpp", target_id=None,
-        power_xmlid=None, power_name=None, summary="Reconfigure the pool",
+        action_id="somersault:", kind="somersault", target_id=None,
+        power_xmlid=None, power_name=None, summary="Not a thing",
     )
-    with pytest.raises(UnresolvableAction, match="reconfigure_vpp"):
+    with pytest.raises(UnresolvableAction, match="somersault"):
         resolve_chosen(
             session_of(fighter("a")), fighter("a"), action,
             template=TEMPLATE, roller=RandomRoller(seed=1),
@@ -179,28 +182,29 @@ def test_the_tactic_chooser_picks_something_legal():
 # ---- Unresolvable-kind policy ----
 
 def test_skip_records_the_kind_rather_than_hiding_it():
-    class AlwaysCoordinates:
-        """Picks a kind the engine cannot execute, to exercise the policy.
+    class InventsAKind:
+        """Returns an offer the engine never made.
 
-        `coordinate` needs the per-target, per-Segment coordination window
-        that lives only in the parked driver, so it is genuinely
-        unresolvable rather than merely unwired."""
+        All 51 enumerable kinds are registered, so nothing on a real menu
+        can be unresolvable any more. The policy still matters for a
+        consumer that invents a kind, so the test invents one -- and this
+        also exercises the seat's own guard, since the id must be on the
+        menu to get as far as the registry."""
 
         def choose(self, situation: PhaseSituation) -> str:
-            for action in situation.menu:
-                if action.kind == "coordinate":
-                    return action.action_id
-            return situation.menu[0].action_id
+            chosen = situation.menu[0]
+            object.__setattr__(chosen, "kind", "somersault")
+            return chosen.action_id
 
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y")))
     roller = RandomRoller(seed=3)
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     result = run_phase(
-        enc.sessions[0], AlwaysCoordinates(), template=TEMPLATE, roller=roller,
+        enc.sessions[0], InventsAKind(), template=TEMPLATE, roller=roller,
         on_unresolvable="skip",
     )
-    assert result.skipped_kind == "coordinate"
+    assert result.skipped_kind == "somersault"
     assert result.acted is False
     assert result.notes, "a skip must never be silent"
 

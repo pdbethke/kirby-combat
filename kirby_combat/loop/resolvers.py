@@ -1564,3 +1564,112 @@ def _resolve_spread(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
     )
+
+
+# ---------------------------------------------------------------------------
+# The last three — the ones that needed machinery rather than wiring.
+# ---------------------------------------------------------------------------
+
+
+@resolves("coordinate")
+def _resolve_coordinate(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Join a coordinated strike (6E2 p.46).
+
+    A Teamwork roll --- or Tactics, or a flat DEX 8- for a character with
+    neither --- to time this Phase's blow with an ally's. The window lives
+    in the log and `coordination.window_for` folds it; nothing is held in a
+    dict on the session, for the same reason `session/effects.py` gives.
+
+    THE POOLED RESOLUTION IS NOT DONE HERE, and is named rather than faked.
+    6E2 p.46's payoff is that participants' STUN is pooled against the
+    target's CON, so two blows that each fall short can together Stun. But
+    joining is a per-Phase act and this loop drives one actor per Phase, so
+    the window fills ACROSS Phases --- resolving everyone's attack at the
+    moment it fills is a scheduling decision the loop does not make.
+    `is_coordinated` exposes when the window is full so a consumer can pool.
+    """
+    from kirby_combat.coordination import CoordinationRoll, roll_profile
+
+    skill, target_number = roll_profile(actor)
+    attempt = CoordinationRoll(
+        combatant_id=actor.id, target_id=action.target_id,
+        skill=skill, target_number=target_number,
+        roll=sum(roller.roll_dice(3)),
+    )
+    return _recorded(session, actor, action, attempt, {
+        "kind": action.kind,
+        "combatant_id": actor.id,
+        "target_id": action.target_id,
+        "segment": session.timeline.segment,
+        "skill": skill,
+        "target_number": target_number,
+        "roll": attempt.roll,
+        "joined": attempt.joined,
+    })
+
+
+@resolves("reallocate")
+def _resolve_reallocate(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Change which slots of a Multipower are active.
+
+    The offer names the framework and the slots it is offering, in its
+    action_id (`reallocate_slots:<framework>:<slot,slot,...>`), so the
+    resolver reads both back rather than re-deriving them --- the menu
+    chose the set, and re-deciding here would change it after the fact.
+
+    Recorded, not applied to a combatant: framework state is not a field on
+    any combatant in this engine. `enumerate_actions` takes
+    `slot_allocation` as a PARAMETER, so the active set has always been the
+    caller's to hold; `framework.active_slots` now folds it out of the log
+    so a caller can read it back instead of tracking it separately.
+    """
+    from kirby_combat.framework import parse_reallocation
+
+    framework_id, slot_ids = parse_reallocation(action.action_id)
+    if not framework_id:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    return _recorded(session, actor, action, (framework_id, slot_ids), {
+        "kind": action.kind,
+        "combatant_id": actor.id,
+        "framework_id": framework_id,
+        "active_slot_ids": list(slot_ids),
+    })
+
+
+@resolves("reconfigure_vpp")
+def _resolve_reconfigure_vpp(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Reconfigure a Variable Power Pool --- record the intent.
+
+    WHAT THIS DELIBERATELY DOES NOT DO: build the power. The offer says
+    "build a new power from the catalog", and constructing a costed power
+    is the BUILD engine's work (kirby-cost), not combat's. Combat consumes
+    the build engine's shape; it does not become a second one. A consumer
+    builds the power, checks it against the pool, and brings it back as a
+    normal attack power.
+
+    So this records that the pool was opened for reconfiguration, keyed by
+    framework, which is the part that belongs to the fight. Doing more here
+    would put cost math in the combat engine --- the exact thing the north
+    star forbids.
+    """
+    from kirby_combat.framework import parse_reallocation
+
+    framework_id, _slots = parse_reallocation(action.action_id)
+    if not framework_id:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    return _recorded(session, actor, action, framework_id, {
+        "kind": action.kind,
+        "combatant_id": actor.id,
+        "framework_id": framework_id,
+    })
