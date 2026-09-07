@@ -31,8 +31,9 @@ def test_the_registered_kinds_are_pinned():
     the difference between a rule that works and a rule that is reached."""
     assert registered_kinds() == frozenset({
         "attack", "strike", "mental_blast", "recover",
-        "mind_control", "mental_illusion", "telepathy",
-        "image_decoy",
+        "mind_control", "mental_illusion", "telepathy", "image_decoy",
+        "dodge", "set", "haymaker", "presence_attack",
+        "flash", "entangle", "grab", "block",
     })
 
 
@@ -40,11 +41,14 @@ def test_an_unregistered_kind_raises_and_names_itself():
     from kirby_combat.enumeration import LegalAction
     from kirby_combat.loop.registry import resolve_chosen
 
+    # `trip` is deliberately the example: it is one of sub-project B's four
+    # rules with NO engine home at all, so it stays unregistered until
+    # someone writes the rule -- unlike the kinds that are merely unwired.
     action = LegalAction(
-        action_id="dodge:", kind="dodge", target_id=None,
-        power_xmlid=None, power_name=None, summary="Dodge",
+        action_id="trip:", kind="trip", target_id=None,
+        power_xmlid=None, power_name=None, summary="Trip",
     )
-    with pytest.raises(UnresolvableAction, match="dodge"):
+    with pytest.raises(UnresolvableAction, match="trip"):
         resolve_chosen(
             session_of(fighter("a")), fighter("a"), action,
             template=TEMPLATE, roller=RandomRoller(seed=1),
@@ -165,10 +169,12 @@ def test_the_tactic_chooser_picks_something_legal():
 # ---- Unresolvable-kind policy ----
 
 def test_skip_records_the_kind_rather_than_hiding_it():
-    class AlwaysDodge:
+    class AlwaysTrips:
+        """Picks a kind the engine cannot execute, to exercise the policy."""
+
         def choose(self, situation: PhaseSituation) -> str:
             for action in situation.menu:
-                if action.kind == "dodge":
+                if action.kind == "trip":
                     return action.action_id
             return situation.menu[0].action_id
 
@@ -177,10 +183,10 @@ def test_skip_records_the_kind_rather_than_hiding_it():
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     result = run_phase(
-        enc.sessions[0], AlwaysDodge(), template=TEMPLATE, roller=roller,
+        enc.sessions[0], AlwaysTrips(), template=TEMPLATE, roller=roller,
         on_unresolvable="skip",
     )
-    assert result.skipped_kind == "dodge"
+    assert result.skipped_kind == "trip"
     assert result.acted is False
     assert result.notes, "a skip must never be silent"
 

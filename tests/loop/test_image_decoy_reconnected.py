@@ -24,9 +24,8 @@ import pytest
 from conftest import fighter  # tests/loop/conftest.py
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop import registered_kinds
-from kirby_combat.loop.registry import (
-    DECOY_STANDOFF_M, UnresolvableAction, _decoy_position, resolve_chosen,
-)
+from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
+from kirby_combat.loop.resolvers import DECOY_STANDOFF_M, _decoy_position
 from kirby_combat.scene.scene import AmbientConditions, Position, Scene, SceneBounds
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side

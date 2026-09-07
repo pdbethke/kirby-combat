@@ -5,7 +5,8 @@ Sub-project D of the driver carve-out. Spec:
 
   - ``roster``   — who is on whose side, and when the fight is decided
   - ``chooser``  — the seat; the one thing the engine does not decide
-  - ``registry`` — chosen action -> resolution, with the gap made countable
+  - ``registry``  — the dispatch mechanism, and the countable gap
+  - ``resolvers`` — one resolver per kind the engine can execute
   - ``run``      — the loop itself
 """
 from kirby_combat.side import Side
@@ -13,6 +14,7 @@ from kirby_combat.loop.chooser import (
     Chooser, FirstLegalChooser, InvalidChoice, PhaseSituation, TacticChooser,
     validate_choice,
 )
+from kirby_combat.loop import resolvers as _resolvers  # noqa: F401  (registers them)
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, registered_kinds, resolve_chosen, resolves,
 )
