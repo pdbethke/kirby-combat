@@ -198,7 +198,12 @@ def synthetic_combatant(
     current_stun: int | None = None,
     current_body: int | None = None,
     current_end: int | None = None,
-    side: str | None = None,
+    #: 6E1 p.36: base Running is 12m. Absent until 2026-09-06, which
+    #: gave every synthetic combatant RUNNING 0 -- a person who cannot
+    #: walk -- so no movement was ever enumerable for one, with or
+    #: without a Scene.
+    running: int = 12,
+    side=None,
     attacks: list[AttackPower] | None = None,
     defenses: list[DefenseItem] | None = None,
     csls: list[Any] | None = None,
@@ -221,6 +226,7 @@ def synthetic_combatant(
         "CON": con, "PRE": pre, "REC": rec,
         "PD": pd, "ED": ed,
         "STUN": max_stun, "BODY": max_body, "END": max_end,
+        "RUNNING": running,
         # rPD / rED / MD / POWD / FLASHD aren't characteristics in 6E
         # — they come from powers. _compute_stats_from_hero walks
         # hero.powers to total them. Since synthetic has no powers,

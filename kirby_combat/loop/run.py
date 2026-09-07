@@ -34,6 +34,7 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.scene.geometry import distance_3d
 from kirby_combat.side import Side
 
 if TYPE_CHECKING:
@@ -81,6 +82,29 @@ class EncounterResult:
     winner: "Side | None" = None
     skipped_kinds: dict[str, int] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+
+
+def distances_from(scene, actor, others) -> dict[str, float] | None:
+    """Metres from ``actor`` to each of ``others``, read off the Scene.
+
+    ``enumerate_actions`` gates range-dependent offers on this: an unknown
+    distance means "scene-less, no gate", so returning ``None`` is not the
+    same as returning an empty dict and the difference is load-bearing. A
+    combatant the scene has no position for is simply absent from the map
+    rather than at range 0.
+    """
+    if scene is None:
+        return None
+    positions = getattr(scene, "combatant_positions", None) or {}
+    here = positions.get(actor.id)
+    if here is None:
+        return None
+    out: dict[str, float] = {}
+    for other in others:
+        there = positions.get(other.id)
+        if there is not None:
+            out[other.id] = distance_3d(here, there)
+    return out
 
 
 def next_actor_id(session: "CombatSession") -> str | None:
@@ -144,7 +168,20 @@ def run_phase(
     actor = session.combatants[actor_id]
     roster = Roster(session)
     enemies = roster.enemies_of(actor)
-    menu = enumerate_actions(actor, enemies)
+
+    # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
+    # and the loop simply never read it, so `has_scene` defaulted to False
+    # and every scene-dependent offer -- movement, cover, Images, attacking
+    # a construct -- was silently absent from every menu. A fight on a map
+    # enumerated as though it were in a void.
+    scene = session.scene
+    menu = enumerate_actions(
+        actor, enemies,
+        has_scene=scene is not None,
+        scene=scene,
+        constructs=list(getattr(scene, "constructs", None) or []) or None,
+        distances=distances_from(scene, actor, enemies),
+    )
     if not menu:
         _mark_acted(session, actor_id)
         return PhaseResult(

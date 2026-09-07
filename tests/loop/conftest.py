@@ -11,7 +11,7 @@ from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
 
-def blast(source_id: str, dice: int = 8) -> AttackPower:
+def blast(source_id: str, dice: int = 8, range_m: int = 100) -> AttackPower:
     """An Energy Blast.
 
     ``source_id`` is REQUIRED, not decorative: enumeration builds an
@@ -22,10 +22,21 @@ def blast(source_id: str, dice: int = 8) -> AttackPower:
     return AttackPower(
         xmlid="ENERGYBLAST", name="Blast", damage_dice=dice,
         half_die=False, plus_one=False,
-        damage_type="normal", defense_type="ed", range_m=100,
+        damage_type="normal", defense_type="ed", range_m=range_m,
         uses_str=False, str_min=0,
-        armor_piercing=0, penetrating=0, increased_stun_mult=0,
+        armor_piercing=0, penetrating=0,
+        increased_stun_mult=0,
         source_id=source_id,
+        # is_ranged MUST agree with range_m. `AttackPower` documents the
+        # invariant ("True when range_m > 0") and does not enforce it, and
+        # the real construction path (`hero_view.py`) derives it -- so a
+        # hand-built power is the only place the two can disagree, and this
+        # fixture did disagree until 2026-09-06. The cost: `_is_melee` reads
+        # `is_ranged` FIRST and only falls back to `range_m`, so a 100m
+        # Blast was classified hand-to-hand and the reach gate dropped it
+        # the moment the loop started passing real distances. It looked
+        # exactly like the Scene plumbing breaking ranged attacks.
+        is_ranged=range_m > 0,
     )
 
 

@@ -64,6 +64,12 @@ def _blast(source_id: str) -> AttackPower:
         damage_type="normal", defense_type="ed", range_m=150,
         uses_str=False, str_min=0,
         armor_piercing=0, penetrating=0, increased_stun_mult=0,
+        # Must agree with range_m: AttackPower documents the invariant
+        # ("True when range_m > 0") and does not enforce it, and
+        # `_is_melee` reads THIS field first. A 100m Blast left at the
+        # False default is classified hand-to-hand and gated away by
+        # reach the moment a Scene supplies real distances.
+        is_ranged=True,
         source_id=source_id,
     )
 
