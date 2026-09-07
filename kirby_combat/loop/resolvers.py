@@ -1957,3 +1957,40 @@ def _resolve_interaction(
         "margin": margin,
         "succeeded": roll <= skill_target and margin >= (resist - skill_target),
     })
+
+
+@resolves("move_to_cover")
+def _resolve_move_to_cover(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Move to the covered spot the OFFER identified.
+
+    Enumeration already computed where that is and what cover it gives ---
+    against the actual threats, not from the feature's own cover_level ---
+    and put the point on `reposition_dest`. Re-deriving it here would mean
+    the menu advertised one spot and the engine went to another, which is
+    the same disagreement Rapid Fire's shot count had.
+    """
+    from kirby_combat.scene.placement import move_toward
+    from kirby_combat.scene.scene import Position
+
+    if action.reposition_dest is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    x, y, z = action.reposition_dest
+    mode = action.mode or "running"
+    new_session, outcome = move_toward(
+        session, actor.id, Position(x, y, z),
+        mode=mode, distance_m=_half_move(actor, mode),
+    )
+    if outcome is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    wall_id = action.action_id.split(":", 1)[1] if ":" in action.action_id else ""
+    return _recorded(new_session, actor, action, outcome, {
+        "kind": action.kind,
+        "wall_id": wall_id,
+        "reached": outcome.reachable,
+        "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
+    })

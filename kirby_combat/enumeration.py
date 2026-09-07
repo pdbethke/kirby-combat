@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
+from kirby_combat.scene.cover import cover_ocv_modifier
 from kirby_combat.actions.throw import resolve_object_throw
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.perception import flash_groups, perceive
@@ -506,6 +507,18 @@ class PhysicalEntangleState:
     takes_no_damage: bool
 
 
+def _cover_midpoint(wall) -> tuple[float, float, float]:
+    """The representative point of a cover feature --- its segment's middle.
+
+    A wall is a line, not a spot, so "how far is that cover" needs one
+    point to measure to. The midpoint is the same one `scene/cover.py`
+    uses when it picks the nearest blocking wall, so the distance a menu
+    quotes and the cover the rules compute refer to the same place.
+    """
+    a, b = wall.segment
+    return ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, (a.z + b.z) / 2.0)
+
+
 def _ocv_ladder(base_ocv: int, count: int) -> str:
     """The actual per-shot OCVs, as a readable list.
 
@@ -543,6 +556,7 @@ ALL_ACTION_KINDS = frozenset({
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_str",
     "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
     "hide", "hold", "image_decoy", "maneuver", "mental_blast",
+    "move_to_cover",
     "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
     "move_strike", "move_through", "multiple_attack", "persuasion",
     "pickup", "presence_attack", "presence_attack_group", "push",
@@ -2790,6 +2804,87 @@ def enumerate_actions(
     # the rule's own GM-cap permits. Positions are read fresh here (not the
     # ``actor_pos``/``positions`` locals above, which are scoped inside
     # ``if _enemy_ids:``).
+    # ------------------------------------------------------------------
+    # MOVE TO COVER. Nobody used cover because nobody was ever OFFERED it.
+    #
+    # The engine gained walls with `cover_level`, `compute_cover_level` to
+    # read them, and a Brief that names them -- and no action that put a
+    # combatant behind one. Measured on the O.K. Corral benchmark: four
+    # cover features on the page, zero cover picks across three fights.
+    # The parked kirby-api driver HAD this (`_cover_move_actions`) and it
+    # was left behind in the carve-out.
+    #
+    # OFFERED ONLY WHERE IT WOULD ACTUALLY HELP, which is how a tactics
+    # game does it: cover is evaluated for the SPOT against the ACTUAL
+    # threats, not asserted from the feature's own cover_level. A wall
+    # behind you shields you from nobody, and an offer to hide behind it
+    # is an option that cannot work -- the first version made exactly that
+    # offer, and the actor moved, stopped against a wall it could not
+    # cross, and ended the Phase no safer than it began.
+    #
+    # One offer per feature within a Half Move (6E2 p.42), so taking cover
+    # still leaves an attack. Anything further is a full Move.
+    _cover_positions = (
+        (getattr(scene, "combatant_positions", None) or {})
+        if scene is not None else {}
+    )
+    _cover_actor_pos = _cover_positions.get(actor.id)
+    if scene is not None and _cover_actor_pos is not None:
+        import math as _cover_math
+
+        from kirby_combat.scene.cover import cover_available
+        from kirby_combat.scene.movement_legality import movement_reach
+
+        _threats = [
+            _cover_positions[e.id] for e in alive_enemies
+            if e.id in _cover_positions
+        ]
+        _cover_half_move = max(
+            0.0, float(actor.hero.characteristic_value("RUNNING") or 0) / 2.0
+        )
+        for _wall in (getattr(scene, "walls", None) or []):
+            if int(getattr(_wall, "cover_level", 0) or 0) <= 0:
+                continue
+            _spot, _level = cover_available(
+                _wall, _cover_actor_pos, _threats, scene,
+            )
+            if _level <= 0:
+                continue        # would not shield this actor from these threats
+            _d = _cover_math.dist(
+                (_cover_actor_pos.x, _cover_actor_pos.y), (_spot.x, _spot.y),
+            )
+            if _d > _cover_half_move + 0.5:
+                continue
+            # AND THE SPOT MUST BE REACHABLE. The covered side of a
+            # movement-blocking wall is often on the far side of it, and
+            # you cannot walk through a wall to get behind it -- going
+            # round the end is a longer path than `movement_reach` will
+            # find, because it clamps toward the destination rather than
+            # pathfinds. Without this the menu offered cover the actor
+            # could only walk INTO: measured, the mover stopped against
+            # the wall and finished the Phase no safer than it began.
+            _reach = movement_reach(
+                mode="running", from_pos=_cover_actor_pos, to_pos=_spot,
+                distance_m=_cover_half_move, scene=scene,
+                combatant_id=actor.id,
+            )
+            if not _reach.reachable:
+                continue
+            actions.append(LegalAction(
+                action_id=f"move_to_cover:{_wall.id}",
+                kind="move_to_cover",
+                target_id=None,
+                power_xmlid=None,
+                power_name=getattr(_wall, "name", None) or _wall.id,
+                summary=(
+                    f"Take cover behind {getattr(_wall, 'name', None) or _wall.id} "
+                    f"({_d:.1f}m away) — you would have cover {_level}/4 there, "
+                    f"so attackers take {cover_ocv_modifier(_level * 25):+d} OCV "
+                    f"against you. Half Move, so you may still attack (6E2 p45)"
+                ),
+                reposition_dest=(_spot.x, _spot.y, _spot.z),
+            ))
+
     _climb_positions = (
         (getattr(scene, "combatant_positions", None) or {})
         if scene is not None else {}

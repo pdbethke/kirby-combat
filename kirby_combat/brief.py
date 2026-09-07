@@ -174,6 +174,49 @@ class Terrain:
         return list(getattr(self.scene, "walls", None) or [])
 
     @property
+    def sightings(self) -> list[str]:
+        """Each feature as this actor sees it: how far, and what cover it
+        would give THEM against the enemies actually present.
+
+        A FIELD OF VIEW, NOT AN INVENTORY. Listing a wall's own
+        `cover_level` says what the wall is; it does not say what it is
+        worth from where you stand. A building behind you shields you from
+        nobody, and its cover_level is 4 either way. So the number quoted
+        is the one `cover_available` computes for the spot beside it
+        against the current threats -- the same figure the offer to move
+        there quotes, and the same one the rules apply once you are behind
+        it.
+        """
+        import math
+
+        from kirby_combat.scene.cover import cover_available
+
+        here = self.position_of(self._actor.id)
+        if here is None:
+            return []
+        threats = [
+            p for p in (self.position_of(e.id) for e in self._enemies)
+            if p is not None
+        ]
+        out = []
+        for wall in self.features:
+            name = getattr(wall, "name", None) or getattr(wall, "id", "?")
+            a, b = wall.segment
+            mid = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
+            distance = math.dist((here.x, here.y), mid)
+            spot, level = cover_available(wall, here, threats, self.scene)
+            worth = (
+                f"would give you cover {level}/4" if level > 0
+                else "would not shield you from where they are"
+            )
+            body = getattr(wall, "body", None)
+            out.append(
+                f"{name}: {distance:.1f}m away, {worth}"
+                + (f"; BODY {body} to break through" if body is not None else "")
+            )
+        return out
+
+    @property
     def bearings(self) -> list[EnemyBearing]:
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
         from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
@@ -207,17 +250,11 @@ class Terrain:
         if not self.present:
             return "Ground: open, featureless — no positions are being tracked."
         lines = [f"Ground: {getattr(self.scene, 'name', None) or 'unnamed'}"]
-        for feature in self.features:
-            fname = getattr(feature, "name", None) or getattr(feature, "id", "?")
-            cover = getattr(feature, "cover_level", 0)
-            body = getattr(feature, "body", None)
-            blocks = "blocks sight" if getattr(feature, "blocks_los", False) else "does not block sight"
-            lines.append(
-                f"  {fname}: cover {cover}/4, {blocks}"
-                + (f", BODY {body} to break through" if body is not None else "")
-            )
-        lines.append("Enemy bearings:")
+        lines.append("Where they are:")
         lines.extend(f"  {b.render()}" for b in self.bearings)
+        if self.sightings:
+            lines.append("What is around you:")
+            lines.extend(f"  {sighting}" for sighting in self.sightings)
         return "\n".join(lines)
 
 

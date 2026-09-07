@@ -16,7 +16,10 @@ Per 6E2 p45 §BEHIND COVER MODIFIERS, the OCV penalty has six discrete buckets:
 
 Algorithm for ``compute_cover_level`` (scene analysis):
     1. If LoS clear (no walls intersect between shooter and target with sufficient
-       height to block), no wall cover applies.
+       height to block), no wall cover applies from sight-blocking walls.
+    1b. A LOW wall standing in the line still gives its cover_level, even
+       though it does not block sight — the table above names exactly this
+       ("behind a low wall"). Taken only when no blocking wall gives more.
     2. Otherwise, of the walls that block LoS, pick the one whose midpoint is
        closest to the target — that's the wall providing cover.
     3. Surface cover: if target's (x, y) is inside a surface polygon and that
@@ -29,6 +32,7 @@ from __future__ import annotations
 from kirby_combat.scene.scene import Position, Scene, Wall, Surface
 from kirby_combat.scene.geometry import (
     distance_3d, first_blocking_wall, point_in_polygon_xy,
+    segments_intersect_xy,
 )
 
 
@@ -69,6 +73,32 @@ def _wall_blocks_los(shooter: Position, target: Position, wall: Wall) -> bool:
     if not wall.blocks_los:
         return False
     return first_blocking_wall(shooter, target, [wall]) is not None
+
+
+def _low_wall_between(shooter: Position, target: Position, wall: Wall) -> bool:
+    """Does a wall too LOW to block sight still stand between these two?
+
+    THE MODULE'S OWN TABLE NAMES THIS CASE and it was not implemented:
+    "25-50% -> -2 (half cover, e.g., BEHIND A LOW WALL, knee-deep in
+    water)". `_wall_blocks_los` returns False for any wall with
+    ``blocks_los=False``, and those are precisely the low walls -- so a
+    parapet you can see and shoot over gave ZERO cover, which is the
+    opposite of what a parapet is for.
+
+    It matters beyond one rule. The arena generator makes roughly 40% of
+    its walls low cover ON PURPOSE, after an all-blocking arena sent the AI
+    breaching instead of fighting -- and every one of those was cosmetic.
+
+    The test is 2D and deliberately so: a wall that does not block sight
+    still stands in the line, and how much of the target it hides is what
+    its ``cover_level`` already says.
+    """
+    if wall.blocks_los:
+        return False        # handled by the height-aware predicate
+    a, b = wall.segment
+    return segments_intersect_xy(
+        (shooter.x, shooter.y), (target.x, target.y), (a.x, a.y), (b.x, b.y),
+    )
 
 
 def _wall_midpoint(wall: Wall) -> Position:
@@ -113,6 +143,17 @@ def compute_cover_level(
         nearest = min(blocking, key=lambda w: distance_3d(_wall_midpoint(w), target_pos))
         wall_cover = nearest.cover_level
 
+    # 1b. LOW walls. They do not block sight, and they are still cover --
+    # this module's own table gives "behind a low wall" as the -2 example.
+    # Taken only when no sight-blocking wall already gives more, so a
+    # parapet never downgrades a building.
+    low = [w for w in scene.walls if _low_wall_between(shooter_pos, target_pos, w)]
+    if low:
+        nearest_low = min(
+            low, key=lambda w: distance_3d(_wall_midpoint(w), target_pos),
+        )
+        wall_cover = max(wall_cover, nearest_low.cover_level)
+
     # 2. Surface cover (foxhole etc).
     surface_cover = _surface_cover_for(target_pos, scene.surfaces)
 
@@ -122,3 +163,69 @@ def compute_cover_level(
     if target_is_prone_or_diving and base_cover > 0:
         return min(4, base_cover + 1)
     return base_cover
+
+
+#: How far from a feature to stand when taking cover behind it, in metres.
+#: Close enough that the feature covers you, far enough not to be inside it.
+COVER_STANDOFF_M = 1.0
+
+
+def cover_spot(wall: Wall, threat: Position, standoff_m: float = COVER_STANDOFF_M) -> Position:
+    """Where to stand to put ``wall`` between you and ``threat``.
+
+    ADJACENT TO THE FEATURE, ON ITS FAR SIDE FROM THE THREAT --- which is
+    how a tactics game models cover and how cover actually works. You do
+    not move *behind* an obstacle in the sense of crossing it; you move
+    against it, and it shields you from whoever is beyond.
+
+    The spot is the wall's midpoint pushed one standoff along the
+    perpendicular to its own line, in whichever direction is further from
+    the threat.
+    """
+    import math
+
+    a, b = wall.segment
+    mx, my, mz = (a.x + b.x) / 2.0, (a.y + b.y) / 2.0, (a.z + b.z) / 2.0
+    dx, dy = b.x - a.x, b.y - a.y
+    length = math.hypot(dx, dy) or 1.0
+    px, py = -dy / length, dx / length
+
+    plus = (mx + px * standoff_m, my + py * standoff_m)
+    minus = (mx - px * standoff_m, my - py * standoff_m)
+    if math.dist(plus, (threat.x, threat.y)) >= math.dist(minus, (threat.x, threat.y)):
+        return Position(plus[0], plus[1], mz)
+    return Position(minus[0], minus[1], mz)
+
+
+def cover_available(
+    wall: Wall, from_pos: Position, threats: list[Position], scene: Scene,
+) -> tuple[Position, int]:
+    """The spot behind ``wall`` and the cover it would ACTUALLY give.
+
+    WHY THIS IS COMPUTED RATHER THAN ASSUMED. A feature only shields you
+    from threats on its far side. Offering "take cover behind the crates"
+    for a wall that sits BEHIND you gives a chooser an option that cannot
+    help, and this engine did exactly that until it was measured: the
+    actor moved, stopped against the wall it could not cross, and finished
+    the Phase with the same cover it started with.
+
+    So the level returned is the WORST cover the spot gives against any
+    threat --- cover that only works against one of three shooters is not
+    cover you can rely on, and the flanking case is precisely what a
+    number is supposed to warn about.
+
+    Returns ``(spot, 0)`` when the feature would not help, and the caller
+    declines to offer it.
+    """
+    if not threats:
+        return from_pos, 0
+    nearest = min(threats, key=lambda t: distance_3d(from_pos, t))
+    spot = cover_spot(wall, nearest)
+    worst = min(
+        compute_cover_level(
+            shooter_pos=threat, target_pos=spot,
+            target_is_prone_or_diving=False, scene=scene,
+        )
+        for threat in threats
+    )
+    return spot, worst
