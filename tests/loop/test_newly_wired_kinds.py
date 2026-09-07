@@ -148,8 +148,8 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_twenty_eight_of_fifty_two_are_wired():
-    assert len(registered_kinds()) == 28
+def test_thirty_five_of_fifty_two_are_wired():
+    assert len(registered_kinds()) == 35
 
 
 def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
@@ -191,6 +191,9 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "mental_entangle", "aid", "drain",                      # here
         "move_by", "move_through", "rapid_fire", "throw", "throw_object",
         "maneuver", "hold", "release_held", "darkness_zone",     # here
+        "escape_str", "escape_attack", "escape_teleport",       # here
+        "attack_construct", "heal", "dispel",                   # here
+        "presence_attack_group",                                # here
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
@@ -308,3 +311,114 @@ def test_darkness_needs_a_map_and_refuses_without_one():
 
     with pytest.raises(UnresolvableAction, match="darkness_zone"):
         _resolve(_action("darkness_zone", power=_Power("DARKNESS", levels=4)))
+
+
+# ---------------------------------------------------------------------------
+# Escapes, constructs, and the remaining adjustments.
+# ---------------------------------------------------------------------------
+
+
+def _entangled_session():
+    """A session where the actor is already trapped, so an escape has
+    something to escape from."""
+    from kirby_combat.actions.entangle import Entangle
+
+    session = _session()
+    trapped, _ = Entangle.apply(
+        session, attacker_id="mark", target_id="actor",
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    return trapped
+
+
+@pytest.mark.parametrize("kind", ["escape_str", "escape_attack"])
+def test_an_escape_attempt_is_resolved_against_the_entangle(kind):
+    """The BODY an escape does soaks against the ENTANGLE's PD/ED, never
+    the victim's (6E1 p.218) -- `escape_attempt` takes it already applied."""
+    from kirby_combat.loop.registry import resolve_chosen
+
+    session = _entangled_session()
+    resolved = resolve_chosen(
+        session, session.combatants["actor"],
+        _action(kind, target=None, power=_Power("BLAST", levels=4)),
+        template=TEMPLATE, roller=RandomRoller(seed=9),
+    )
+    assert resolved.result is not None
+    assert resolved.events
+
+
+def test_teleporting_out_does_no_body_to_the_entangle():
+    """6E1 p.218: no Attack Roll and no damage -- the victim is simply
+    elsewhere."""
+    from kirby_combat.loop.registry import resolve_chosen
+
+    session = _entangled_session()
+    resolved = resolve_chosen(
+        session, session.combatants["actor"],
+        _action("escape_teleport", target=None),
+        template=TEMPLATE, roller=RandomRoller(seed=9),
+    )
+    assert resolved.events
+
+
+def test_attacking_a_construct_that_is_not_on_the_scene_refuses():
+    from kirby_combat.loop.registry import UnresolvableAction
+
+    with pytest.raises(UnresolvableAction, match="attack_construct"):
+        _resolve(_action("attack_construct", target="a-wall"))
+
+
+def test_healing_does_not_fade_and_says_so_by_emitting_nothing():
+    """Healing shares Aid's arithmetic but has no fade (6E1 p.150). An
+    AdjustmentApplied carrying fade_rate_per_turn=5 would state the
+    opposite of the rule, so none is emitted."""
+    _, resolved = _resolve(_action("heal", power=_Power("HEALING", levels=4)))
+    assert resolved.result.delta > 0
+    assert not [e for e in resolved.events if e.kind == "AdjustmentApplied"]
+
+
+def test_dispel_records_the_roll_not_a_delta():
+    """All-or-nothing against the target power's Active Points -- there is
+    no partial Dispel to apply."""
+    _, resolved = _resolve(_action("dispel", power=_Power("DISPEL", levels=6)))
+    payload = resolved.session.event_log[-1].result_payload
+    assert payload["active_points_rolled"] > 0
+    assert "delta" not in payload
+
+
+def test_a_group_presence_attack_is_ONE_roll_judged_against_each_target():
+    """6E2 p.129 -- a Presence Attack is an effect on those who witness it,
+    so the group version is the same terrifying moment measured against
+    each PRE, not a fresh roll per victim."""
+    session = CombatSession.create(
+        id="s", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=9),
+        combatants=[
+            _actor(),
+            fighter("mark", side=Side.named("villains"), dex=15),
+            fighter("other", side=Side.named("villains"), dex=14),
+        ],
+    ).start()
+    from kirby_combat.loop.registry import resolve_chosen
+
+    resolved = resolve_chosen(
+        session, session.combatants["actor"],
+        _action("presence_attack_group", target=None),
+        template=TEMPLATE, roller=RandomRoller(seed=9),
+    )
+    effects = resolved.session.event_log[-1].result_payload["effects"]
+    assert set(effects) == {"mark", "other"}
+
+
+def test_a_group_presence_attack_with_nobody_to_frighten_refuses():
+    from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
+
+    session = CombatSession.create(
+        id="s", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=9),
+        combatants=[_actor()],
+    ).start()
+    with pytest.raises(UnresolvableAction, match="presence_attack_group"):
+        resolve_chosen(
+            session, session.combatants["actor"],
+            _action("presence_attack_group", target=None),
+            template=TEMPLATE, roller=RandomRoller(seed=9),
+        )

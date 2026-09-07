@@ -943,3 +943,185 @@ def _resolve_darkness_zone(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
     )
+
+
+# ---------------------------------------------------------------------------
+# Escaping an Entangle.
+#
+# 6E1 p.218 lists the routes out, and the engine already implements all of
+# them. The BODY an escape attempt does soaks against the ENTANGLE's PD/ED,
+# never the victim's -- `escape_attempt` takes that already applied, which
+# is why the roll happens here and the rule does not.
+# ---------------------------------------------------------------------------
+
+
+@resolves("escape_str")
+def _resolve_escape_str(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Escape by main force: a STR attempt against the Entangle's BODY."""
+    from kirby_combat.actions.entangle import Entangle, str_escape_dice
+
+    dice = max(1, str_escape_dice(int(actor.combat_stats().str_)))
+    new_session, result = Entangle.escape_attempt(
+        session, target_id=actor.id,
+        damage_body=sum(roller.roll_dice(dice)), escape_type="full",
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("escape_attack")
+def _resolve_escape_attack(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Escape by attacking the Entangle with a power rather than with STR."""
+    from kirby_combat.actions.entangle import Entangle
+
+    power = action._attack_view
+    dice = max(1, int(getattr(power, "damage_dice", 0) or 0)) if power else 1
+    new_session, result = Entangle.escape_attempt(
+        session, target_id=actor.id,
+        damage_body=sum(roller.roll_dice(dice)), escape_type="full",
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("escape_teleport")
+def _resolve_escape_teleport(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Teleport out (6E1 p.218): no Attack Roll, no BODY --- simply elsewhere.
+
+    An Entangle bought Cannot Be Escaped With Teleportation refuses it
+    unless the Teleportation carries at least as many levels of Armor
+    Piercing. `teleport_escape` owns that comparison; the AP levels are read
+    off the escaper's own power.
+    """
+    from kirby_combat.actions.entangle import Entangle
+
+    power = action._attack_view
+    new_session, result = Entangle.teleport_escape(
+        session, target_id=actor.id,
+        teleport_ap_levels=int(getattr(power, "armor_piercing_levels", 0) or 0),
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Constructs, fields and the remaining adjustments.
+# ---------------------------------------------------------------------------
+
+
+@resolves("attack_construct")
+def _resolve_attack_construct(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Attack a thing rather than a person --- a wall, a door, a debris pile.
+
+    6E2 p.172: objects take BODY and break; they have no STUN behaviour at
+    all. `apply_attack_to_construct` owns that, including the DEF an attack
+    must beat.
+    """
+    from kirby_combat.resolution.object_damage import apply_attack_to_construct
+
+    scene = session.scene
+    target_id = action.target_id
+    construct = next(
+        (c for c in (getattr(scene, "constructs", None) or [])
+         if getattr(c, "id", None) == target_id),
+        None,
+    )
+    if construct is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    power = action._attack_view
+    dice = max(1, int(getattr(power, "damage_dice", 0) or 0)) if power else 1
+    outcome = apply_attack_to_construct(
+        construct, body_dealt=sum(roller.roll_dice(dice)),
+    )
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": target_id,
+    })
+
+
+@resolves("heal")
+def _resolve_heal(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Healing (6E1 p.150): restore a stat, and unlike Aid it does not fade.
+
+    Shares Aid's arithmetic --- both add points at 1 per 5 Active Points ---
+    which is why `compute_aid` is the right calculator. What differs is the
+    FADE, and Healing has none, so no AdjustmentApplied is emitted: an event
+    carrying `fade_rate_per_turn=5` would say the opposite of the rule.
+    """
+    from kirby_combat.resolution.adjustments import compute_aid
+
+    rolled = sum(roller.roll_dice(_levels(action)))
+    target_id = action.target_id or actor.id
+    outcome = compute_aid(rolled, 5, target_max_boost_cp=rolled)
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": target_id, "delta": outcome.delta,
+    })
+
+
+@resolves("dispel")
+def _resolve_dispel(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Dispel (6E1 p.143): shut a power off outright rather than weaken it.
+
+    All-or-nothing against the target power's Active Points, which is why
+    the payload records the roll rather than a delta --- there is no partial
+    Dispel to apply.
+    """
+    rolled = sum(roller.roll_dice(_levels(action)))
+    return _recorded(session, actor, action, rolled, {
+        "kind": action.kind,
+        "target_id": action.target_id,
+        "active_points_rolled": rolled,
+    })
+
+
+@resolves("presence_attack_group")
+def _resolve_presence_attack_group(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """A Presence Attack on everyone who can perceive it.
+
+    6E2 p.129 makes a Presence Attack an effect on those who witness it, so
+    a group attack is the SAME roll judged against each target's PRE --- not
+    a fresh roll per victim. Rolling once and reusing the total is what
+    makes the "one terrifying moment" a single event rather than several.
+    """
+    from kirby_combat.pre_attacks.presence import base_pre_dice, resolve_presence_attack
+    from kirby_combat.roster import Roster
+
+    dice_values = roller.roll_dice(max(1, base_pre_dice(actor)))
+    results = {
+        enemy.id: resolve_presence_attack(actor, enemy, dice_values)
+        for enemy in Roster(session).enemies_of(actor)
+    }
+    if not results:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    return _recorded(session, actor, action, results, {
+        "kind": action.kind,
+        "effects": {tid: r.effect for tid, r in results.items()},
+    })

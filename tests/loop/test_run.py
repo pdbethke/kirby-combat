@@ -37,6 +37,8 @@ def test_the_registered_kinds_are_pinned():
         "mental_entangle", "aid", "drain",
         "move_by", "move_through", "rapid_fire", "throw", "throw_object",
         "maneuver", "hold", "release_held", "darkness_zone",
+        "escape_str", "escape_attack", "escape_teleport",
+        "attack_construct", "heal", "dispel", "presence_attack_group",
     })
 
 
