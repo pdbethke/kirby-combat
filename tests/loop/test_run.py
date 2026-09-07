@@ -34,6 +34,7 @@ def test_the_registered_kinds_are_pinned():
         "mind_control", "mental_illusion", "telepathy", "image_decoy",
         "dodge", "set", "haymaker", "presence_attack",
         "flash", "entangle", "grab", "block",
+        "mental_entangle", "aid", "drain",
     })
 
 

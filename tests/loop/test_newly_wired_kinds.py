@@ -38,11 +38,20 @@ class _Power:
         self.source_id = f"src-{xmlid}"
 
 
-def _session():
+def _actor(*, mentalist: bool = False):
+    c = fighter("actor", side=Side.named("heroes"), dex=25)
+    if mentalist:
+        # The engine's own guard: a non-mentalist cannot use a mental power,
+        # and every mental resolver reaches that check.
+        object.__setattr__(c, "_explicit_is_mentalist", True)
+    return c
+
+
+def _session(*, mentalist: bool = False):
     return CombatSession.create(
         id="s", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=9),
         combatants=[
-            fighter("actor", side=Side.named("heroes"), dex=25),
+            _actor(mentalist=mentalist),
             fighter("mark", side=Side.named("villains"), dex=15),
         ],
     ).start()
@@ -58,8 +67,8 @@ def _action(kind: str, *, target: str | None = "mark", power=None) -> LegalActio
     )
 
 
-def _resolve(action: LegalAction):
-    session = _session()
+def _resolve(action: LegalAction, *, mentalist: bool = False):
+    session = _session(mentalist=mentalist)
     return session, resolve_chosen(
         session, session.combatants["actor"], action,
         template=TEMPLATE, roller=RandomRoller(seed=9),
@@ -139,8 +148,35 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_sixteen_of_fifty_two_are_wired():
-    assert len(registered_kinds()) == 16
+def test_nineteen_of_fifty_two_are_wired():
+    assert len(registered_kinds()) == 19
+
+
+def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
+    """Works Against EGO: the BODY that traps is cut by MD, and escape is
+    an EGO Roll rather than a STR contest."""
+    power = _Power("ENTANGLE", levels=6)
+    _, resolved = _resolve(_action("mental_entangle", power=power), mentalist=True)
+    assert resolved.result.state.entangle_body >= 0
+    assert resolved.events
+
+
+@pytest.mark.parametrize("kind", ["aid", "drain"])
+def test_an_adjustment_records_its_fade_rate(kind):
+    """The fade rate rides on the event so a future emitter has the number
+    without re-deriving it -- `AdjustmentFaded` still has NO emitter
+    anywhere in the engine, so nothing applied here ever fades. That gap
+    predates this wiring; wiring it is what makes it reachable."""
+    _, resolved = _resolve(_action(kind, power=_Power("AID", levels=4)))
+    applied = [e for e in resolved.events if e.kind == "AdjustmentApplied"]
+    assert applied, f"{kind} emitted no AdjustmentApplied"
+    assert applied[0].fade_rate_per_turn == 5
+
+
+def test_drain_cannot_take_a_stat_below_zero():
+    _, resolved = _resolve(_action("drain", power=_Power("DRAIN", levels=30)))
+    assert resolved.result.delta <= 0
+    assert abs(resolved.result.delta) <= 40, "capped by the target's current value"
 
 
 def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
@@ -152,6 +188,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "image_decoy",                                          # test_image_decoy_reconnected
         "dodge", "set", "haymaker", "presence_attack",          # here
         "flash", "entangle", "grab", "block",                   # here
+        "mental_entangle", "aid", "drain",                      # here
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

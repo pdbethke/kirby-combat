@@ -585,3 +585,111 @@ def _resolve_block(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
     )
+
+
+@resolves("mental_entangle")
+def _resolve_mental_entangle(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Mental Entangle — an ENTANGLE with Works Against EGO.
+
+    Its BODY is reduced by the target's Mental Defense rather than PD, and
+    escape is a 3d6 EGO Roll rather than a STR contest. Both live in
+    `mental/mental_entangle.py`; this only rolls the dice and records.
+    """
+    from kirby_combat.mental.mental_entangle import apply_mental_entangle
+
+    target = session.combatants[action.target_id]
+    result = apply_mental_entangle(actor, target, roller.roll_dice(_levels(action)))
+    new_session = _record_outcome(session, actor, action, {
+        "kind": action.kind,
+        "target_id": target.id,
+        "entangle_body": result.state.entangle_body,
+    })
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Adjustment powers.
+#
+# AN HONEST LIMIT, STATED RATHER THAN PAPERED OVER: these emit
+# `AdjustmentApplied`, and `AdjustmentFaded` STILL HAS NO EMITTER anywhere
+# in the engine -- the event class exists, `apply_event` passes it through
+# and `session/effects.py` folds it, but nothing constructs one. So an Aid
+# or Drain applied here never fades, and 6E says both should at 5 AP per
+# Turn. That gap predates this wiring (same "class + reducer exist, emitter
+# does not" shape as the Krackle RecoveryTaken finding) and is NOT created
+# by it; wiring these makes it reachable, which is the first step toward
+# it being fixable.
+#
+# The fade rate is carried on the event, so a future emitter has the number
+# it needs without re-deriving it.
+# ---------------------------------------------------------------------------
+
+
+def _adjustment(
+    session: "CombatSession", actor, action: LegalAction, *, roller, sign: str,
+) -> ResolvedAction:
+    """Shared body for Aid and Drain: roll, compute, record, apply."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.resolution.adjustments import compute_aid, compute_drain
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import AdjustmentApplied, make_author_combatant
+
+    #: 6E: an Adjustment power's dice are its levels; 5 Active Points buys
+    #: one point of effect, which is the engine's `points_per_level`.
+    rolled = sum(roller.roll_dice(_levels(action)))
+    target_id = action.target_id or actor.id
+    target = session.combatants[target_id]
+
+    if sign == "aid":
+        outcome = compute_aid(rolled, 5, target_max_boost_cp=rolled)
+    else:
+        outcome = compute_drain(
+            rolled, 5, target_current_value=int(target.state.current_stun),
+        )
+
+    new_session = _record_outcome(session, actor, action, {
+        "kind": action.kind,
+        "target_id": target_id,
+        "delta": outcome.delta,
+        "fade_rate_per_turn": outcome.fade_rate_per_turn,
+    })
+    new_session = apply_event(new_session, AdjustmentApplied(
+        id=str(uuid.uuid4()), session_id=new_session.id,
+        sequence=len(new_session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(actor.id),
+        target_id=target_id, stat="STUN",
+        delta=outcome.delta, fade_rate_per_turn=outcome.fade_rate_per_turn,
+    ))
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=outcome, events=_events_since(session, new_session),
+    )
+
+
+@resolves("aid")
+def _resolve_aid(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Aid (6E1 p.133): a positive, fading boost. Targets an ally, or the
+    actor when the offer names no one."""
+    return _adjustment(session, actor, action, roller=roller, sign="aid")
+
+
+@resolves("drain")
+def _resolve_drain(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Drain (6E1 p.139): a negative, fading reduction, capped so it cannot
+    take the target below zero."""
+    return _adjustment(session, actor, action, roller=roller, sign="drain")
