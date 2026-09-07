@@ -27,6 +27,20 @@ saying because two other homes were considered and rejected:
 reads it is somebody else's business. That is the same seam as ``Chooser``
 --- the engine asks, and never learns what answered.
 
+THE GROUND IS PART OF THE PHASE. A Brief that lists combatants and offers
+and says nothing about where anyone is standing describes a fight in a
+void. Measured 2026-09-07 on the O.K. Corral: the page mentioned no wall,
+no cover and no range, so a reader could see that melee had vanished from
+the menu and `move_strike` had appeared, and never know WHY --- it could
+not prefer a target two metres away over one five metres off, because both
+read identically, and it could not take cover behind a wagon it had no way
+to know existed.
+
+Everything needed was already computed elsewhere for the rules to use:
+`distance_3d` for range, `compute_cover_level` and `cover_ocv_modifier`
+for cover, `has_line_of_sight` for whether a shot is even possible. The
+terrain section states those, and derives nothing of its own.
+
 STABLE AND PARSEABLE, NOT PRETTY. Each action is listed with its
 ``action_id`` in brackets, because that token is what a chooser returns and
 what ``validate_choice`` checks. The rest is a state line per combatant.
@@ -98,6 +112,115 @@ class CombatantLine:
         return self.render()
 
 
+@dataclass(frozen=True)
+class EnemyBearing:
+    """Where one enemy stands, relative to the actor.
+
+    Every figure here is the SAME one the rules use --- the range that gates
+    melee, the cover level that penalises a shot, the line of sight that
+    decides whether the shot is possible at all. A reader weighing an offer
+    and the engine resolving it quote the same numbers.
+    """
+
+    enemy_id: str
+    name: str
+    range_m: float | None = None
+    cover_level: int = 0
+    cover_ocv: int = 0
+    in_line_of_sight: bool = True
+
+    def render(self) -> str:
+        if self.range_m is None:
+            return f"{self.name}: position unknown"
+        bits = [f"{self.range_m:.1f}m"]
+        if self.cover_level:
+            bits.append(f"cover {self.cover_level}/4 ({self.cover_ocv:+d} OCV to hit)")
+        if not self.in_line_of_sight:
+            bits.append("NO line of sight")
+        return f"{self.name}: {', '.join(bits)}"
+
+
+class Terrain:
+    """The ground, as it bears on this Phase.
+
+    Reads the Scene and reports; computes no rule of its own. A fight with
+    no Scene has no terrain, and ``present`` is False --- which is a real
+    answer, not an empty one: it says this fight happens nowhere in
+    particular, and nothing on the page should imply otherwise.
+    """
+
+    def __init__(self, session, actor, enemies) -> None:
+        self._session = session
+        self._actor = actor
+        self._enemies = list(enemies)
+
+    @property
+    def scene(self):
+        return getattr(self._session, "scene", None) if self._session else None
+
+    @property
+    def present(self) -> bool:
+        return self.scene is not None and self.position_of(self._actor.id) is not None
+
+    def position_of(self, combatant_id: str):
+        from kirby_combat.scene.placement import position_of
+
+        return position_of(self.scene, combatant_id)
+
+    @property
+    def features(self) -> list:
+        """Walls and obstacles, nearest first. A named thing a reader can
+        aim for, hide behind, or shoot through."""
+        return list(getattr(self.scene, "walls", None) or [])
+
+    @property
+    def bearings(self) -> list[EnemyBearing]:
+        from kirby_combat.resolution.line_of_sight import has_line_of_sight
+        from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
+        from kirby_combat.scene.geometry import distance_3d
+
+        here = self.position_of(self._actor.id)
+        out: list[EnemyBearing] = []
+        for enemy in self._enemies:
+            name = getattr(enemy, "name", None) or enemy.id
+            there = self.position_of(enemy.id)
+            if here is None or there is None:
+                out.append(EnemyBearing(enemy.id, name))
+                continue
+            cover = compute_cover_level(
+                shooter_pos=here, target_pos=there,
+                target_is_prone_or_diving=False, scene=self.scene,
+            )
+            out.append(EnemyBearing(
+                enemy_id=enemy.id, name=name,
+                range_m=distance_3d(here, there),
+                cover_level=cover,
+                # The cover LEVEL is 0-4; the OCV table is keyed on percent
+                # covered, so the level is converted the way the rules do
+                # rather than by a second table invented here.
+                cover_ocv=cover_ocv_modifier(cover * 25),
+                in_line_of_sight=has_line_of_sight(self.scene, here, there),
+            ))
+        return sorted(out, key=lambda b: (b.range_m is None, b.range_m or 0.0))
+
+    def render(self) -> str:
+        if not self.present:
+            return "Ground: open, featureless — no positions are being tracked."
+        lines = [f"Ground: {getattr(self.scene, 'name', None) or 'unnamed'}"]
+        for feature in self.features:
+            fname = getattr(feature, "name", None) or getattr(feature, "id", "?")
+            cover = getattr(feature, "cover_level", 0)
+            body = getattr(feature, "body", None)
+            blocks = "blocks sight" if getattr(feature, "blocks_los", False) else "does not block sight"
+            lines.append(
+                f"  {fname}: cover {cover}/4, {blocks}"
+                + (f", BODY {body} to break through" if body is not None else "")
+            )
+        lines.append("Enemy bearings:")
+        lines.extend(f"  {b.render()}" for b in self.bearings)
+        return "\n".join(lines)
+
+
 class Brief:
     """A written description of one Phase.
 
@@ -119,6 +242,12 @@ class Brief:
     @property
     def enemies(self) -> list[CombatantLine]:
         return [CombatantLine(c) for c in self._situation.enemies]
+
+    @property
+    def terrain(self) -> Terrain:
+        """The ground, as it bears on this Phase."""
+        return Terrain(self._situation.session, self._situation.actor,
+                       self._situation.enemies)
 
     @property
     def menu(self) -> list["LegalAction"]:
@@ -146,6 +275,9 @@ class Brief:
         lines.append("")
         lines.append("Enemies:" if self.enemies else "Enemies: none standing.")
         lines.extend(f"  {line.render()}" for line in self.enemies)
+
+        lines.append("")
+        lines.append(self.terrain.render())
 
         lines.append("")
         lines.append(f"Legal actions this Phase ({len(self.menu)}):")

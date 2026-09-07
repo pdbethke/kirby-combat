@@ -12,6 +12,9 @@ from conftest import fighter, encounter_of  # tests/loop/conftest.py
 from kirby_combat.brief import Brief, CombatantLine
 from kirby_combat.enumeration import enumerate_actions
 from kirby_combat.loop import PhaseSituation, Roster
+from kirby_combat.session.combat_session import CombatSession
+from kirby_combat.template import CombatTemplate
+from kirby_dice import RandomRoller
 from kirby_combat.side import Side
 
 
@@ -149,3 +152,93 @@ def test_rendering_changes_nothing():
 def test_rendering_is_deterministic():
     situation = _situation()
     assert Brief(situation).render() == Brief(situation).render()
+
+
+# ---------------------------------------------------------------------------
+# Terrain. A Brief that lists combatants and offers and says nothing about
+# where anyone stands describes a fight in a void.
+# ---------------------------------------------------------------------------
+
+
+def _lot_situation():
+    """Two fighters 4m apart with a wall between them."""
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Wall,
+    )
+
+    scene = Scene(
+        id="lot", name="A narrow lot",
+        bounds=SceneBounds(-20, -20, 0, 20, 20, 10),
+        surfaces=[], hazards=[], ambient=AmbientConditions(),
+        walls=[Wall(
+            id="crate", name="Stack of crates",
+            segment=(Position(2.0, -1.0, 0.0), Position(2.0, 1.0, 0.0)),
+            height_m=1.5, blocks_los=True, blocks_movement=True,
+            cover_level=3, body=5, def_value=2,
+        )],
+        combatant_positions={
+            "aurora": Position(0.0, 0.0, 0.0), "nemesis": Position(4.0, 0.0, 0.0),
+        },
+    )
+    session = CombatSession.create(
+        id="s", combatants=[
+            fighter("aurora", side=Side.named("heroes"), dex=25),
+            fighter("nemesis", side=Side.named("villains"), dex=15),
+        ],
+        scene=scene, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=2),
+    ).start()
+    actor = session.combatants["aurora"]
+    roster = Roster(session)
+    return PhaseSituation(
+        actor=actor, menu=enumerate_actions(actor, roster.enemies_of(actor)),
+        enemies=roster.enemies_of(actor), allies=roster.allies_of(actor),
+        session=session, segment=12, turn=1,
+    )
+
+
+def test_the_ground_is_named_and_its_features_listed():
+    page = Brief(_lot_situation()).render()
+    assert "A narrow lot" in page
+    assert "Stack of crates" in page
+    assert "cover 3/4" in page
+    assert "BODY 5" in page, "what it would take to shoot through"
+
+
+def test_enemy_bearings_carry_range_and_cover():
+    """The same figures the RULES use -- the range that gates melee, the
+    cover that penalises the shot. A reader weighing an offer and the
+    engine resolving it quote the same numbers."""
+    brief = Brief(_lot_situation())
+    bearing = brief.terrain.bearings[0]
+    assert bearing.name == "nemesis"
+    assert bearing.range_m == pytest.approx(4.0)
+    assert bearing.cover_level == 3
+    assert bearing.cover_ocv < 0, "cover makes the shot harder"
+
+
+def test_the_page_says_when_line_of_sight_is_blocked():
+    page = Brief(_lot_situation()).render()
+    assert "NO line of sight" in page
+
+
+def test_bearings_are_ordered_nearest_first():
+    from kirby_combat.brief import EnemyBearing
+
+    unsorted = [EnemyBearing("c", "c", 9.0), EnemyBearing("a", "a", 1.0)]
+    assert min(unsorted, key=lambda b: b.range_m).name == "a"
+
+
+def test_a_sceneless_fight_says_so_rather_than_implying_ground():
+    """No Scene is a real answer -- this fight happens nowhere in
+    particular -- not an empty section that reads like open ground."""
+    page = Brief(_situation()).render()
+    assert "no positions are being tracked" in page
+    assert "cover" not in page.split("Legal actions")[0].lower()
+
+
+def test_terrain_reads_state_and_changes_none():
+    situation = _lot_situation()
+    before = dict(situation.session.scene.combatant_positions)
+    Brief(situation).render()
+    assert situation.session.scene.combatant_positions == before
