@@ -148,8 +148,8 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_thirty_five_of_fifty_two_are_wired():
-    assert len(registered_kinds()) == 35
+def test_thirty_eight_of_fifty_two_are_wired():
+    assert len(registered_kinds()) == 38
 
 
 def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
@@ -194,6 +194,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "escape_str", "escape_attack", "escape_teleport",       # here
         "attack_construct", "heal", "dispel",                   # here
         "presence_attack_group",                                # here
+        "push", "hide", "force_wall",                           # here
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
@@ -422,3 +423,64 @@ def test_a_group_presence_attack_with_nobody_to_frighten_refuses():
             _action("presence_attack_group", target=None),
             template=TEMPLATE, roller=RandomRoller(seed=9),
         )
+
+
+def test_pushing_costs_five_end_and_adds_a_damage_class():
+    """6E2 p.133's exchange rate, exactly as the offer promises it -- one
+    Damage Class for five END, neither re-derived here."""
+    before, resolved = _resolve(_action("push", power=blast("p", dice=6)))
+    spent = (
+        before.combatants["actor"].state.current_end
+        - resolved.session.combatants["actor"].state.current_end
+    )
+    assert spent == 5
+    assert resolved.result is not None
+
+
+def test_pushing_without_a_power_refuses():
+    from kirby_combat.loop.registry import UnresolvableAction
+
+    with pytest.raises(UnresolvableAction, match="push"):
+        _resolve(_action("push", power=None))
+
+
+def test_hiding_is_contested_per_observer():
+    """Being unseen is not a property of the hider: one enemy may lose you
+    while another keeps you in view, so the contest runs per watcher."""
+    _, resolved = _resolve(_action("hide", target=None))
+    payload = resolved.session.event_log[-1].result_payload
+    assert "unseen_by" in payload
+    assert set(payload["unseen_by"]) <= {"mark"}
+
+
+def test_a_force_wall_needs_a_map_and_lands_on_it():
+    from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds,
+    )
+
+    # No scene: nowhere to put a barrier.
+    with pytest.raises(UnresolvableAction, match="force_wall"):
+        _resolve(_action("force_wall", power=_Power("FORCEWALL", levels=6)))
+
+    scene = Scene(
+        id="s", name="S", bounds=SceneBounds(0, 0, 0, 100, 100, 50),
+        surfaces=[], walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={
+            "actor": Position(0.0, 0.0, 0.0), "mark": Position(20.0, 0.0, 0.0),
+        },
+    )
+    session = CombatSession.create(
+        id="s", scene=scene, template=TEMPLATE, dice_roller=RandomRoller(seed=9),
+        combatants=[_actor(), fighter("mark", side=Side.named("villains"))],
+    ).start()
+
+    assert scene.walls == []
+    resolved = resolve_chosen(
+        session, session.combatants["actor"],
+        _action("force_wall", power=_Power("FORCEWALL", levels=6)),
+        template=TEMPLATE, roller=RandomRoller(seed=9),
+    )
+    assert len(scene.walls) == 1, "the barrier must reach the scene"
+    assert scene.walls[0].body == 6, "BODY comes from the power's levels"
+    assert resolved.events

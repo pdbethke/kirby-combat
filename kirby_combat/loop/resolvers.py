@@ -207,6 +207,14 @@ def _recorded(session, actor, action: LegalAction, result, payload: dict) -> "Re
     )
 
 
+#: Barrier geometry. JUDGEMENTS: 6E1 p.167 sizes a Barrier from the power's
+#: Area Of Effect, which a synthetic offer does not carry. These are the
+#: smallest dimensions that actually block a line between two combatants.
+FORCE_WALL_STANDOFF_M = 2.0
+FORCE_WALL_HALF_WIDTH_M = 3.0
+FORCE_WALL_HEIGHT_M = 3.0
+
+
 #: How far from the enemy a conjured decoy stands, in metres. A JUDGEMENT,
 #: not RAW: 6E1 p.238 governs whether an Image is CREATED (an Attack Roll
 #: against DCV 3) and whether it is BELIEVED (a PER Roll to disbelieve), and
@@ -1124,4 +1132,117 @@ def _resolve_presence_attack_group(
     return _recorded(session, actor, action, results, {
         "kind": action.kind,
         "effects": {tid: r.effect for tid, r in results.items()},
+    })
+
+
+@resolves("push")
+def _resolve_push(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Push a power (6E2 p.133): +1 DC for +5 END.
+
+    The offer promises exactly one DC for exactly five END, so this resolves
+    the attack it names with one extra Damage Class and spends the END. It
+    does NOT re-derive the exchange rate --- that is the offer's summary and
+    the book's, not a number invented here.
+    """
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.vitals import apply_vitals_delta
+
+    power = action._attack_view
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    target = session.combatants[action.target_id]
+    dice = max(1, int(power.damage_dice or 0)) + 1      # the pushed Damage Class
+    attack = AttackInput(
+        attacker=actor, target=target, power=power,
+        distance_m=None, aim=None,
+        dice=DiceValues(to_hit=roller.roll_dice(3), damage=roller.roll_dice(dice)),
+    )
+    new_session, result = resolve_attack_in_session(
+        session, attack, template, action_type="attack",
+    )
+    # 6E2 p.133's price. The engine applies no END for a Push anywhere else,
+    # so it is spent here rather than left owed.
+    pushed = apply_vitals_delta(new_session.combatants[actor.id], end=-5)
+    from dataclasses import replace as _replace
+
+    new_session = _replace(
+        new_session, combatants={**new_session.combatants, actor.id: pushed},
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("hide")
+def _resolve_hide(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Hide --- a Stealth attempt against every watcher's PER.
+
+    Contested per observer, because being unseen is not a property of the
+    hider: one enemy may lose you while another keeps you in view. The
+    engine's `_opposed_perceives` is the contest; this only supplies the two
+    target numbers and records who lost track of whom.
+    """
+    from kirby_combat.perception import _opposed_perceives
+    from kirby_combat.roster import Roster
+
+    stats = actor.combat_stats()
+    #: 6E1 p.60: a Characteristic Roll is 9 + CHAR/5.
+    stealth_target = 9 + int(stats.dex) // 5
+
+    unseen_by: list[str] = []
+    for enemy in Roster(session).enemies_of(actor):
+        per_target = 9 + int(enemy.combat_stats().int_) // 5
+        perceives, _p, _s = _opposed_perceives(per_target, stealth_target, roller)
+        if not perceives:
+            unseen_by.append(enemy.id)
+
+    return _recorded(session, actor, action, tuple(unseen_by), {
+        "kind": action.kind, "unseen_by": unseen_by,
+    })
+
+
+@resolves("force_wall")
+def _resolve_force_wall(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Raise a Barrier (6E1 p.167) between the actor and the nearest enemy.
+
+    The wall's BODY and DEF come from the power's levels. WHERE it goes is a
+    judgement, and the same one a decoy and a Darkness field make --- the
+    shared placement helper --- because a barrier that is not between you
+    and the threat is not a barrier.
+    """
+    from kirby_combat.scene.scene import Position, Wall
+
+    power = action._attack_view
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    scene = session.scene
+    centre = _point_near_nearest_enemy(session, actor, FORCE_WALL_STANDOFF_M)
+    if scene is None or centre is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    x, y, z = centre
+    levels = _levels(action)
+    half = FORCE_WALL_HALF_WIDTH_M
+    wall = Wall(
+        id=f"force-wall-{actor.id}-{len(getattr(scene, 'walls', []) or [])}",
+        name="Force Wall",
+        segment=(Position(x - half, y, z), Position(x + half, y, z)),
+        height_m=FORCE_WALL_HEIGHT_M,
+        body=levels, def_value=levels, ed_value=levels,
+    )
+    scene.walls.append(wall)
+    return _recorded(session, actor, action, wall, {
+        "kind": action.kind, "wall_id": wall.id, "body": levels,
     })

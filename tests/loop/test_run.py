@@ -39,6 +39,7 @@ def test_the_registered_kinds_are_pinned():
         "maneuver", "hold", "release_held", "darkness_zone",
         "escape_str", "escape_attack", "escape_teleport",
         "attack_construct", "heal", "dispel", "presence_attack_group",
+        "push", "hide", "force_wall",
     })
 
 
