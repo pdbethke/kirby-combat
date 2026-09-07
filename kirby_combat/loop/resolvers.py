@@ -1753,7 +1753,8 @@ def _offer_count(action: LegalAction, *, default: int) -> int:
 
 
 def _resolve_shots(session, actor, action: LegalAction, *, roller,
-                   targets: list, per_shot_ocv: list) -> tuple:
+                   targets: list, per_shot_ocv: list,
+                   stop_on_miss: bool = False) -> tuple:
     """Resolve one attack per (target, OCV) pair, in order.
 
     THE THING THAT WAS MISSING. `RapidFire.compute`, `Sweep.compute` and
@@ -1771,6 +1772,12 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
     Each shot goes through `resolve_attack_in_session` at its own OCV, so
     every shot gets the real to-hit, the real damage and the real damage
     application -- rather than a second, thinner copy of any of them.
+
+    `stop_on_miss` is 6E2 p.73's other half: in a Multiple Attack, missing
+    any Attack Roll makes every remaining attack in the sequence miss too.
+    Without it the maneuver is many chances at no risk; the page's own
+    example turns on it, stopping a character who misses his second
+    attack from reaching the third target at all.
     """
     from kirby_combat.models import AttackInput, DiceValues
 
@@ -1796,6 +1803,13 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
             session, attack, session.template, action_type="attack",
         )
         results.append((target.id, result))
+        if stop_on_miss and not result.hit:
+            # The rest of the sequence automatically misses, so there is
+            # nothing further to roll. They are absent from `results`
+            # rather than recorded as misses: a shot that was never taken
+            # and a shot that was taken and missed are different facts,
+            # and the caller's `hits` count reads the same either way.
+            break
     return session, results
 
 
@@ -1830,10 +1844,12 @@ def _multi_attack(session, actor, action, *, roller, sweep: bool):
     new_session, results = _resolve_shots(
         session, actor, action, roller=roller,
         targets=targets, per_shot_ocv=list(outcome.per_shot_ocv),
+        stop_on_miss=True,
     )
     new_session = _record_outcome(new_session, actor, action, {
         "kind": action.kind,
         "target_ids": [t.id for t in targets],
+        "shots_taken": len(results),
         "per_target_ocv": list(outcome.per_shot_ocv),
         "dcv_factor": outcome.dcv_factor,
         "hits": sum(1 for _t, r in results if r.hit),

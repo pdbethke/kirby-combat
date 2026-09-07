@@ -519,20 +519,25 @@ def _cover_midpoint(wall) -> tuple[float, float, float]:
     return ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, (a.z + b.z) / 2.0)
 
 
-def _ocv_ladder(base_ocv: int, count: int) -> str:
-    """The actual per-shot OCVs, as a readable list.
+def _multi_attack_ocv(base_ocv: int, count: int) -> int:
+    """The single OCV every shot of a `count`-attack sequence is taken at.
 
-    STATE THE NUMBERS, NOT THE RULE. A single-attack offer reads "(1d6K,
+    STATE THE NUMBER, NOT THE RULE. A single-attack offer reads "(1d6K,
     OCV 5)" -- an absolute figure a reader can compare. A Multiple Attack
     used to read "cumulative -2 OCV per additional target", which is the
     same information only if the reader does the arithmetic. Anything
     choosing between the two was comparing a number against a rule.
 
-    The engine already computes this ladder for the resolver
-    (`MultipleAttack.compute`); the menu now says it too, so the offer and
-    the resolution quote the same figures.
+    This was a LADDER ("5/3/1") until 2026-09-07, because the resolver
+    charged one. 6E2 p.73 charges (N-1) x -2 on every roll instead, so
+    there is one number to quote and the menu quotes it. Kept delegating
+    to `MultipleAttack.compute` so the offer and the resolution cannot
+    drift apart again.
     """
-    return "/".join(str(base_ocv - 2 * i) for i in range(max(1, count)))
+    from kirby_combat.actions.multiple_attack import MultipleAttack
+
+    return MultipleAttack.compute(
+        base_ocv=base_ocv, num_targets=max(1, count)).per_shot_ocv[0]
 
 
 #: EVERY kind ``enumerate_actions`` can put on a menu.
@@ -1706,8 +1711,8 @@ def enumerate_actions(
                     power_name=ap.name or None,
                     summary=(
                         f"RAPID FIRE {pname} vs {_friendly(enemy)}: "
-                        f"3 shots at OCV {_ocv_ladder(s.ocv, 3)} "
-                        f"(-2 per shot), ½ DCV, full-phase (6E2 p75)"
+                        f"3 shots, all at OCV {_multi_attack_ocv(s.ocv, 3)} "
+                        f"(-4 for three), ½ DCV, full-phase (6E2 p75)"
                     ),
                     _attack_view=ap,
                 ))
@@ -1758,9 +1763,10 @@ def enumerate_actions(
                 power_xmlid=ap.xmlid,
                 power_name=ap.name or None,
                 summary=(
-                    f"{label} with {pname}: {scope} at OCV "
-                    f"{_ocv_ladder(s.ocv, n)} (-2 per additional target), "
-                    f"full-phase, ½ DCV (6E2 p73)"
+                    f"{label} with {pname}: {scope}, EVERY shot at OCV "
+                    f"{_multi_attack_ocv(s.ocv, n)} "
+                    f"(-{2 * max(0, n - 1)} for {n} attacks); miss one and "
+                    f"the rest miss too; full-phase, ½ DCV (6E2 p73)"
                 ),
                 _attack_view=ap,
             ))

@@ -78,14 +78,18 @@ def test_the_hidden_kind_is_registered(kind):
 # ---- Sweep and Multiple Attack ----
 
 @pytest.mark.parametrize("kind", ["sweep", "multiple_attack"])
-def test_a_multi_target_attack_widens_the_ocv_penalty(kind):
-    """6E2 p.56 / p.71 -- each successive target is at a worse OCV, and the
-    whole Phase is spent at half DCV."""
+def test_a_multi_target_attack_charges_one_penalty_on_every_shot(kind):
+    """6E2 p.73 -- more targets is a worse OCV on EVERY roll, and the whole
+    Phase is spent at half DCV.
+
+    This asserted `ocvs[0] > ocvs[1]` until 2026-09-07, which pinned the
+    descending ladder the book does not have. Two targets is (2-1) x -2 =
+    -2, charged on both."""
     resolved = _resolve(_act(kind, _attack_view=blast("eb", dice=4)))
     payload = resolved.session.event_log[-1].result_payload
     ocvs = payload["per_target_ocv"]
     assert len(ocvs) == 2
-    assert ocvs[0] > ocvs[1]
+    assert ocvs[0] == ocvs[1]
     assert payload["dcv_factor"] == 0.5
 
 

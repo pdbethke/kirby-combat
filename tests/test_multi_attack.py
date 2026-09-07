@@ -8,9 +8,15 @@ from kirby_combat.actions.rapid_fire import RapidFire
 
 # ---- Multiple Attack ----
 
-def test_multiple_attack_descending_ocv():
+def test_multiple_attack_flat_penalty_on_every_shot():
+    """(3-1) x -2 = -4, charged on all three rolls (6E2 p.73).
+
+    This test asserted [8, 6, 4] until 2026-09-07 -- a descending ladder
+    that left the first shot unpenalised. The book's worked examples say
+    the penalty is set by the number of attacks and then applies to every
+    Attack Roll. See tests/test_multiple_attack_raw.py."""
     out = MultipleAttack.compute(base_ocv=8, num_targets=3)
-    assert out.per_shot_ocv == [8, 6, 4]
+    assert out.per_shot_ocv == [4, 4, 4]
 
 
 def test_multiple_attack_dcv_half():
@@ -33,15 +39,22 @@ def test_multiple_attack_zero_targets_raises():
         MultipleAttack.compute(base_ocv=8, num_targets=0)
 
 
-def test_multiple_attack_csl_offset_flattens_penalty():
-    # csl_offset=4 means first 3 shots at full OCV (i=0,1,2 → max(0, 0/2/4 - 4) = 0)
+def test_multiple_attack_csl_offset_buys_the_penalty_down():
+    """Four attacks is -6; four levels leave -2 on every shot."""
     out = MultipleAttack.compute(base_ocv=8, num_targets=4, csl_offset=4)
-    assert out.per_shot_ocv == [8, 8, 8, 6]
+    assert out.per_shot_ocv == [6, 6, 6, 6]
 
 
 # ---- Sweep ----
 
 def test_sweep_same_math_as_multiple_attack():
+    """Sweep delegates, so it moves with Multiple Attack.
+
+    NOTE: 6E has no Sweep maneuver --- it folded into Multiple Attack ---
+    so `sweep` is a 5E name kept as a hand-to-hand framing. The engine's
+    "6E2 p.56" citation for it does not hold up; the arithmetic is
+    p.73's.
+    """
     a = MultipleAttack.compute(base_ocv=8, num_targets=3)
     s = Sweep.compute(base_ocv=8, num_targets=3)
     assert a.per_shot_ocv == s.per_shot_ocv
