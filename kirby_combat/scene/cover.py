@@ -209,23 +209,59 @@ def cover_available(
     actor moved, stopped against the wall it could not cross, and finished
     the Phase with the same cover it started with.
 
-    So the level returned is the WORST cover the spot gives against any
-    threat --- cover that only works against one of three shooters is not
-    cover you can rely on, and the flanking case is precisely what a
-    number is supposed to warn about.
+    The level returned is the BEST cover the spot gives against any single
+    threat. This was the WORST until 2026-09-07, on the reasoning that
+    "cover that only works against one of three shooters is not cover you
+    can rely on" --- which reads well and is wrong twice.
 
-    Returns ``(spot, 0)`` when the feature would not help, and the caller
-    declines to offer it.
+    It is wrong about the RULES. Resolution applies cover PER
+    shooter-target pair (`_cover_against` in actions/recording.py), so a
+    barrel genuinely costs the man in front of it -2 OCV and costs the man
+    who flanked it nothing. Scoring the barrel 0 described a game the
+    engine does not play.
+
+    And it is wrong about the FIGHT that exposed it. Nine men in a lot
+    5.5m across means every feature is flanked by somebody, so every one
+    scored 0 and no cover was ever offered --- on a map furnished with
+    barrels, a trough and packing crates precisely so that it would be.
+
+    `cover_breakdown` gives the other half, how MANY threats the spot
+    covers, so an offer can state the trade instead of one number that
+    hides it.
+
+    Returns ``(spot, 0)`` only when the feature shields the actor from
+    NOBODY --- a wall behind you --- and the caller declines to offer it.
     """
     if not threats:
         return from_pos, 0
     nearest = min(threats, key=lambda t: distance_3d(from_pos, t))
     spot = cover_spot(wall, nearest)
-    worst = min(
+    best = max(
         compute_cover_level(
             shooter_pos=threat, target_pos=spot,
             target_is_prone_or_diving=False, scene=scene,
         )
         for threat in threats
     )
-    return spot, worst
+    return spot, best
+
+
+def cover_breakdown(
+    wall: Wall, spot: Position, threats: list[Position], scene: Scene,
+) -> tuple[int, int]:
+    """How many of ``threats`` the ``spot`` actually covers, and how many
+    there are --- the flanking picture, as two numbers.
+
+    Separate from `cover_available` because they answer different
+    questions: how GOOD the cover is, and how much of the problem it
+    solves. An offer that quotes only the first invites a fighter to hide
+    from one man while four others walk around it.
+    """
+    covered = sum(
+        1 for threat in threats
+        if compute_cover_level(
+            shooter_pos=threat, target_pos=spot,
+            target_is_prone_or_diving=False, scene=scene,
+        ) > 0
+    )
+    return covered, len(threats)

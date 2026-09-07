@@ -2838,7 +2838,7 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_combat.scene.cover import cover_available
+        from kirby_combat.scene.cover import cover_available, cover_breakdown
         from kirby_combat.scene.movement_legality import movement_reach
 
         _threats = [
@@ -2876,6 +2876,16 @@ def enumerate_actions(
             )
             if not _reach.reachable:
                 continue
+            # STATE THE TRADE, NOT JUST THE NUMBER. Cover is applied per
+            # shooter, so "cover 2/4" alone invites hiding from one man
+            # while four others walk around it. The offer says how many of
+            # them it actually covers.
+            _covered, _total = cover_breakdown(_wall, _spot, _threats, scene)
+            _exposed = _total - _covered
+            _flank = (
+                "" if _exposed <= 0
+                else f"; {_exposed} of {_total} would still have a clear shot"
+            )
             actions.append(LegalAction(
                 action_id=f"move_to_cover:{_wall.id}",
                 kind="move_to_cover",
@@ -2884,9 +2894,10 @@ def enumerate_actions(
                 power_name=getattr(_wall, "name", None) or _wall.id,
                 summary=(
                     f"Take cover behind {getattr(_wall, 'name', None) or _wall.id} "
-                    f"({_d:.1f}m away) — you would have cover {_level}/4 there, "
-                    f"so attackers take {cover_ocv_modifier(_level * 25):+d} OCV "
-                    f"against you. Half Move, so you may still attack (6E2 p45)"
+                    f"({_d:.1f}m away) — cover {_level}/4 against "
+                    f"{_covered} of {_total} of them, so those attackers take "
+                    f"{cover_ocv_modifier(_level * 25):+d} OCV against you"
+                    f"{_flank}. Half Move, so you may still attack (6E2 p45)"
                 ),
                 reposition_dest=(_spot.x, _spot.y, _spot.z),
             ))

@@ -104,6 +104,12 @@ def the_lot() -> Scene:
     It is about 5.5m across -- the fight did not happen in the O.K. Corral
     at all, but in this gap beside it.
 
+    Four of the seven features are the lot's documented geography. Three
+    -- barrels, a trough, packing crates -- are a working yard's ordinary
+    clutter, added deliberately: the geography alone gives nobody cover,
+    because both buildings run parallel to the firing lines and outside
+    them. See the note beside them.
+
     The nine men stood in two facing lines roughly two metres apart, which
     is the single most important fact about the gunfight: at that range
     nobody misses for long, and every melee offer in the engine is gated
@@ -144,6 +150,40 @@ def the_lot() -> Scene:
                  segment=(Position(1.0, 9.5, 0.0), Position(4.5, 9.5, 0.0)),
                  height_m=1.5, blocks_los=False, blocks_movement=True,
                  cover_level=2, body=6, def_value=2, climb_difficulty=0),
+
+            # ---- SET DRESSING, and it changes the fight ----
+            #
+            # The four features above are the lot's documented geography.
+            # These three are a working yard's ordinary clutter, and they
+            # are here because the geography alone offers NOBODY any cover.
+            #
+            # WHY THE BUILDINGS DO NOT COUNT. Cover means putting a thing
+            # between you and the man shooting at you. Harwood House and
+            # Fly's run NORTH-SOUTH, parallel to both firing lines and
+            # OUTSIDE them, so a Cowboy pressed against Harwood still has
+            # every Earp in clear view -- the wall is beside him, not in
+            # front. `cover_available` says so, correctly, and returns 0.
+            # And the far side of a building, where cover does exist, is
+            # not reachable: `movement_reach` clamps toward a destination
+            # rather than pathfinding around a wall's end.
+            #
+            # A barrel is different in the one way that matters: it is
+            # SMALL and it sits BETWEEN the lines, so its covered side is
+            # the side you are already standing on. These run north-south
+            # across the middle of the lot at x ~ 2.3-3.0, which is where
+            # a line from a Cowboy to an Earp crosses.
+            Wall(id="barrels", name="Stack of whiskey barrels",
+                 segment=(Position(2.3, 2.8, 0.0), Position(2.3, 3.6, 0.0)),
+                 height_m=1.2, blocks_los=False, blocks_movement=True,
+                 cover_level=2, body=4, def_value=2, climb_difficulty=0),
+            Wall(id="trough", name="Water trough",
+                 segment=(Position(3.0, 5.0, 0.0), Position(3.0, 6.2, 0.0)),
+                 height_m=0.8, blocks_los=False, blocks_movement=True,
+                 cover_level=2, body=5, def_value=3, climb_difficulty=0),
+            Wall(id="crates", name="Packing crates",
+                 segment=(Position(2.6, 7.2, 0.0), Position(2.6, 8.0, 0.0)),
+                 height_m=1.5, blocks_los=False, blocks_movement=True,
+                 cover_level=3, body=4, def_value=2, climb_difficulty=0),
         ],
         hazards=[], ambient=AmbientConditions(light_level=4),
         combatant_positions={

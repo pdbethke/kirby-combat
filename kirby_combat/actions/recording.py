@@ -112,6 +112,40 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
     return replace(session, combatants=new_combatants)
 
 
+def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
+    """Cover the TARGET enjoys against THIS attacker, and its OCV cost.
+
+    Per shooter-target pair, which is the only way cover means anything:
+    a barrel shields you from the man in front of it and not from the one
+    who walked around it. `compute_cover_level` was already written that
+    way; nothing had asked it.
+
+    Returns (0, 0) whenever the question does not arise --- no scene, no
+    map positions, either party unplaced. Most fights and nearly every
+    test are on no map at all, and that must stay free rather than raise.
+    """
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return 0, 0
+    positions = getattr(scene, "combatant_positions", None) or {}
+    shooter = positions.get(attack.attacker.id)
+    target = positions.get(attack.target.id)
+    if shooter is None or target is None:
+        return 0, 0
+
+    from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
+    from kirby_combat.statuses import statuses_for
+
+    prone = "prone" in {
+        str(s).lower() for s in (statuses_for(session, attack.target.id) or [])
+    }
+    level = compute_cover_level(
+        shooter_pos=shooter, target_pos=target,
+        target_is_prone_or_diving=prone, scene=scene,
+    )
+    return level, cover_ocv_modifier(level * 25)
+
+
 def resolve_attack_in_session(
     session: CombatSession,
     attack: AttackInput,
@@ -138,6 +172,22 @@ def resolve_attack_in_session(
     ``resolve_attack`` returned; nothing about the pure result is altered.
     """
     from kirby_combat.session.apply import apply_event
+
+    # COVER REACHES THE ROLL HERE, and only here.
+    #
+    # `resolve_attack` is pure and holds no scene; it takes an
+    # `ocv_modifier` and applies it. The session is what holds the scene.
+    # So the penalty is computed at this seam and folded into the input,
+    # which keeps the pure resolver pure and gets every caller that goes
+    # through the session --- a single attack, each shot of a Multiple
+    # Attack, move-and-strike --- without any of them knowing about it.
+    #
+    # Before this, `compute_cover_level` had exactly one caller, `brief.py`,
+    # which WRITES ABOUT the fight. Cover was scenery: a fighter who took
+    # it gained nothing, and every tactic that valued cover valued zero.
+    cover_level, cover_ocv = _cover_against(session, attack)
+    if cover_ocv:
+        attack = replace(attack, ocv_modifier=attack.ocv_modifier + cover_ocv)
 
     result = resolve_attack(attack, template)
 
@@ -224,6 +274,11 @@ def resolve_attack_in_session(
         "status_changes": status_changes,
         "power_xmlid": result.power_xmlid,
         "target_id": target_id,
+        # WHY it was harder than the bare CVs suggest. A to-hit that moved
+        # silently is indistinguishable from a bad roll, both to a reader
+        # and to anything learning from the log.
+        "cover_level": cover_level,
+        "cover_ocv": cover_ocv,
         # WHEN it landed. Needed by anything that reasons about blows within
         # one Segment -- a coordinated strike pools its participants' STUN
         # against CON (6E2 p.46), and without this the pool cannot tell an
