@@ -1678,7 +1678,7 @@ def _defense_type_for_power(power, xmlid: str) -> str:
 
 
 def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
-    """Return (full_dice, half_die, plus_one) from HD's level fields.
+    """Return (full_dice, half_die, plus_one, minus_one) from HD's level fields.
 
     HD stores ``levels`` as the buy count and ``level_value`` as the
     dice-per-level increment, so dice = ``levels * level_value`` for every
@@ -1720,12 +1720,19 @@ def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
     # dog's Bite both came through as 0d6 -- attacks that cannot hurt
     # anything -- and a .41 Handgun as 1d6 instead of 1½d6.
     #
-    # MINUSONEPIP is deliberately NOT handled: `AttackPower` carries
-    # `half_die` and `plus_one` and has no way to say "minus one pip", so
-    # honouring it would mean inventing a field. It appears ONCE in the
-    # whole corpus, against 345 PLUSONEHALFDIE and 197 PLUSONEPIP, so the
-    # cost of leaving it is one weapon reading a pip high -- against the
-    # cost of a new field on a shared dataclass. Named rather than silent.
+    # MINUSONEPIP was left out here on 2026-09-07 and put back the same
+    # day, because both halves of the reasoning were wrong.
+    #
+    # Its ALIAS in the file is "+1d6 -1": it is the 2d6-1 rung of the
+    # ladder, so it ADDS a die and takes back a pip. Reading the NAME as
+    # "one pip below the levels" makes it look like a rounding detail
+    # worth skipping; it is most of a die.
+    #
+    # And the "once in the whole corpus" count was taken over CHARACTERS.
+    # Weapons are equipment, and among them the adder is ordinary: the
+    # Colt Peacemaker is RKA LEVELS=1 + MINUSONEPIP. Five of the nine men
+    # at the O.K. Corral carried one, and their side lost every fight
+    # without landing a shot.
     adders = {
         (getattr(a, "xmlid", "") or "").upper()
         for a in (getattr(power, "assigned_adders", None)
@@ -1739,8 +1746,14 @@ def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
             half = False
         else:
             half = True
+    # "+1d6 -1": up a die, back a pip. Applied after the half-die rung so
+    # a power carrying both still lands somewhere sane.
+    minus_one = "MINUSONEPIP" in adders
+    if minus_one:
+        full += 1
+
     plus_one = "PLUSONEPIP" in adders
-    return full, half, plus_one
+    return full, half, plus_one, minus_one
 
 
 def _find_power(hero: "LoadedHero", power_xmlid: str, *,
@@ -1865,7 +1878,7 @@ def _build_attack_power(
     # AVAD/NND does STUN only (6E1 p328) unless it bought the Does BODY (+1) Advantage.
     avad_does_body = _has_modifier(power, "DOESBODY")
 
-    full_dice, half_die, plus_one = _compute_damage_dice(power, xmlid)
+    full_dice, half_die, plus_one, minus_one = _compute_damage_dice(power, xmlid)
     damage_type = _damage_type_for_power(power, xmlid)
     defense_type = _defense_type_for_power(power, xmlid)
 
@@ -1905,6 +1918,7 @@ def _build_attack_power(
         damage_dice=full_dice,
         half_die=half_die,
         plus_one=plus_one,
+        minus_one=minus_one,
         damage_type=damage_type,
         defense_type=defense_type,
         range_m=range_m,

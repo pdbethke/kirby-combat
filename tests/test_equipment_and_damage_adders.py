@@ -39,26 +39,26 @@ class _Power:
 # ---- Damage adders ----
 
 def test_levels_alone_still_read_as_before():
-    assert _compute_damage_dice(_Power(levels=8), "ENERGYBLAST") == (8, False, False)
+    assert _compute_damage_dice(_Power(levels=8), "ENERGYBLAST") == (8, False, False, False)
 
 
 def test_a_half_die_adder_adds_a_half_die():
     """A knife bought as ZERO levels plus PLUSONEHALFDIE is ½d6, not 0d6."""
     assert _compute_damage_dice(
         _Power(levels=0, adders=("PLUSONEHALFDIE",)), "HKA",
-    ) == (0, True, False)
+    ) == (0, True, False, False)
 
 
 def test_a_pip_adder_sets_plus_one():
     assert _compute_damage_dice(
         _Power(levels=1, adders=("PLUSONEPIP",)), "RKA",
-    ) == (1, False, True)
+    ) == (1, False, True, False)
 
 
 def test_both_adders_together():
     assert _compute_damage_dice(
         _Power(levels=2, adders=("PLUSONEHALFDIE", "PLUSONEPIP")), "RKA",
-    ) == (2, True, True)
+    ) == (2, True, True, False)
 
 
 def test_two_halves_make_a_whole_die():
@@ -66,18 +66,20 @@ def test_two_halves_make_a_whole_die():
     full die rather than carrying two halves."""
     assert _compute_damage_dice(
         _Power(levels=3, level_value=0.5, adders=("PLUSONEHALFDIE",)), "RKA",
-    ) == (2, False, False)
+    ) == (2, False, False, False)
 
 
-def test_minus_one_pip_is_deliberately_not_handled():
-    """`AttackPower` carries `half_die` and `plus_one` and has no way to
-    say "minus one pip". It appears ONCE in the whole corpus against 345
-    PLUSONEHALFDIE and 197 PLUSONEPIP, so the cost of leaving it is one
-    weapon reading a pip high -- against a new field on a shared
-    dataclass. Pinned so the choice is visible rather than forgotten."""
+def test_minus_one_pip_adds_a_die_and_takes_back_a_pip():
+    """This test used to pin the OPPOSITE, on two counts both wrong.
+
+    MINUSONEPIP's alias is "+1d6 -1" -- the 2d6-1 rung of the ladder, so
+    it adds a die. And the "once in the whole corpus" count was taken
+    over CHARACTERS; among WEAPONS it is ordinary, the Colt Peacemaker
+    included. Full reasoning in `_compute_damage_dice`; the ladder is
+    covered end to end in tests/test_minus_one_pip.py."""
     assert _compute_damage_dice(
         _Power(levels=1, adders=("MINUSONEPIP",)), "RKA",
-    ) == (1, False, False)
+    ) == (2, False, False, True)
 
 
 def test_adders_are_read_from_either_field_name():
@@ -85,13 +87,13 @@ def test_adders_are_read_from_either_field_name():
     p = _Power(levels=0)
     p.assigned_adders = []
     p.adders = [type("A", (), {"xmlid": "PLUSONEHALFDIE"})()]
-    assert _compute_damage_dice(p, "HKA") == (0, True, False)
+    assert _compute_damage_dice(p, "HKA") == (0, True, False, False)
 
 
 def test_an_unrelated_adder_changes_nothing():
     assert _compute_damage_dice(
         _Power(levels=4, adders=("CHARGES", "OAF")), "RKA",
-    ) == (4, False, False)
+    ) == (4, False, False, False)
 
 
 # ---- Equipment as attacks ----

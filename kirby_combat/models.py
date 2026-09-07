@@ -36,6 +36,11 @@ class AttackPower:
     armor_piercing: int           # levels of armor piercing
     penetrating: int              # levels of penetrating
     increased_stun_mult: int      # +N to killing stun multiplier
+    #: The 2d6-1 rung of the damage ladder. HD's MINUSONEPIP adder reads
+    #: "+1d6 -1": ``damage_dice`` already carries the added die, and this
+    #: takes the pip back. Defaulted so every existing construction site
+    #: keeps working -- an attack that does not say otherwise loses no pip.
+    minus_one: bool = False
     is_ranged: bool = False       # True when range_m > 0
     reach_m: float = 0.0         # effective melee reach in metres (0.0 for ranged)
     avad: bool = False              # Attack Versus Alternate Defense / NND

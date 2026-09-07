@@ -10,12 +10,14 @@ Normal damage
     STUN += value // 2
     BODY += 1 if value >= 5 else 0
 - Plus one (power.plus_one=True): STUN += 1, no BODY change
+- Minus one pip (power.minus_one=True): STUN -= 1, floored at 0
 
 Killing damage
 --------------
 - BODY = sum of all full dice values
     (half_die: BODY += value // 2)
     (plus_one: BODY += 1)
+    (minus_one: BODY -= 1, floored at 0, before the STUN multiplier)
 - STUN multiplier (per 6E2 p100 §Killing Damage Attacks):
     If template.killing_stun_mult_fixed is set → use that value.
     Otherwise: roll ½d6 (range 1-3) — caller passes a raw d6 in
@@ -153,6 +155,12 @@ def _compute_normal(
         stun += 1
         audit.append("Plus-one: STUN +1, BODY +0")
 
+    # Minus-one pip: the ladder's "+1d6 -1" rung. The added die is already
+    # in the dice; this takes the pip back off the STUN, never below zero.
+    if getattr(power, "minus_one", False):
+        stun = max(0, stun - 1)
+        audit.append("Minus-one pip: STUN -1")
+
     return stun, body, 1
 
 
@@ -183,6 +191,14 @@ def _compute_killing(
     if power.plus_one:
         body += 1
         audit.append("Plus-one: BODY +1")
+
+    # Minus-one pip: the ladder's "+1d6 -1" rung. The added die is already
+    # in the dice; this takes the pip back off the BODY, never below zero.
+    # BODY is taken before the STUN multiplier, so the pip is worth the
+    # multiplier in STUN too -- which is what 2d6-1 means at the table.
+    if getattr(power, "minus_one", False):
+        body = max(0, body - 1)
+        audit.append("Minus-one pip: BODY -1")
 
     # ------------------------------------------------------------------
     # STUN multiplier
