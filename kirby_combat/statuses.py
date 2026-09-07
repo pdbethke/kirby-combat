@@ -443,6 +443,14 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
 def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     """Fold Stunned's SET/CLEAR edges out of the event log (Task 4).
 
+    A SECOND SET SOURCE, added 2026-09-07: a coordinated strike (6E2 p.46).
+    Its participants' STUN pools against CON, so a Stun can exist that no
+    single attack's `status_changes` ever named -- two blows that each fall
+    short of CON together exceed it, which is the entire reason to
+    coordinate. `coordination.pools_into_a_stun` answers it, folded from the
+    same log; see that module for why the pool is a derivation rather than a
+    rescheduling.
+
     SET: an ``ActionResolved`` whose ``result_payload`` names this
     combatant (``"target_id"``, written by ``resolve_attack_in_session``,
     ``actions/recording.py``) and whose ``"status_changes"`` contains
@@ -504,6 +512,11 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     combatant = session.combatants[combatant_id]
     phase_segments = segments_for_spd(combatant.combat_stats().spd)
 
+    from kirby_combat.coordination import pools_into_a_stun
+
+    combatant = session.combatants.get(combatant_id)
+    con = int(combatant.combat_stats().con) if combatant is not None else 0
+
     stunned = False
     for evt in session.event_log:
         kind = evt.kind
@@ -512,6 +525,18 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
             if (
                 payload.get("target_id") == combatant_id
                 and "Stunned" in payload.get("status_changes", ())
+            ):
+                stunned = True
+            # A coordinated strike Stuns on the POOL, not on any one blow
+            # (6E2 p.46 + p.106). Checked as each attack lands, so the Stun
+            # appears at the moment the total first exceeds CON rather than
+            # only after the last participant swings.
+            elif (
+                payload.get("target_id") == combatant_id
+                and combatant is not None
+                and pools_into_a_stun(
+                    session, combatant_id, int(payload.get("segment", -1)), con,
+                )
             ):
                 stunned = True
         elif kind == "SegmentAdvanced" and stunned:

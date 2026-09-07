@@ -19,12 +19,15 @@ is carried over unchanged, but its skill lookup was three database queries;
 here it reads ``hero.skills`` directly, the same way enumeration reads
 interaction skills.
 
-WHAT IS NOT IMPLEMENTED, and is named rather than faked: the POOLED
-resolution. Joining is a per-Phase act and this engine drives one actor per
-Phase, so the window fills across Phases; resolving every participant's
-attack at the moment it fills is a scheduling decision the loop does not
-make today. ``window_for`` exposes who is in, so a consumer can pool; the
-engine does not yet do it for them.
+THE POOL IS THE POINT, and ``pooled_stun`` is where it happens. Rather than
+rescheduling attacks so they resolve simultaneously --- which a one-actor-
+per-Phase loop cannot do --- the pooling is a DERIVATION: sum the STUN that
+window members dealt this Segment and compare THAT to CON.
+
+The result is the same and the mechanism is simpler. It also matches how
+every other condition in this engine works: `statuses.py` folds Stunned out
+of the log rather than storing it, so a Stun that only exists once two
+blows are added together is answered the same way as any other.
 """
 from __future__ import annotations
 
@@ -104,3 +107,56 @@ def is_coordinated(
     """True once the window holds two or more --- one character cannot
     coordinate with themselves."""
     return len(window_for(session, target_id, segment)) >= 2
+
+
+def pooled_stun(
+    session: "CombatSession", target_id: str, segment: int,
+) -> int:
+    """Total STUN the coordinated window dealt ``target_id`` this Segment.
+
+    Only attacks by combatants who actually JOINED the window count ---
+    joining is what makes the blows simultaneous, and an ally who swung
+    independently in the same Segment did not coordinate.
+
+    Zero when the window is not full: one character cannot coordinate with
+    themselves, so there is nothing to pool.
+    """
+    members = window_for(session, target_id, segment)
+    if len(members) < 2:
+        return 0
+
+    total = 0
+    for evt in session.event_log:
+        if getattr(evt, "kind", None) != "ActionResolved":
+            continue
+        payload = getattr(evt, "result_payload", None) or {}
+        if payload.get("target_id") != target_id:
+            continue
+        if payload.get("kind") == "coordinate":
+            continue
+        # SCOPED TO THE SEGMENT, like the window itself. Blows in different
+        # Segments did not land together, whatever the window said -- and
+        # summing across Segments would let a fight accumulate a Stun out of
+        # attacks minutes apart.
+        if int(payload.get("segment", -1)) != segment:
+            continue
+        author = getattr(getattr(evt, "author", None), "id", None)
+        if author in members:
+            total += int(payload.get("stun_dealt", 0) or 0)
+    return total
+
+
+def pools_into_a_stun(
+    session: "CombatSession", target_id: str, segment: int, con: int,
+) -> bool:
+    """Whether the coordinated window Stuns the target (6E2 p.106).
+
+    "If the STUN done to a character by a single attack (after subtracting
+    defenses) exceeds his CON, he's Stunned." A coordinated strike is one
+    attack for this purpose --- which is the whole reason to coordinate, and
+    why two blows that each fall short can together put someone down.
+
+    Strictly greater than CON, matching `determine_status_changes`: the book
+    says "exceeds", not "meets or exceeds".
+    """
+    return pooled_stun(session, target_id, segment) > con

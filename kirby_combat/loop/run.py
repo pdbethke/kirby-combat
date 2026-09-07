@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
+from kirby_combat.framework import allocation_for
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
@@ -181,6 +182,12 @@ def run_phase(
         scene=scene,
         constructs=list(getattr(scene, "constructs", None) or []) or None,
         distances=distances_from(scene, actor, enemies),
+        # THE FRAMEWORK GATE, fed from the build and the fight's own log.
+        # `slot_allocation` was a parameter the caller had to keep in step
+        # with reallocations it was not otherwise tracking; `allocation_for`
+        # assembles it from `framework_view()` (the reserve and slot costs)
+        # and the log (which slots this fight switched on).
+        slot_allocation=allocation_for(session, actor),
     )
     if not menu:
         _mark_acted(session, actor_id)

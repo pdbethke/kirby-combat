@@ -1583,13 +1583,14 @@ def _resolve_coordinate(
     in the log and `coordination.window_for` folds it; nothing is held in a
     dict on the session, for the same reason `session/effects.py` gives.
 
-    THE POOLED RESOLUTION IS NOT DONE HERE, and is named rather than faked.
-    6E2 p.46's payoff is that participants' STUN is pooled against the
-    target's CON, so two blows that each fall short can together Stun. But
-    joining is a per-Phase act and this loop drives one actor per Phase, so
-    the window fills ACROSS Phases --- resolving everyone's attack at the
-    moment it fills is a scheduling decision the loop does not make.
-    `is_coordinated` exposes when the window is full so a consumer can pool.
+    THE POOL IS APPLIED. 6E2 p.46's payoff --- participants' STUN pooled
+    against the target's CON, so two blows that each fall short can
+    together Stun --- happens as a DERIVATION rather than by rescheduling
+    attacks to resolve simultaneously, which a one-actor-per-Phase loop
+    cannot do. `statuses._is_stunned` reads the pool as a second SET source
+    alongside a single attack's own `status_changes`. See
+    `kirby_combat/coordination.py` for why the derivation is the honest
+    mechanism and not a workaround.
     """
     from kirby_combat.coordination import CoordinationRoll, roll_profile
 
@@ -1629,17 +1630,33 @@ def _resolve_reallocate(
     caller's to hold; `framework.active_slots` now folds it out of the log
     so a caller can read it back instead of tracking it separately.
     """
-    from kirby_combat.framework import parse_reallocation
+    from kirby_combat.framework import (
+        ReserveExceeded, parse_reallocation, validate_allocation,
+    )
 
     framework_id, slot_ids = parse_reallocation(action.action_id)
     if not framework_id:
         raise UnresolvableAction(action.kind, action.action_id)
+
+    # THE RESERVE IS ENFORCED HERE, not assumed from the menu. 6E1 p.204:
+    # a Multipower's reserve is the total Active Points its slots may draw
+    # AT ONCE, and that constraint is the entire reason a framework is
+    # cheaper than buying the powers outright. `enumerate_actions` gates
+    # which slots it OFFERS, but an offer is not a permission slip -- a
+    # reallocate names its whole set in one id, so a chooser returning a
+    # hand-built id would otherwise switch on a configuration the build
+    # cannot pay for.
+    try:
+        drawn = validate_allocation(actor, framework_id, slot_ids)
+    except (ReserveExceeded, KeyError) as exc:
+        raise UnresolvableAction(action.kind, action.action_id) from exc
 
     return _recorded(session, actor, action, (framework_id, slot_ids), {
         "kind": action.kind,
         "combatant_id": actor.id,
         "framework_id": framework_id,
         "active_slot_ids": list(slot_ids),
+        "active_points_drawn": drawn,
     })
 
 

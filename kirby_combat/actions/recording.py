@@ -195,6 +195,11 @@ def resolve_attack_in_session(
         "status_changes": list(result.status_changes),
         "power_xmlid": result.power_xmlid,
         "target_id": target_id,
+        # WHEN it landed. Needed by anything that reasons about blows within
+        # one Segment -- a coordinated strike pools its participants' STUN
+        # against CON (6E2 p.46), and without this the pool cannot tell an
+        # attack in THIS Segment from one three Segments ago.
+        "segment": s.timeline.segment,
     }
 
     resolved = ActionResolved(
