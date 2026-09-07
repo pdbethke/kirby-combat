@@ -123,6 +123,70 @@ def _stunned_cv_modifiers(session: "CombatSession", combatant_id: str) -> dict[s
     return {"dcv_factor": 0.5, "dmcv_factor": 0.5, "hit_location_factor": 0.5}
 
 
+#: The maneuvers that buy extra attacks with the actor's own defence
+#: (6E2 p.71 Multiple Attack, p.73 Rapid Fire, p.56 Sweep). All three leave
+#: the attacker at ½ DCV for the Phase, which is the PRICE of the extra
+#: shots -- without it the maneuver is strictly better than a single attack
+#: and there is no reason ever to take one.
+_HALF_DCV_MANEUVERS = frozenset({"multiple_attack", "rapid_fire", "sweep"})
+
+
+def _took_a_multi_attack(session: "CombatSession", combatant_id: str) -> bool:
+    """Did this combatant spend their current Phase on a multi-shot maneuver?
+
+    Folded forward out of the log, like every other condition here: the
+    flag is set by the maneuver's own ``ActionResolved`` and cleared on the
+    next ``SegmentAdvanced`` into one of this combatant's Phase segments --
+    the same approximation ``_is_stunned`` makes, and for the same reason
+    (this layer folds a log, not a live DEX-ordered position).
+    """
+    from kirby_combat.tables import segments_for_spd
+
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None:
+        return False
+    try:
+        phase_segments = set(segments_for_spd(int(combatant.combat_stats().spd)))
+    except Exception:                                   # noqa: BLE001
+        phase_segments = set()
+
+    active = False
+    for evt in session.event_log:
+        kind = getattr(evt, "kind", None)
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            author = getattr(getattr(evt, "author", None), "id", None)
+            if (
+                author == combatant_id
+                and payload.get("kind") in _HALF_DCV_MANEUVERS
+            ):
+                active = True
+        elif kind == "SegmentAdvanced" and active:
+            if not phase_segments or evt.to_segment in phase_segments:
+                active = False
+    return active
+
+
+def _multi_attack_cv_modifiers(session: "CombatSession", combatant_id: str) -> dict[str, float]:
+    """The ½ DCV a multi-shot maneuver costs its user.
+
+    THE PRICE THAT WAS NOT BEING CHARGED. `MultipleAttack.compute` returns
+    ``dcv_factor=0.5`` and the resolver recorded it, and NOTHING read it --
+    only Stunned and Presence were registered here. So a Multiple Attack
+    had an OCV cost and no defensive one, which makes it strictly better
+    than a single attack whenever more than one enemy is in front of you.
+
+    Measured on the O.K. Corral benchmark: with the ladder visible the
+    model still chose `multiple_attack` in 10 of 12 Phases -- and it was
+    RIGHT to. Against DCV 4 the ladder 5/3/1/-1 is worth about 1.6 expected
+    hits against 0.74 for a single shot. The maneuver was not being
+    over-chosen; it was under-priced.
+    """
+    if not _took_a_multi_attack(session, combatant_id):
+        return {}
+    return {"dcv_factor": 0.5}
+
+
 def _sense_penalty_cv_modifiers(
     session: "CombatSession", combatant_id: str, opponent_id: str,
     combat_type: str,
@@ -168,6 +232,7 @@ _CV_MODIFIER_SOURCES: tuple[
 ] = (
     _stunned_cv_modifiers,
     _presence_cv_modifiers,
+    _multi_attack_cv_modifiers,
 )
 
 
