@@ -32,7 +32,7 @@ class FightFromCover(Tactic):
     priority = 40
     narrative_summary = (
         "Use cover and fire from safety. Move behind a wall, crate, or "
-        "barrier first — choose the move_to_cover action — then shoot at range. "
+        "barrier first, then shoot at range. "
         "If a shot is blocked by an obstacle it chips the cover and still "
         "costs the target END when they dodge. Never stand in the open "
         "when you have reach and the enemy has to close."
@@ -54,11 +54,19 @@ class FightFromCover(Tactic):
             ),
             steps=[
                 PlanStep(
-                    kind="move",
+                    # NAMES THE KIND IT MEANS. This said kind="move" with
+                    # "choose move:cover from the action menu" in the notes,
+                    # written when there was no cover kind to name. The
+                    # chooser matches on kind and never reads notes, so it
+                    # took the first `move` offer -- which is "close on the
+                    # nearest enemy". At priority 40 this outranks
+                    # `sustained_fire`, so an armed fighter charged instead
+                    # of shooting, every Phase, and never fired.
+                    kind="move_to_cover",
                     notes=(
-                        "Move to nearest cover position — choose move:cover "
-                        "from the action menu if available. Half-move to keep "
-                        "the attack action this phase."
+                        "Half-move to the cover that actually shields you "
+                        "from where they are, keeping the attack action "
+                        "this phase."
                     ),
                     params={"prefer_cover": True},
                 ),

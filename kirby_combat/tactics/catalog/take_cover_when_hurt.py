@@ -75,9 +75,10 @@ class TakeCoverWhenHurt(Tactic):
             ),
             steps=[
                 PlanStep(
-                    kind="move",
+                    # See fight_from_cover: kind="move" with the intent in
+                    # the notes got an arbitrary move offer.
+                    kind="move_to_cover",
                     notes=(
-                        "Choose move_to_cover from the action menu. "
                         "Half-move to the nearest available cover position. "
                         "Use the remaining action for a quick shot from cover "
                         "if a target is in range."

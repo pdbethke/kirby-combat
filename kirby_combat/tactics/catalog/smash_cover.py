@@ -59,13 +59,16 @@ class SmashCover(Tactic):
             ),
             steps=[
                 PlanStep(
-                    kind="attack",
+                    # `attack_construct` is the kind that shoots the WALL.
+                    # This said kind="attack" and put "choose
+                    # attack:construct" in the notes, so it shot the man
+                    # instead -- an ordinary attack wearing a tactic's name.
+                    kind="attack_construct",
                     target_id=target_id,
                     power_xmlid=best.xmlid,
                     notes=(
-                        "Aim at the cover/barrier screening the target. "
-                        "Choose attack:construct from the action menu if "
-                        "available; otherwise rapid-fire into the wall."
+                        "Aim at the cover or barrier screening the target, "
+                        "not the target."
                     ),
                     params={"prefer_construct_target": True},
                 ),

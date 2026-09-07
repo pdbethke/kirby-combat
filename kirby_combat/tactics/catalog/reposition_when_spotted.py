@@ -81,9 +81,9 @@ class RepositionWhenSpotted(Tactic):
             ),
             steps=[
                 PlanStep(
-                    kind="move",
+                    kind="move_to_cover",
                     notes=(
-                        "Choose move_to_cover from the action menu. "
+                        
                         "CRITICAL: choose a DIFFERENT cover position than "
                         "your current one — move to break the enemy's "
                         "current targeting line. Prioritise positions "
