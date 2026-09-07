@@ -652,12 +652,14 @@ def _resolve_mental_entangle(
 # The fade rate is carried on the event, which is why a power with a
 # bought-up rate keeps its own rather than being fixed at 5.
 #
-# STILL TRUE, AND SEPARATE: nothing in this engine READS an adjustment.
-# `adjustment_delta` and `adjustments_for` fold correctly and no stat
-# consumer consults them, so an Aid raises nothing and a Drain lowers
-# nothing yet. Applying them means threading the session into stat reads
-# (the shape `cv_modifiers_for` uses for Stunned), which is its own piece
-# of work and is not smuggled in here.
+# AND THEY NOW APPLY (2026-09-07). `kirby_combat/adjustments.py` is the
+# read surface, following the seam `cv_modifiers.py` established for
+# Stunned: the base comes from the build, the session supplies the
+# modifier, and the two compose at the point of use. Wired into the CV path
+# and the Stunning check -- an Aided OCV hits more often, a Drained CON
+# Stuns to blows that would otherwise fall short. A caller reading
+# `combat_stats()` directly still gets the unadjusted value; see that
+# module for what the seam does and does not reach.
 # ---------------------------------------------------------------------------
 
 

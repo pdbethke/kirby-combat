@@ -43,10 +43,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
+from dataclasses import replace as _replace
 from datetime import datetime, timezone
 from typing import Any, Literal, get_args
 
 from kirby_combat.actions import resolve_attack
+from kirby_combat.adjustments import adjusted_con, net_adjustment
 from kirby_combat.actions.reactive.abort import mark_aborting
 from kirby_combat.actions.reactive.block import Block, BlockResult
 from kirby_combat.mental.mental_blast import MentalBlastResult, resolve_mental_blast
@@ -149,6 +151,33 @@ def resolve_attack_in_session(
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
     )
+
+    # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
+    # resolver with no session, so it read the build's CON and could not
+    # know about an Adjustment. Rather than thread a session into it --
+    # which would stop it being pure -- the SAME rule function is asked
+    # again with the adjusted value, and only when an Adjustment is
+    # actually live, so the ordinary path is untouched.
+    status_changes = list(result.status_changes)
+    con_delta = net_adjustment(s, target_id, "CON")
+    if con_delta:
+        target_after = s.combatants[target_id]
+        status_changes = determine_status_changes(
+            stun_before=attack.target.current_stun,
+            stun_after=target_after.state.current_stun,
+            body_before=attack.target.current_body,
+            body_after=target_after.state.current_body,
+            con=adjusted_con(s, attack.target),
+            max_body=attack.target.max_body,
+        )
+        # The RETURNED result carries the corrected status too. Leaving it
+        # stale would put a different answer in `result.status_changes` than
+        # in the payload `statuses_for` folds -- and a consumer reading the
+        # result would be told a Drained target was not Stunned while the
+        # log said otherwise. This is not "altering the pure calculation":
+        # it is correcting an INPUT the pure resolver could not see, using
+        # the same rule function it used.
+        result = _replace(result, status_changes=status_changes)
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
@@ -192,7 +221,7 @@ def resolve_attack_in_session(
         "hit": result.hit,
         "stun_dealt": result.stun_dealt,
         "body_dealt": result.body_dealt,
-        "status_changes": list(result.status_changes),
+        "status_changes": status_changes,
         "power_xmlid": result.power_xmlid,
         "target_id": target_id,
         # WHEN it landed. Needed by anything that reasons about blows within
@@ -318,7 +347,10 @@ def resolve_mental_blast_in_session(
         stun_after=target.current_stun - result.stun_dealt,
         body_before=target.current_body,
         body_after=target.current_body,
-        con=target.con,
+        # Drained CON is one of the sharpest things an Adjustment does:
+        # Stunning is "STUN exceeds his CON", so lowering CON makes a target
+        # easier to Stun with blows that would otherwise fall short.
+        con=adjusted_con(s, target),
         max_body=target.max_body,
     )
 
