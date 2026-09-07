@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.16.0 — 2026-09-07
+
+**The engine can execute what it offers.** Resolvable action kinds go from
+**4 to 45 of 51** — and the fights that ran before this release were wrong
+in two ways nobody could see.
+
+### Fixed
+
+**The loop never read the Scene, so melee was never gated.** `CombatSession`
+has always carried a `scene`, and `run_phase` called `enumerate_actions`
+with `has_scene` defaulting to False — so `_melee_gate` returned "direct"
+for every enemy and a fight offered strike, grab, disarm and trip
+UNCONDITIONALLY. Combatants could punch each other from across the map.
+Measured on two fighters and one map: 15 kinds in the void, melee gone at
+20m, melee back at 1m.
+
+**Nothing ever wrote a position, so a fight on a map was frozen.**
+`movement_reach` decided moves completely — clamped by walls, surfaces and
+capacity, with any fall — and `MovementAction.resolve` built its
+`MovementResolved` with `from_pos` and `to_pos` **both hardcoded to None**.
+`scene.combatant_positions` was read by the range gate, line of sight,
+cover and Images placement, and written nowhere outside a test fixture.
+Everyone attacked from where they started, forever.
+
+These two hid each other: melee was ungated *and* nobody could close the
+distance. Neither raised, because a stationary fight offering illegal melee
+is still a valid fight — the same shape as every other defect this
+carve-out has surfaced.
+
+**`advance_segment` left a stale acting order behind**, `has_acted` flags
+and all, so a Segment 3 order still described Segment 6.
+
+### Added
+
+`kirby_combat.scene.placement` — `commit_move`, `move_toward`,
+`position_of`. Its own module on purpose: deciding where someone can go is
+a rule, recording that they went there is a different one, and folding the
+second into `movement_reach` would make a pure "could I get there?" query
+mutate the world.
+
+**41 newly reachable action kinds.** The rules were already written, tested
+and correct; what was missing was a caller. `actions/images.py` — 480 lines
+— had exactly one importer, its own test file. The engine states the mental
+Attack Roll once; the parked driver wrote it out at four separate lines.
+Every one of those suites was green the whole time, which is why
+`registered_kinds()` is pinned by a test: only that number can tell the
+difference between a rule that works and a rule that is reached.
+
+`loop/registry.py` splits into mechanism (the decorator, the dispatch, the
+raise) and `loop/resolvers.py` (the work), since the resolver list is what
+grows and the dispatch should not.
+
+`perception.images_groups` joins `flash_groups` and `darkness_groups` as
+the third occupant of one shape.
+
+### Known limits, stated
+
+- **`AdjustmentFaded` has no emitter anywhere in the engine.** The class
+  exists, `apply_event` passes it, `session/effects.py` folds it, and
+  nothing constructs one — so an Aid or Drain never fades, where 6E says
+  both should at 5 AP per Turn. This predates the wiring; wiring made it
+  reachable, which is the first step to fixing it.
+- **6 kinds remain unwired, and none is wiring.** `disarm`, `trip` and
+  `spread` have no engine rule at all; `coordinate`, `reallocate` and
+  `reconfigure_vpp` need machinery that does not exist yet.
+- The count is **51**, not 52. `debris` is a Construct kind, not a
+  LegalAction kind; an earlier regex over-counted and an AST walk settled
+  it.
+
 ## 0.15.0 — 2026-09-06
 
 **A Phase can be written down.** The third and last gap between the engine
