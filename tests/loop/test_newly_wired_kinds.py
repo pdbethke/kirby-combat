@@ -148,8 +148,8 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_nineteen_of_fifty_two_are_wired():
-    assert len(registered_kinds()) == 19
+def test_twenty_eight_of_fifty_two_are_wired():
+    assert len(registered_kinds()) == 28
 
 
 def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
@@ -189,7 +189,122 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "dodge", "set", "haymaker", "presence_attack",          # here
         "flash", "entangle", "grab", "block",                   # here
         "mental_entangle", "aid", "drain",                      # here
+        "move_by", "move_through", "rapid_fire", "throw", "throw_object",
+        "maneuver", "hold", "release_held", "darkness_zone",     # here
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Maneuvers, multi-shot attacks, held actions and placed fields.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", ["move_by", "move_through", "rapid_fire", "throw"])
+def test_a_pure_computer_kind_records_its_outcome(kind):
+    """These engine functions return an outcome and hold no session, so the
+    wrapper's whole job is to roll what the rule needs, call it unchanged,
+    and get the result into the log."""
+    _, resolved = _resolve(_action(kind))
+    assert resolved.result is not None, f"{kind} computed nothing"
+    assert resolved.events, f"{kind} recorded nothing"
+
+
+def test_throw_and_throw_object_share_one_resolver():
+    """Both are STR against distance; `Throw.compute` answers both."""
+    for kind in ("throw", "throw_object"):
+        _, resolved = _resolve(_action(kind))
+        assert resolved.result is not None
+
+
+def test_move_by_reads_velocity_from_the_build():
+    """Velocity is the actor's RUNNING, not a constant -- a slower
+    character hits for less."""
+    from kirby_combat.loop.resolvers import _velocity_mps
+
+    fast = fighter("fast", side=Side.named("a"), dex=20)
+    assert _velocity_mps(fast) == 12.0, "6E1 p.36 base Running"
+
+
+def test_rapid_fire_takes_the_cheapest_shot_count():
+    """Two shots -- the fewest that make it Rapid Fire, and the smallest
+    OCV penalty. Taking MORE is a tactical call the offer does not carry."""
+    _, resolved = _resolve(_action("rapid_fire"))
+    ocvs = resolved.session.event_log[-1].result_payload["shot_ocvs"]
+    assert len(ocvs) == 2
+    assert ocvs[0] > ocvs[1], "each successive shot is at a worse OCV"
+
+
+def test_a_known_maneuver_is_declared_for_the_attack_to_read():
+    from kirby_combat.actions.martial_arts import MARTIAL_MANEUVERS
+
+    known = sorted(MARTIAL_MANEUVERS)[0]
+    action = _action("maneuver")
+    object.__setattr__(action, "power_xmlid", known)
+    _, resolved = _resolve(action)
+    assert resolved.events
+
+
+def test_an_unknown_maneuver_refuses_rather_than_resolving_as_something_else():
+    """`MartialArts.declare` raises on an id it does not know, and that is
+    right: a maneuver the engine cannot model must not resolve as though it
+    could."""
+    from kirby_combat.loop.registry import UnresolvableAction
+
+    with pytest.raises(UnresolvableAction, match="maneuver"):
+        _resolve(_action("maneuver"))
+
+
+def test_holding_an_action_is_recorded_as_pending():
+    from kirby_combat.actions.held_action import HeldAction
+
+    before, resolved = _resolve(_action("hold", target=None))
+    assert not HeldAction.get_pending(before, "actor")
+    assert HeldAction.get_pending(resolved.session, "actor"), "nothing was held"
+
+
+def test_releasing_an_action_that_was_never_held_refuses():
+    """The action_id names WHICH held action to release -- a combatant may
+    be holding several. Releasing one that is not pending would fire an
+    action nobody declared."""
+    from kirby_combat.loop.registry import UnresolvableAction
+
+    with pytest.raises(UnresolvableAction, match="release_held"):
+        _resolve(_action("release_held", target=None))
+
+
+def test_a_held_action_can_be_released_once_declared():
+    from kirby_combat.actions.held_action import HeldAction
+    from kirby_combat.loop.registry import resolve_chosen
+
+    session = _session()
+    actor = session.combatants["actor"]
+    held = resolve_chosen(
+        session, actor, _action("hold", target=None),
+        template=TEMPLATE, roller=RandomRoller(seed=9),
+    ).session
+    pending = HeldAction.get_pending(held, "actor")
+    assert pending
+
+    release = LegalAction(
+        action_id=f"release_held:{pending[0].id}", kind="release_held",
+        target_id=None, power_xmlid=None, power_name=None,
+        summary="release the held action",
+    )
+    out = resolve_chosen(
+        held, actor, release, template=TEMPLATE, roller=RandomRoller(seed=9),
+    )
+    assert out.events
+    assert not HeldAction.get_pending(out.session, "actor"), "still pending"
+
+
+def test_darkness_needs_a_map_and_refuses_without_one():
+    """Like a decoy, a Darkness field goes somewhere. Without a scene there
+    is no somewhere, and inventing a coordinate would put it where nobody
+    chose."""
+    from kirby_combat.loop.registry import UnresolvableAction
+
+    with pytest.raises(UnresolvableAction, match="darkness_zone"):
+        _resolve(_action("darkness_zone", power=_Power("DARKNESS", levels=4)))

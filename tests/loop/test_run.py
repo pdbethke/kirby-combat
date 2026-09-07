@@ -35,6 +35,8 @@ def test_the_registered_kinds_are_pinned():
         "dodge", "set", "haymaker", "presence_attack",
         "flash", "entangle", "grab", "block",
         "mental_entangle", "aid", "drain",
+        "move_by", "move_through", "rapid_fire", "throw", "throw_object",
+        "maneuver", "hold", "release_held", "darkness_zone",
     })
 
 

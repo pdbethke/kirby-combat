@@ -193,6 +193,20 @@ def _record_outcome(session, actor, action: LegalAction, payload: dict):
     return apply_event(s, resolved)
 
 
+def _recorded(session, actor, action: LegalAction, result, payload: dict) -> "ResolvedAction":
+    """Record a pure computer's outcome and wrap it as a ResolvedAction.
+
+    The shape most of these resolvers share: the engine function returns an
+    outcome and holds no session, so the outcome still has to reach the log
+    for a consumer to extrude.
+    """
+    new_session = _record_outcome(session, actor, action, payload)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
 #: How far from the enemy a conjured decoy stands, in metres. A JUDGEMENT,
 #: not RAW: 6E1 p.238 governs whether an Image is CREATED (an Attack Roll
 #: against DCV 3) and whether it is BELIEVED (a PER Roll to disbelieve), and
@@ -202,14 +216,18 @@ def _record_outcome(session, actor, action: LegalAction, payload: dict):
 DECOY_STANDOFF_M = 2.0
 
 
-def _decoy_position(session: "CombatSession", actor) -> tuple[float, float, float] | None:
-    """Where to conjure a decoy: between the actor and the nearest enemy.
+def _point_near_nearest_enemy(
+    session: "CombatSession", actor, standoff_m: float = 2.0,
+) -> tuple[float, float, float] | None:
+    """A point ``standoff_m`` short of the nearest enemy, toward the caster.
 
     Enumeration's offer already committed to the policy --- its summary reads
     "Conjure an Image decoy near the nearest enemy" --- so the resolver
     honours that rather than inventing a second one. The point sits
-    ``DECOY_STANDOFF_M`` short of that enemy, on the line back toward the
-    caster: in the target's view, and not standing inside them.
+    ``standoff_m`` short of that enemy, on the line back toward the caster:
+    in the target's view, and not standing inside them. Shared by everything
+    a caster aims at a place rather than a combatant --- a decoy, a Darkness
+    field --- so the two cannot drift apart.
 
     Returns ``None`` when the scene cannot answer --- no map, or either
     party absent from it --- and the caller refuses rather than guessing a
@@ -235,12 +253,12 @@ def _decoy_position(session: "CombatSession", actor) -> tuple[float, float, floa
     _, nearest_id = min(reachable, key=lambda pair: (pair[0], pair[1]))
     there = positions[nearest_id]
     gap = distance_3d(here, there)
-    if gap <= DECOY_STANDOFF_M:
+    if gap <= standoff_m:
         # Already nose to nose: put the decoy on the enemy's spot rather
         # than behind the caster, which is what a negative step would do.
         return (there.x, there.y, there.z)
 
-    t = (gap - DECOY_STANDOFF_M) / gap
+    t = (gap - standoff_m) / gap
     return (
         here.x + (there.x - here.x) * t,
         here.y + (there.y - here.y) * t,
@@ -275,7 +293,7 @@ def _resolve_image_decoy(
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    position = _decoy_position(session, actor)
+    position = _point_near_nearest_enemy(session, actor, DECOY_STANDOFF_M)
     if position is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
@@ -693,3 +711,235 @@ def _resolve_drain(
     """Drain (6E1 p.139): a negative, fading reduction, capped so it cannot
     take the target below zero."""
     return _adjustment(session, actor, action, roller=roller, sign="drain")
+
+
+def _decoy_position(session: "CombatSession", actor):
+    """Backwards-compatible alias used by the Images tests."""
+    return _point_near_nearest_enemy(session, actor, DECOY_STANDOFF_M)
+
+
+# ---------------------------------------------------------------------------
+# Maneuvers and multi-shot attacks.
+#
+# These engine functions are PURE COMPUTERS -- they return an outcome and
+# hold no session -- so each wrapper rolls what the rule needs, calls it
+# unchanged, and records the result. None re-derives a number the engine
+# already knows how to produce.
+# ---------------------------------------------------------------------------
+
+
+def _velocity_mps(actor) -> float:
+    """The actor's velocity at impact: a full Move, in metres per Phase.
+
+    6E2 p.18 makes a Segment one second, and a full Move covers the
+    character's full RUNNING in a Phase, so metres-per-Phase is the figure a
+    Move-By or Move-Through wants. Read from the build rather than assumed.
+    """
+    return float(actor.hero.characteristic_value("RUNNING") or 0)
+
+
+@resolves("move_by")
+def _resolve_move_by(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Move-By (6E2 p.64): strike in passing, taking a third of the damage back."""
+    from kirby_combat.actions.move_by import MoveBy
+
+    stats = actor.combat_stats()
+    outcome = MoveBy.compute(
+        attacker_str=int(stats.str_), velocity_mps=_velocity_mps(actor),
+    )
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id,
+        "damage_dc": getattr(outcome, "damage_dc", None),
+    })
+
+
+@resolves("move_through")
+def _resolve_move_through(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Move-Through (6E2 p.65): commit to the charge, and take more back."""
+    from kirby_combat.actions.move_through import MoveThrough
+
+    stats = actor.combat_stats()
+    outcome = MoveThrough.compute(
+        attacker_str=int(stats.str_), velocity_mps=_velocity_mps(actor),
+    )
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id,
+        "damage_dc": getattr(outcome, "damage_dc", None),
+    })
+
+
+@resolves("rapid_fire")
+def _resolve_rapid_fire(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Rapid Fire (6E2 p.73): several shots this Phase at a widening penalty.
+
+    ``num_shots`` is 2 --- the fewest that make it Rapid Fire, and the
+    cheapest in OCV. Choosing MORE is a tactical decision the offer does not
+    carry, so taking the minimum is the reading that cannot overreach on the
+    chooser's behalf.
+    """
+    from kirby_combat.actions.rapid_fire import RapidFire
+
+    outcome = RapidFire.compute(
+        base_ocv=int(actor.combat_stats().ocv), num_shots=2,
+    )
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id,
+        "shot_ocvs": list(outcome.per_shot_ocv),
+    })
+
+
+@resolves("throw", "throw_object")
+def _resolve_throw(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Throw (6E2 p.75): hurl a held combatant or object.
+
+    ``Throw.compute`` derives both distance and damage from STR; at maximum
+    range when no distance is asked for, which is what an offer with no
+    distance on it means.
+    """
+    from kirby_combat.actions.throw import Throw
+
+    outcome = Throw.compute(attacker_str=int(actor.combat_stats().str_))
+    return _recorded(session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id,
+        "distance_m": getattr(outcome, "distance_m", None),
+    })
+
+
+@resolves("maneuver")
+def _resolve_maneuver(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """A martial maneuver (6E2 p.78): declare it, and the attack reads it.
+
+    Like Set and Haymaker, the declaration IS this Phase. ``MartialArts``
+    computes the maneuver's CV and DC modifiers, and the attack that follows
+    reads them via ``modifiers_for_pending_attack``.
+    """
+    from kirby_combat.actions.martial_arts import MARTIAL_MANEUVERS, MartialArts
+
+    # The offer names the maneuver in `power_xmlid`. `MartialArts.declare`
+    # raises on an id it does not know, which is the right behaviour -- a
+    # maneuver the engine cannot model must not resolve as though it did --
+    # so an unknown one is reported as unresolvable rather than swallowed.
+    maneuver_id = action.power_xmlid
+    if maneuver_id not in MARTIAL_MANEUVERS:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    new_session, _event = MartialArts.declare(
+        session, actor.id, maneuver_id=maneuver_id,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Held actions and placed fields.
+# ---------------------------------------------------------------------------
+
+
+@resolves("hold")
+def _resolve_hold(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Hold an Action (6E2 p.20): spend the Phase waiting for a trigger."""
+    from kirby_combat.actions.held_action import HeldAction
+
+    new_session, _event = HeldAction.declare(
+        session, actor.id,
+        trigger_condition=action.summary or "a trigger of the actor's choosing",
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
+@resolves("release_held")
+def _resolve_release_held(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Release a held Action --- its trigger has fired.
+
+    The offer's ``action_id`` carries the held event's id, since a combatant
+    may be holding more than one and the engine must release the one the
+    chooser picked rather than whichever comes first.
+    """
+    from kirby_combat.actions.held_action import HeldAction
+
+    held_id = action.action_id.split(":", 1)[-1]
+    pending = {e.id for e in HeldAction.get_pending(session, actor.id)}
+    if held_id not in pending:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    new_session, _event = HeldAction.release(
+        session, held_id, trigger_observed="the actor judged the moment right",
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
+#: Half-width of a placed Darkness field, in metres. A JUDGEMENT: 6E1 p.140
+#: sizes the field from the power's Area Of Effect, which a synthetic offer
+#: does not carry, and this is the smallest square that meaningfully occludes.
+DARKNESS_HALF_WIDTH_M = 2.0
+
+
+@resolves("darkness_zone")
+def _resolve_darkness_zone(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Darkness (6E1 p.140): put a field on the scene that blocks a Sense Group.
+
+    ``Darkness.place`` owns the Attack Roll and the construct, including the
+    one-zone-per-Sense-Group rule its docstring insists on. This contributes
+    only WHERE (the shared placement helper, a judgement) and the groups,
+    read off the power by ``darkness_groups`` --- the same reader Flash and
+    Images use.
+    """
+    from kirby_combat.actions.darkness import Darkness
+    from kirby_combat.enumeration import darkness_power
+    from kirby_combat.perception import darkness_groups, darkness_personal_immunity
+
+    power = action._attack_view or darkness_power(actor.hero)
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    centre = _point_near_nearest_enemy(session, actor, DARKNESS_HALF_WIDTH_M)
+    if centre is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    x, y, z = centre
+    h = DARKNESS_HALF_WIDTH_M
+    new_session, result = Darkness.place(
+        session,
+        attacker_id=actor.id,
+        polygon_xy=[(x - h, y - h), (x + h, y - h), (x + h, y + h), (x - h, y + h)],
+        elevation_range_m=(z, z + 2 * h),
+        sense_groups=sorted(darkness_groups(power)) or ["sight"],
+        personal_immunity=darkness_personal_immunity(power),
+        roller=roller,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
