@@ -148,8 +148,11 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_thirty_eight_of_fifty_two_are_wired():
-    assert len(registered_kinds()) == 38
+def test_forty_five_of_fifty_one_are_wired():
+    """51, not 52: `debris` is a Construct kind, not a LegalAction kind --
+    an earlier regex over-counted, and an AST walk of the LegalAction calls
+    is what settled it."""
+    assert len(registered_kinds()) == 45
 
 
 def test_mental_entangle_is_reduced_by_mental_defense_not_pd():
@@ -195,6 +198,8 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "attack_construct", "heal", "dispel",                   # here
         "presence_attack_group",                                # here
         "push", "hide", "force_wall",                           # here
+        "move", "move_strike", "pickup", "reposition",
+        "reposition_push", "reposition_strike", "reposition_vantage",   # test_movement_execution
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

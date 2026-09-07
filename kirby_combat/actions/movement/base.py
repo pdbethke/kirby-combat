@@ -138,6 +138,17 @@ class MovementAction:
         new_combatants[combatant_id] = _decrement_end(combatant, cost)
         session = replace(session, combatants=new_combatants)
 
+        # WHERE THE MOVER STARTED, when the Scene knows. These two fields
+        # were hardcoded to None until 2026-09-07 -- the event has carried
+        # them since it was written, and nothing ever filled them in, so a
+        # replayer could see that a move happened and never where to or
+        # from. `to_pos` stays None here because THIS action does not choose
+        # a destination: it spends END for a distance. A caller that has a
+        # destination goes through `scene/placement.py`, which decides the
+        # landing and writes it onto the Scene.
+        from kirby_combat.scene.placement import position_of
+
+        start = position_of(session.scene, combatant_id)
         evt = MovementResolved(
             id=str(uuid.uuid4()),
             session_id=session.id,
@@ -145,7 +156,10 @@ class MovementAction:
             timestamp=datetime.now(timezone.utc),
             author=make_author_combatant(combatant_id),
             combatant_id=combatant_id,
-            from_pos=None,
+            from_pos=(
+                {"x": start.x, "y": start.y, "z": start.z}
+                if start is not None else None
+            ),
             to_pos=None,
             velocity_mps=float(self.distance_m),
             move_type=self.move_type,

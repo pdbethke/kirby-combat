@@ -1246,3 +1246,177 @@ def _resolve_force_wall(
     return _recorded(session, actor, action, wall, {
         "kind": action.kind, "wall_id": wall.id, "body": levels,
     })
+
+
+# ---------------------------------------------------------------------------
+# Movement — the kinds that were blocked on nobody writing a position down.
+#
+# `scene/movement_legality.movement_reach` has always decided where a mover
+# ends up, clamped by walls, surfaces and capacity. `scene/placement.py` is
+# the step that records it. Neither judges the other's business: the first
+# never moves anybody, the second never decides legality.
+# ---------------------------------------------------------------------------
+
+
+def _move_capacity(actor, mode: str) -> float:
+    """How far this mover can go in a Phase, by mode.
+
+    RUNNING is the characteristic every character has; other modes are
+    powers, read off the build by the same name. A mode the build cannot do
+    has no capacity, which `movement_reach` then treats as "cannot get
+    there" rather than as an error.
+    """
+    return float(actor.hero.characteristic_value(mode.upper()) or 0)
+
+
+def _half_move(actor, mode: str = "running") -> float:
+    """A Half Move --- what a combatant covers while still attacking (6E2 p.42)."""
+    return _move_capacity(actor, mode) / 2.0
+
+
+@resolves("move")
+def _resolve_move(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Close on the named enemy.
+
+    A full Move, since this offer carries no attack --- the actor is
+    spending the whole Phase getting there. Where they actually end up is
+    `movement_reach`'s call, not this function's: a wall, a missing
+    supporting surface or plain distance may leave them short, and a partial
+    move is a real move.
+    """
+    from kirby_combat.scene.placement import move_toward, position_of
+
+    mode = action.mode or "running"
+    destination = position_of(session.scene, action.target_id)
+    if destination is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    new_session, outcome = move_toward(
+        session, actor.id, destination,
+        mode=mode, distance_m=_move_capacity(actor, mode),
+    )
+    if outcome is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    return _recorded(new_session, actor, action, outcome, {
+        "kind": action.kind, "target_id": action.target_id, "mode": mode,
+        "reached": outcome.reachable,
+        "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
+    })
+
+
+def _reposition(session, actor, action, *, roller, then_attack: bool):
+    """Shared body for the four reposition kinds.
+
+    Each offer already chose its destination --- enumeration put it on
+    ``reposition_dest`` --- so the resolver moves there and, for the
+    strike variants, resolves the attack from the new position. Re-deciding
+    the destination here would mean the menu advertised one place and the
+    engine went to another.
+    """
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.scene.placement import move_toward
+    from kirby_combat.scene.scene import Position
+
+    if action.reposition_dest is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    mode = action.mode or "running"
+    x, y, z = action.reposition_dest
+    new_session, outcome = move_toward(
+        session, actor.id, Position(x, y, z),
+        mode=mode, distance_m=_move_capacity(actor, mode),
+    )
+    if outcome is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    payload = {
+        "kind": action.kind, "target_id": action.target_id, "mode": mode,
+        "reached": outcome.reachable,
+        "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
+    }
+
+    power = action._attack_view
+    if not (then_attack and power is not None and action.target_id):
+        return _recorded(new_session, actor, action, outcome, payload)
+
+    # The strike happens FROM the landing point, which is the whole reason
+    # these are one action rather than two: the move buys the shot.
+    target = new_session.combatants[action.target_id]
+    attack = AttackInput(
+        attacker=new_session.combatants[actor.id], target=target, power=power,
+        distance_m=None, aim=None,
+        dice=DiceValues(
+            to_hit=roller.roll_dice(3),
+            damage=roller.roll_dice(max(1, int(power.damage_dice or 0))),
+        ),
+    )
+    after, result = resolve_attack_in_session(
+        new_session, attack, session.template, action_type="attack",
+    )
+    return ResolvedAction(
+        session=after, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, after),
+    )
+
+
+@resolves("reposition", "reposition_vantage", "reposition_push")
+def _resolve_reposition(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Move to a chosen point --- for cover, for a vantage, or to shove past.
+
+    No attack follows: the destination IS the action. `reposition_vantage`
+    differs only in why enumeration picked the point (a line of sight it
+    wanted), which is already baked into ``reposition_dest``.
+    """
+    return _reposition(session, actor, action, roller=roller, then_attack=False)
+
+
+@resolves("reposition_strike", "move_strike")
+def _resolve_reposition_strike(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Move, then strike from where you land.
+
+    `move_strike` closes on the target; `reposition_strike` goes to a point
+    enumeration chose. Both end in an attack resolved from the NEW position,
+    which is what makes them a single action rather than two.
+    """
+    from kirby_combat.scene.placement import position_of
+
+    if action.reposition_dest is None and action.target_id:
+        # `move_strike` names an enemy rather than a point: close on them.
+        destination = position_of(session.scene, action.target_id)
+        if destination is None:
+            raise UnresolvableAction(action.kind, action.action_id)
+        object.__setattr__(
+            action, "reposition_dest",
+            (destination.x, destination.y, destination.z),
+        )
+    return _reposition(session, actor, action, roller=roller, then_attack=True)
+
+
+@resolves("pickup")
+def _resolve_pickup(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Pick up an adjacent debris chunk, to throw next Phase.
+
+    Enumeration already applied every gate the rule has --- the chunk is
+    within reach, the actor is not already holding one, STR is enough to
+    lift it. What is left is recording that they now hold it, keyed by the
+    construct id the offer names.
+    """
+    obj_id = action.action_id.split(":", 1)[-1]
+    if not obj_id:
+        raise UnresolvableAction(action.kind, action.action_id)
+    return _recorded(session, actor, action, obj_id, {
+        "kind": action.kind, "object_id": obj_id,
+    })

@@ -40,6 +40,8 @@ def test_the_registered_kinds_are_pinned():
         "escape_str", "escape_attack", "escape_teleport",
         "attack_construct", "heal", "dispel", "presence_attack_group",
         "push", "hide", "force_wall",
+        "move", "move_strike", "pickup", "reposition",
+        "reposition_push", "reposition_strike", "reposition_vantage",
     })
 
 
