@@ -57,9 +57,11 @@ def _session(*, mentalist: bool = False):
     ).start()
 
 
-def _action(kind: str, *, target: str | None = "mark", power=None) -> LegalAction:
+def _action(kind: str, *, target: str | None = "mark", power=None,
+            action_id: str | None = None) -> LegalAction:
     return LegalAction(
-        action_id=f"{kind}:{target or ''}", kind=kind, target_id=target,
+        action_id=action_id or f"{kind}:{target or ''}",
+        kind=kind, target_id=target,
         power_xmlid=getattr(power, "xmlid", None),
         power_name=getattr(power, "name", None),
         summary=f"{kind} {target or ''}".strip(),
@@ -222,13 +224,28 @@ def test_move_by_reads_velocity_from_the_build():
     assert _velocity_mps(fast) == 12.0, "6E1 p.36 base Running"
 
 
-def test_rapid_fire_takes_the_cheapest_shot_count():
-    """Two shots -- the fewest that make it Rapid Fire, and the smallest
-    OCV penalty. Taking MORE is a tactical call the offer does not carry."""
-    _, resolved = _resolve(_action("rapid_fire"))
+def test_rapid_fire_fires_the_number_of_shots_THE_OFFER_PROMISED():
+    """The offer's summary says three shots (6E2 p.75) and its action_id
+    carries the number. The first version of this resolver hardcoded two,
+    so the menu advertised one thing and the engine fired another -- the
+    same class of disagreement Spread avoids by reading its `:N` tail."""
+    _, resolved = _resolve(_action("rapid_fire", action_id="rapid_fire:mark:eb:3"))
     ocvs = resolved.session.event_log[-1].result_payload["shot_ocvs"]
-    assert len(ocvs) == 2
-    assert ocvs[0] > ocvs[1], "each successive shot is at a worse OCV"
+    assert len(ocvs) == 3
+    assert ocvs == sorted(ocvs, reverse=True), "each shot at a worse OCV"
+    assert ocvs[0] - ocvs[1] == 2, "6E2 p.75: -2 per shot"
+
+
+def test_rapid_fire_falls_back_to_the_book_count():
+    """A hand-built action that names no count still gets 6E2 p.75's three
+    rather than an arbitrary number."""
+    from kirby_combat.loop.resolvers import RAPID_FIRE_SHOTS
+
+    assert RAPID_FIRE_SHOTS == 3
+    _, resolved = _resolve(_action("rapid_fire", action_id="rapid_fire"))
+    assert len(resolved.session.event_log[-1].result_payload["shot_ocvs"]) == 3
+
+
 
 
 def test_a_known_maneuver_is_declared_for_the_attack_to_read():

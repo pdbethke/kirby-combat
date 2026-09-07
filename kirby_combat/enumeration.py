@@ -506,6 +506,22 @@ class PhysicalEntangleState:
     takes_no_damage: bool
 
 
+def _ocv_ladder(base_ocv: int, count: int) -> str:
+    """The actual per-shot OCVs, as a readable list.
+
+    STATE THE NUMBERS, NOT THE RULE. A single-attack offer reads "(1d6K,
+    OCV 5)" -- an absolute figure a reader can compare. A Multiple Attack
+    used to read "cumulative -2 OCV per additional target", which is the
+    same information only if the reader does the arithmetic. Anything
+    choosing between the two was comparing a number against a rule.
+
+    The engine already computes this ladder for the resolver
+    (`MultipleAttack.compute`); the menu now says it too, so the offer and
+    the resolution quote the same figures.
+    """
+    return "/".join(str(base_ocv - 2 * i) for i in range(max(1, count)))
+
+
 #: EVERY kind ``enumerate_actions`` can put on a menu.
 #:
 #: DECLARED, NOT DERIVED, and that is the point. Three of the offers below
@@ -1676,8 +1692,8 @@ def enumerate_actions(
                     power_name=ap.name or None,
                     summary=(
                         f"RAPID FIRE {pname} vs {_friendly(enemy)}: "
-                        f"3 shots, cumulative -2 OCV per shot, ½ DCV, "
-                        f"full-phase (6E2 p75)"
+                        f"3 shots at OCV {_ocv_ladder(s.ocv, 3)} "
+                        f"(-2 per shot), ½ DCV, full-phase (6E2 p75)"
                     ),
                     _attack_view=ap,
                 ))
@@ -1728,9 +1744,9 @@ def enumerate_actions(
                 power_xmlid=ap.xmlid,
                 power_name=ap.name or None,
                 summary=(
-                    f"{label} with {pname}: {scope}, full-phase, "
-                    f"½ DCV, cumulative -2 OCV per additional target "
-                    f"(6E2 p73)"
+                    f"{label} with {pname}: {scope} at OCV "
+                    f"{_ocv_ladder(s.ocv, n)} (-2 per additional target), "
+                    f"full-phase, ½ DCV (6E2 p73)"
                 ),
                 _attack_view=ap,
             ))

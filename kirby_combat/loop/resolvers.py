@@ -795,10 +795,8 @@ def _resolve_rapid_fire(
 ) -> ResolvedAction:
     """Rapid Fire (6E2 p.73): several shots this Phase at a widening penalty.
 
-    ``num_shots`` is 2 --- the fewest that make it Rapid Fire, and the
-    cheapest in OCV. Choosing MORE is a tactical decision the offer does not
-    carry, so taking the minimum is the reading that cannot overreach on the
-    chooser's behalf.
+    The shot count comes from the OFFER (6E2 p.75 and enumeration both say
+    three), not from a constant here -- see `_offer_count`.
     """
     from kirby_combat.actions.rapid_fire import RapidFire
 
@@ -806,8 +804,13 @@ def _resolve_rapid_fire(
     if target is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
+    # THE MENU'S OWN COUNT. The offer's summary promises three shots and
+    # its action_id carries the number; the first version of this resolver
+    # hardcoded two, so the menu advertised one thing and the engine fired
+    # another. Reading it back is the same discipline Spread uses.
     outcome = RapidFire.compute(
-        base_ocv=int(actor.combat_stats().ocv), num_shots=2,
+        base_ocv=int(actor.combat_stats().ocv),
+        num_shots=_offer_count(action, default=RAPID_FIRE_SHOTS),
     )
     # Every shot at the SAME target -- that is what distinguishes Rapid Fire
     # from a Multiple Attack, which spreads its shots across enemies.
@@ -1731,6 +1734,24 @@ def _resolve_reconfigure_vpp(
 # ---------------------------------------------------------------------------
 
 
+#: 6E2 p.75 offers Rapid Fire as three shots; enumeration writes that into
+#: the offer. The constant is the fallback for a hand-built action that
+#: names no count.
+RAPID_FIRE_SHOTS = 3
+
+
+def _offer_count(action: LegalAction, *, default: int) -> int:
+    """The shot or target count the OFFER named, from its action_id tail.
+
+    Enumeration writes the number it advertised into the id (`...:3`), so
+    reading it back is what keeps the menu and the resolution quoting the
+    same figure. A tail that is not a number means the offer did not say,
+    and the default applies.
+    """
+    tail = (action.action_id or "").rsplit(":", 1)[-1]
+    return int(tail) if tail.isdigit() and int(tail) > 0 else default
+
+
 def _resolve_shots(session, actor, action: LegalAction, *, roller,
                    targets: list, per_shot_ocv: list) -> tuple:
     """Resolve one attack per (target, OCV) pair, in order.
@@ -1787,16 +1808,19 @@ def _multi_attack(session, actor, action, *, roller, sweep: bool):
     because the book does: a Sweep is hand-to-hand and can only reach what
     is already within Reach, which enumeration has already gated.
 
-    TWO TARGETS, for the same reason Rapid Fire takes two shots: it is the
-    fewest that make it a Multiple Attack and the cheapest in OCV. How many
-    MORE to take is a tactical decision the offer does not carry.
+    EVERY ENEMY THE OFFER NAMED. The summary reads "hit all N enemies" and
+    now quotes the OCV each of them is taken at, so the count is the
+    chooser's to weigh rather than the resolver's to shrink.
     """
     from kirby_combat.actions.multiple_attack import MultipleAttack
     from kirby_combat.actions.sweep import Sweep
 
     from kirby_combat.roster import Roster
 
-    targets = Roster(session).enemies_of(actor)[:2]
+    # The offer says "hit all N enemies", so it hits all of them -- capped
+    # only by who is actually still up. Taking two when the menu promised
+    # four would quietly under-deliver the maneuver the chooser picked.
+    targets = Roster(session).enemies_of(actor)
     if not targets:
         raise UnresolvableAction(action.kind, action.action_id)
 
