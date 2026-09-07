@@ -1420,3 +1420,147 @@ def _resolve_pickup(
     return _recorded(session, actor, action, obj_id, {
         "kind": action.kind, "object_id": obj_id,
     })
+
+
+# ---------------------------------------------------------------------------
+# The three maneuvers that had NO ENGINE RULE — sub-project B.
+#
+# Unlike everything above, these were not unwired rules waiting for a caller.
+# Nothing in the engine implemented them at all. Each is an Attack Roll at a
+# CV penalty with a specific consequence, and each citation below comes from
+# enumeration's own offer summary -- the menu has been promising these exact
+# numbers to choosers all along, with nothing behind them.
+# ---------------------------------------------------------------------------
+
+
+def _maneuver_attack(
+    session, actor, action: LegalAction, *, roller, ocv_modifier: int,
+    damage_dice: int | None = None, action_type: str = "strike",
+):
+    """An Attack Roll at a maneuver's CV penalty.
+
+    Goes through `resolve_attack_in_session` rather than rolling to-hit by
+    hand, so a maneuver gets every rule a normal attack gets -- CV
+    modifiers, the hit determination, damage application -- instead of a
+    second, thinner copy of the resolution path.
+    """
+    from kirby_combat.models import AttackInput, DiceValues
+
+    power = action._attack_view or next(iter(actor.attacks or []), None)
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    target = session.combatants[action.target_id]
+    dice = damage_dice if damage_dice is not None else int(power.damage_dice or 0)
+    attack = AttackInput(
+        attacker=actor, target=target, power=power,
+        distance_m=None, aim=None,
+        dice=DiceValues(
+            to_hit=roller.roll_dice(3),
+            damage=roller.roll_dice(max(0, dice)) if dice > 0 else [],
+        ),
+        ocv_modifier=ocv_modifier,
+    )
+    return resolve_attack_in_session(session, attack, session.template,
+                                     action_type=action_type)
+
+
+@resolves("trip")
+def _resolve_trip(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Trip (6E2 p.67): −1 OCV, no damage, and on a hit the target goes prone.
+
+    THE CONSEQUENCE NOW HAS SOMEWHERE TO LIVE. `prone` was a documented gap
+    in `statuses.py` --- its consumers existed (`scene/cover.py` takes
+    `target_is_prone_or_diving`, `actions/martial_arts.py` has
+    `target_falls`) and nothing could ever set it. This resolver is that
+    source: the payload carries `kind="trip"` and `hit`, and
+    `statuses._is_prone` folds it.
+
+    No damage: the Attack Roll decides whether they go down, and that is
+    the whole effect.
+    """
+    from dataclasses import replace as _replace
+
+    new_session, result = _maneuver_attack(
+        session, actor, action, roller=roller, ocv_modifier=-1, damage_dice=0,
+    )
+    # Re-stamp the payload so the fold can see `kind="trip"` -- the attack
+    # wrapper labels it "strike", which is what it mechanically is.
+    log = list(new_session.event_log)
+    last = log[-1]
+    log[-1] = _replace(last, result_payload={
+        **last.result_payload, "kind": "trip", "target_id": action.target_id,
+    })
+    new_session = _replace(new_session, event_log=log)
+
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("disarm")
+def _resolve_disarm(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Disarm (6E2 p.65): −2 OCV to knock a weapon out of the target's hand.
+
+    THE ATTACK ROLL IS REAL; THE DISARMING IS NOT YET. This engine does not
+    track weapons per combatant --- there is no inventory to remove one from
+    --- so a successful Disarm lands in the log and takes nothing away.
+    Enumeration has said so in its own comment since the offer was written
+    ("v1 narrative-only ... doesn't mechanically remove a weapon"), and this
+    resolver matches that rather than pretending otherwise. When weapons
+    become first-class, the hit recorded here is what a consequence hangs
+    off.
+    """
+    new_session, result = _maneuver_attack(
+        session, actor, action, roller=roller, ocv_modifier=-2, damage_dice=0,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+#: Dice traded for OCV by a Spread. The offer is built with exactly two
+#: (`enumeration.py` appends `:2` to the action_id), so the resolver reads
+#: it off the id rather than assuming.
+SPREAD_DEFAULT_DICE = 2
+
+
+@resolves("spread")
+def _resolve_spread(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Spread (6E2 p.52): sacrifice damage dice, one for one, for OCV.
+
+    The trade is symmetrical --- N fewer dice buys +N OCV --- and the count
+    rides on the action_id's trailing `:N`, because that is where
+    enumeration put it when it wrote the offer. Reading it back means the
+    menu and the resolution cannot disagree about how many dice were sold.
+    """
+    power = action._attack_view
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    tail = action.action_id.rsplit(":", 1)[-1]
+    spread = int(tail) if tail.isdigit() else SPREAD_DEFAULT_DICE
+    base = int(power.damage_dice or 0)
+    if spread >= base:
+        # Selling every die buys OCV for an attack that cannot hurt anyone.
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    new_session, result = _maneuver_attack(
+        session, actor, action, roller=roller,
+        ocv_modifier=+spread, damage_dice=base - spread, action_type="attack",
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )

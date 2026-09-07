@@ -42,6 +42,7 @@ def test_the_registered_kinds_are_pinned():
         "push", "hide", "force_wall",
         "move", "move_strike", "pickup", "reposition",
         "reposition_push", "reposition_strike", "reposition_vantage",
+        "trip", "disarm", "spread",
     })
 
 
@@ -49,14 +50,15 @@ def test_an_unregistered_kind_raises_and_names_itself():
     from kirby_combat.enumeration import LegalAction
     from kirby_combat.loop.registry import resolve_chosen
 
-    # `trip` is deliberately the example: it is one of sub-project B's four
-    # rules with NO engine home at all, so it stays unregistered until
-    # someone writes the rule -- unlike the kinds that are merely unwired.
+    # `reconfigure_vpp` is deliberately the example: of the three kinds
+    # still unregistered it is the one that needs a DESIGN decision (VPP
+    # pool state was DB-backed in the parked wrapper and has no engine home
+    # yet), so it will outlast the other two.
     action = LegalAction(
-        action_id="trip:", kind="trip", target_id=None,
-        power_xmlid=None, power_name=None, summary="Trip",
+        action_id="reconfigure_vpp:", kind="reconfigure_vpp", target_id=None,
+        power_xmlid=None, power_name=None, summary="Reconfigure the pool",
     )
-    with pytest.raises(UnresolvableAction, match="trip"):
+    with pytest.raises(UnresolvableAction, match="reconfigure_vpp"):
         resolve_chosen(
             session_of(fighter("a")), fighter("a"), action,
             template=TEMPLATE, roller=RandomRoller(seed=1),
@@ -177,12 +179,16 @@ def test_the_tactic_chooser_picks_something_legal():
 # ---- Unresolvable-kind policy ----
 
 def test_skip_records_the_kind_rather_than_hiding_it():
-    class AlwaysTrips:
-        """Picks a kind the engine cannot execute, to exercise the policy."""
+    class AlwaysCoordinates:
+        """Picks a kind the engine cannot execute, to exercise the policy.
+
+        `coordinate` needs the per-target, per-Segment coordination window
+        that lives only in the parked driver, so it is genuinely
+        unresolvable rather than merely unwired."""
 
         def choose(self, situation: PhaseSituation) -> str:
             for action in situation.menu:
-                if action.kind == "trip":
+                if action.kind == "coordinate":
                     return action.action_id
             return situation.menu[0].action_id
 
@@ -191,10 +197,10 @@ def test_skip_records_the_kind_rather_than_hiding_it():
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     result = run_phase(
-        enc.sessions[0], AlwaysTrips(), template=TEMPLATE, roller=roller,
+        enc.sessions[0], AlwaysCoordinates(), template=TEMPLATE, roller=roller,
         on_unresolvable="skip",
     )
-    assert result.skipped_kind == "trip"
+    assert result.skipped_kind == "coordinate"
     assert result.acted is False
     assert result.notes, "a skip must never be silent"
 

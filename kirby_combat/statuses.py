@@ -207,13 +207,27 @@ HOLDING = "holding"
 # See kirby_combat/actions/held_action.py (HeldActionDeclared without a
 # matching HeldActionReleased).
 
-# NOTE: Foundry's "prone" id is deliberately OMITTED. It is not stored as a
-# per-combatant status anywhere in this engine: it appears only as an input
-# *parameter* into cover resolution (`scene/cover.py:102`,
+PRONE = "prone"
+# 6E2 p.67 TRIP -- knocked off your feet. Prone targets take +2 OCV from melee
+# attackers and suffer -2 to their own OCV.
+#
+# THIS USED TO BE A DOCUMENTED GAP, and the note it replaces read: "It is not
+# stored as a per-combatant status anywhere in this engine: it appears only as
+# an input *parameter* into cover resolution (`scene/cover.py:102`,
 # `target_is_prone_or_diving`) and as a maneuver flag
 # (`actions/martial_arts.py:43`, `target_falls`). There is no per-combatant
-# source to read, so there is nothing this engine could emit -- a known gap,
-# not an oversight.
+# source to read, so there is nothing this engine could emit."
+#
+# The CONSUMERS were always there; what was missing was a source. Trip is that
+# source (`loop/resolvers.py`), and `_is_prone` below folds it out of the log
+# the same way Stunned and Knocked Out are folded.
+#
+# WHAT IS NOT IMPLEMENTED, and is not invented here: WHEN IT CLEARS. Getting
+# up costs a Half Phase, and this engine has no stand-up action among the 51
+# kinds enumeration offers -- so nothing can signal it yet. A `StatusChanged`
+# naming this combatant clears the flag, which makes standing up a consumer's
+# explicit act rather than a duration this module guessed at. Inventing a
+# clearing rule would be worse than saying it is absent.
 
 # ---------------------------------------------------------------------------
 # Flash — per-Sense-Group blinding
@@ -397,6 +411,33 @@ from kirby_combat.tables import segments_for_spd
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
+
+
+def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
+    """Fold Prone's SET/CLEAR edges out of the event log.
+
+    SET: an ``ActionResolved`` whose payload names this combatant as the
+    ``target_id`` of a landed ``trip`` (6E2 p.67).
+
+    CLEAR: a ``StatusChanged`` naming this combatant. There is no automatic
+    clear, deliberately -- see the module NOTE beside ``PRONE``. Getting up
+    costs a Half Phase and nothing in this engine can declare that yet, so
+    standing up is an explicit act rather than a duration guessed at here.
+    """
+    prone = False
+    for evt in session.event_log:
+        kind = getattr(evt, "kind", None)
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            if (
+                payload.get("kind") == "trip"
+                and payload.get("target_id") == combatant_id
+                and payload.get("hit")
+            ):
+                prone = True
+        elif kind == "StatusChanged" and getattr(evt, "combatant_id", None) == combatant_id:
+            prone = False
+    return prone
 
 
 def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
@@ -892,6 +933,14 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
         # the `elif` just makes that mutual exclusivity visible at the call
         # site too, rather than relying only on the callee's own guarantee.
         statuses.add(RECOVERING_FROM_STUNNED)
+
+    # 6E2 p.67 -- knocked off your feet by a Trip. Independent of the Stunned
+    # chain above and deliberately its own `if`: a combatant can be Stunned
+    # AND prone, and folding it into that if/elif would make one hide the
+    # other. Its consumers (`scene/cover.py`, `actions/martial_arts.py`)
+    # predate this by a long way; what they lacked was a source.
+    if _is_prone(session, combatant_id):
+        statuses.add(PRONE)
 
     if _is_dead(session, combatant_id):
         statuses.add(DEAD)
