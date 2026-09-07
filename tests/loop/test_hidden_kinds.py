@@ -39,7 +39,10 @@ def _session():
         id="s", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=8),
         combatants=[
             fighter("actor", side=Side.named("a"), dex=20),
+            # TWO enemies: a Multiple Attack spreads its shots across
+            # targets, so with one enemy there is only one shot to take.
             fighter("mark", side=Side.named("b"), dex=15),
+            fighter("other", side=Side.named("b"), dex=14),
         ],
     ).start()
 
@@ -78,12 +81,40 @@ def test_the_hidden_kind_is_registered(kind):
 def test_a_multi_target_attack_widens_the_ocv_penalty(kind):
     """6E2 p.56 / p.71 -- each successive target is at a worse OCV, and the
     whole Phase is spent at half DCV."""
-    resolved = _resolve(_act(kind))
+    resolved = _resolve(_act(kind, _attack_view=blast("eb", dice=4)))
     payload = resolved.session.event_log[-1].result_payload
     ocvs = payload["per_target_ocv"]
     assert len(ocvs) == 2
     assert ocvs[0] > ocvs[1]
     assert payload["dcv_factor"] == 0.5
+
+
+@pytest.mark.parametrize("kind", ["sweep", "multiple_attack"])
+def test_a_multi_target_attack_ACTUALLY_ATTACKS(kind):
+    """THE DEFECT THIS PINS. `Sweep.compute` and `MultipleAttack.compute`
+    return the OCV LADDER -- they are modifier calculators, not resolvers.
+    The first version of this resolver recorded that ladder and stopped, so
+    a Multiple Attack hit NOBODY: the menu promised "hit all N enemies",
+    the Phase was spent, and no damage moved.
+
+    Found by running the O.K. Corral to a finish: the model picked
+    `multiple_attack` in 139 of 143 Phases and the fight could never end.
+    A test asserting the OCVs were recorded passed the whole time, which is
+    why this one asserts damage instead."""
+    session = _session()
+    before = {c.id: c.state.current_stun for c in session.combatants.values()}
+    resolved = resolve_chosen(
+        session, session.combatants["actor"],
+        _act(kind, _attack_view=blast("eb", dice=10)),
+        template=TEMPLATE, roller=RandomRoller(seed=3),
+    )
+    payload = resolved.session.event_log[-1].result_payload
+    assert payload["hits"] >= 1, "no shot landed across two targets"
+    hurt = [
+        c.id for c in resolved.session.combatants.values()
+        if c.state.current_stun < before[c.id]
+    ]
+    assert hurt, "the Phase was spent and nobody took damage"
 
 
 def test_sweep_and_multiple_attack_share_their_arithmetic():

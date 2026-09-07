@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from kirby_combat.actions.recording import (
     resolve_attack_in_session, resolve_mental_blast_in_session,
 )
-from kirby_combat.enumeration import LegalAction
+from kirby_combat.enumeration import LegalAction, is_down
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, _events_since, resolves,
 )
@@ -802,13 +802,30 @@ def _resolve_rapid_fire(
     """
     from kirby_combat.actions.rapid_fire import RapidFire
 
+    target = session.combatants.get(action.target_id)
+    if target is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
     outcome = RapidFire.compute(
         base_ocv=int(actor.combat_stats().ocv), num_shots=2,
     )
-    return _recorded(session, actor, action, outcome, {
+    # Every shot at the SAME target -- that is what distinguishes Rapid Fire
+    # from a Multiple Attack, which spreads its shots across enemies.
+    new_session, results = _resolve_shots(
+        session, actor, action, roller=roller,
+        targets=[target] * len(outcome.per_shot_ocv),
+        per_shot_ocv=list(outcome.per_shot_ocv),
+    )
+    new_session = _record_outcome(new_session, actor, action, {
         "kind": action.kind, "target_id": action.target_id,
         "shot_ocvs": list(outcome.per_shot_ocv),
+        "hits": sum(1 for _t, r in results if r.hit),
+        "stun_dealt": sum(r.stun_dealt for _t, r in results),
     })
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=results, events=_events_since(session, new_session),
+    )
 
 
 @resolves("throw", "throw_object")
@@ -1714,6 +1731,53 @@ def _resolve_reconfigure_vpp(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_shots(session, actor, action: LegalAction, *, roller,
+                   targets: list, per_shot_ocv: list) -> tuple:
+    """Resolve one attack per (target, OCV) pair, in order.
+
+    THE THING THAT WAS MISSING. `RapidFire.compute`, `Sweep.compute` and
+    `MultipleAttack.compute` return the OCV LADDER --- they are modifier
+    calculators, not resolvers. Recording that ladder and stopping means a
+    Multiple Attack hits nobody, which is worse than not offering it: the
+    menu promises "hit all N enemies", the Phase is spent, and no damage
+    moves.
+
+    Found by running the O.K. Corral to a finish. The model picked
+    `multiple_attack` in 139 of 143 Phases and the fight could never end,
+    because every one of those Phases was a no-op. A test asserting the
+    OCVs were recorded passed the whole time.
+
+    Each shot goes through `resolve_attack_in_session` at its own OCV, so
+    every shot gets the real to-hit, the real damage and the real damage
+    application -- rather than a second, thinner copy of any of them.
+    """
+    from kirby_combat.models import AttackInput, DiceValues
+
+    power = action._attack_view or next(iter(actor.attacks or []), None)
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    base_ocv = int(actor.combat_stats().ocv)
+    dice = max(1, int(power.damage_dice or 0))
+    results = []
+    for target, ocv in zip(targets, per_shot_ocv):
+        current = session.combatants.get(target.id)
+        if current is None or is_down(current):
+            continue          # a shot at someone already down is wasted
+        attack = AttackInput(
+            attacker=session.combatants[actor.id], target=current, power=power,
+            distance_m=None, aim=None,
+            dice=DiceValues(to_hit=roller.roll_dice(3),
+                            damage=roller.roll_dice(dice)),
+            ocv_modifier=ocv - base_ocv,
+        )
+        session, result = resolve_attack_in_session(
+            session, attack, session.template, action_type="attack",
+        )
+        results.append((target.id, result))
+    return session, results
+
+
 def _multi_attack(session, actor, action, *, roller, sweep: bool):
     """Sweep (6E2 p.56) and Multiple Attack (6E2 p.71): several targets in
     one Phase at a widening OCV penalty, and half DCV for the whole Phase.
@@ -1730,13 +1794,31 @@ def _multi_attack(session, actor, action, *, roller, sweep: bool):
     from kirby_combat.actions.multiple_attack import MultipleAttack
     from kirby_combat.actions.sweep import Sweep
 
+    from kirby_combat.roster import Roster
+
+    targets = Roster(session).enemies_of(actor)[:2]
+    if not targets:
+        raise UnresolvableAction(action.kind, action.action_id)
+
     compute = Sweep.compute if sweep else MultipleAttack.compute
-    outcome = compute(base_ocv=int(actor.combat_stats().ocv), num_targets=2)
-    return _recorded(session, actor, action, outcome, {
-        "kind": action.kind, "target_id": action.target_id,
+    outcome = compute(base_ocv=int(actor.combat_stats().ocv),
+                      num_targets=len(targets))
+    new_session, results = _resolve_shots(
+        session, actor, action, roller=roller,
+        targets=targets, per_shot_ocv=list(outcome.per_shot_ocv),
+    )
+    new_session = _record_outcome(new_session, actor, action, {
+        "kind": action.kind,
+        "target_ids": [t.id for t in targets],
         "per_target_ocv": list(outcome.per_shot_ocv),
         "dcv_factor": outcome.dcv_factor,
+        "hits": sum(1 for _t, r in results if r.hit),
+        "stun_dealt": sum(r.stun_dealt for _t, r in results),
     })
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=results, events=_events_since(session, new_session),
+    )
 
 
 @resolves("sweep")
