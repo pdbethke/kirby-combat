@@ -415,6 +415,27 @@ class HeroCombatant(Stunnable, CombatParticipant):
         address each one — disambiguate by `AttackPower.name`,
         damage_dice, or position. Use ``attack_view(xmlid, name=...)``
         to fetch a specific instance.
+
+        EQUIPMENT COUNTS, AND DID NOT UNTIL 2026-09-07. A weapon that is
+        carried rather than innate lives in ``hero.equipment``, and NOTHING
+        in this engine read that list — a grep for ``.equipment`` across
+        ``kirby_combat/`` found one reference, in a serialization stub. So a
+        character whose gun is equipment fought BARE-HANDED, and nothing
+        complained, because a combatant with no attacks is a legal
+        combatant.
+
+        Measured on the local corpus: HERO Designer's "Lawman (Armed)"
+        carries a Colt Peacemaker, a Winchester '73, a Coach Gun, a Bowie
+        Knife and Handcuffs — six equipment entries, three of them
+        firearms — and ``attacks`` returned ``[]``. The loader had parsed
+        every one of them correctly; only this property never looked.
+
+        A carried weapon and an innate power are the same thing to the
+        resolution layer — an RKA is an RKA whether it is heat vision or a
+        revolver — so equipment is walked with the same recursion and the
+        same xmlid filter. What differs (Charges, OAF, who can take it
+        away) is carried on the power's own modifiers, which
+        ``_build_attack_power`` already reads.
         """
         out: list[AttackPower] = []
         attack_xmlids = {
@@ -441,6 +462,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if sub:
                     _walk(sub)
         _walk(self.hero.powers)
+        # Carried weapons. Second, so an innate power keeps its position in
+        # the list -- `attack_view` returns the first match for an xmlid,
+        # and a character with both heat vision and a pistol should not have
+        # the pistol shadow the power they were built around.
+        _walk(getattr(self.hero, "equipment", None))
         return out
 
     @property
@@ -1680,7 +1706,41 @@ def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
     raw = levels * level_value
     full = int(raw)
     half = (raw - full) >= 0.5
-    return full, half, False
+
+    # DAMAGE ADDERS, which this read for the first time on 2026-09-07.
+    #
+    # HD buys the fractional part of an attack as an ADDER rather than as a
+    # level: a 1d6+1 pistol is one level plus PLUSONEPIP, and a ½d6 knife is
+    # ZERO levels plus PLUSONEHALFDIE. Reading only `levels * level_value`
+    # therefore under-counted every such attack, and rounded the ones bought
+    # entirely out of adders down to nothing.
+    #
+    # Measured over a random 120-character sample of the corpus: 50 attack
+    # powers carry one of these adders. A Black Mamba's Bite and a hunting
+    # dog's Bite both came through as 0d6 -- attacks that cannot hurt
+    # anything -- and a .41 Handgun as 1d6 instead of 1½d6.
+    #
+    # MINUSONEPIP is deliberately NOT handled: `AttackPower` carries
+    # `half_die` and `plus_one` and has no way to say "minus one pip", so
+    # honouring it would mean inventing a field. It appears ONCE in the
+    # whole corpus, against 345 PLUSONEHALFDIE and 197 PLUSONEPIP, so the
+    # cost of leaving it is one weapon reading a pip high -- against the
+    # cost of a new field on a shared dataclass. Named rather than silent.
+    adders = {
+        (getattr(a, "xmlid", "") or "").upper()
+        for a in (getattr(power, "assigned_adders", None)
+                  or getattr(power, "adders", None) or [])
+    }
+    if "PLUSONEHALFDIE" in adders:
+        # Two halves make a die, so a power that already rounded to a half
+        # from its levels goes up a full die rather than carrying two.
+        if half:
+            full += 1
+            half = False
+        else:
+            half = True
+    plus_one = "PLUSONEPIP" in adders
+    return full, half, plus_one
 
 
 def _find_power(hero: "LoadedHero", power_xmlid: str, *,
