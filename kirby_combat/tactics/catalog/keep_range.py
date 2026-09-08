@@ -33,6 +33,16 @@ def _has_any_ranged(combatant) -> bool:
     return False
 
 
+def _is_melee_threat(combatant) -> bool:
+    """Close-quarters, and able to do something about it.
+
+    Carrying an attack is the discriminator rather than raw STR: a man
+    with bare hands and STR 10 in a gunfight is not who a lawman holds a
+    firing line against.
+    """
+    return bool(getattr(combatant, "attacks", None)) and not _has_any_ranged(combatant)
+
+
 @register
 class KeepRange(Tactic):
     name = "keep_range"
@@ -49,10 +59,18 @@ class KeepRange(Tactic):
     def applicable(self, situation: Situation) -> bool:
         if not _has_any_ranged(situation.actor):
             return False
-        # Applicable when at least one enemy lacks ranged capability
-        return any(
-            not _has_any_ranged(e) for e in situation.enemies
-        )
+        # A MELEE ENEMY WORTH DENYING, not merely one who lacks a gun.
+        # This fired against anybody without a ranged attack, and an
+        # unarmed man lacks one too -- so at the O.K. Corral the Earps
+        # spent the historical fight shooting Billy Claiborne and Ike
+        # Clanton, the two Cowboys who were unarmed and RUNNING, while
+        # three armed men shot back. Ike died at BODY -8 in that run.
+        # Both of them ran and lived.
+        #
+        # Being harmless is exactly what makes someone easy to keep range
+        # from. A fighter carrying nothing is not a melee threat in a
+        # gunfight; he is a man leaving.
+        return any(_is_melee_threat(e) for e in situation.enemies)
 
     def execute(self, situation: Situation) -> Plan:
         best = _best_ranged_attack(situation)
@@ -63,7 +81,7 @@ class KeepRange(Tactic):
         # who could not hurt them. Being harmless is exactly what makes
         # someone easy to outrange, which is why this doctrine of all of
         # them needed a notion of danger.
-        melee_enemies = [e for e in situation.enemies if not _has_any_ranged(e)]
+        melee_enemies = [e for e in situation.enemies if _is_melee_threat(e)]
         pool = melee_enemies or list(situation.enemies)
         threat = situation.threat
         target = max(pool, key=lambda e: threat.get(e.id, 0.0)) if pool else None
