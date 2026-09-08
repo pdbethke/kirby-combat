@@ -237,3 +237,59 @@ def test_it_does_not_offer_to_disarm_a_fighter_mid_fight():
     assert offers == [], (
         "every remaining switch would disarm him while enemies are up"
     )
+
+
+def test_he_may_trade_his_weapon_for_the_legs_to_reach_anybody():
+    """The superleap trade, and the case the disarm guard got wrong.
+
+    PeterB: "powerlad can also superleap". His claws and his 69-point
+    Leaping are BOTH Brick Tricks slots, 44-45 points each against a
+    45-point reserve --- so he can have the weapon or the legs and never
+    both. Crossing a gap MEANS disarming, and that is not a mistake, it is
+    what a Multipower is for.
+
+    The guard added earlier today forbade any switch that leaves a man
+    weaponless with enemies up. Right when he can already reach somebody;
+    wrong when standing still is the alternative --- which is exactly the
+    7.8m standoff that stalled the benchmark.
+
+    So the guard now asks whether he can hit ANYBODY on this menu. If he
+    can, putting the weapon down is a bad idea and is not offered. If he
+    cannot, every switch is on the table, including the one that trades
+    claws for the legs to close the distance.
+    """
+    from kirby_combat.models import FrameworkView, SlotView
+
+    framework = FrameworkView(
+        framework_id="fw1", xmlid="MULTIPOWER", name="Brick Tricks",
+        kind="multipower", reserve_or_pool=45,
+        slots=[
+            SlotView(slot_id="claws", name="Rending", active_points=45,
+                     variable=False, kind="attack"),
+            SlotView(slot_id="legs", name="Iron Grasshopper",
+                     active_points=44, variable=False, kind="movement"),
+        ],
+    )
+    from fixtures.synthetic_hero import synthetic_combatant
+
+    # Claws are ON but he has no attack he can actually make --- nobody in
+    # reach. `attacks` is empty, which is what "nothing on this menu can
+    # hit" looks like from the inside.
+    actor = synthetic_combatant(
+        id="lad", name="lad", ocv=8, dcv=6, omcv=5, dmcv=5, spd=4, dex=20,
+        ego=10, str_=1, con=15, pre=10, rec=5, pd=2, ed=2, rpd=0, red=0,
+        md=0, power_defense=0, flash_defense=0,
+        max_stun=40, max_body=10, max_end=40,
+        current_stun=40, current_body=10, current_end=40,
+        side=Side.named("x"), attacks=[],
+    )
+    actor.framework_view = lambda: [framework]          # type: ignore[method-assign]
+    points = {sl.slot_id: sl.active_points for sl in framework.slots}
+    menu = enumerate_actions(
+        actor, [fighter("foe", side=Side.named("y"))],
+        slot_allocation={"fw1": (45, 45, {"claws"}, points)},
+    )
+    offers = [a for a in menu if a.kind == "reallocate"]
+    assert any("legs" in parse_reallocation(o.action_id)[1] for o in offers), (
+        "he cannot reach anybody and must be allowed to pick up his legs"
+    )

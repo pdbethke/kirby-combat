@@ -1199,8 +1199,22 @@ def enumerate_actions(
         # menu is still reachable and a fallback reaches everything.
         _attack_slots = {sl.slot_id for sl in fv.slots
                          if (getattr(sl, "kind", "") or "") == "attack"}
-        _armed_now = bool(_live & _attack_slots) or bool(
-            getattr(actor, "attacks", None) or [])
+        # ARMED MEANS "CAN HIT SOMEBODY ON THIS MENU", not "owns a
+        # weapon". PeterB: "powerlad can also superleap" --- his claws and
+        # his 69-point Leaping are BOTH Brick Tricks slots against a
+        # 45-point reserve, so he can have the weapon or the legs and
+        # never both. Crossing a gap MEANS disarming, and that is not a
+        # mistake; it is what a Multipower is for.
+        #
+        # This guard first asked whether he OWNED an attack, which was
+        # true the whole time his claws sat switched on and unusable
+        # against a man 7.8m away --- so it forbade the one switch that
+        # could have closed the distance, and the benchmark stalled.
+        #
+        # Now: if he can hit somebody, putting the weapon down is a bad
+        # idea and is not offered. If he cannot, every switch is on the
+        # table, including trading claws for legs.
+        _armed_now = any(a.kind in _ATTACKING_KINDS for a in actions)
 
         for _set in _sets:
             if set(_set) == _live:
