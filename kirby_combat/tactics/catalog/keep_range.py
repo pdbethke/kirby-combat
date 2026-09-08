@@ -56,11 +56,17 @@ class KeepRange(Tactic):
 
     def execute(self, situation: Situation) -> Plan:
         best = _best_ranged_attack(situation)
-        # Prefer a melee-only enemy as the primary target
+        # The melee enemy worth DENYING, not merely the first one listed.
+        # This took `melee_enemies[0]` -- roster order -- and at the O.K.
+        # Corral both Ike Clanton (unarmed, running) and Power Lad (claws)
+        # were melee-only, so the Earps kept their distance from the man
+        # who could not hurt them. Being harmless is exactly what makes
+        # someone easy to outrange, which is why this doctrine of all of
+        # them needed a notion of danger.
         melee_enemies = [e for e in situation.enemies if not _has_any_ranged(e)]
-        target = melee_enemies[0] if melee_enemies else (
-            situation.enemies[0] if situation.enemies else None
-        )
+        pool = melee_enemies or list(situation.enemies)
+        threat = situation.threat
+        target = max(pool, key=lambda e: threat.get(e.id, 0.0)) if pool else None
         target_id = target.id if target else None
         return Plan(
             tactic_name=self.name,

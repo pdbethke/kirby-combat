@@ -95,6 +95,10 @@ class PhaseSituation:
             enemies=list(self.enemies),
             current_segment=self.segment,
             turn=self.turn,
+            # Carries the event log, which is the half of `threat` that is
+            # WITNESSED rather than merely visible. Without it a fighter
+            # can see who is holding the axe but never learns who used it.
+            session=self.session,
         )
 
 

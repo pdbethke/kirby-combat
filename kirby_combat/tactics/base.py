@@ -47,6 +47,21 @@ class Situation:
     actor_complications: list[Complication] = field(default_factory=list)
     actor_skills: dict[str, int] = field(default_factory=dict)  # xmlid → roll value
     enemy_complications: dict[str, list[Complication]] = field(default_factory=dict)
+    #: The fight, when the caller has one. Optional because most callers do
+    #: not: `threat` falls back to what is visible without it.
+    session: Any = None
+
+    @property
+    def threat(self) -> dict[str, float]:
+        """`enemy id -> how dangerous that one is`. See `kirby_combat.threat`.
+
+        A property rather than a filled-in field: it is derived from the
+        enemies and the log this Situation already carries, and a second
+        copy that a caller had to remember to populate would go stale.
+        """
+        from kirby_combat.threat import threat_map
+
+        return threat_map(self.enemies, session=self.session)
 
 
 @dataclass
