@@ -5,6 +5,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.scene.construct import (
     Construct, ConstructEffect, construct_from_wall, construct_from_hazard,
+    constructs_in,
     construct_from_spawn_spec, constructs_containing,
 )
 from kirby_combat.scene.effects import ConstructEffectResult, resolve_construct_effect
@@ -14,6 +15,7 @@ __all__ = [
     "Scene", "SceneBounds", "Surface", "Wall", "Hazard", "HazardEffect",
     "Position", "AmbientConditions", "wall_top_surface", "is_climbable",
     "Construct", "ConstructEffect", "construct_from_wall", "construct_from_hazard",
+    "constructs_in",
     "construct_from_spawn_spec", "constructs_containing",
     "ConstructEffectResult", "resolve_construct_effect",
     "mode_requires_support",

@@ -183,3 +183,32 @@ def construct_from_hazard(hazard: Hazard) -> Construct:
             status_inflicted=eff.status_inflicted,
         ),
     )
+
+
+def constructs_in(scene) -> list[Construct]:
+    """Everything in this scene that an attack can be aimed AT.
+
+    The authored constructs, plus every authored `Wall` projected through
+    `construct_from_wall`. THE PROJECTION EXISTED AND NOTHING CALLED IT:
+    `attack_construct` iterates constructs, so before this the O.K.
+    Corral's buildings, barrels and packing crates were not in the fight
+    at all, and `smash_cover` --- a tactic whose whole purpose is
+    destroying what somebody is hiding behind --- had nothing to smash.
+
+    Indestructible walls are left out. `def_value is None` is this
+    engine's word for "legacy / indestructible", and a target nothing can
+    hurt is an offer that wastes a Phase.
+
+    Walls stay in `scene.walls` as well: movement and line of sight read
+    them there, and this is a second VIEW of the same geometry rather than
+    a second copy of it.
+    """
+    out = list(getattr(scene, "constructs", None) or [])
+    seen = {getattr(c, "obj_id", None) for c in out}
+    for wall in (getattr(scene, "walls", None) or []):
+        if getattr(wall, "def_value", None) is None:
+            continue
+        if wall.id in seen:
+            continue
+        out.append(construct_from_wall(wall))
+    return out

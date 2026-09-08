@@ -37,6 +37,7 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.scene.construct import constructs_in
 from kirby_combat.scene.geometry import distance_3d
 from kirby_combat.side import Side
 
@@ -193,7 +194,11 @@ def run_phase(
         actor, enemies,
         has_scene=scene is not None,
         scene=scene,
-        constructs=list(getattr(scene, "constructs", None) or []) or None,
+        # Authored constructs AND the scene's own destructible walls ---
+        # see `constructs_in`. The projection existed and nothing called
+        # it, so no building in any fight this engine ever ran was a thing
+        # you could hit.
+        constructs=(constructs_in(scene) or None) if scene is not None else None,
         distances=distances_from(scene, actor, enemies),
         # THE FRAMEWORK GATE, fed from the build and the fight's own log.
         # `slot_allocation` was a parameter the caller had to keep in step
