@@ -269,6 +269,62 @@ class Brief:
         self._situation = situation
 
     @property
+    def doctrine(self) -> list[str]:
+        """The tactics that apply here, best first, in their own words.
+
+        THE ADVICE WAS WRITTEN AND NEVER DELIVERED. Every tactic carries a
+        `narrative_summary`; `Tactic`'s docstring calls it "the tactic
+        listing a chooser sees" and the field's own comment says
+        "one-liner shown to whatever picks one". They are written in the
+        second person, addressed to whoever is deciding --- "You are
+        injured, get behind cover NOW". Nothing rendered them. The only
+        consumer a tactic ever had was `TacticChooser`, which reads
+        `plan.steps[0].kind` and throws the prose away.
+
+        So a reader that decides by reading was shown the map, the enemies
+        and seventy offers, and never the paragraph written to tell it
+        what to do.
+
+        THIS ADVISES; IT DOES NOT DECIDE. The menu is not reordered, not
+        filtered, and nothing here says the doctrine is correct --- a
+        tactic is judgement, and `Basis` already records which ones the
+        book actually advises. Each line names the action kind its first
+        step wants, so the advice can be acted on rather than admired.
+        """
+        from kirby_combat.tactics.library import tactics_for
+
+        try:
+            situation = self._situation.tactical_situation()
+        except Exception:
+            return []
+
+        # ONLY WHAT IS ON THE MENU. Advice pointing at an action the
+        # actor cannot take this Phase is worse than no advice: it reads
+        # as an instruction and cannot be followed. `dodge_under_fire`
+        # and `abort_to_block` both name `kind="wait"`, which is not an
+        # action kind at all, so both would otherwise head this list with
+        # something unfindable. `TacticChooser` applies the same rule by
+        # falling through such a tactic; this is that rule, said in prose.
+        offered = {a.kind for a in self.menu}
+
+        out: list[str] = []
+        for tactic in tactics_for(situation):
+            try:
+                plan = tactic.execute(situation)
+            except Exception:
+                continue
+            if not plan.steps:
+                continue
+            kind = plan.steps[0].kind
+            if kind not in offered:
+                continue
+            summary = " ".join((tactic.narrative_summary or "").split())
+            if not summary:
+                continue
+            out.append(f"{tactic.name} -> {kind}: {summary}")
+        return out
+
+    @property
     def actor(self) -> CombatantLine:
         return CombatantLine(self._situation.actor)
 
@@ -315,6 +371,18 @@ class Brief:
 
         lines.append("")
         lines.append(self.terrain.render())
+
+        import os as _os
+
+        # An escape hatch for measuring the section's effect, not a
+        # feature: set KIRBY_BRIEF_NO_DOCTRINE=1 to render the page
+        # without it and compare the same fight both ways.
+        doctrine = ([] if _os.environ.get("KIRBY_BRIEF_NO_DOCTRINE")
+                    else self.doctrine)
+        if doctrine:
+            lines.append("")
+            lines.append("What your doctrine says, best first:")
+            lines.extend(f"  {line}" for line in doctrine)
 
         lines.append("")
         lines.append(f"Legal actions this Phase ({len(self.menu)}):")

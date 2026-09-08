@@ -234,7 +234,13 @@ def test_a_sceneless_fight_says_so_rather_than_implying_ground():
     particular -- not an empty section that reads like open ground."""
     page = Brief(_situation()).render()
     assert "no positions are being tracked" in page
-    assert "cover" not in page.split("Legal actions")[0].lower()
+    # The TERRAIN section must not imply ground it does not have. Scoped
+    # to that section rather than the whole page above it, because the
+    # doctrine section legitimately says "cover" -- a tactic advising
+    # cover is advice about the fight, not a claim about this map.
+    terrain = page.split("Legal actions")[0].split("Ground:")[1]
+    terrain = terrain.split("What your doctrine says")[0]
+    assert "cover" not in terrain.lower()
 
 
 def test_terrain_reads_state_and_changes_none():
