@@ -29,6 +29,9 @@ cannot promote more PD than you own. That cap got applied to both.
 """
 from __future__ import annotations
 
+import pytest
+
+from tests.corpus import require_template
 from kirby_cost.io.build_json import build_from_json
 
 from kirby_combat.hero_view import HeroCombatant
@@ -53,6 +56,13 @@ PROTECTION = {
     "level_cost": 3.0, "level_value": 2.0, "alias": "Resistant Protection",
     "name": "Body Like Iron", "pd_levels": 25, "ed_levels": 20,
 }
+
+
+@pytest.fixture(autouse=True)
+def _needs_a_template():
+    """Costing a build needs a .hdt, and neither kirby-cost nor the CI
+    runner ships one."""
+    require_template()
 
 
 def _stats(*powers):

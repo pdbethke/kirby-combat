@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.corpus import require_template
 from kirby_cost.io.build_json import build_from_json
 from kirby_combat.hero_view import HeroCombatant
 
@@ -43,16 +44,19 @@ MINIMAL = {
 
 
 def test_a_combatant_is_built_from_a_loaded_build():
+    require_template()
     combatant = HeroCombatant.from_build(build_from_json(MINIMAL), id="probe")
     assert combatant.id == "probe"
     assert combatant.hero.name == "Probe"
 
 
 def test_the_id_defaults_to_the_name():
+    require_template()
     assert HeroCombatant.from_build(build_from_json(MINIMAL)).id == "probe"
 
 
 def test_vitals_are_seeded_from_the_build():
+    require_template()
     """What `from_hdc` did after the parse, and the only part worth keeping."""
     c = HeroCombatant.from_build(build_from_json(MINIMAL))
     assert c.state.current_stun == c.combat_stats().max_stun

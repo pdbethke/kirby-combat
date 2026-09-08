@@ -108,3 +108,26 @@ def require_authored(name: str) -> Any:
         )
     with open(path, encoding="utf-8") as fh:
         return build_from_json(json.load(fh))
+
+
+#: kirby-cost needs a HERO Designer template to cost anything, and ships
+#: none -- so does the CI runner, deliberately. `require_authored` covers
+#: the tests that also want a character; this covers the ones that build a
+#: doc inline and still need the engine to price it.
+TEMPLATE_ENV = "KIRBY_COST_HDT"
+
+
+def require_template() -> None:
+    """Skip unless a .hdt is configured AND usable.
+
+    Checked by CONSTRUCTING the provider rather than by reading the
+    variable: a path that is set but wrong fails deep inside costing with
+    a message about templates, which reads like an engine defect. Ask the
+    question where the answer is cheap.
+    """
+    from kirby_cost.template.hdt_provider import HDTTemplateProvider
+
+    try:
+        HDTTemplateProvider()
+    except Exception as exc:                            # noqa: BLE001
+        pytest.skip(f"no usable {TEMPLATE_ENV}: {exc}")
