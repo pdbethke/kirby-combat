@@ -69,6 +69,7 @@ from dataclasses import replace
 from kirby_combat.encounter import Encounter
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.loop import Roster, TacticChooser, run_encounter
+from kirby_combat.scene.construct import Construct
 from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
 )
@@ -203,6 +204,20 @@ def the_lot() -> Scene:
                  cover_level=3, body=4, def_value=2, climb_difficulty=0),
         ],
         hazards=[], ambient=AmbientConditions(light_level=4),
+        # THINGS A STRONG MAN CAN PICK UP. The lot's barrels and crates are
+        # `Wall`s --- geometry that blocks and grants cover --- so nothing in
+        # it was ever a thing you could lift. A freight wagon parked at the
+        # mouth is: 6 BODY, about a tonne by the engine's mass proxy, well
+        # inside a STR 40 lift of 6,400kg and far beyond any of the nine men.
+        #
+        # It changes nothing for them and gives a brick his signature move,
+        # which is the point of putting one in a benchmark.
+        constructs=[Construct(
+            obj_id="freight-wagon", kind="wall", portable=True,
+            segment=(Position(3.0, 1.0, 0.0), Position(3.0, 1.0, 0.0)),
+            height_m=1.6, blocks_los=False, blocks_movement=False,
+            cover_level=2, def_value=3, body=6,
+        )],
         combatant_positions={
             "doc_holliday":   Position(2.5, 8.5, 0.0),   # 1, at the mouth
             "tom_mclaury":    Position(WEST, 7.0, 0.0),  # 2

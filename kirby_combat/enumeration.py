@@ -1374,14 +1374,22 @@ def enumerate_actions(
                 ),
             ))
 
-    # Throwing spec §4 (Task 2B.3): pick up an adjacent debris chunk to throw
-    # next phase. For each ``kind="debris"`` construct whose representative
+    # Throwing spec §4 (Task 2B.3): pick up an adjacent PORTABLE object to
+    # throw next phase. For each ``portable`` construct whose representative
     # point sits within the actor's melee ``reach_m`` (segment midpoint /
     # polygon centroid vs the actor's scene position), offer a single
     # ``pickup:<obj_id>`` — gated on: the actor isn't already holding one
     # (``actor_holding``), STR ≥ 5, and the actor can LIFT the chunk's mass
     # (weight gate, below). Non-debris constructs (walls / hazards / force_
     # walls) are never offered — only spawned rubble is throwable.
+    #
+    # THAT RULE WAS THE BUG. It filtered on ``kind == "debris"``, a kind
+    # that is not in `ConstructKind` and that NOTHING in this engine has
+    # ever created, so `pickup` and `throw_object` could never once fire.
+    # PeterB, standing a brick over a whiskey barrel: "why is that not an
+    # option". Because a barrel is not rubble and never becomes any.
+    # `portable` is now a property of the object, which is what the weight
+    # gate below was always really asking about.
     #
     # Weight gate (spec §4, v1): a debris chunk's mass ≈ ``BODY ·
     # _DEBRIS_KG_PER_BODY`` (50 kg/BODY default); offer only when the actor's
@@ -1399,7 +1407,7 @@ def enumerate_actions(
         if actor_pos is not None:
             actor_lift_kg = _primary_lift_kg(s.str_)
             for c in constructs:
-                if getattr(c, "kind", None) != "debris":
+                if not getattr(c, "portable", False):
                     continue
                 cpt = _construct_point(c)
                 if cpt is None:

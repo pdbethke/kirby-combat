@@ -31,6 +31,7 @@ from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.framework import allocation_for
+from kirby_combat.holding import held_object
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
@@ -180,6 +181,7 @@ def run_phase(
     actor = session.combatants[actor_id]
     roster = Roster(session)
     enemies = roster.enemies_of(actor)
+    _held = held_object(session, actor_id)
 
     # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
     # and the loop simply never read it, so `has_scene` defaulted to False
@@ -205,6 +207,14 @@ def run_phase(
         # twice. Computed here because enumeration holds no session, the
         # same way `slot_allocation` above is assembled by this caller.
         already_aborted=is_aborting(session, actor_id),
+        # WHAT HE IS CARRYING. `throw_object` is offered only when these
+        # two are supplied, and nothing supplied them --- so a fighter
+        # picked a wagon up and the next Phase's menu had no idea, offered
+        # the pickup again, and he lifted the same wagon eleven times.
+        # Folded from the log here for the same reason `slot_allocation`
+        # is: it lives in the fight, not in the caller.
+        actor_holding=_held is not None,
+        held_construct_id=_held,
     )
     if not menu:
         _mark_acted(session, actor_id)

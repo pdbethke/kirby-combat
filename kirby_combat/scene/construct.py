@@ -55,6 +55,16 @@ class Construct:
     #: Armor Piercing (movement_legality gates on it). 0 = no effect.
     no_teleport_levels: int = 0
     # durability (both None => indestructible). `body` is CURRENT body.
+    #: Can somebody strong enough pick this up and throw it?
+    #:
+    #: PORTABLE IS A PROPERTY OF THE OBJECT, not a kind of object. `pickup`
+    #: used to filter on `kind == "debris"` --- a kind that is not in
+    #: `ConstructKind` and that nothing in this engine has ever created, so
+    #: `pickup` and `throw_object` were two complete action kinds that
+    #: could never fire. A whiskey barrel is not rubble and never becomes
+    #: any; a wagon is not a special sort of wall. Both are simply things
+    #: light enough to lift, which is what the weight gate already asks.
+    portable: bool = False
     def_value: int | None = None
     ed_value: int | None = None             # ED, when it differs from PD (6E2 p173)
     resistant: bool = True                  # False = Normal Defense, not applied vs Killing

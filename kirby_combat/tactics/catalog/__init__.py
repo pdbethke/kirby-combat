@@ -14,6 +14,7 @@ from kirby_combat.tactics.catalog import (
     push_when_winning,
     smash_cover,
     sustained_fire,
+    throw_something_heavy,
     # T3 defensive tactics
     abort_to_block,
     dodge_under_fire,
@@ -30,6 +31,7 @@ from kirby_combat.tactics.catalog import (
 )
 
 __all__ = [
+    "throw_something_heavy",
     "leave_when_the_side_has_broken",
     "break_off_when_nothing_works",
     "bait_enraged",
