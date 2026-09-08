@@ -897,6 +897,58 @@ def _resolve_throw(
             "destroyed": hit.destroyed,
         })
 
+    # THROWN AT A MAN, through the ordinary attack pipeline. This used to
+    # compute a distance, record it, and apply damage to NOBODY --- so a
+    # freight wagon sailed straight through Wyatt Earp all afternoon.
+    #
+    # A thrown wagon is an attack: it rolls to hit against DCV, defenses
+    # stop it, and it can knock a man back. Building a second damage path
+    # beside `resolve_attack_in_session` would have been a second set of
+    # rules to keep in step with the first.
+    target = (session.combatants.get(action.target_id)
+              if action.target_id else None)
+    if target is not None:
+        from kirby_combat.actions.throw import resolve_object_throw
+        from kirby_combat.models import AttackInput, AttackPower, DiceValues
+        from kirby_combat.scene.construct import constructs_in
+
+        scene = session.scene
+        here = constructs_in(scene) if scene is not None else []
+        held_id = action.action_id.split(":")[1] if ":" in action.action_id else ""
+        held = next((c for c in here
+                     if getattr(c, "obj_id", None) == held_id), None)
+        dice, _dtype = resolve_object_throw(
+            int(actor.combat_stats().str_),
+            (held.def_value if held is not None and held.def_value is not None
+             else 0),
+            (held.body if held is not None and held.body is not None else 0),
+            "normal",
+        )
+        dice = max(1, int(dice))
+        missile = AttackPower(
+            xmlid="THROWNOBJECT", name="thrown object",
+            damage_dice=dice, half_die=False, plus_one=False,
+            damage_type="normal", defense_type="pd",
+            range_m=float(getattr(outcome, "distance_m", 0.0) or 0.0),
+            uses_str=False, str_min=0, armor_piercing=0, penetrating=0,
+            increased_stun_mult=0, is_ranged=True,
+            source_id=held_id or "thrown",
+        )
+        attack = AttackInput(
+            attacker=actor, target=target, power=missile,
+            distance_m=None, aim=None,
+            dice=DiceValues(to_hit=roller.roll_dice(3),
+                            damage=roller.roll_dice(dice)),
+        )
+        new_session, result = resolve_attack_in_session(
+            session, attack, template, action_type="throw_object",
+        )
+        return ResolvedAction(
+            session=new_session, kind=action.kind,
+            action_id=action.action_id, result=result,
+            events=_events_since(session, new_session),
+        )
+
     return _recorded(session, actor, action, outcome, {
         "kind": action.kind, "target_id": action.target_id,
         "distance_m": getattr(outcome, "distance_m", None),

@@ -127,3 +127,44 @@ def test_a_shack_can_be_brought_down():
     payload = [e for e in resolved.events
                if getattr(e, "kind", "") == "ActionResolved"][-1].result_payload
     assert payload.get("destroyed") is True, payload
+
+
+# ---- and at a man ----
+
+def test_a_thrown_wagon_hurts_the_man_it_hits():
+    """It never did. `_resolve_throw` computed a distance, recorded it,
+    and applied damage to nobody --- so Power Lad's freight wagon has been
+    sailing through Wyatt Earp all afternoon.
+
+    Routed through the ordinary attack pipeline, which is the point: a
+    thrown wagon is an attack, so it rolls to hit against DCV, is stopped
+    by defenses, and can knock a man back. Inventing a second damage path
+    beside `resolve_attack_in_session` would have been a second set of
+    rules to keep in step.
+    """
+    session = _session()
+    offer = next(a for a in _menu(session)
+                 if a.kind == "throw_object" and a.target_id == "ike")
+    before = session.combatants["ike"].state.current_stun
+    # Seed chosen so the throw connects; the point is that damage flows at
+    # all, not that this particular roll hits.
+    resolved = resolve_chosen(session, session.combatants["lad"], offer,
+                              template=TEMPLATE, roller=RandomRoller(seed=11))
+    after = resolved.session.combatants["ike"].state.current_stun
+    payload = [e for e in resolved.events
+               if getattr(e, "kind", "") == "ActionResolved"][-1].result_payload
+    assert "hit" in payload, payload
+    if payload.get("hit"):
+        assert after < before, "it connected and he felt nothing"
+
+
+def test_the_throw_is_still_recorded_as_a_throw():
+    """Guards the guard: routing it through the attack pipeline must not
+    lose what the action WAS --- a consumer reading the log should see a
+    thrown object, not a punch."""
+    session = _session()
+    offer = next(a for a in _menu(session)
+                 if a.kind == "throw_object" and a.target_id == "ike")
+    resolved = resolve_chosen(session, session.combatants["lad"], offer,
+                              template=TEMPLATE, roller=RandomRoller(seed=11))
+    assert resolved.kind == "throw_object"
