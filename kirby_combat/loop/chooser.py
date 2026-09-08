@@ -129,8 +129,9 @@ class TacticChooser:
     ``classify_role`` says what kind of fighter the actor is;
     ``tactics_for`` returns the tactics that apply to this situation, best
     first. Each tactic's ``execute`` emits a ``Plan`` whose first step names
-    a ``kind``; this chooser takes the strongest tactic whose first step
-    matches something actually on the menu.
+    a ``kind`` and, in sixteen of the twenty-two, a ``target_id``; this
+    chooser takes the strongest tactic whose first step matches something
+    actually on the menu --- BOTH halves of it.
 
     WHEN DOCTRINE AND LEGALITY DISAGREE, LEGALITY WINS. A tactic may
     recommend a kind the actor cannot perform this Phase --- it is
@@ -159,9 +160,28 @@ class TacticChooser:
             plan = tactic.execute(tactical)
             if not plan.steps:
                 continue
-            offers = by_kind.get(plan.steps[0].kind)
-            if offers:
-                return offers[0].action_id
+            step = plan.steps[0]
+            offers = by_kind.get(step.kind)
+            if not offers:
+                continue
+            # DOCTRINE NAMES A VICTIM, AND IT IS NOT DECORATION. Sixteen of
+            # the catalogue's tactics set `target_id`; this read the kind
+            # and took offers[0], which is the first offer in MENU order,
+            # which is roster order. So for every fight this engine ran,
+            # "who" was decided by where a combatant sat in the list.
+            #
+            # Found with Power Lad in the O.K. Corral: he killed seven men
+            # and was shot at twice in twenty-five Phases, because he was
+            # appended last and so was offer #5 of 5 for everybody.
+            if step.target_id is not None:
+                aimed = [o for o in offers if o.target_id == step.target_id]
+                if not aimed:
+                    # Legality wins, as this class already says. Firing the
+                    # right KIND at the wrong MAN is worse than falling
+                    # through, because it looks like a decision.
+                    continue
+                return aimed[0].action_id
+            return offers[0].action_id
 
         return self._fallback.choose(situation)
 
