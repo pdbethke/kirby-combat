@@ -155,19 +155,38 @@ class Roster:
         return frozenset(Side.of(c) for c in self.combatants)
 
     def enemies_of(self, actor) -> list:
-        """Everyone still up who is not on the actor's side."""
+        """Everyone still up, still HERE, and not on the actor's side.
+
+        "Still here" was missing and it cost a whole fight. `standing`
+        stopped counting a man who walked out the day `disengage` was
+        built, and `next_actor_id` stopped giving him Phases; this filtered
+        only on `is_down`, so somebody who had LEFT was still on
+        everybody's list of enemies.
+
+        At the O.K. Corral, Doc Holliday broke off under the morale rule
+        and walked to (-7.5, 15.1) --- outside the lot. Power Lad spent the
+        rest of the fight choosing `move:doc_holliday`, which
+        `movement_reach` correctly refuses, so he stood still walking
+        after a ghost until the stalemate guard fired.
+        """
         mine = Side.of(actor)
         return [
             c for c in self.combatants
             if Side.of(c) != mine and not is_down(c)
+            and not self.has_left(c.id)
         ]
 
     def allies_of(self, actor) -> list:
-        """Everyone else still up on the actor's side."""
+        """Everyone else still up, still here, on the actor's side.
+
+        You cannot shield a man who has gone home, and a side weighing
+        whether to keep fighting should not count him among its numbers.
+        """
         mine = Side.of(actor)
         return [
             c for c in self.combatants
             if c.id != actor.id and Side.of(c) == mine and not is_down(c)
+            and not self.has_left(c.id)
         ]
 
     def decide(self, condition: StopCondition | None = None) -> Verdict:
