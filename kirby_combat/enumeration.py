@@ -572,6 +572,16 @@ ALL_ACTION_KINDS = frozenset({
     "throw", "throw_object", "trading", "trip",
 })
 
+#: Kinds that mean "this offer hits somebody". Used to tell a fighter who
+#: has no way to fight from one who simply has not been offered his best
+#: option yet.
+_ATTACKING_KINDS = frozenset({
+    "attack", "strike", "move_strike", "move_by", "move_through",
+    "multiple_attack", "rapid_fire", "sweep", "haymaker", "push",
+    "mental_blast", "maneuver", "throw", "throw_object",
+})
+
+
 #: Headings tried when looking for a way out, as degrees off "straight
 #: away from the enemies' centroid". Straight away comes first so it wins
 #: every tie: it is the honest answer on open ground, and the fan only
@@ -1053,23 +1063,87 @@ def enumerate_actions(
     for fv in fw_views:
         if len(fv.slots) < 2:
             continue
-        # Build a slot-list summary for the picker.
-        slot_names = ", ".join(
-            f"{sl.slot_id}({sl.active_points}pts)"
-            for sl in fv.slots
-        )
-        actions.append(LegalAction(
-            action_id=f"reallocate_slots:{fv.framework_id}:{','.join(sl.slot_id for sl in fv.slots)}",
-            kind="reallocate",
-            target_id=None,
-            power_xmlid=fv.xmlid,
-            power_name=fv.name,
-            summary=(
-                f"Reallocate {fv.name} reserve ({fv.reserve_or_pool} pts) — "
-                f"choose which slots are active this phase. "
-                f"Slots: {slot_names}"
-            ),
-        ))
+        # WHAT THE RESERVE CAN ACTUALLY PAY FOR. This used to name every
+        # slot in one id and let the resolver refuse it: Power Lad's five
+        # 44-45 point slots against a 45-point reserve draw 224, so
+        # `validate_allocation` raised `ReserveExceeded` every time. He
+        # chose it 152 times in one fight and the O.K. Corral ran to
+        # `max_turns` undecided --- the menu offering what the engine
+        # rejects, for ever, with nothing on either side learning.
+        #
+        # The summary also said "choose which slots are active", which a
+        # chooser cannot do: it returns an id from this menu, so an id
+        # naming all five offered no choice at all.
+        #
+        # 6E1 p.204 makes the reserve the total a Multipower's slots may
+        # draw AT ONCE, and it is the entire reason a framework costs less
+        # than buying the powers outright.
+        reserve = float(getattr(fv, "reserve_or_pool", 0) or 0)
+        _points = {sl.slot_id: float(getattr(sl, "active_points", 0) or 0)
+                   for sl in fv.slots}
+
+        # Everything at once when the reserve is generous enough --- no
+        # reason to make a fighter switch one at a time.
+        _sets: list[tuple[str, ...]] = []
+        if reserve and sum(_points.values()) <= reserve:
+            _sets.append(tuple(_points))
+        else:
+            # Otherwise one offer per slot he can actually switch TO.
+            # Changing which power is up is what a Multipower IS, and a
+            # slot bigger than the whole reserve can never be turned on.
+            _sets = [(sid,) for sid, cost in _points.items()
+                     if reserve and cost <= reserve]
+            # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
+            # something that fights. No tactic in the catalogue emits
+            # `reallocate`, so this offer is only ever taken by the
+            # FALLBACK chooser, which takes the first thing on the menu.
+            # At the O.K. Corral that left Power Lad --- whose claws are a
+            # Multipower slot that was not switched on, so he had no
+            # attack offers and no tactic matched --- shuffling his own
+            # powers for two hundred and eighty-nine Phases while one
+            # cowboy aimed at him. `SlotView` already knows which slots
+            # are attacks; putting them first is the difference between a
+            # monster and a man rummaging in a bag.
+            # The signal is "nothing on this MENU can attack", not "the
+            # build has no attacks". Power Lad's claws are on his build the
+            # whole fight; they are gated OFF the menu while their slot is
+            # not drawing from the reserve, which is exactly the state he
+            # needs to fix and exactly the state `actor.attacks` cannot
+            # see.
+            if not any(a.kind in _ATTACKING_KINDS for a in actions):
+                _attackish = {sl.slot_id for sl in fv.slots
+                              if (getattr(sl, "kind", "") or "") == "attack"}
+                _sets.sort(key=lambda st: 0 if _attackish.intersection(st) else 1)
+
+        # AND IT MUST CHANGE SOMETHING. Once the offers fitted the reserve
+        # they stopped being refused and started succeeding --- and Power
+        # Lad reallocated to the slot he already had, 152 times, for 289
+        # Phases. An action that succeeds and changes nothing, chosen for
+        # ever, is the cover trap one more time: don't offer a man cover
+        # he is already behind.
+        _live = set()
+        if slot_allocation:
+            _entry = slot_allocation.get(fv.framework_id)
+            if _entry:
+                _live = set(_entry[2] or ())
+
+        for _set in _sets:
+            if set(_set) == _live:
+                continue
+            drawn = sum(_points[sid] for sid in _set)
+            actions.append(LegalAction(
+                action_id=f"reallocate_slots:{fv.framework_id}:{','.join(_set)}",
+                kind="reallocate",
+                target_id=None,
+                power_xmlid=fv.xmlid,
+                power_name=fv.name,
+                summary=(
+                    f"Reallocate {fv.name} reserve ({fv.reserve_or_pool} pts) — "
+                    f"make active: "
+                    + ", ".join(f"{sid}({_points[sid]:.0f}pts)" for sid in _set)
+                    + f" (draws {drawn:.0f} of {reserve:.0f})"
+                ),
+            ))
 
     # Task 5: Variable Power Pool reconfigure offer. For each VPP framework,
     # offer one ``reconfigure_vpp:{framework_id}`` action: the actor builds
