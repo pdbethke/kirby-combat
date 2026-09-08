@@ -1300,6 +1300,11 @@ def _half_move(actor, mode: str = "running") -> float:
     return _move_capacity(actor, mode) / 2.0
 
 
+def _full_move(actor, mode: str = "running") -> float:
+    """A Full Move --- the whole Phase spent moving, no attack (6E2 p.42)."""
+    return _move_capacity(actor, mode)
+
+
 @resolves("move")
 def _resolve_move(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -2010,3 +2015,68 @@ def _resolve_move_to_cover(
         "reached": outcome.reachable,
         "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
     })
+
+
+@resolves("disengage")
+def _resolve_disengage(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Break off and get clear --- the third way to stop fighting.
+
+    The other two were unconscious and dying. A fighter who runs is not
+    hurt at all, and until this existed the loop had no way to represent
+    one: it would keep enumerating Phases for a man who, in the fight
+    being modelled, had already gone.
+
+    The destination came from the offer (directly away from the enemies'
+    centroid, a full combat move), for the same reason `move_to_cover`
+    takes its spot from the offer --- so the menu and the engine cannot
+    disagree about where the actor went.
+
+    `left_field` is recorded as an ABSOLUTE fact about the resulting
+    position, not as a flag toggled by this action, which is the house
+    contract for anything a later reader has to fold forward.
+    """
+    from kirby_combat.scene.placement import move_toward
+    from kirby_combat.scene.scene import Position
+
+    if action.reposition_dest is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    x, y, z = action.reposition_dest
+    mode = action.mode or "running"
+    new_session, outcome = move_toward(
+        session, actor.id, Position(x, y, z),
+        mode=mode, distance_m=_full_move(actor, mode),
+    )
+    if outcome is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    return _recorded(new_session, actor, action, outcome, {
+        "kind": action.kind,
+        "reached": outcome.reachable,
+        "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
+        "left_field": _off_the_field(new_session, actor.id),
+    })
+
+
+def _off_the_field(session: "CombatSession", combatant_id: str) -> bool:
+    """Is this combatant outside the scene's bounds?
+
+    `SceneBounds` already says where the fight IS --- "Combatants must
+    stay within", per its own docstring. Someone beyond it has left, and
+    that is a reading of the position rather than a new piece of state to
+    keep in sync.
+    """
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return False
+    bounds = getattr(scene, "bounds", None)
+    pos = (getattr(scene, "combatant_positions", None) or {}).get(combatant_id)
+    if bounds is None or pos is None:
+        return False
+    return not (
+        bounds.min_x <= pos.x <= bounds.max_x
+        and bounds.min_y <= pos.y <= bounds.max_y
+    )

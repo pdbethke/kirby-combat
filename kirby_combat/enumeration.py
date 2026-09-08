@@ -558,6 +558,7 @@ def _multi_attack_ocv(base_ocv: int, count: int) -> int:
 ALL_ACTION_KINDS = frozenset({
     "aid", "attack", "attack_construct", "block", "charm", "climb",
     "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
+    "disengage",
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_str",
     "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
     "hide", "hold", "image_decoy", "maneuver", "mental_blast",
@@ -2901,6 +2902,81 @@ def enumerate_actions(
                 ),
                 reposition_dest=(_spot.x, _spot.y, _spot.z),
             ))
+
+    # ── Disengage: leave the fight ────────────────────────────────────────
+    #
+    # THE DIRECTION NOTHING ELSE WENT. Every `move` offer is `move:<enemy>`
+    # -- toward somebody. `reposition` breaks contact but only for a
+    # fragile-versus-heavy matchup already inside melee reach, so in a
+    # gunfight it never fires. Between them the engine offered sixty kinds
+    # and no way to walk away, which is why every fight it has ever run
+    # ended in unconsciousness: those were the only two ways the loop knew
+    # a fighter could stop.
+    #
+    # The book needs no Flee maneuver -- moving away is moving. What was
+    # missing is an offer pointing the other way. 6E2 p.139 supplies the
+    # consequence side at PRE+30 ("may surrender, run away or faint"),
+    # whose 0 DCV the engine already consumes and whose running it could
+    # not express.
+    #
+    # Directly away from the enemies' CENTROID, not from the nearest one:
+    # running from the closest man can walk you into the other three. Full
+    # combat move, because getting clear is the whole Phase.
+    _dis_positions = (
+        (getattr(scene, "combatant_positions", None) or {})
+        if scene is not None else {}
+    )
+    _dis_actor_pos = _dis_positions.get(actor.id)
+    if scene is not None and _dis_actor_pos is not None and alive_enemies:
+        import math as _dis_math
+
+        from kirby_combat.scene.scene import Position as _DisPosition
+
+        _foes = [
+            _dis_positions[e.id] for e in alive_enemies
+            if e.id in _dis_positions
+        ]
+        if _foes:
+            _cx = sum(p.x for p in _foes) / len(_foes)
+            _cy = sum(p.y for p in _foes) / len(_foes)
+            _dx, _dy = _dis_actor_pos.x - _cx, _dis_actor_pos.y - _cy
+            _mag = _dis_math.hypot(_dx, _dy)
+            if _mag > 1e-6:
+                try:
+                    _run = next(
+                        (c for c in actor.movement_view()
+                         if getattr(c, "mode", "") == "running"), None,
+                    )
+                except Exception:
+                    _run = None
+                _budget = float(getattr(_run, "combat_m", 0.0) or 0.0)
+                if _budget > 0:
+                    _ux, _uy = _dx / _mag, _dy / _mag
+                    _dest = _DisPosition(
+                        _dis_actor_pos.x + _ux * _budget,
+                        _dis_actor_pos.y + _uy * _budget,
+                        _dis_actor_pos.z,
+                    )
+                    _gain = _dis_math.dist(
+                        (_dest.x, _dest.y), (_cx, _cy),
+                    ) - _dis_math.dist(
+                        (_dis_actor_pos.x, _dis_actor_pos.y), (_cx, _cy),
+                    )
+                    actions.append(LegalAction(
+                        action_id="disengage",
+                        kind="disengage",
+                        target_id=None,
+                        power_xmlid=None,
+                        power_name=None,
+                        summary=(
+                            f"Break off and get clear — run {_budget:.0f}m "
+                            f"directly away from them, opening the range by "
+                            f"about {_gain:.0f}m. Costs the whole Phase, so "
+                            f"no attack; leaving the field ends your part in "
+                            f"the fight"
+                        ),
+                        reposition_dest=(_dest.x, _dest.y, _dest.z),
+                    ))
 
     _climb_positions = (
         (getattr(scene, "combatant_positions", None) or {})

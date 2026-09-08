@@ -150,14 +150,14 @@ def test_presence_attack_produces_an_effect_not_damage():
 
 # ---- The count, and what it does not claim ----
 
-def test_all_sixty_kinds_are_wired():
-    """60, not 51. Three offers build their kind from a variable, so an AST
+def test_all_sixty_one_kinds_are_wired():
+    """61, not 51. Three offers build their kind from a variable, so an AST
     walk matching `kind="literal"` missed eight -- see
     `test_every_enumerable_kind_is_registered` in
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 60
+    assert len(registered_kinds()) == 61
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -187,6 +187,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "charm", "persuasion", "conversation", "trading",
         #                          test_hidden_kinds
         "move_to_cover",           # test_move_to_cover
+        "disengage",               # test_disengage
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

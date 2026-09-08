@@ -98,6 +98,25 @@ class Roster:
     def combatants(self) -> list:
         return list(self._session.combatants.values())
 
+    def _has_left(self, combatant_id: str) -> bool:
+        """Outside the scene's bounds --- i.e. no longer on the field.
+
+        No scene, no bounds, or no position for this combatant means the
+        question does not arise: most fights are on no map at all, and
+        they must keep working exactly as before.
+        """
+        scene = getattr(self._session, "scene", None)
+        if scene is None:
+            return False
+        bounds = getattr(scene, "bounds", None)
+        pos = (getattr(scene, "combatant_positions", None) or {}).get(combatant_id)
+        if bounds is None or pos is None:
+            return False
+        return not (
+            bounds.min_x <= pos.x <= bounds.max_x
+            and bounds.min_y <= pos.y <= bounds.max_y
+        )
+
     @property
     def standing(self) -> dict[Side, list[str]]:
         """Each side with at least one combatant still up, to their ids.
@@ -106,10 +125,21 @@ class Roster:
         dying at BODY <= 0. A side present but wholly down does not appear.
         Keyed by ``Side``, which hashes on its id, so it groups correctly
         whether or not every combatant was handed the same instance.
+
+        AND NOT GONE. Those two were the only ways this knew a fighter
+        could stop, so every fight the engine ran ended in unconsciousness
+        --- there was no way to leave. A combatant beyond the scene's
+        ``SceneBounds`` has left the field ("Combatants must stay within",
+        per its own docstring) and is no longer in the fight, so a side
+        whose last member has run does not appear here and the fight ends.
+
+        Read off the POSITION rather than a flag, so it cannot fall out of
+        step with where the combatant actually is --- and so a fighter
+        carried back inside by anything is simply in the fight again.
         """
         out: dict[Side, list[str]] = {}
         for combatant in self.combatants:
-            if is_down(combatant):
+            if is_down(combatant) or self._has_left(combatant.id):
                 continue
             out.setdefault(Side.of(combatant), []).append(combatant.id)
         return out
