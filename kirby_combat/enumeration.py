@@ -792,6 +792,46 @@ def enumerate_actions(
     def _is_melee(ap: Any) -> bool:
         return not getattr(ap, "is_ranged", (getattr(ap, "range_m", 0) or 0) > 0)
 
+    def _pushable(ap: Any) -> bool:
+        """Can this attack be Pushed at all? 6E2 p.135.
+
+        Only Powers that cost END can be. Ones that never cost END, are
+        bought to 0 END, or run on CHARGES cannot --- but one bought to
+        1/2 END still can, so "has a Reduced Endurance modifier" is the
+        wrong test and would ban half the cases the book allows.
+
+        The engine already answers this to Java parity in
+        `GenericObject.uses_end`, which reads the power's modifiers AND
+        its parent List's. So ASK the source power rather than keeping a
+        second copy of the rule here that can disagree with it.
+
+        A view with no findable source --- the bare STR strike, and the
+        synthetic attacks tests build --- is pushable: STR costs END, and
+        the absence of a source object is not evidence of Charges.
+        """
+        target = _src_id(ap)
+        if not target:
+            return True
+        seen: set[int] = set()
+
+        def _find(power_list):
+            for pw in power_list or []:
+                if id(pw) in seen:
+                    continue
+                seen.add(id(pw))
+                if str(getattr(pw, "id", "")) == target:
+                    return pw
+                found = _find(getattr(pw, "sub_powers", None))
+                if found is not None:
+                    return found
+            return None
+
+        src = (_find(getattr(actor.hero, "powers", None))
+               or _find(getattr(actor.hero, "equipment", None)))
+        if src is None:
+            return True
+        return bool(getattr(src, "uses_end", True))
+
     # PR-37: _MENTAL_ATTACK_XMLIDS is module-level; referenced below for
     # the per-enemy loop AND the construct damaging-pool filter.
 
@@ -1800,6 +1840,9 @@ def enumerate_actions(
                 # the same phantom-punch bug — gate it. Pushing a RANGED attack
                 # at range is legal, so only gate when the power is melee.
                 if _is_melee(ap) and _melee_gate(enemy.id) != "direct":
+                    continue
+                # 6E2 p.135: nothing to spend, nothing to Push.
+                if not _pushable(ap):
                     continue
                 base = ap.damage_dice or 0
                 actions.append(LegalAction(
