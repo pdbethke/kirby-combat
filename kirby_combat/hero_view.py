@@ -1468,11 +1468,25 @@ def _compute_stats_from_hero(
         xmlid = (getattr(p, "xmlid", None) or "").upper()
         levels = int(getattr(p, "levels", 0) or 0)
         if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
-            # In 6E, levels on these powers can be split via PD/ED
-            # adders. Without per-adder parsing we assume the levels
-            # split half-and-half. Refined in step 3+.
-            rpd += levels // 2 + (levels % 2)
-            red += levels // 2
+            # ASK THE BUILD. HD splits Resistant Protection across PD/ED/MD/
+            # POWD on the element itself (PDLEVELS/EDLEVELS/...), and
+            # `ForceField.XML_ATTRS` has read them for a long time. This used
+            # to guess half-and-half instead -- Power Lad's 45 points became
+            # 23/22 rather than the 25/20 he bought -- because the split was
+            # believed to live on adders. Falls back to the old halves only
+            # when a build genuinely declares none.
+            split_pd = int(getattr(p, "pd_levels", 0) or 0)
+            split_ed = int(getattr(p, "ed_levels", 0) or 0)
+            split_md = int(getattr(p, "md_levels", 0) or 0)
+            split_powd = int(getattr(p, "powd_levels", 0) or 0)
+            if split_pd or split_ed or split_md or split_powd:
+                rpd += split_pd
+                red += split_ed
+                md += split_md
+                powd += split_powd
+            else:
+                rpd += levels // 2 + (levels % 2)
+                red += levels // 2
         elif xmlid == "PD":
             pd_bonus += levels
             # If this PD-power row carries a RESISTANT advantage, the
@@ -1505,15 +1519,29 @@ def _compute_stats_from_hero(
             # HeroCombatStats yet (it's a per-DefenseItem flag in the
             # current resolver). Tracked TODO.
 
-    # Compose: pd/ed totals include naked resistant pools as
-    # already counted in pd_bonus/ed_bonus or as part of cv("PD").
-    # rpd is the sum of FORCEFIELD-style resistant + the naked-mod
-    # slice of base PD that's been promoted to resistant. Cap at the
-    # total available.
-    base_pd = cv("PD") + pd_bonus
-    base_ed = cv("ED") + ed_bonus
-    final_rpd = min(rpd + naked_resistant["PD"], base_pd)
-    final_red = min(red + naked_resistant["ED"], base_ed)
+    # Compose. TWO DIFFERENT THINGS, and conflating them cost Power Lad
+    # 69 active points of armor.
+    #
+    # `rpd` is defense BOUGHT as a Power -- Resistant Protection. 6E2 p.105:
+    # natural PD and ED "can be supplemented by defenses bought as Powers
+    # (for example, Limited forms of PD and ED, or Resistant Protection)".
+    # The worked example adds leather armor PD 3 on top of natural PD 4 for
+    # 7 total; the armor is not capped at 4. So it ADDS, to the resistant
+    # column and to the total -- resistant defense stops Normal Damage too.
+    #
+    # `naked_resistant` is natural PD PROMOTED to resistant by the Resistant
+    # Advantage. That one IS capped, and by exactly this number: the Ogre on
+    # the same page has "PD 40, but only 5 of it is Resistant". You cannot
+    # promote more PD than you own.
+    #
+    # The cap used to be applied to both, so a brick whose armor was a Power
+    # and whose characteristic PD was 2 read rPD 2.
+    natural_pd = cv("PD") + pd_bonus
+    natural_ed = cv("ED") + ed_bonus
+    base_pd = natural_pd + rpd
+    base_ed = natural_ed + red
+    final_rpd = rpd + min(naked_resistant["PD"], natural_pd)
+    final_red = red + min(naked_resistant["ED"], natural_ed)
     final_md = md + naked_resistant["MD"]
     final_powd = powd + naked_resistant["POWD"]
     final_flashd = flashd + naked_resistant["FLASHD"]

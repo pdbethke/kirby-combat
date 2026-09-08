@@ -11,10 +11,28 @@ of them was a way to keep fighting. There was no doctrine of leaving,
 and until `disengage` existed there was no action for it either.
 
 THE GATE IS DELIBERATELY NARROW, and it is a fact rather than a mood: the
-actor has no attack whose range reaches the nearest enemy, while that
-enemy has one that reaches back. Not "losing", not "outnumbered", not
-"hurt" --- `take_cover_when_hurt` already owns hurt, and a wounded
-fighter who can still shoot has a better option than running.
+actor has NOTHING TO FIGHT WITH, while an enemy has something that
+reaches him. Not "losing", not "outnumbered", not "hurt" ---
+`take_cover_when_hurt` already owns hurt, and a wounded fighter who can
+still shoot has a better option than running.
+
+It used to compare REACH alone --- mine doubled still short of theirs ---
+and that was wrong in a way one fight made obvious. Power Lad, 399.5
+points with a 6d6 killing attack and armor no revolver can scratch, was
+dropped into this lot and ran on his first Phase: his fists reach a metre
+and their guns reach forty. Range is not distance. A 40m revolver says
+nothing about where its owner is standing, and in this lot everyone was
+two metres apart, so no geometric patch fixes it either.
+
+Being outranged was never the trouble. Ike had no gun. That is the fact
+this gate now reads, and it is the one the paragraph above always
+described.
+
+WHAT THIS GIVES UP, on purpose: an armed-but-outranged fighter --- a knife
+against a rifle across a field --- no longer gets this tactic. That case
+wants a doctrine about CLOSING rather than leaving, and inventing one here
+on the strength of a single gunfight would be guessing. This tactic is
+`judgement` basis, not RAW, so it should claim only what it can defend.
 
 Priority sits above the attack tactics and below `take_cover_when_hurt`:
 cover is the cheaper answer when there is cover, and running is what you
@@ -61,12 +79,13 @@ class WithdrawWhenOutmatched(Tactic):
         enemies = [e for e in (situation.enemies or [])]
         if not enemies:
             return False
-        mine = _longest_reach(situation.actor)
+        # Nothing to fight with -- not "outreached", which is a different
+        # and much larger claim. A fighter holding anything at all has a
+        # choice to make that this tactic is not qualified to make for him.
+        if getattr(situation.actor, "attacks", None):
+            return False
         theirs = max((_longest_reach(e) for e in enemies), default=0.0)
-        # Strictly worse, and not by a rounding error: an unarmed man
-        # against guns, not a knife-fighter against a slightly longer
-        # knife.
-        return theirs > 0.0 and mine * 2.0 < theirs
+        return theirs > 0.0
 
     def execute(self, situation: Situation) -> Plan:
         mine = _longest_reach(situation.actor)

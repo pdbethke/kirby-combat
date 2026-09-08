@@ -23,11 +23,19 @@ Attacks to a real spread:
      correct behaviour against a broken price.
   3. A miss did not end the sequence (6E2 p.73 says it does).
 
-WHAT THIS BENCHMARK CANNOT TEST: cover. The lot has buildings on both
-flanks and the two lines stood about 2m apart, so `cover_available`
-returns no reachable cover for anybody --- correctly. Zero cover-taking
-here is the right answer, not a failure, and proving that work needs a map
-with crossable obstacles.
+COVER, AND A CLAIM THAT STOPPED BEING TRUE. This file used to say the lot
+could not test cover: both buildings run PARALLEL to the firing lines and
+outside them, so they are beside you and never in front, and
+`cover_available` correctly returned nothing reachable. That was true of
+the documented geography and it hid two real defects --- cover that
+changed no to-hit number, and a cover level computed against the WORST
+threat instead of per shooter. "The map explains it" is the shape to
+distrust.
+
+Three pieces of a working yard's ordinary clutter now stand BETWEEN the
+lines (see `the_lot`), so men take cover here and the benchmark measures
+it: eight cover picks in Turn 1, and under the deterministic seat a
+fighter takes cover once and then fires from it.
 
 WHAT IT NEEDS. One directory of BUILD DOCS for licensed material this repo
 does not and will not ship, named by environment variable:
