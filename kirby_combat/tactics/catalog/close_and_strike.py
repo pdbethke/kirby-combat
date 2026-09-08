@@ -42,7 +42,11 @@ class CloseAndStrike(Tactic):
 
     def execute(self, situation: Situation) -> Plan:
         best = _best_attack(situation)
-        target = (situation.enemies[0] if situation.enemies else None)
+        # The most dangerous enemy, not the first listed --- same
+        # correction `keep_range` took today.
+        threat = situation.threat
+        target = (max(situation.enemies, key=lambda e: threat.get(e.id, 0.0))
+                  if situation.enemies else None)
         target_id = target.id if target else None
         return Plan(
             tactic_name=self.name,
@@ -51,16 +55,49 @@ class CloseAndStrike(Tactic):
                 f"range_m={best.range_m}). Close immediately and strike."
             ),
             steps=[
+                # CLOSING IS A STEP, not a note. This plan used to be one
+                # step, `kind="attack"`, with the closing described in
+                # prose ("Half-move to get adjacent, then strike... If
+                # already adjacent, skip the move") and in a
+                # `close_first` param. Nothing read either. Attack offers
+                # are gated by REACH, so a melee fighter whose enemy is at
+                # range had no attack on the menu, this tactic matched
+                # nothing and fell through --- and Power Lad stood two
+                # metres from the last Cowboy doing nothing until the
+                # stalemate guard fired.
+                #
+                # `move_strike` is the engine's own word for closing and
+                # hitting in one action; he killed five men with it in the
+                # same fight.
+                PlanStep(
+                    kind="move_strike",
+                    target_id=target_id,
+                    power_xmlid=best.xmlid,
+                    notes="Close and strike in one action.",
+                ),
+                # And the plain strike for when he is already in reach,
+                # where closing is not on the menu at all.
                 PlanStep(
                     kind="attack",
                     target_id=target_id,
                     power_xmlid=best.xmlid,
-                    notes=(
-                        "Half-move to get adjacent, then strike with best "
-                        "melee attack. If already adjacent, skip the move "
-                        "and go straight to the hit."
-                    ),
-                    params={"close_first": True},
+                    notes="Already adjacent — strike.",
+                ),
+                # AND SIMPLY WALKING, when the gap is too wide for either.
+                # Measured: Power Lad's claws were ON and the nearest
+                # Cowboy stood 7.8m away against an 8m run, so `attack`
+                # was gated by reach (1m) and `move_strike` by the half
+                # move a strike leaves him (4m) --- both correctly. His
+                # menu held four `move` offers and no tactic matched, so
+                # the fallback aimed thirty-eight times while a monster
+                # and a gunman stood looking at each other.
+                #
+                # Last, deliberately: spending a whole Phase walking is
+                # what you do when you cannot do anything better.
+                PlanStep(
+                    kind="move",
+                    target_id=target_id,
+                    notes="Too far to strike at all — close the distance.",
                 ),
             ],
             expected_outcome=(

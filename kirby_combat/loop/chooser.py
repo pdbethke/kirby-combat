@@ -173,9 +173,21 @@ class TacticChooser:
             plan = tactic.execute(tactical)
             if not plan.steps:
                 continue
-            step = plan.steps[0]
-            offers = by_kind.get(step.kind)
-            if not offers:
+            # A PLAN IS A SEQUENCE OF PREFERENCES, and this read one step
+            # of it. `close_and_strike` plans [close, strike]: a melee
+            # fighter whose enemy is at range has no attack on the menu,
+            # so reading only the strike found nothing and fell through to
+            # the fallback --- which is how Power Lad and the last Cowboy
+            # stood two metres apart doing nothing to each other until the
+            # stalemate guard fired.
+            #
+            # Same shape as this chooser discarding `target_id`: something
+            # the tactics wrote and nothing read.
+            for step in plan.steps:
+                offers = by_kind.get(step.kind)
+                if offers:
+                    break
+            else:
                 continue
             # DOCTRINE NAMES A VICTIM, AND IT IS NOT DECORATION. Sixteen of
             # the catalogue's tactics set `target_id`; this read the kind
