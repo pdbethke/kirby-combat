@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.roles import classify_role
+from kirby_combat.complications import complications_of
 from kirby_combat.tactics.base import Situation
 from kirby_combat.tactics.library import tactics_for
 
@@ -99,6 +100,14 @@ class PhaseSituation:
             # WITNESSED rather than merely visible. Without it a fighter
             # can see who is holding the axe but never learns who used it.
             session=self.session,
+            # Two tactics have read these since the day tactics existed and
+            # the loop never filled them, so `bait_enraged` and
+            # `exploit_susceptibility` have never once fired in a
+            # loop-driven fight.
+            actor_complications=complications_of(self.actor),
+            enemy_complications={
+                getattr(e, "id", ""): complications_of(e) for e in self.enemies
+            },
         )
 
 
