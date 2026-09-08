@@ -98,8 +98,13 @@ class Roster:
     def combatants(self) -> list:
         return list(self._session.combatants.values())
 
-    def _has_left(self, combatant_id: str) -> bool:
+    def has_left(self, combatant_id: str) -> bool:
         """Outside the scene's bounds --- i.e. no longer on the field.
+
+        PUBLIC because leaving is not only a scoreboard question. The
+        turn loop has to skip a man who has gone, exactly as it skips one
+        who is down, and there must be ONE answer to "has he left" rather
+        than a second copy of the bounds test living in the loop.
 
         No scene, no bounds, or no position for this combatant means the
         question does not arise: most fights are on no map at all, and
@@ -139,7 +144,7 @@ class Roster:
         """
         out: dict[Side, list[str]] = {}
         for combatant in self.combatants:
-            if is_down(combatant) or self._has_left(combatant.id):
+            if is_down(combatant) or self.has_left(combatant.id):
                 continue
             out.setdefault(Side.of(combatant), []).append(combatant.id)
         return out

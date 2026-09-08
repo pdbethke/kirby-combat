@@ -119,12 +119,22 @@ def next_actor_id(session: "CombatSession") -> str | None:
     Downed combatants are skipped rather than asked (6E1 p.421). A slot for
     someone who has since been knocked out is consumed silently: they had a
     Phase, and they are in no condition to use it.
+
+    AND SO IS SOMEONE WHO HAS GONE. `Roster` already owns the definition
+    of having left --- outside the scene's bounds --- and `standing`
+    stopped counting such a man from the day `disengage` was built. This
+    did not ask, so the loop kept handing Phases to a fighter who was
+    already through the door: at the O.K. Corral, Billy Claiborne was
+    off the field at y=-11 and was still asked to decide two Segments
+    later, running to y=-23. The scoreboard knew; the loop did not.
     """
+    roster = Roster(session)
     for slot in session.timeline.acting_order:
         if slot.has_acted:
             continue
         combatant = session.combatants.get(slot.combatant_id)
-        if combatant is None or is_down(combatant):
+        if (combatant is None or is_down(combatant)
+                or roster.has_left(slot.combatant_id)):
             slot.has_acted = True
             continue
         return slot.combatant_id

@@ -33,7 +33,8 @@ import pytest
 
 from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.enumeration import ALL_ACTION_KINDS, enumerate_actions
-from kirby_combat.loop import Roster
+from kirby_combat.encounter import Encounter
+from kirby_combat.loop import Roster, next_actor_id
 from kirby_combat.loop.registry import registered_kinds, resolve_chosen
 from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
@@ -231,3 +232,24 @@ def test_a_boxed_in_fighter_is_offered_no_way_out():
         _wall("w", (9.6, -0.4), (9.6, 0.4)),
     ]))
     assert not [a for a in _menu(session) if a.kind == "disengage"]
+
+
+def test_a_fighter_who_has_left_is_skipped_not_asked():
+    """Leaving has to reach the LOOP, not just the scoreboard.
+
+    `Roster.standing` reads the bounds and correctly stops counting a man
+    who has gone. `next_actor_id` never asked. At the O.K. Corral, Billy
+    Claiborne was off the field at y=-11 by Turn 2 Segment 4 and was
+    still handed a Phase at Segment 8, in which he ran to y=-23 --- the
+    loop hunting a man who was already through the door.
+
+    Same shape as the downed case one line above it in `next_actor_id`,
+    and the same treatment: consume the slot, never enumerate for him.
+    """
+    session = _session(_scene(runner_at=(60.0, 0.0)))    # bounds end at x=30
+    enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
+    roller = RandomRoller(seed=3)
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+
+    # The runner has the higher DEX, so he would be first if asked at all.
+    assert next_actor_id(enc.sessions[0]) == "chaser"
