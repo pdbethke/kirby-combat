@@ -845,6 +845,58 @@ def _resolve_throw(
     from kirby_combat.actions.throw import Throw
 
     outcome = Throw.compute(attacker_str=int(actor.combat_stats().str_))
+
+    # THROWN AT THE SCENERY, which is a different resolution from thrown
+    # at a person: 6E2 p.172 gives objects BODY and no STUN behaviour at
+    # all, so the damage goes through `apply_attack_to_construct` exactly
+    # as a shot at a wall does.
+    #
+    # The damage is `resolve_object_throw` --- min(STR dice, the thrown
+    # object's own PD+BODY) --- which is the rule that stops a man putting
+    # a pillow through a wall however strong he is.
+    if getattr(action, "targets_construct", False):
+        from kirby_combat.models import AttackPower, DiceValues
+        from kirby_combat.resolution.object_damage import (
+            apply_attack_to_construct,
+        )
+        from kirby_combat.scene.construct import constructs_in
+
+        scene = session.scene
+        here = constructs_in(scene) if scene is not None else []
+        held_id = action.action_id.split(":")[1] if ":" in action.action_id else ""
+        target = next((c for c in here
+                       if getattr(c, "obj_id", None) == action.target_id), None)
+        held = next((c for c in here
+                     if getattr(c, "obj_id", None) == held_id), None)
+        if target is None or held is None:
+            raise UnresolvableAction(action.kind, action.action_id)
+
+        from kirby_combat.actions.throw import resolve_object_throw
+
+        dice, _dtype = resolve_object_throw(
+            int(actor.combat_stats().str_),
+            held.def_value if held.def_value is not None else 0,
+            held.body if held.body is not None else 0,
+            "normal",
+        )
+        missile = AttackPower(
+            xmlid="THROWNOBJECT", name="thrown object",
+            damage_dice=max(1, int(dice)), half_die=False, plus_one=False,
+            damage_type="normal", defense_type="pd", range_m=0.0,
+            uses_str=False, str_min=0, armor_piercing=0, penetrating=0,
+            increased_stun_mult=0, source_id=held_id or "thrown",
+        )
+        hit = apply_attack_to_construct(
+            missile, DiceValues(damage=roller.roll_dice(max(1, int(dice)))),
+            target, template,
+        )
+        return _recorded(session, actor, action, hit, {
+            "kind": action.kind, "target_id": action.target_id,
+            "object_id": held_id,
+            "body_dealt": hit.body_through,
+            "destroyed": hit.destroyed,
+        })
+
     return _recorded(session, actor, action, outcome, {
         "kind": action.kind, "target_id": action.target_id,
         "distance_m": getattr(outcome, "distance_m", None),

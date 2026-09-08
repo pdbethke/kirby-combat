@@ -1467,9 +1467,38 @@ def enumerate_actions(
                     power_xmlid=None,
                     power_name=None,
                     summary=(
-                        f"Hurl the debris chunk (DEF {held_pd} BODY {held_body}) "
+                        f"Hurl the object (DEF {held_pd} BODY {held_body}) "
                         f"at {_friendly(enemy)} — {dice}d6N, "
-                        f"min(STR dice, PD+BODY); consumes the chunk"
+                        f"min(STR dice, PD+BODY); consumes the object"
+                    ),
+                ))
+
+            # AND AT THE SCENERY. PeterB: "throw a wagon at a house that
+            # ike is hiding in and collapse it". This offered one target
+            # shape --- `for enemy in alive_enemies` --- so the only thing a
+            # brick could throw a wagon at was a person, even once walls
+            # became destructible.
+            #
+            # Not at the thing in his hands, which is the one construct he
+            # demonstrably cannot hit with itself.
+            for c in (constructs or []):
+                if getattr(c, "obj_id", None) == held_construct_id:
+                    continue
+                if not getattr(c, "destructible", False):
+                    continue
+                actions.append(LegalAction(
+                    action_id=(
+                        f"throw_object:{held_construct_id}:construct:{c.obj_id}"
+                    ),
+                    kind="throw_object",
+                    target_id=c.obj_id,
+                    targets_construct=True,
+                    power_xmlid=None,
+                    power_name=None,
+                    summary=(
+                        f"Hurl the object (DEF {held_pd} BODY {held_body}) at "
+                        f"the {c.kind} (DEF {c.def_value} BODY {c.body}) — "
+                        f"{dice}d6N; bring it down"
                     ),
                 ))
 
