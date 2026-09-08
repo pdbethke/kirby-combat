@@ -171,6 +171,7 @@ def resolve_attack_in_session(
     Returns ``(new_session, result)`` — ``result`` is exactly what
     ``resolve_attack`` returned; nothing about the pure result is altered.
     """
+    from kirby_combat.pre_attacks.violence import presence_from_violence
     from kirby_combat.session.apply import apply_event
 
     # COVER REACHES THE ROLL HERE, and only here.
@@ -296,6 +297,27 @@ def resolve_attack_in_session(
         result_payload=result_payload,
     )
     s = apply_event(s, resolved)
+
+    # WHAT THE ONLOOKERS SAW. 6E2 p.138 prices a violent action as bonus
+    # Presence dice, and the engine could always RESOLVE a Presence Attack
+    # while being unable to notice one happening: only a declared
+    # `presence_attack` action ever made one. So a fighter could tear a man
+    # in half in front of six people and none of them blinked.
+    #
+    # Recorded AFTER the resolution, so the log reads in the order it
+    # happened: the blow lands, then the lot reacts to it. A blow that got
+    # no BODY through returns the session untouched, which keeps ordinary
+    # fights ordinary -- seven revolvers on a hide they cannot break are
+    # loud and not frightening.
+    attacker = s.combatants.get(attacker_id)
+    if attacker is not None:
+        s = presence_from_violence(
+            s, attacker=attacker, target_id=target_id,
+            body_dealt=result.body_dealt,
+            target_max_body=attack.target.max_body,
+            target_body_after=s.combatants[target_id].state.current_body,
+            roller=session.dice_roller,
+        )
 
     return s, result
 
