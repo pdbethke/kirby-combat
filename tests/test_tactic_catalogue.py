@@ -6,7 +6,14 @@ from kirby_combat.tactics.library import all_tactics
 
 
 def test_the_catalogue_is_populated():
-    assert len(all_tactics()) == 21
+    """A ratchet, not a fact about the world: this number going UP is the
+    measure of the doctrine layer growing, and it should never move by
+    accident. 21 -> 22 on 2026-09-08 with `break_off_when_nothing_works`.
+
+    It counts REGISTERED tactics, which is one fewer than the catalogue
+    has files: `_filters` is a helper, and `raise_force_wall_t` registers
+    under a name that is not its filename."""
+    assert len(all_tactics()) == 22
 
 
 def test_every_tactic_is_a_tactic_with_a_name():

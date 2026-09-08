@@ -24,10 +24,12 @@ from kirby_combat.tactics.catalog import (
     stand_and_take_it,
     take_cover_when_hurt,
     # Leaving --- the doctrine the catalogue had no version of
+    break_off_when_nothing_works,
     withdraw_when_outmatched,
 )
 
 __all__ = [
+    "break_off_when_nothing_works",
     "bait_enraged",
     "close_and_strike",
     "coordinated_focus_fire",
