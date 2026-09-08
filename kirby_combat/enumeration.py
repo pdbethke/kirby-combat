@@ -609,6 +609,7 @@ def enumerate_actions(
     slot_allocation: dict[str, tuple[int, int, set[str], dict[str, int]]] | None = None,
     extra_attacks: list | None = None,
     physical_entangle: PhysicalEntangleState | None = None,
+    already_aborted: bool = False,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -1436,16 +1437,26 @@ def enumerate_actions(
                 ),
             ))
 
-    # Defensive / utility — always available.
-    actions.append(LegalAction(
-        action_id="dodge",
-        kind="dodge",
-        target_id=None, power_xmlid=None, power_name=None,
-        summary=(
-            "Dodge — +3 DCV until your next phase "
-            "(full DCV bonus, but no attack)"
-        ),
-    ))
+    # Defensive / utility. NOT "always available", which is what this
+    # comment used to say: `mark_aborting` is the single choke point for
+    # every reactive abort and REFUSES a second one in a Phase, so an
+    # offer here to a fighter who has already aborted is a promise the
+    # engine will break. It did break it -- a `ValueError` out of the
+    # middle of the turn loop, past `on_unresolvable="skip"`, killing the
+    # O.K. Corral benchmark the first time a man dodged twice.
+    #
+    # Passed in rather than read: enumeration holds no session, exactly as
+    # `actor_holding` and the lockout ids are computed by the caller.
+    if not already_aborted:
+        actions.append(LegalAction(
+            action_id="dodge",
+            kind="dodge",
+            target_id=None, power_xmlid=None, power_name=None,
+            summary=(
+                "Dodge — +3 DCV until your next phase "
+                "(full DCV bonus, but no attack)"
+            ),
+        ))
     actions.append(LegalAction(
         action_id="set",
         kind="set",

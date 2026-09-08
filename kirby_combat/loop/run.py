@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
+from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.framework import allocation_for
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
@@ -198,6 +199,12 @@ def run_phase(
         # assembles it from `framework_view()` (the reserve and slot costs)
         # and the log (which slots this fight switched on).
         slot_allocation=allocation_for(session, actor),
+        # ONE ABORT A PHASE. `mark_aborting` refuses a second and raises,
+        # which escapes `on_unresolvable="skip"` and kills the fight --- it
+        # killed the O.K. Corral benchmark the first time a man dodged
+        # twice. Computed here because enumeration holds no session, the
+        # same way `slot_allocation` above is assembled by this caller.
+        already_aborted=is_aborting(session, actor_id),
     )
     if not menu:
         _mark_acted(session, actor_id)
