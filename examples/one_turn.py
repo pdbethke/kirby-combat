@@ -100,7 +100,7 @@ def roller() -> list[int]:
 # ── A minimal LoadedHero stand-in ────────────────────────────────────────
 #
 # HeroCombatant wraps a real kirby-cost LoadedHero in production
-# (`HeroCombatant.from_hdc`). This example needs only enough of that
+# (`HeroCombatant.from_build`). This example needs only enough of that
 # shape to carry ONE real Lightning Reflexes Talent object so
 # `lightning_reflexes_bonus`/`restriction_for_slot` exercise the actual
 # scope-reading code, not a re-description of it — the same reasoning

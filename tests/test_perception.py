@@ -15,7 +15,7 @@ def _real_character() -> HeroCombatant:
     # The HDC-loading perception tests need a real character; the synthetic
     # ones (Mind Scan, surprise, the Stealth contest) carry no such dep and
     # run everywhere. See tests/corpus.py for why no .hdc is committed.
-    return HeroCombatant.from_hdc(require_authored("Bokor"))
+    return HeroCombatant.from_build(require_authored("Bokor"))
 
 
 def test_every_character_has_normal_sight():

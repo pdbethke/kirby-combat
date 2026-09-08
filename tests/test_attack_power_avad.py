@@ -4,7 +4,7 @@ from tests.corpus import require_authored
 
 
 def test_attacks_surface_avad_and_slot_identity():
-    hc = HeroCombatant.from_hdc(require_authored("Bokor"))
+    hc = HeroCombatant.from_build(require_authored("Bokor"))
     atks = hc.attacks
     nnd = [a for a in atks if a.avad]
     assert nnd, "the AVAD attack should surface avad=True"
@@ -20,7 +20,7 @@ def test_non_framework_attack_has_empty_framework_fields():
     # A plain top-level attack (no framework parent) keeps empty framework
     # identity and avad False. This character HAS one, so the loop is not
     # vacuous — the old fixture only might have, and the test said so.
-    hc = HeroCombatant.from_hdc(require_authored("Bokor"))
+    hc = HeroCombatant.from_build(require_authored("Bokor"))
     plain = [a for a in hc.attacks if not a.framework_xmlid]
     assert plain, "expected at least one non-framework attack"
     for a in plain:

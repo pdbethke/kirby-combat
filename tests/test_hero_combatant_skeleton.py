@@ -4,7 +4,7 @@ defense_view() are filled in.
 
 The spec calls for a richer test suite once view-builders land
 (asserting derived stats match the source HDC). This file is the
-landing-strip — it proves we can `from_hdc(...)` an actual character
+landing-strip — it proves we can `from_build(...)` an actual character
 without exploding.
 
 Test fixtures point at HDC files in the user's local workspace. If
@@ -22,16 +22,16 @@ from kirby_combat.hero_view import HeroCombatant, HeroCombatState, HeroCombatSta
 from tests.corpus import require_authored
 
 
-# Real HD character files come from the authored corpus, never from the
-# repository and never from a path into a maintainer's home. See
+# Real characters come from the authored corpus as COSTED BUILDS, never
+# from a .hdc and never from a path into a maintainer's home. See
 # tests/corpus.py for why, and what to set to run these.
 
 
-def test_loads_a_character_from_hdc():
-    """from_hdc() builds a HeroCombatant from a real HD file."""
-    hdc = require_authored("Ravel")
+def test_loads_a_character_from_a_build():
+    """from_build() builds a HeroCombatant from a real costed build."""
+    build = require_authored("Ravel")
 
-    combatant = HeroCombatant.from_hdc(hdc)
+    combatant = HeroCombatant.from_build(build)
 
     assert combatant.hero is not None
     assert combatant.hero.name.startswith("Ravel")
@@ -44,8 +44,8 @@ def test_loads_a_character_from_hdc():
 
 
 def test_loads_a_second_distinct_character():
-    hdc = require_authored("Bokor")
-    c = HeroCombatant.from_hdc(hdc)
+    build = require_authored("Bokor")
+    c = HeroCombatant.from_build(build)
     assert c.hero.name == "Bokor"
     assert c.id == "bokor"
 
@@ -56,9 +56,9 @@ def test_state_is_isolated_per_combatant():
     Locked decision §7 #1 — hero is owned, not shared. (LoadedHero is
     shared from disk, but each combatant has its own state.)
     """
-    hdc = require_authored("Ravel")
-    a = HeroCombatant.from_hdc(hdc, id="character_alpha")
-    b = HeroCombatant.from_hdc(hdc, id="character_beta")
+    build = require_authored("Ravel")
+    a = HeroCombatant.from_build(build, id="character_alpha")
+    b = HeroCombatant.from_build(build, id="character_beta")
 
     assert a is not b
     assert a.state is not b.state
@@ -66,8 +66,8 @@ def test_state_is_isolated_per_combatant():
 
 
 def test_combat_state_is_blank_at_load():
-    hdc = require_authored("Ravel")
-    c = HeroCombatant.from_hdc(hdc)
+    build = require_authored("Ravel")
+    c = HeroCombatant.from_build(build)
 
     assert c.state.statuses == set()
     assert c.state.drains == {}
@@ -82,8 +82,8 @@ def test_combat_stats_returns_sane_values():
     """combat_stats() reads cost-engine characteristic values from the
     LoadedHero. The character is a built superhero — assert sane
     integers, not specific pinned numbers."""
-    hdc = require_authored("Ravel")
-    c = HeroCombatant.from_hdc(hdc)
+    build = require_authored("Ravel")
+    c = HeroCombatant.from_build(build)
 
     s = c.combat_stats()
     assert s.str_ >= 10
@@ -98,8 +98,8 @@ def test_combat_stats_returns_sane_values():
 
 def test_attack_view_returns_attack_power():
     """attack_view() builds an AttackPower record from a hero power."""
-    hdc = require_authored("Ravel")
-    c = HeroCombatant.from_hdc(hdc)
+    build = require_authored("Ravel")
+    c = HeroCombatant.from_build(build)
 
     atk = c.attack_view("ENERGYBLAST")
     assert atk.xmlid == "ENERGYBLAST"
@@ -111,8 +111,8 @@ def test_attack_view_returns_attack_power():
 
 def test_defense_view_returns_list():
     """defense_view() returns a list of DefenseItem (possibly empty)."""
-    hdc = require_authored("Ravel")
-    c = HeroCombatant.from_hdc(hdc)
+    build = require_authored("Ravel")
+    c = HeroCombatant.from_build(build)
 
     items = c.defense_view()
     assert isinstance(items, list)
@@ -206,14 +206,14 @@ def test_attack_input_accepts_hero_combatant():
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 5 — committed-fixture integration tests
 # Use ``require_authored("Bokor")`` (in-repo) so these run in CI without host-path
-# dependencies. Exercises the full HD-shaped path: from_hdc → views →
+# dependencies. Exercises the full HD-shaped path: from_build → views →
 # AttackInput → engine.resolve_attack → AttackResult.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 def test_loads_from_the_authored_corpus():
     """Sanity: committed HDC fixture loads cleanly."""
-    c = HeroCombatant.from_hdc(require_authored("Bokor"))
+    c = HeroCombatant.from_build(require_authored("Bokor"))
     assert c.hero is not None
     assert c.hero.name  # any non-empty name
     assert c.state.current_stun == c.combat_stats().max_stun
@@ -238,8 +238,8 @@ def test_attack_resolves_through_engine_end_to_end():
     # Ravel carries a dice-bearing Energy Blast; the character used here has
     # to actually have an attack with damage, or the assertions below pass
     # vacuously on a 0-dice power.
-    attacker = HeroCombatant.from_hdc(require_authored("Ravel"), id="attacker")
-    target = HeroCombatant.from_hdc(require_authored("Ravel"), id="defender")
+    attacker = HeroCombatant.from_build(require_authored("Ravel"), id="attacker")
+    target = HeroCombatant.from_build(require_authored("Ravel"), id="defender")
 
     s_a = attacker.combat_stats()
     s_b = target.combat_stats()
@@ -364,7 +364,7 @@ def test_canon_hdc_combatant_stats_are_int_and_rollable():
     from kirby_dice import RandomRoller
     from kirby_combat.pre_attacks.presence import base_pre_dice
 
-    c = HeroCombatant.from_hdc(require_authored("Bokor"))
+    c = HeroCombatant.from_build(require_authored("Bokor"))
     stats = c.combat_stats()
     assert type(stats.ocv) is int and type(stats.pre) is int
 

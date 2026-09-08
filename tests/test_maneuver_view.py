@@ -144,7 +144,7 @@ def test_hero_with_no_maneuvers_returns_empty_list():
 def test_maneuver_view_surfaces_a_real_characters_maneuvers():
     """The real-file half: a character's maneuvers arrive named, typed, and
     with the non-maneuver section entries already filtered out."""
-    hc = HeroCombatant.from_hdc(require_authored("Ravel"))
+    hc = HeroCombatant.from_build(require_authored("Ravel"))
     views = hc.maneuver_view()
     assert views, "the authored character should carry martial maneuvers"
     names = {v.name for v in views}

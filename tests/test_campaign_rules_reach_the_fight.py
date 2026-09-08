@@ -22,11 +22,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.corpus import require_authored
+from tests.corpus import require_authored_doc
 
 from kirby_cost.campaign import CampaignRules, use_campaign_rules
 from kirby_cost.core.context import EngineContext
-from kirby_cost.io.hdc_loader import HDCLoader
+from kirby_cost.io.build_json import build_from_json
 from kirby_combat.hero_view import _damage_type_for_power
 
 
@@ -37,8 +37,11 @@ def _walk(objects):
         yield from _walk(getattr(obj, "objects", ()) or ())
 
 
-def _rka_of(path: str):
-    hero = HDCLoader().load_file(path)
+def _rka_of(doc: dict):
+    # Rebuilt from the DOC each call, not reused: this test's whole point is
+    # that the same build costs differently under a campaign rule, and that
+    # only shows if the build happens inside the context.
+    hero = build_from_json(doc)
     EngineContext.set_active_hero(hero)
     found = [o for o in _walk(hero.powers) if (o.xmlid or "") == "RKA"]
     if not found:
@@ -51,20 +54,20 @@ def _rka_of(path: str):
         # longer has the power this test measures is a real change that
         # someone must look at.
         pytest.fail(
-            f"{path} has no RKA. The corpus character this acceptance test "
-            f"measures has changed; re-point the test at a killing attack "
+            f"{doc.get('name')} has no RKA. The corpus character this acceptance "
+            f"test measures has changed; re-point the test at a killing attack "
             f"and re-measure, do not delete the assertion."
         )
     return found[0]
 
 
 def test_a_heroic_campaign_makes_killing_attacks_normal():
-    path = require_authored("Ravel")
+    doc = require_authored_doc("Ravel")
 
     # Stock: no campaign in force. The template's own KILLING="Yes" stands,
     # and combat reports the attack as killing -- the baseline this test
     # then overturns without touching a line of kirby-combat.
-    stock = _rka_of(path)
+    stock = _rka_of(doc)
     assert stock.killing is True
     assert _damage_type_for_power(stock, "RKA") == "killing"
 
@@ -73,7 +76,7 @@ def test_a_heroic_campaign_makes_killing_attacks_normal():
     rules = CampaignRules()
     rules.set("RKA", "killing", False)
     with use_campaign_rules(rules):
-        housed = _rka_of(path)
+        housed = _rka_of(doc)
         assert housed.killing is False
         # Same helper, same code path, unmodified -- it now reports "normal"
         # because it reads the fact the power carries, not an xmlid it
@@ -82,4 +85,4 @@ def test_a_heroic_campaign_makes_killing_attacks_normal():
 
     # And the campaign does not outlive its block -- the next load, outside
     # the `with`, sees the stock template again.
-    assert _rka_of(path).killing is True
+    assert _rka_of(doc).killing is True

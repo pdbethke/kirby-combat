@@ -29,11 +29,11 @@ def _framework_character() -> str:
 
 def _martial_artist() -> HeroCombatant:
     """A character carrying martial maneuvers — maneuver_id names those."""
-    return HeroCombatant.from_hdc(require_authored("Ravel"))
+    return HeroCombatant.from_build(require_authored("Ravel"))
 
 
-def _first_framework(path: str):
-    return next(f for f in HeroCombatant.from_hdc(path).framework_view()
+def _first_framework(build):
+    return next(f for f in HeroCombatant.from_build(build).framework_view()
                 if f.slots)
 
 
@@ -116,7 +116,7 @@ class TestFrameworkSlotLinkage:
         It keyed on framework_xmlid, which is a type: two Multipowers on one
         character share it, so their reserves were pooled under one key.
         """
-        hc = HeroCombatant.from_hdc(_framework_character())
+        hc = HeroCombatant.from_build(_framework_character())
         slotted = [a for a in hc.attacks if a.slot_id]
         assert slotted, "_framework_character() carries a multipower with attack slots"
         for ap in slotted:
@@ -128,7 +128,7 @@ class TestFrameworkSlotLinkage:
 
     def test_the_slot_framework_id_matches_the_framework_view(self):
         """Both sides must agree, or the gate silently finds no allocation."""
-        hc = HeroCombatant.from_hdc(_framework_character())
+        hc = HeroCombatant.from_build(_framework_character())
         fw_ids = {f.framework_id for f in hc.framework_view()}
         for ap in (a for a in hc.attacks if a.slot_id):
             assert ap.framework_id in fw_ids, (

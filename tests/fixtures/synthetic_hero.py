@@ -19,7 +19,7 @@ HeroCombatant all flow through correctly.
 Default values mirror Combatant's defaults so partial-arg tests
 (e.g. only specifying STR + STUN) work the same way.
 
-Limitations vs. real HeroCombatant.from_hdc():
+Limitations vs. real HeroCombatant.from_build():
   - ``hero.powers`` is empty by default. If the test wants attack
     powers, pass ``attacks=[...]`` (forwarded to the synthetic
     state where the legacy Combatant.attacks list lived).

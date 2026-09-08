@@ -114,7 +114,7 @@ def _hero_combatant_from_dict(data: dict) -> Any:
     LoadedHero is NOT round-trippable through this path (intentional —
     snapshots are point-in-time, not the canonical character; spec §7).
     To resume a session against the canonical character, call
-    ``HeroCombatant.from_hdc(...)`` or ``hero_combatant_from_db(...)``
+    ``HeroCombatant.from_build(...)`` or ``hero_combatant_from_db(...)``
     instead.
     """
     from kirby_combat.hero_view import HeroCombatant, HeroCombatState
@@ -146,7 +146,7 @@ def _hero_combatant_from_dict(data: dict) -> Any:
             # silent no-op in both directions — the stats stay exactly
             # what they were at record time regardless of ``ctx``.
             # Anyone needing a real identity flip must resume against
-            # the canonical character via ``HeroCombatant.from_hdc(...)``
+            # the canonical character via ``HeroCombatant.from_build(...)``
             # or ``hero_combatant_from_db(...)`` instead of this stub.
             return self.characteristic_value(xmlid)
 

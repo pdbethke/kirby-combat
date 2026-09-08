@@ -4,7 +4,7 @@ from tests.corpus import require_authored
 
 
 def test_framework_view_exposes_multipower_reserve_and_typed_slots():
-    fws = HeroCombatant.from_hdc(require_authored("Bokor")).framework_view()
+    fws = HeroCombatant.from_build(require_authored("Bokor")).framework_view()
     mp = next(f for f in fws if f.kind == "multipower")
     assert mp.reserve_or_pool > 0
     assert mp.slots, "multipower should have slots"
@@ -23,7 +23,7 @@ def test_framework_view_vpp_pool_from_levels_not_basecost():
     The number is this character's; what is being pinned is that it is
     non-zero and comes from levels, which is what base_cost would lose.
     """
-    fws = HeroCombatant.from_hdc(require_authored("Ravel")).framework_view()
+    fws = HeroCombatant.from_build(require_authored("Ravel")).framework_view()
     vpp = next(f for f in fws if f.kind == "vpp")
     assert vpp.reserve_or_pool == 20, (
         f"expected VPP pool 20 (levels), got {vpp.reserve_or_pool}"

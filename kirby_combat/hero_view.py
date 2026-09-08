@@ -4,7 +4,7 @@ This is the "Phase 2 redesign" participant that stands alongside the flat
 ``models.StatBlockCombatant``. See spec at
 ``kirby/docs/superpowers/specs/2026-04-30-kirby-combat-combatant-redesign.md``.
 
-Status (2026-08-25): the dataclasses, ``from_hdc()``, ``combat_stats()``,
+Status (2026-08-25): the dataclasses, ``from_build()``, ``combat_stats()``,
 ``attack_view()``, ``defense_view()``, and ``movement_view()`` are all
 implemented. Stat derivation (``_compute_stats_from_hero``) reads
 characteristics straight from the cost engine and walks HD powers for
@@ -293,7 +293,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     Usage:
 
-        combatant = HeroCombatant.from_hdc("/path/to/character.hdc")
+        combatant = HeroCombatant.from_build(build_from_json(doc))
         combatant.combat_stats()                 # → HeroCombatStats
         combatant.attack_view("CONEOFCOLD",      # → AttackPower
                               target=other,
@@ -522,19 +522,27 @@ class HeroCombatant(Stunnable, CombatParticipant):
     # ─────────────────────────────────────────────────────────────────────
 
     @classmethod
-    def from_hdc(cls, path: str | Path, *, id: Optional[str] = None) -> "HeroCombatant":
-        """Load a HeroCombatant from an HDC file on disk.
+    def from_build(cls, hero: "LoadedHero", *,
+                   id: Optional[str] = None) -> "HeroCombatant":
+        """Wrap a LOADED BUILD as a combatant. The only way in.
 
-        Uses ``kirby_cost.io.hdc_loader.HDCLoader`` to parse the
-        file, then constructs initial CombatState with full vitals.
+        This used to be ``from_hdc(path)``, which parsed a HERO Designer
+        file and then did what is left below. That made it the only door
+        onto this class, so every consumer wanting a character had to
+        hand the engine a file path -- and the product does not rest on
+        files. It rests on a canonical, costed build that was imported
+        ONCE (PeterB, 2026-07-30, and again 2026-09-08: "it needs to take
+        LoadedHero object -- always").
+
+        A ``LoadedHero`` is what the cost engine produces, whether it came
+        from ``HDCLoader`` at import time or from
+        ``kirby_cost.io.build_json.build_from_json`` on a stored build
+        doc. Which of those it was is not this package's business, and
+        parsing is not this package's job.
+
         ``id`` defaults to the hero's name (lowercased, spaces →
-        underscores) — caller can override for session-unique IDs.
+        underscores) -- callers override it for session-unique ids.
         """
-        from kirby_cost.io.hdc_loader import HDCLoader
-
-        loader = HDCLoader()
-        hero = loader.load_file(str(path))
-
         combatant_id = id if id is not None else (
             hero.name.lower().replace(" ", "_") if hero.name else "unnamed"
         )
@@ -545,7 +553,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # NotImplementedError fallback below is defensive only —
         # _compute_stats_skeleton doesn't currently raise it — kept so a
         # future skeleton failure degrades to zeros instead of raising
-        # out of from_hdc().
+        # out of from_build().
         try:
             stats = cls._compute_stats_skeleton(hero)
             initial_stun = stats.max_stun
@@ -569,14 +577,14 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     @staticmethod
     def _compute_stats_skeleton(hero: "LoadedHero") -> HeroCombatStats:
-        """Initial-vital seed for from_hdc(). Reads temporal
+        """Initial-vital seed for from_build(). Reads temporal
         characteristic values via ``hero.temporal_characteristic(xmlid, ctx)``
         (Hero identity active by default, matching ``HeroCombatState``'s own
         default) and walks defense-type powers for resistant/mental/power/
         flash totals.
 
         This is a sub-piece of the full ``combat_stats()`` that runs
-        without a CombatState (since at from_hdc() time there's no
+        without a CombatState (since at from_build() time there's no
         state yet to apply drains/aids from). The full instance method
         layers state deltas on top.
         """
@@ -1399,7 +1407,7 @@ def _compute_stats_from_hero(
     (STR/DEX/CON/INT/EGO/PRE) and combat values (OCV/DCV/OMCV/DMCV/SPD)
     plus PD/ED/REC/END/STUN/BODY come straight from there. ``ctx``
     defaults to ``ActivationContext()`` (Hero identity active) when the
-    caller has no state yet (``_compute_stats_skeleton`` at from_hdc()
+    caller has no state yet (``_compute_stats_skeleton`` at from_build()
     time).
 
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via

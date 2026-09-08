@@ -2,7 +2,7 @@
 
 THE COMBAT BENCHMARK. Nine real HERO builds, real HSEG weapon prefabs, on
 the real lot beside Fly's. Nothing here is hand-rolled: the characters come
-through the canon HDCLoader and the guns are the prefabs' own costed
+through the canon loader at IMPORT time and the guns are the prefabs' own costed
 objects.
 
 WHY A HISTORICAL GUNFIGHT IS A GOOD TEST. It measures two things at once ---
@@ -29,12 +29,19 @@ returns no reachable cover for anybody --- correctly. Zero cover-taking
 here is the right answer, not a failure, and proving that work needs a map
 with crossable obstacles.
 
-WHAT IT NEEDS. Two directories of licensed material this repo does not and
-will not ship, named by environment variable:
+WHAT IT NEEDS. One directory of BUILD DOCS for licensed material this repo
+does not and will not ship, named by environment variable:
 
-    KIRBY_WESTERN_HDC     .hdc archetypes (Lawman, Gunfighter, Gambler...)
-    KIRBY_HSEG_PREFABS    .hdp nineteenth-century weapon prefabs
+    KIRBY_CORRAL_BUILDS   <Archetype>.json + arsenal.json + PowerLad.json
     KIRBY_COST_HDT        a HERO Designer .hdt --- kirby-cost needs it
+
+Build docs, not .hdc files, and that is not a detail. This engine reads no
+HERO Designer files at all any more (2026-09-08): a character arrives as a
+costed `LoadedHero`, and the parse happened ONCE, wherever the import was
+done. Re-parsing HDC every run meant the benchmark that measures combat
+quality never touched the canonical costed shape the product rests on. Write
+the docs with `kirby_cost.io.build_json.to_build_json`; read them back with
+`build_from_json`, which is all this file does.
 
 Without them the script says so and exits cleanly, which is what lets it
 sit in `examples/` and be executed by the suite like every other script
@@ -45,7 +52,7 @@ deterministic and needs nothing external. The benchmark proper drives the
 same encounter from a chooser that asks a language model instead; that
 seat lives outside this repo, and `--seat` names it.
 """
-import glob
+import json
 import os
 import pathlib
 import sys
@@ -60,15 +67,17 @@ from kirby_combat.scene.scene import (
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
-from kirby_cost.io.hdc_loader import HDCLoader
+from kirby_cost.io.build_json import build_from_json
 from kirby_dice import RandomRoller
 
 #: Where the archetypes and the weapon prefabs live on THIS machine. Both
 #: are paid Hero Games material, so the repo carries the variable names and
 #: never the files --- and a machine-bound literal path here would put the
 #: suite back to being unrunnable anywhere but one laptop.
-WESTERN = os.environ.get("KIRBY_WESTERN_HDC")
-HSEG = os.environ.get("KIRBY_HSEG_PREFABS")
+#: A directory of build docs: one per archetype, plus `arsenal.json` whose
+#: equipment list is every 19th-century weapon HSEG defines. `PowerLad.json`
+#: alongside them arms `--power-lad`.
+BUILDS = os.environ.get("KIRBY_CORRAL_BUILDS")
 
 #: Historical armament. The Earps carried revolvers; Doc Holliday carried a
 #: coach gun, which is why he is the most dangerous man on the lot.
@@ -200,12 +209,22 @@ def the_lot() -> Scene:
     )
 
 
+def _doc(name: str) -> dict:
+    """One build doc from the configured directory."""
+    with open(os.path.join(BUILDS, f"{name}.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def arsenal() -> dict:
-    """Every 19th-century weapon HSEG defines, by name."""
+    """Every 19th-century weapon HSEG defines, by name.
+
+    One document carrying them all as EQUIPMENT --- which the build doc
+    could not represent until 2026-09-08, so a carried weapon round-tripped
+    into nothing and an armed man arrived unarmed.
+    """
     out = {}
-    for path in sorted(glob.glob(os.path.join(HSEG, "*.hdp"))):
-        for e in getattr(HDCLoader().load_file(path), "equipment", []) or []:
-            out.setdefault(getattr(e, "name", "") or "", e)
+    for e in getattr(build_from_json(_doc("arsenal")), "equipment", []) or []:
+        out.setdefault(getattr(e, "name", "") or "", e)
     return out
 
 
@@ -216,10 +235,43 @@ def arm(name: str, archetype: str, weapons: list, side: Side, guns: dict):
     not rebuilt here -- appended to the character's equipment, which
     `HeroCombatant.attacks` now reads.
     """
-    c = HeroCombatant.from_hdc(os.path.join(WESTERN, f"{archetype}.hdc"), id=name.lower().replace(" ", "_"))
+    c = HeroCombatant.from_build(build_from_json(_doc(archetype)),
+                                 id=name.lower().replace(" ", "_"))
     c.hero.equipment = list(getattr(c.hero, "equipment", None) or []) + [guns[w] for w in weapons]
     c.hero.name = name
     return replace(c, side=side)
+
+
+#: Where he lands: the lot's CLOSED end, between the two lines. Doc
+#: Holliday is at the mouth (y 8.5) and the deep end is y 0, so this is
+#: the direction both unarmed Cowboys run --- which is the point. A man
+#: standing in the only way out changes what "get clear" means for
+#: everyone, and `disengage` reads the enemies' centroid, not a door.
+POWER_LAD_AT = (2.5, 0.5)
+
+
+def the_interloper():
+    """Power Lad, 399.5 points, in a gunfight between men worth about 75.
+
+    NOT historical and not pretending to be --- the benchmark's value is
+    that everything else in the lot is real, so an anachronism dropped
+    into it is measured against a fight we know the shape of. He is his
+    OWN side (`Side.solo`): the Earps and the Cowboys go on shooting each
+    other, and he is everybody's problem. `Roster` already treats a side
+    of one as the free-for-all case, so this needs no new rule --- it
+    exercises one the benchmark has never reached, because the Corral has
+    only ever had two sides.
+
+    Returns None when his build doc is not there, so the fight is the
+    historical one and the script still runs anywhere.
+    """
+    if not BUILDS or not os.path.exists(os.path.join(BUILDS, "PowerLad.json")):
+        print("--power-lad wants PowerLad.json beside the other builds;"
+              " not there, so the lot stays historical.\n")
+        return None
+    c = HeroCombatant.from_build(build_from_json(_doc("PowerLad")), id="power_lad")
+    c.hero.name = "Power Lad"
+    return replace(c, side=Side.solo("power_lad"))
 
 
 def _seat(name: str, roster: dict):
@@ -243,16 +295,19 @@ def _seat(name: str, roster: dict):
 
 def main() -> None:
     seat_name = "tactics"
+    interloper = False
     for i, arg in enumerate(sys.argv[1:]):
         if arg.startswith("--seat="):
             seat_name = arg.split("=", 1)[1]
+        elif arg == "--power-lad":
+            interloper = True
 
-    if not WESTERN or not HSEG:
-        print("The O.K. Corral needs two directories of licensed material "
-              "this repo does not ship.")
-        print("  KIRBY_WESTERN_HDC   -- .hdc archetypes")
-        print("  KIRBY_HSEG_PREFABS  -- .hdp weapon prefabs")
-        print("Set both (and KIRBY_COST_HDT) to run the benchmark. "
+    if not BUILDS or not os.path.isdir(BUILDS):
+        print("The O.K. Corral needs build docs for licensed material this "
+              "repo does not ship.")
+        print("  KIRBY_CORRAL_BUILDS -- a directory of <Archetype>.json "
+              "plus arsenal.json")
+        print("Set it (and KIRBY_COST_HDT) to run the benchmark. "
               "Nothing to do; exiting cleanly.")
         return
 
@@ -263,6 +318,15 @@ def main() -> None:
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
     scene = the_lot()
+
+    if interloper:
+        lad = the_interloper()
+        if lad is not None:
+            fighters.append(lad)
+            scene = replace(scene, combatant_positions={
+                **scene.combatant_positions,
+                "power_lad": Position(POWER_LAD_AT[0], POWER_LAD_AT[1], 0.0),
+            })
 
     print("THE GUNFIGHT AT THE O.K. CORRAL -- in the lot")
     for c in fighters:

@@ -5,7 +5,7 @@ from tests.corpus import require_authored
 
 
 def _ravel(in_hero_id: bool = True) -> HeroCombatant:
-    combatant = HeroCombatant.from_hdc(require_authored("Ravel"), id="ravel")
+    combatant = HeroCombatant.from_build(require_authored("Ravel"), id="ravel")
     combatant.state.in_hero_id = in_hero_id
     return combatant
 

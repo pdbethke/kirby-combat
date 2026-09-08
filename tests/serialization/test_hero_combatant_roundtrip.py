@@ -122,7 +122,7 @@ def test_a_civilian_snapshot_round_trips_with_the_flag_and_the_stats():
     """
     from tests.corpus import require_authored
 
-    civilian = HeroCombatant.from_hdc(require_authored("Ravel"), id="ravel")
+    civilian = HeroCombatant.from_build(require_authored("Ravel"), id="ravel")
     civilian.state.in_hero_id = False
     assert civilian.combat_stats().dex == 10
     assert civilian.combat_stats().spd == 2

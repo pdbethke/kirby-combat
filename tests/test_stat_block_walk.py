@@ -27,7 +27,7 @@ def hero():
     character whose walk this change is about. Resolved through
     ``tests.corpus`` and SKIPPED when unset: this suite commits no .hdc files,
     and a path into a maintainer's home is not shippable."""
-    return HeroCombatant.from_hdc(require_authored("Ravel")).hero
+    return HeroCombatant.from_build(require_authored("Ravel")).hero
 
 
 def test_one_walk_answers_exactly_as_many_walks(hero):
