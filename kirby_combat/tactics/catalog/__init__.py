@@ -23,6 +23,8 @@ from kirby_combat.tactics.catalog import (
     shield_allies,
     stand_and_take_it,
     take_cover_when_hurt,
+    # Leaving --- the doctrine the catalogue had no version of
+    withdraw_when_outmatched,
 )
 
 __all__ = [
@@ -47,4 +49,5 @@ __all__ = [
     "shield_allies",
     "stand_and_take_it",
     "take_cover_when_hurt",
+    "withdraw_when_outmatched",
 ]

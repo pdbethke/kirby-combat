@@ -36,7 +36,7 @@ from kirby_dice import RandomRoller
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
 
-def _scene(*, wall_x: float = 3.0, cover: int = 3, actor_at=(0.0, 0.0),
+def _scene(*, wall_x: float = 3.0, cover: int = 3, actor_at=(0.0, 5.0),
            enemy_at=(10.0, 0.0)) -> Scene:
     return Scene(
         id="s", name="A yard", bounds=SceneBounds(-30, -30, 0, 30, 30, 10),
@@ -138,7 +138,16 @@ def test_taking_cover_moves_the_actor():
 
 def test_the_actor_ends_up_ON_THE_FAR_SIDE_of_the_cover():
     """WHICH SIDE IS THE WHOLE POINT. Standing on the enemy's side of a
-    wall is not cover, it is a backstop."""
+    wall is not cover, it is a backstop.
+
+    NOTE ON THE STARTING POSITIONS, which changed on 2026-09-08. Every
+    scene in this file used to put the actor at (0, 0) with the enemy at
+    (10, 0) and the wall at x=3 --- which means the wall was ALREADY
+    between them and the actor already had cover. The tests passed, and
+    what they were checking was that the menu offers cover to a man who
+    is behind it. Once the menu stopped offering cover you already have,
+    all five failed at once. The actor now starts OFF the firing line, so
+    "in the open" means what it says."""
     session = _session(_scene(wall_x=3.0, enemy_at=(10.0, 0.0)))
     _take_cover(session)
     landed = position_of(session.scene, "actor")
@@ -150,7 +159,7 @@ def test_the_actor_ends_up_ON_THE_FAR_SIDE_of_the_cover():
 
 def test_the_side_chosen_follows_the_threat():
     """Move the enemy to the other side and the actor goes the other way."""
-    session = _session(_scene(wall_x=3.0, actor_at=(6.0, 0.0), enemy_at=(-8.0, 0.0)))
+    session = _session(_scene(wall_x=3.0, actor_at=(6.0, 5.0), enemy_at=(-8.0, 0.0)))
     _take_cover(session)
     assert position_of(session.scene, "actor").x > 3.0
 

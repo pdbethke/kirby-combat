@@ -2839,7 +2839,9 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_combat.scene.cover import cover_available, cover_breakdown
+        from kirby_combat.scene.cover import (
+            compute_cover_level, cover_available, cover_breakdown,
+        )
         from kirby_combat.scene.movement_legality import movement_reach
 
         _threats = [
@@ -2857,6 +2859,30 @@ def enumerate_actions(
             )
             if _level <= 0:
                 continue        # would not shield this actor from these threats
+
+            # COVER YOU ALREADY HAVE IS NOT AN ACTION.
+            #
+            # `fight_from_cover` plans two steps -- move to cover, then
+            # shoot from it -- and `TacticChooser` reads steps[0] and
+            # nothing else, so a two-step plan repeats its first step for
+            # ever. Measured: Tom McLaury took cover three Phases running
+            # and never fired a shot, and the Earps came through the fight
+            # untouched because every man shooting at them had gone to
+            # ground and stayed.
+            #
+            # The menu is the right place to stop it. Offering a move that
+            # changes nothing is a no-op wearing an action's name; drop it
+            # and the tactic falls through to `sustained_fire`, which is
+            # what "take cover and fire from safety" meant.
+            _here_now = max(
+                (compute_cover_level(
+                    shooter_pos=_t, target_pos=_cover_actor_pos,
+                    target_is_prone_or_diving=False, scene=scene,
+                ) for _t in _threats),
+                default=0,
+            )
+            if _level <= _here_now:
+                continue        # no better than where they already stand
             _d = _cover_math.dist(
                 (_cover_actor_pos.x, _cover_actor_pos.y), (_spot.x, _spot.y),
             )

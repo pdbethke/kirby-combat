@@ -6,7 +6,7 @@ from kirby_combat.tactics.library import all_tactics
 
 
 def test_the_catalogue_is_populated():
-    assert len(all_tactics()) == 20
+    assert len(all_tactics()) == 21
 
 
 def test_every_tactic_is_a_tactic_with_a_name():
