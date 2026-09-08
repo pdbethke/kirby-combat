@@ -250,6 +250,7 @@ def run_encounter(
     roller,
     until: StopCondition | None = None,
     max_turns: int = 20,
+    stalemate_after: int = 40,
     on_unresolvable: str = "raise",
     expected_sides=None,
     campaign: Any = None,
@@ -299,6 +300,7 @@ def run_encounter(
             notes=["fight was already decided before the first Phase"],
         )
 
+    quiet = 0
     while turns < max_turns:
         start_turn = encounter.turn
 
@@ -316,7 +318,26 @@ def run_encounter(
             if phase.skipped_kind:
                 skipped[phase.skipped_kind] = skipped.get(phase.skipped_kind, 0) + 1
             phases += 1
+            # NOTHING HAPPENING TO ANYBODY. `max_turns` guards LENGTH and
+            # was the only guard there was, so a fight that had stopped
+            # progressing still ran to the end of it --- the O.K. Corral
+            # did 289 Phases of silence three separate ways in one
+            # afternoon. Progress is damage, movement, a status landing or
+            # a Presence effect; it is NOT "an action resolved", because
+            # Setting your aim for the two hundredth time resolves
+            # perfectly well.
+            if _something_happened(session, phase.session):
+                quiet = 0
+            else:
+                quiet += 1
             encounter = replace(encounter, sessions=[phase.session])
+            if quiet >= stalemate_after:
+                return EncounterResult(
+                    encounter=encounter, turns=turns, phases=phases,
+                    complete=False, winner=None, skipped_kinds=skipped,
+                    notes=[f"stalemate: nothing happened to anybody for "
+                           f"{quiet} Phases"],
+                )
 
             verdict = Roster(phase.session).decide(stop)
             if verdict:
@@ -334,3 +355,31 @@ def run_encounter(
         complete=False, winner=None, skipped_kinds=skipped,
         notes=[f"stopped at the {max_turns}-Turn guard without a decision"],
     )
+
+
+#: Events that mean something happened TO SOMEBODY. Deliberately not
+#: `ActionResolved` on its own: aiming, holding and shuffling a Multipower
+#: all resolve cleanly and change nothing anybody would notice.
+_PROGRESS_EVENTS = frozenset({
+    "MovementResolved", "StatusChanged", "StatusEffectsChanged",
+    "PresenceApplied", "EntangleApplied", "FlashApplied",
+    "AdjustmentApplied", "ConstructDamaged", "RecoveryTaken",
+})
+
+
+def _something_happened(before: "CombatSession", after: "CombatSession") -> bool:
+    """Did this Phase move the fight at all?
+
+    Reads the events the Phase ADDED rather than comparing state, because
+    a Phase that hurt somebody and healed them back still happened.
+    """
+    for event in after.event_log[len(before.event_log):]:
+        kind = getattr(event, "kind", "")
+        if kind in _PROGRESS_EVENTS:
+            return True
+        if kind == "ActionResolved":
+            payload = getattr(event, "result_payload", None) or {}
+            if (float(payload.get("body_dealt", 0) or 0) > 0
+                    or float(payload.get("stun_dealt", 0) or 0) > 0):
+                return True
+    return False

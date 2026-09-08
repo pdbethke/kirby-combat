@@ -1127,8 +1127,31 @@ def enumerate_actions(
             if _entry:
                 _live = set(_entry[2] or ())
 
+        # AND IT MUST NOT DISARM HIM. This is the mechanism behind the
+        # O.K. Corral livelock. With his claws slot ON, Power Lad has
+        # attacks and fights; the no-op filter then removes CLAWS from his
+        # offers --- correctly, he has it --- leaving only switches that
+        # take his weapon away. On a Phase where no tactic matched, the
+        # fallback took the first thing on the menu and disarmed him, and
+        # next Phase he switched back. 289 Phases, 152 reallocations,
+        # never decided.
+        #
+        # No tactic emits `reallocate`, so this offer is only ever taken by
+        # the FALLBACK --- the chooser least able to judge whether putting
+        # your only weapon down mid-fight is a good idea. So the menu
+        # judges instead: a man with enemies in front of him is not shown
+        # that option. Withheld rather than reordered, because last on the
+        # menu is still reachable and a fallback reaches everything.
+        _attack_slots = {sl.slot_id for sl in fv.slots
+                         if (getattr(sl, "kind", "") or "") == "attack"}
+        _armed_now = bool(_live & _attack_slots) or bool(
+            getattr(actor, "attacks", None) or [])
+
         for _set in _sets:
             if set(_set) == _live:
+                continue
+            if (alive_enemies and _armed_now and _attack_slots
+                    and not (set(_set) & _attack_slots)):
                 continue
             drawn = sum(_points[sid] for sid in _set)
             actions.append(LegalAction(

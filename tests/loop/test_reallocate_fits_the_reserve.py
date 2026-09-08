@@ -196,3 +196,44 @@ def test_a_fighter_with_no_attack_is_offered_his_weapon_first():
     assert "claws" in first_ids, (
         "a man with no attack should be shown the slot that gives him one"
     )
+
+
+def test_it_does_not_offer_to_disarm_a_fighter_mid_fight():
+    """The mechanism behind the O.K. Corral livelock, finally.
+
+    Power Lad's claws are a Multipower slot. With the slot ON he has
+    attacks, tactics match, and he fights. The no-op filter then removes
+    CLAWS from his reallocate offers --- correctly, he already has it ---
+    leaving only switches that take his weapon away. On a Phase where no
+    tactic matched, the fallback chooser took the first thing on the menu
+    and disarmed him. Next Phase he switched back. 289 Phases, 152
+    reallocations, `decided: False`.
+
+    No tactic emits `reallocate`, so this offer is ONLY ever taken by the
+    fallback --- which is exactly the chooser least able to judge whether
+    throwing your only weapon away mid-fight is a good idea.
+
+    A man with enemies in front of him is not offered the chance to put
+    his weapon down. Where every option disarms him, the offer is
+    withheld entirely rather than reordered: last on the menu is still
+    reachable, and the fallback reaches everything eventually.
+    """
+    from kirby_combat.models import FrameworkView, SlotView
+
+    framework = FrameworkView(
+        framework_id="fw1", xmlid="MULTIPOWER", name="Brick Tricks",
+        kind="multipower", reserve_or_pool=45,
+        slots=[
+            SlotView(slot_id="claws", name="Rending", active_points=45,
+                     variable=False, kind="attack"),
+            SlotView(slot_id="legs", name="Leaping", active_points=44,
+                     variable=False, kind="movement"),
+            SlotView(slot_id="skin", name="Armour", active_points=45,
+                     variable=False, kind="defense"),
+        ],
+    )
+    # Claws are ON, and they are the only thing he can hit with.
+    offers = _offers_with_active(framework, ["claws"])
+    assert offers == [], (
+        "every remaining switch would disarm him while enemies are up"
+    )
