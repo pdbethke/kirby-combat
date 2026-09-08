@@ -3132,4 +3132,38 @@ def enumerate_actions(
                 _attack_view=ap,
             ))
 
-    return actions
+    return _interleaved_by_kind(actions)
+
+
+def _interleaved_by_kind(actions: list[LegalAction]) -> list[LegalAction]:
+    """One offer of each kind, then the second of each, and so on.
+
+    THE ORDER WAS AN ACCIDENT. `enumerate_actions` appended offers in the
+    order its blocks happen to sit in the function, and attacks are built
+    first and built per (power x enemy) --- so with four enemies they fill
+    the top of the list and every distinct option lands wherever its block
+    falls. Ike Clanton's menu at the O.K. Corral ran to 70 offers with
+    `move_to_cover` at #67 and `disengage` at #68: the two actions that
+    would have let an unarmed man behave like a man, at the bottom of a
+    list whose first eight entries were four ways to punch one Earp and
+    four ways to punch another.
+
+    This RANKS NOTHING. Within a kind the original sequence is untouched,
+    the set of offers is identical, and no kind is preferred to another
+    --- kinds appear in the order they were first enumerated. All it stops
+    is the number of TARGETS deciding what a reader sees first.
+
+    A consumer wanting a different order can sort the list. What it cannot
+    do is recover an option it never read.
+    """
+    by_kind: dict[str, list[LegalAction]] = {}
+    for action in actions:
+        by_kind.setdefault(action.kind, []).append(action)
+
+    out: list[LegalAction] = []
+    while by_kind:
+        for kind in list(by_kind):
+            out.append(by_kind[kind].pop(0))
+            if not by_kind[kind]:
+                del by_kind[kind]
+    return out
