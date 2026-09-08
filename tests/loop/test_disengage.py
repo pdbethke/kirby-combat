@@ -26,6 +26,9 @@ surrender, run away or faint" at PRE+30. The engine consumes that tier's
 """
 from __future__ import annotations
 
+import math
+from dataclasses import replace
+
 import pytest
 
 from conftest import fighter                      # tests/loop/conftest.py
@@ -33,7 +36,7 @@ from kirby_combat.enumeration import ALL_ACTION_KINDS, enumerate_actions
 from kirby_combat.loop import Roster
 from kirby_combat.loop.registry import registered_kinds, resolve_chosen
 from kirby_combat.scene.scene import (
-    AmbientConditions, Position, Scene, SceneBounds, Surface,
+    AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
 )
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
@@ -152,3 +155,79 @@ def test_someone_still_on_the_field_is_still_standing():
     resolved = resolve_chosen(session, session.combatants["runner"], offer,
                               template=TEMPLATE, roller=RandomRoller(seed=5))
     assert Side.named("a") in Roster(resolved.session).standing
+
+
+# ---- A wall behind you ----
+#
+# The O.K. Corral found this one, and only the Phase-by-Phase account
+# could: Ike Clanton --- unarmed, the exact man `withdraw_when_outmatched`
+# exists for --- chose `disengage` three Phases running, moved ZERO metres
+# on the last two, and was shot standing still at (0.0, 2.1) with his back
+# against the Harwood House wall.
+#
+# The offer said "run 12m directly away from them, opening the range by
+# about 12m". It was computed as pure geometry --- the unit vector away
+# from the enemies' centroid, times the movement budget --- and never
+# asked whether the actor could GO there. Ike's away-vector pointed into a
+# `blocks_movement` wall, `movement_reach` clamped him to nothing, and the
+# menu offered the same impossible escape again the next Phase.
+#
+# Same shape as the cover trap fixed in c090c37b: an offer that cannot
+# deliver what it promises, repeated for ever. And the same fix --- in the
+# MENU, not the chooser. A man with his back to a wall runs ALONG it.
+#
+# Every test above this line builds its scene with `walls=[]`, which is
+# why none of them could have caught it.
+
+def _walled_scene(walls, runner_at=(10.0, 0.0), chaser_at=(0.0, 0.0)):
+    scene = _scene(runner_at=runner_at, chaser_at=chaser_at)
+    return replace(scene, walls=walls)
+
+
+def _wall(id_, a, b):
+    return Wall(id=id_, name=id_,
+                segment=(Position(a[0], a[1], 0.0), Position(b[0], b[1], 0.0)),
+                height_m=4.0, blocks_los=True, blocks_movement=True,
+                cover_level=4, body=8, def_value=4, climb_difficulty=-3)
+
+
+def _distance_from_chaser(session, who="runner"):
+    pos = session.scene.combatant_positions[who]
+    foe = session.scene.combatant_positions["chaser"]
+    return math.dist((pos.x, pos.y), (foe.x, foe.y))
+
+
+def test_a_wall_behind_you_does_not_make_the_offer_a_lie():
+    """The offered escape must be one the actor can actually take.
+
+    The runner is at (10, 0) with the chaser at the origin, so straight
+    away is +x --- and a blocking wall stands at x=11. Running along it
+    still opens the range; running into it does not. The offer has to be
+    the one that works.
+    """
+    session = _session(_walled_scene([_wall("behind", (11.0, -20.0), (11.0, 20.0))]))
+    before = _distance_from_chaser(session)
+    offer = next(a for a in _menu(session) if a.kind == "disengage")
+    resolved = resolve_chosen(session, session.combatants["runner"], offer,
+                              template=TEMPLATE, roller=RandomRoller(seed=5))
+    assert _distance_from_chaser(resolved.session) > before + 1.0, (
+        "disengage was offered but the actor could not go there: the "
+        "destination was picked as geometry and never checked for reach"
+    )
+
+
+def test_a_boxed_in_fighter_is_offered_no_way_out():
+    """Guards the guard. Where NO heading opens the range, there is no
+    disengage --- an offer that cannot move you is worse than no offer,
+    because a chooser reading the doctrine will take it every Phase.
+
+    The box is deliberately smaller than the threshold: a roomier one is
+    not a trap at all --- a man who can cross two metres to a far corner
+    HAS opened the range, and the offer telling him so is true."""
+    session = _session(_walled_scene([
+        _wall("n", (9.6, 0.4), (10.4, 0.4)),
+        _wall("s", (9.6, -0.4), (10.4, -0.4)),
+        _wall("e", (10.4, -0.4), (10.4, 0.4)),
+        _wall("w", (9.6, -0.4), (9.6, 0.4)),
+    ]))
+    assert not [a for a in _menu(session) if a.kind == "disengage"]

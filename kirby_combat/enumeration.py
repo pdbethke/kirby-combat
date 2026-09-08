@@ -572,6 +572,19 @@ ALL_ACTION_KINDS = frozenset({
     "throw", "throw_object", "trading", "trip",
 })
 
+#: Headings tried when looking for a way out, as degrees off "straight
+#: away from the enemies' centroid". Straight away comes first so it wins
+#: every tie: it is the honest answer on open ground, and the fan only
+#: matters when something is in the way. Nothing behind ±150° --- past
+#: that the actor is running back through the people they are fleeing.
+_DISENGAGE_HEADINGS_DEG = (0, -30, 30, -60, 60, -90, 90, -120, 120, -150, 150)
+
+#: How much further from the enemy a disengage must actually get you
+#: before it is worth offering. Below a metre nobody has broken off ---
+#: they have shuffled, and an offer that says otherwise is a trap a
+#: chooser will take again next Phase.
+_DISENGAGE_MIN_GAIN_M = 1.0
+
 
 def enumerate_actions(
     actor: HeroCombatant,
@@ -2977,32 +2990,67 @@ def enumerate_actions(
                     _run = None
                 _budget = float(getattr(_run, "combat_m", 0.0) or 0.0)
                 if _budget > 0:
-                    _ux, _uy = _dx / _mag, _dy / _mag
-                    _dest = _DisPosition(
-                        _dis_actor_pos.x + _ux * _budget,
-                        _dis_actor_pos.y + _uy * _budget,
-                        _dis_actor_pos.z,
+                    from kirby_combat.scene.movement_legality import (
+                        movement_reach as _dis_reach,
                     )
-                    _gain = _dis_math.dist(
-                        (_dest.x, _dest.y), (_cx, _cy),
-                    ) - _dis_math.dist(
-                        (_dis_actor_pos.x, _dis_actor_pos.y), (_cx, _cy),
-                    )
-                    actions.append(LegalAction(
-                        action_id="disengage",
-                        kind="disengage",
-                        target_id=None,
-                        power_xmlid=None,
-                        power_name=None,
-                        summary=(
-                            f"Break off and get clear — run {_budget:.0f}m "
-                            f"directly away from them, opening the range by "
-                            f"about {_gain:.0f}m. Costs the whole Phase, so "
-                            f"no attack; leaving the field ends your part in "
-                            f"the fight"
-                        ),
-                        reposition_dest=(_dest.x, _dest.y, _dest.z),
-                    ))
+
+                    # GEOMETRY IS NOT PERMISSION. Straight away from the
+                    # centroid is where the actor WANTS to go; a wall
+                    # decides where they can. Ike Clanton, unarmed, with
+                    # his back to the Harwood House wall, was offered "run
+                    # 12m, opening the range by about 12m" three Phases
+                    # running, moved zero metres on two of them, and was
+                    # shot standing still. A man with his back to a wall
+                    # runs ALONG it, so ask for each heading in turn and
+                    # keep the one that actually opens the range.
+                    #
+                    # Fixed in the MENU rather than in a chooser, for the
+                    # same reason `move_to_cover` was: a chooser reading
+                    # the doctrine will take an offer that says it gets
+                    # them clear, and take it again next Phase.
+                    _here = (_dis_actor_pos.x, _dis_actor_pos.y)
+                    _before = _dis_math.dist(_here, (_cx, _cy))
+                    _aim = _dis_math.atan2(_dy, _dx)
+                    _best = None
+                    for _off in _DISENGAGE_HEADINGS_DEG:
+                        _th = _aim + _dis_math.radians(_off)
+                        _try = _DisPosition(
+                            _dis_actor_pos.x + _dis_math.cos(_th) * _budget,
+                            _dis_actor_pos.y + _dis_math.sin(_th) * _budget,
+                            _dis_actor_pos.z,
+                        )
+                        _land = _dis_reach(
+                            mode="running", from_pos=_dis_actor_pos,
+                            to_pos=_try, distance_m=_budget, scene=scene,
+                            combatant_id=actor.id,
+                        ).landing
+                        _gain = _dis_math.dist(
+                            (_land.x, _land.y), (_cx, _cy),
+                        ) - _before
+                        # Strictly greater, so a tie keeps the earlier
+                        # heading and the fan's first entry is straight
+                        # away --- the honest default when nothing blocks.
+                        if _best is None or _gain > _best[0]:
+                            _best = (_gain, _land,
+                                     _dis_math.dist((_land.x, _land.y), _here))
+
+                    if _best is not None and _best[0] >= _DISENGAGE_MIN_GAIN_M:
+                        _gain, _dest, _ran = _best
+                        actions.append(LegalAction(
+                            action_id="disengage",
+                            kind="disengage",
+                            target_id=None,
+                            power_xmlid=None,
+                            power_name=None,
+                            summary=(
+                                f"Break off and get clear — run {_ran:.0f}m "
+                                f"away from them, opening the range by "
+                                f"about {_gain:.0f}m. Costs the whole Phase, "
+                                f"so no attack; leaving the field ends your "
+                                f"part in the fight"
+                            ),
+                            reposition_dest=(_dest.x, _dest.y, _dest.z),
+                        ))
 
     _climb_positions = (
         (getattr(scene, "combatant_positions", None) or {})
