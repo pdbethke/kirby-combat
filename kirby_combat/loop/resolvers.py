@@ -1071,23 +1071,40 @@ def _resolve_attack_construct(
     """
     from kirby_combat.resolution.object_damage import apply_attack_to_construct
 
+    from kirby_combat.scene.construct import constructs_in
+
     scene = session.scene
     target_id = action.target_id
+    # BY `obj_id`, WHICH IS THE FIELD A CONSTRUCT HAS. This asked for
+    # `id`, so the lookup always failed and every attack on a construct
+    # raised. Invisible until walls were projected in: nothing ever put a
+    # construct where enumeration could see one, so the resolver was
+    # never called and looked finished.
     construct = next(
-        (c for c in (getattr(scene, "constructs", None) or [])
-         if getattr(c, "id", None) == target_id),
+        (c for c in (constructs_in(scene) if scene is not None else [])
+         if getattr(c, "obj_id", None) == target_id),
         None,
     )
     if construct is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
     power = action._attack_view
-    dice = max(1, int(getattr(power, "damage_dice", 0) or 0)) if power else 1
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    # And with the signature the function actually has --- `(power, dice,
+    # construct, template)`. It was called as
+    # `(construct, body_dealt=...)`, which no version of this function has
+    # ever accepted.
+    from kirby_combat.models import DiceValues
+
+    dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
     outcome = apply_attack_to_construct(
-        construct, body_dealt=sum(roller.roll_dice(dice)),
+        power, DiceValues(damage=roller.roll_dice(dice)), construct, template,
     )
     return _recorded(session, actor, action, outcome, {
         "kind": action.kind, "target_id": target_id,
+        "body_dealt": outcome.body_through,
+        "destroyed": outcome.destroyed,
     })
 
 
