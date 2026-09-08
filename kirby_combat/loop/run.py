@@ -199,7 +199,8 @@ def run_phase(
         # see `constructs_in`. The projection existed and nothing called
         # it, so no building in any fight this engine ever ran was a thing
         # you could hit.
-        constructs=(constructs_in(scene) or None) if scene is not None else None,
+        constructs=((constructs_in(scene, session=session) or None)
+                    if scene is not None else None),
         distances=distances_from(scene, actor, enemies),
         # THE FRAMEWORK GATE, fed from the build and the fight's own log.
         # `slot_allocation` was a parameter the caller had to keep in step

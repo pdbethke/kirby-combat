@@ -212,7 +212,33 @@ def the_lot() -> Scene:
         #
         # It changes nothing for them and gives a brick his signature move,
         # which is the point of putting one in a benchmark.
-        constructs=[Construct(
+        constructs=[
+            # THE BUILDINGS HAVE INSIDES. Their walls (above) are the faces
+            # that front the lot; the buildings themselves stand behind
+            # them --- Harwood House to the west, Fly's to the east. A
+            # footprint is what lets the engine tell a man sheltering IN
+            # one from a man leaning on it, which is what decides who a
+            # collapse lands on.
+            #
+            # Ike Clanton and Billy Claiborne both ran into Fly's, which
+            # is the whole reason this distinction is in the benchmark.
+            Construct(
+                obj_id="harwood-interior", kind="wall",
+                segment=(Position(0.0, 0.0, 0.0), Position(0.0, 10.0, 0.0)),
+                polygon_xy=[(-2.0, 0.0), (0.0, 0.0), (0.0, 10.0), (-2.0, 10.0)],
+                elevation_range_m=(0.0, 6.0),
+                height_m=6.0, blocks_los=True, blocks_movement=True,
+                cover_level=4, def_value=4, body=8,
+            ),
+            Construct(
+                obj_id="flys-interior", kind="wall",
+                segment=(Position(5.5, 0.0, 0.0), Position(5.5, 10.0, 0.0)),
+                polygon_xy=[(5.5, 0.0), (8.0, 0.0), (8.0, 10.0), (5.5, 10.0)],
+                elevation_range_m=(0.0, 6.0),
+                height_m=6.0, blocks_los=True, blocks_movement=True,
+                cover_level=4, def_value=4, body=8,
+            ),
+            Construct(
             obj_id="freight-wagon", kind="wall", portable=True,
             segment=(Position(3.0, 1.0, 0.0), Position(3.0, 1.0, 0.0)),
             height_m=1.6, blocks_los=False, blocks_movement=False,

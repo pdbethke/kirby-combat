@@ -10,7 +10,7 @@ driver hydration on the next step.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable, Literal
 
 from kirby_combat.scene.scene import Position, Wall, Hazard
@@ -185,7 +185,34 @@ def construct_from_hazard(hazard: Hazard) -> Construct:
     )
 
 
-def constructs_in(scene) -> list[Construct]:
+def damage_taken(session, obj_id: str) -> int:
+    """BODY this construct has lost so far in this fight.
+
+    `Construct` is frozen and its own contract says so: "a Construct's
+    `body` is the CURRENT body for one resolution; damage flows out as
+    events and back via DRIVER HYDRATION on the next step." The driver was
+    kirby-api. When the turn loop became the driver it never hydrated, and
+    every shot landed on a brand new building --- the Harwood House took
+    0, 2, 6 and 0 BODY across four shots against a BODY of 8 and reported
+    `destroyed=False` every time. Nothing could ever be knocked down.
+
+    Folded from the log, absolute rather than a delta, like every other
+    fold in this engine.
+    """
+    total = 0
+    for event in list(getattr(session, "event_log", None) or []):
+        if getattr(event, "kind", "") != "ActionResolved":
+            continue
+        payload = getattr(event, "result_payload", None) or {}
+        if payload.get("target_id") != obj_id:
+            continue
+        if payload.get("kind") not in ("attack_construct", "throw_object"):
+            continue
+        total += int(payload.get("body_dealt", 0) or 0)
+    return total
+
+
+def constructs_in(scene, session=None) -> list[Construct]:
     """Everything in this scene that an attack can be aimed AT.
 
     The authored constructs, plus every authored `Wall` projected through
@@ -211,4 +238,24 @@ def constructs_in(scene) -> list[Construct]:
         if wall.id in seen:
             continue
         out.append(construct_from_wall(wall))
+
+    # HYDRATION. Without a fight in hand these are the buildings as
+    # authored, which is what every caller that has no session wants.
+    if session is not None:
+        hydrated = []
+        for c in out:
+            if c.body is None:
+                hydrated.append(c)
+                continue
+            left = max(0, c.body - damage_taken(session, c.obj_id))
+            # RUBBLE IS NOT A BUILDING. A destroyed construct used to stay
+            # in the scene and be knocked over again --- the Harwood House
+            # came down on Tom McLaury, Frank McLaury and Billy Clanton,
+            # and then came down on them three more times. Once its BODY
+            # is gone it stops being a thing you can shoot, hide behind,
+            # or drop on somebody.
+            if left <= 0:
+                continue
+            hydrated.append(replace(c, body=left))
+        out = hydrated
     return out

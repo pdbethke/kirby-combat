@@ -862,7 +862,7 @@ def _resolve_throw(
         from kirby_combat.scene.construct import constructs_in
 
         scene = session.scene
-        here = constructs_in(scene) if scene is not None else []
+        here = constructs_in(scene, session=session) if scene is not None else []
         held_id = action.action_id.split(":")[1] if ":" in action.action_id else ""
         target = next((c for c in here
                        if getattr(c, "obj_id", None) == action.target_id), None)
@@ -921,7 +921,7 @@ def _resolve_throw(
         from kirby_combat.scene.construct import constructs_in
 
         scene = session.scene
-        here = constructs_in(scene) if scene is not None else []
+        here = constructs_in(scene, session=session) if scene is not None else []
         held_id = action.action_id.split(":")[1] if ":" in action.action_id else ""
         held = next((c for c in here
                      if getattr(c, "obj_id", None) == held_id), None)
@@ -1193,7 +1193,7 @@ def _resolve_attack_construct(
     # construct where enumeration could see one, so the resolver was
     # never called and looked finished.
     construct = next(
-        (c for c in (constructs_in(scene) if scene is not None else [])
+        (c for c in (constructs_in(scene, session=session) if scene is not None else [])
          if getattr(c, "obj_id", None) == target_id),
         None,
     )
