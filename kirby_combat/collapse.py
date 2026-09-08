@@ -143,4 +143,33 @@ def bring_it_down(session: Any, construct: Any, *, roller, template):
         if stun or body:
             session = _apply_damage(session, cid, stun=stun, body=body)
         caught.append({"combatant_id": cid, "stun": stun, "body": body})
-    return session, caught
+
+    # AND IT STOPS BEING IN THE WAY. `constructs_in` drops rubble from the
+    # things you can hit, but `cover.py`, `perception.py` and
+    # `movement_legality.py` all read `scene.walls` directly and nothing
+    # hydrates that --- so a flattened house went on granting cover,
+    # blocking line of sight and turning men's movement back. It came down
+    # on three men in the O.K. Corral and they were still hiding behind
+    # it.
+    #
+    # Taking it off the board is part of bringing it down, which is why
+    # this lives here rather than in either caller.
+    return _off_the_board(session, construct), caught
+
+
+def _off_the_board(session: Any, construct: Any):
+    """Remove a collapsed structure from the scene it was part of."""
+    from dataclasses import replace
+
+    scene = getattr(session, "scene", None)
+    obj_id = getattr(construct, "obj_id", None)
+    if scene is None or obj_id is None:
+        return session
+    walls = [w for w in (getattr(scene, "walls", None) or []) if w.id != obj_id]
+    constructs = [c for c in (getattr(scene, "constructs", None) or [])
+                  if getattr(c, "obj_id", None) != obj_id]
+    if (len(walls) == len(getattr(scene, "walls", None) or [])
+            and len(constructs) == len(getattr(scene, "constructs", None) or [])):
+        return session
+    return replace(session, scene=replace(scene, walls=walls,
+                                          constructs=constructs))

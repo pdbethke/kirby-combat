@@ -24,6 +24,7 @@ from kirby_combat.scene.construct import constructs_in
 from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
 )
+from kirby_dice import RandomRoller
 from kirby_combat.session.events import (
     ActionDeclared, ActionResolved, make_author_engine,
 )
@@ -126,3 +127,63 @@ def test_a_building_still_standing_is_still_there():
     log = _Log(_hit("harwood", 7))
     assert [c for c in constructs_in(log.scene, session=log)
             if c.obj_id == "harwood"]
+
+
+# ---- and it stops being in the way ----
+
+def test_a_collapsed_building_stops_blocking():
+    """It came down on three men and they were still hiding behind it.
+
+    `constructs_in` drops rubble, but `cover.py`, `perception.py` and
+    `movement_legality.py` all read `scene.walls` directly and nothing
+    hydrates that --- so a flattened house still granted cover, still
+    blocked line of sight, and still turned a man's movement back.
+
+    Taking it off the board is part of bringing it down, so
+    `bring_it_down` does both.
+    """
+    from kirby_combat.collapse import bring_it_down
+    from kirby_combat.scene.construct import construct_from_wall
+    from kirby_combat.template import CombatTemplate
+
+    log = _Log()
+    session = _live_session()
+    wall = session.scene.walls[0]
+    after, _ = bring_it_down(session, construct_from_wall(wall),
+                             roller=RandomRoller(seed=5),
+                             template=CombatTemplate.default_6e_superheroic())
+    assert [w.id for w in after.scene.walls] == []
+
+
+def test_bringing_down_one_building_leaves_the_others():
+    from kirby_combat.collapse import bring_it_down
+    from kirby_combat.scene.construct import construct_from_wall
+    from kirby_combat.template import CombatTemplate
+
+    session = _live_session(second=True)
+    target = construct_from_wall(session.scene.walls[0])
+    after, _ = bring_it_down(session, target, roller=RandomRoller(seed=5),
+                             template=CombatTemplate.default_6e_superheroic())
+    assert [w.id for w in after.scene.walls] == ["flys"]
+
+
+def _live_session(second: bool = False):
+    from conftest import fighter
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.side import Side
+    from kirby_combat.template import CombatTemplate
+
+    scene = _scene()
+    if second:
+        from dataclasses import replace as _replace
+
+        extra = Wall(id="flys", name="Fly's",
+                     segment=(Position(5.5, 0.0, 0.0), Position(5.5, 10.0, 0.0)),
+                     height_m=6.0, blocks_los=True, blocks_movement=True,
+                     cover_level=4, body=8, def_value=4)
+        scene = _replace(scene, walls=list(scene.walls) + [extra])
+    return CombatSession.create(
+        id="s", scene=scene, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=5),
+        combatants=[fighter("ike", side=Side.named("cow"))],
+    ).start()
