@@ -31,10 +31,19 @@ Limitations vs. real HeroCombatant.from_build():
 from __future__ import annotations
 
 import dataclasses
+from dataclasses import dataclass
 from typing import Any
 
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState
 from kirby_combat.models import AttackPower, DefenseItem
+
+
+@dataclass
+class _SyntheticCharacteristic:
+    """Just enough of a characteristic object for the engine to name it."""
+
+    xmlid: str
+    id: str
 
 
 class _SyntheticHero:
@@ -68,6 +77,17 @@ class _SyntheticHero:
         self.talents: list = []
         self.complications: list = []
         self.equipment: list = []
+        # THE CHARACTERISTICS NEED IDS. `str_strike_view` builds the bare
+        # Strike's `source_id` from the STR characteristic object's `id`,
+        # and `_power_action_id` REFUSES to name a view with no id ---
+        # "identity is an id", the rule that stopped 630 corpus objects
+        # sharing a token. Without them, enumerating for any synthetic
+        # fighter who has no weapon raises, which blocked three separate
+        # legitimate tests before it was worth fixing here.
+        self.characteristics = [
+            _SyntheticCharacteristic(xmlid=x, id=f"synthetic-{x.lower()}")
+            for x in sorted(char_values)
+        ]
 
     def characteristic_value(self, xmlid: str) -> int:
         return self._char_values.get(xmlid.upper(), 0)

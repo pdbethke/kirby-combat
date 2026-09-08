@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.actions.reactive.abort import is_aborting
+from kirby_combat.charges import spent_charges
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
@@ -212,6 +213,11 @@ def run_phase(
         # twice. Computed here because enumeration holds no session, the
         # same way `slot_allocation` above is assembled by this caller.
         already_aborted=is_aborting(session, actor_id),
+        # AMMUNITION. `used_charges` sat on `HeroCombatState` for a long
+        # time, documented and serialized both ways, written by nothing
+        # and read by nothing, so nobody ever had to reload. Folded from
+        # the log here for the same reason everything else is.
+        spent_charges=spent_charges(session, actor_id),
         # WHAT HE IS CARRYING. `throw_object` is offered only when these
         # two are supplied, and nothing supplied them --- so a fighter
         # picked a wagon up and the next Phase's menu had no idea, offered

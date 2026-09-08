@@ -274,6 +274,10 @@ def resolve_attack_in_session(
         "body_dealt": result.body_dealt,
         "status_changes": status_changes,
         "power_xmlid": result.power_xmlid,
+        # WHICH power, not what KIND of power. Doc Holliday's Shotgun and
+        # his Colt Peacemaker are both RKA, so an ammunition count keyed on
+        # xmlid would empty one gun by firing the other. Identity is an id.
+        "power_source_id": getattr(attack.power, "source_id", None),
         "target_id": target_id,
         # WHY it was harder than the bare CVs suggest. A to-hit that moved
         # silently is indistinguishable from a bad roll, both to a reader

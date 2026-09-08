@@ -620,6 +620,7 @@ def enumerate_actions(
     extra_attacks: list | None = None,
     physical_entangle: PhysicalEntangleState | None = None,
     already_aborted: bool = False,
+    spent_charges: dict[str, int] | None = None,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -711,6 +712,60 @@ def enumerate_actions(
         ]
 
     # Pure brawler: no listed attack powers. Synthesize a Strike via STR.
+    def _source_power(ap: Any):
+        """The build object an attack view came from, by id."""
+        target = _src_id(ap)
+        if not target:
+            return None
+        seen: set[int] = set()
+
+        def _find(power_list):
+            for pw in power_list or []:
+                if id(pw) in seen:
+                    continue
+                seen.add(id(pw))
+                if str(getattr(pw, "id", "")) == target:
+                    return pw
+                found = _find(getattr(pw, "sub_powers", None))
+                if found is not None:
+                    return found
+            return None
+
+        return (_find(getattr(actor.hero, "powers", None))
+                or _find(getattr(actor.hero, "equipment", None)))
+
+    def _has_ammunition(ap: Any) -> bool:
+        """Is there anything left in it? 6E1 p.334: Charges are uses.
+
+        `used_charges` has been on `HeroCombatState` for a long time,
+        documented and serialized both ways, written by nothing and read
+        by nothing --- so nobody in any fight this engine ran ever had to
+        reload. Doc Holliday's coach gun holds ONE and he fires it four
+        times a fight.
+
+        Counted by the power's own id, never its xmlid: Doc's Shotgun and
+        his Colt are both RKA, and counting by type would empty one gun by
+        firing the other.
+        """
+        from kirby_combat.charges import charges_on
+
+        source = _source_power(ap)
+        if source is None:
+            return True
+        capacity = charges_on(source)
+        if capacity is None:
+            return True                      # innate: never runs dry
+        return (spent_charges or {}).get(str(getattr(source, "id", "")), 0) < capacity
+
+    # AN EMPTY GUN IS NOT A WEAPON. Filtered at the source rather than at
+    # each offer site, so every kind built from an attack power --- attack,
+    # push, spread, multiple attack, move_strike --- goes at once when the
+    # thing is out of ammunition. Before the bare-STR fallback below, so a
+    # man whose revolver is empty falls back to his fists rather than to
+    # nothing.
+    if spent_charges:
+        attack_powers = [ap for ap in attack_powers if _has_ammunition(ap)]
+
     if not attack_powers and s.str_ >= 5:
         try:
             attack_powers = [actor.str_strike_view()]
