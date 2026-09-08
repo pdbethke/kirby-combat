@@ -51,17 +51,53 @@ def _distance_to_segment(point, a, b) -> float:
 
 
 def caught_under(session: Any, construct: Any) -> list[str]:
-    """Ids of everyone standing where this structure is about to land."""
-    segment = getattr(construct, "segment", None)
+    """Ids of everyone standing where this structure is about to land.
+
+    TWO QUESTIONS, BOTH TRUE, and until interiors existed this could only
+    ask the second.
+
+    INSIDE. A man sheltering in the middle of Fly's Studio is under the
+    roof, however far he is from any wall of it. `constructs_containing`
+    has always been able to answer that --- polygon plus elevation range,
+    the same machinery hazard zones use --- and no BUILDING was ever a
+    volume for it to answer about.
+
+    BESIDE. A man leaning on the outside is caught by the edge of the
+    collapse. That is what this did, and it stays.
+
+    A construct with no footprint --- every scene authored before
+    interiors --- has no inside, so proximity answers alone and nothing
+    that worked before changes.
+    """
     scene = getattr(session, "scene", None)
-    if segment is None or scene is None:
+    if scene is None:
         return []
-    a, b = segment
+    positions = (getattr(scene, "combatant_positions", None) or {})
+
     out: list[str] = []
-    for cid, pos in (getattr(scene, "combatant_positions", None) or {}).items():
-        if _distance_to_segment(pos, a, b) <= COLLAPSE_RADIUS_M:
+    segment = getattr(construct, "segment", None)
+    for cid, pos in positions.items():
+        if _inside(pos, construct):
             out.append(cid)
+        elif segment is not None:
+            a, b = segment
+            if _distance_to_segment(pos, a, b) <= COLLAPSE_RADIUS_M:
+                out.append(cid)
     return out
+
+
+def _inside(pos: Any, construct: Any) -> bool:
+    """Is this position within the structure's footprint?
+
+    Delegated to `constructs_containing` rather than re-deriving the
+    point-in-polygon test: there must be ONE answer to "is he in there",
+    and hazard zones have been asking it correctly for a long time.
+    """
+    if getattr(construct, "polygon_xy", None) is None:
+        return False
+    from kirby_combat.scene.construct import constructs_containing
+
+    return bool(constructs_containing(pos, [construct]))
 
 
 def bring_it_down(session: Any, construct: Any, *, roller, template):
