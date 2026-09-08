@@ -890,11 +890,19 @@ def _resolve_throw(
             missile, DiceValues(damage=roller.roll_dice(max(1, int(dice)))),
             target, template,
         )
+        caught: list = []
+        if hit.destroyed:
+            from kirby_combat.collapse import bring_it_down
+
+            session, caught = bring_it_down(
+                session, target, roller=roller, template=template,
+            )
         return _recorded(session, actor, action, hit, {
             "kind": action.kind, "target_id": action.target_id,
             "object_id": held_id,
             "body_dealt": hit.body_through,
             "destroyed": hit.destroyed,
+            "collapsed_onto": caught,
         })
 
     # THROWN AT A MAN, through the ordinary attack pipeline. This used to
@@ -1205,10 +1213,18 @@ def _resolve_attack_construct(
     outcome = apply_attack_to_construct(
         power, DiceValues(damage=roller.roll_dice(dice)), construct, template,
     )
+    caught: list = []
+    if outcome.destroyed:
+        from kirby_combat.collapse import bring_it_down
+
+        session, caught = bring_it_down(
+            session, construct, roller=roller, template=template,
+        )
     return _recorded(session, actor, action, outcome, {
         "kind": action.kind, "target_id": target_id,
         "body_dealt": outcome.body_through,
         "destroyed": outcome.destroyed,
+        "collapsed_onto": caught,
     })
 
 
