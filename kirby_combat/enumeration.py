@@ -3199,6 +3199,38 @@ def enumerate_actions(
                 if _cid != actor.id
             ):
                 continue
+            # AND HE MUST BE ABLE TO SHOOT FROM IT. Cover is not an end
+            # in itself --- it is somewhere to fire FROM. Virgil Earp took
+            # cover behind Fly's Studio at (6.5, 1.0), could target NOBODY
+            # through it, and spent half the fight shooting the building
+            # he was hiding behind because `attack` had vanished from his
+            # menu and the only fight-shaped offer left was the wall.
+            #
+            # Measured over 25 seeded runs: he fell through to the
+            # fallback on 51% of his decisions, more than any man in the
+            # lot. PeterB: "virgil's goal should be kill the cowboys, not
+            # shoot buildings".
+            #
+            # Cover that blinds him to SOME of them is still cover and is
+            # still offered --- `cover_breakdown` exists precisely because
+            # hiding from one man while others walk round is a real trade.
+            # What is withheld is a spot that blinds him to everybody.
+            if alive_enemies:
+                from kirby_combat.scene.geometry import first_blocking_wall
+
+                _walls = getattr(scene, "walls", None) or []
+                _sees_any = False
+                for _e in alive_enemies:
+                    _epos = _cover_positions.get(_e.id)
+                    if _epos is None:
+                        _sees_any = True          # no position, no claim
+                        break
+                    if first_blocking_wall(_spot, _epos, _walls) is None:
+                        _sees_any = True
+                        break
+                if not _sees_any:
+                    continue
+
             # STATE THE TRADE, NOT JUST THE NUMBER. Cover is applied per
             # shooter, so "cover 2/4" alone invites hiding from one man
             # while four others walk around it. The offer says how many of
