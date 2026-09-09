@@ -218,6 +218,25 @@ class PresenceApplied(_BaseEvent):
 
 
 @dataclass
+class PresenceActionLost(_BaseEvent):
+    """The one Full Phase a Presence Attack costs its target (6E2 p.139).
+
+    ITS OWN CLOCK, because the tier has two. At PRE+20 the book says
+    "will not act for 1 Full Phase and is at half DCV; about 5 Minutes":
+    the DCV penalty runs the tier's duration and the LOST ACTION is a
+    single Phase. Folding them together would delete a combatant from the
+    whole fight on one good shout -- `awed` is five minutes and
+    `overwhelmed` an hour -- which is not the rule.
+
+    Recorded rather than counted in the timeline so it survives replay,
+    like every other effect here.
+    """
+    kind: Literal["PresenceActionLost"] = field(
+        default="PresenceActionLost", init=False)
+    target_id: str = ""
+
+
+@dataclass
 class PresenceFaded(_BaseEvent):
     """Time passing on a Presence effect.
 

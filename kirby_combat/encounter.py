@@ -187,6 +187,25 @@ def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
     return session
 
 
+
+def _tick_presence(session):
+    """One Segment off every live Presence effect in this session.
+
+    `PresenceEffects.tick_all` is documented as "what a driver advancing a
+    Segment calls" and NOTHING CALLED IT --- so the half-DCV half of a
+    Presence result, which is the half that WAS wired in (through
+    `cv_modifiers._CV_MODIFIER_SOURCES`), never expired. A man shouted at
+    once in Segment 3 stayed at half DCV for the rest of the fight.
+
+    Here because this is already where per-Segment clocks are wound: the
+    Post-Segment 12 Recovery, the Adjustment fade, and `SegmentAdvanced`
+    itself. On BOTH branches --- a clock wound only on the within-Turn
+    branch would stop for a Segment every Turn.
+    """
+    from kirby_combat.pre_attacks.presence_effects import PresenceEffects
+
+    return PresenceEffects.tick_all(session, segments=1)
+
 def _record_segment_advanced(
     session: "CombatSession", from_segment: int, to_segment: int, to_turn: int,
 ) -> "CombatSession":
@@ -442,8 +461,10 @@ class Encounter:
             # RecoveryTaken ordering note above requires.
             new_sessions = [
                 _record_segment_advanced(
-                    _apply_adjustment_fade(
-                        _apply_post_12_recovery(session, template),
+                    _tick_presence(
+                        _apply_adjustment_fade(
+                            _apply_post_12_recovery(session, template),
+                        ),
                     ),
                     from_segment=self.segment, to_segment=1, to_turn=to_turn,
                 )
@@ -454,7 +475,7 @@ class Encounter:
             )
         new_sessions = [
             _record_segment_advanced(
-                session,
+                _tick_presence(session),
                 from_segment=self.segment, to_segment=self.segment + 1,
                 to_turn=self.turn,
             )

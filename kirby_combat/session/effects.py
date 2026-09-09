@@ -195,6 +195,11 @@ class PresenceState:
     tier: str | None = None
     segments_remaining: int = 0
     yields_to_id: str | None = None
+    #: Whether the single Full Phase this result costs has been spent.
+    #: The tier's own duration is `segments_remaining` and governs the DCV
+    #: penalty; this governs the lost action, which 6E2 p.139 makes one
+    #: Phase and not the whole five minutes.
+    action_lost: bool = False
 
     @property
     def is_active(self) -> bool:
@@ -218,6 +223,7 @@ def presence_state(session: "CombatSession", combatant_id: str) -> PresenceState
     tier: str | None = None
     remaining = 0
     yields_to: str | None = None
+    action_lost = False
     for evt in session.event_log:
         kind = getattr(evt, "kind", None)
         if getattr(evt, "target_id", None) != combatant_id:
@@ -232,9 +238,12 @@ def presence_state(session: "CombatSession", combatant_id: str) -> PresenceState
             if new_rule.rank < current_rank:
                 continue                       # a weaker shout changes nothing
             tier = new_tier
+            action_lost = False            # a fresh shout costs a fresh Phase
             remaining = int(getattr(evt, "segments", 0) or 0)
             yields_to = (getattr(evt, "attacker_id", None) or None
                          if new_rule.yields else None)
+        elif kind == "PresenceActionLost":
+            action_lost = True
         elif kind == "PresenceFaded":
             remaining = max(0, int(getattr(evt, "segments_remaining", 0) or 0))
             if remaining == 0:
@@ -245,4 +254,5 @@ def presence_state(session: "CombatSession", combatant_id: str) -> PresenceState
     return PresenceState(
         target_id=combatant_id, tier=tier,
         segments_remaining=remaining, yields_to_id=yields_to,
+        action_lost=action_lost,
     )

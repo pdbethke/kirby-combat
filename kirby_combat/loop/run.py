@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
+from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
 from kirby_combat.framework import allocation_for
@@ -181,6 +182,31 @@ def run_phase(
         return PhaseResult(session=session, notes=["no unspent slot in this Segment"])
 
     actor = session.combatants[actor_id]
+
+    # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
+    # upward, and `presence_effects.can_act` has said so all along --- it
+    # was called NOWHERE outside its own module, so a man the rules had
+    # frozen took his Phase and shot somebody. Only the half-DCV half of
+    # the result was wired in (through the CV seam); the "takes no Action"
+    # half did nothing at all.
+    #
+    # He forfeits ONE Full Phase, not the tier's whole duration: `awed` is
+    # five minutes and `overwhelmed` an hour, and gating every Phase would
+    # delete a combatant from the fight on one good shout. `forfeit_phase`
+    # records the spend so the next Phase is his again.
+    #
+    # Consumed silently, the same way `next_actor_id` consumes the slot of
+    # someone unconscious or gone: they had a Phase and were in no
+    # condition to use it.
+    if not can_act(session, actor_id):
+        session = PresenceEffects.forfeit_phase(session, actor_id)
+        _mark_acted(session, actor_id)
+        return PhaseResult(
+            session=session, actor_id=actor_id,
+            notes=[f"{actor_id} is held by a Presence Attack and forfeits "
+                   f"the Phase"],
+        )
+
     roster = Roster(session)
     enemies = roster.enemies_of(actor)
     _held = held_object(session, actor_id)

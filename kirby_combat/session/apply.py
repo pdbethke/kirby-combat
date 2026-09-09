@@ -91,7 +91,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
-        "PresenceApplied", "PresenceFaded",
+        "PresenceApplied", "PresenceFaded", "PresenceActionLost",
         "EnvironmentalTriggered", "GMOverride",
         "ConstructDamaged", "ConstructSpawned",
     }:

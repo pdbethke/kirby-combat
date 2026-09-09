@@ -218,6 +218,31 @@ class PresenceEffects:
         return apply_event(session, evt)
 
     @staticmethod
+    def forfeit_phase(session: "CombatSession", combatant_id: str):
+        """Spend the one Full Phase this result costs (6E2 p.139).
+
+        Called by the loop when it declines to hand a frozen man a Phase.
+        Recorded rather than counted in the timeline so it survives replay,
+        like every other effect here.
+        """
+        import uuid
+        from datetime import datetime, timezone
+
+        from kirby_combat.session.apply import apply_event
+        from kirby_combat.session.events import (
+            PresenceActionLost, make_author_engine,
+        )
+
+        return apply_event(session, PresenceActionLost(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_engine(),
+            target_id=combatant_id,
+        ))
+
+    @staticmethod
     def tick_all(
         session: "CombatSession", *, segments: int = 1,
     ) -> "CombatSession":
@@ -235,12 +260,19 @@ def can_act(session: "CombatSession", combatant_id: str) -> bool:
     The live-state counterpart to ``presence.can_act_after``, which answers
     the same question from a tier string alone. 6E2 p.139 stops the target
     outright from ``awed`` upward.
+
+    ONE PHASE, NOT THE WHOLE DURATION. At PRE+20 the book says "will not
+    act for 1 Full Phase and is at half DCV; about 5 Minutes" --- two
+    clocks. `segments_remaining` runs the DCV penalty; `action_lost` says
+    whether the single forfeited Phase has been spent. Reading only the
+    tier would remove a combatant from the entire fight on one good shout
+    (`awed` five minutes, `overwhelmed` an hour), which is not the rule.
     """
     from kirby_combat.session.effects import presence_state
 
     state = presence_state(session, combatant_id)
     rule = effect_for_tier(state.tier) if state.is_active else None
-    return not (rule is not None and rule.no_action)
+    return not (rule is not None and rule.no_action and not state.action_lost)
 
 
 def presence_cv_modifiers(
