@@ -209,11 +209,25 @@ class Terrain:
                 f"would give you cover {level}/4" if level > 0
                 else "would not shield you from where they are"
             )
+            # HOW HARD, AND HOW MUCH. BODY alone says how much there is to
+            # chew through and nothing about whether you can bite: under
+            # 6E2 p.172 an object takes BODY damage reduced by its DEF, so
+            # an attack that does not beat DEF never touches it. A DEF 4
+            # boarding house falls to a pistol in three Phases; a DEF 8
+            # bank never does, and on the old page the two read
+            # IDENTICALLY. Measured at the O.K. Corral: 127 of 781
+            # decisions were spent shooting buildings and nothing a reader
+            # could see told them whether it was working.
             body = getattr(wall, "body", None)
-            out.append(
-                f"{name}: {distance:.1f}m away, {worth}"
-                + (f"; BODY {body} to break through" if body is not None else "")
-            )
+            defense = getattr(wall, "def_value", None)
+            hardness = ""
+            if defense is not None and body is not None:
+                hardness = f"; DEF {defense}, BODY {body} to break through"
+            elif body is not None:
+                hardness = f"; BODY {body} to break through"
+            elif defense is not None:
+                hardness = f"; DEF {defense}"
+            out.append(f"{name}: {distance:.1f}m away, {worth}{hardness}")
         return out
 
     @property
