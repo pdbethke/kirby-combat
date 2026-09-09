@@ -235,14 +235,15 @@ def the_lot_as_it_was():
             # running underneath it. Both extend well past the camera
             # bounds: the buildings sat on nothing before this, and a man
             # who ran out of the lot stood on black.
-            Surface(id="tombstone-dirt", name="Tombstone",
-                    polygon_xy=[(-24.0, -20.0), (30.0, -20.0),
-                                (30.0, 4.0), (-24.0, 4.0)],
+            # SMALL ON PURPOSE. These used to blanket the whole area, from
+            # before there was a town: the recorder now lays Tombstone's
+            # streets down first and the fight's own ground on top, so a
+            # wide tile here paints over the town it is standing in. This
+            # is the lot and the ground the men fight on, and no more.
+            Surface(id="lot-ground", name="The vacant lot",
+                    polygon_xy=[(-6.0, -8.0), (14.0, -8.0),
+                                (14.0, 4.0), (-6.0, 4.0)],
                     elevation_m=0.0, surface_type="ground", cover_level=0),
-            Surface(id="fremont", name="Fremont Street",
-                    polygon_xy=[(-24.0, 4.0), (30.0, 4.0),
-                                (30.0, 24.0), (-24.0, 24.0)],
-                    elevation_m=0.0, surface_type="street", cover_level=0),
         ],
         walls=[
             # The two faces that front the lot, eighteen feet apart.

@@ -149,6 +149,49 @@ def _construct_dict(k) -> dict:
     }
 
 
+def _with_town(snapshot: dict) -> dict:
+    """Add Tombstone around the lot, for the renderer only.
+
+    SCENERY, NOT TERRAIN. Every `Construct` in a Scene becomes an
+    `attack_construct` target, so putting ninety buildings in the Scene
+    would flood every menu in the fight and let a man aim at a saloon four
+    blocks away. The town is merged in HERE, after the fight is resolved,
+    so the engine never sees it and the recording of the fight is
+    unchanged.
+
+    Nothing it adds blocks line of sight, gives cover or can be hit, and
+    none of that matters for thirty seconds in a five-metre lot: the
+    nearest thing it draws is across the street.
+    """
+    from tombstone_town import buildings, ground, streets
+
+    scene = snapshot.get("scene")
+    if scene is None:
+        return snapshot
+    # The streets go UNDER the fight's own ground, which is drawn last and
+    # wins where they overlap.
+    # ORDER IS THE WHOLE TRICK, since these all sit at elevation 0 and
+    # coplanar surfaces z-fight: the desert first, the streets over it, and
+    # the fight's own ground last so it wins where the men are standing.
+    scene["surfaces"] = [
+        {"id": s["id"], "name": s["name"], "surface_type": s["surface_type"],
+         "elevation_m": 0.0, "cover_level": 0, "is_supporting": True,
+         "polygon_xy": _flat(s["polygon"])}
+        for s in [ground()] + streets()
+    ] + scene["surfaces"]
+    snapshot["constructs"] = list(snapshot.get("constructs") or []) + [
+        {"id": b["id"], "obj_id": b["id"], "kind": "wall",
+         "start": [b["polygon"][0][0], b["polygon"][0][1], 0.0],
+         "end": [b["polygon"][2][0], b["polygon"][2][1], 0.0],
+         "height_m": b["height"], "blocks_los": False,
+         "blocks_movement": False, "cover_level": 0,
+         "def_value": None, "body": None,
+         "polygon_xy": _flat(b["polygon"])}
+        for b in buildings()
+    ]
+    return snapshot
+
+
 def opening_snapshot(session, scene) -> dict:
     """The fight as it stood before anybody acted."""
     return {
@@ -209,7 +252,8 @@ def main() -> None:
     opening = _replace(session, combatants=fresh)
     snapshot = opening_snapshot(opening, the_scene())
 
-    recording = {"snapshot": snapshot, "events": events_of(session)}
+    recording = {"snapshot": _with_town(snapshot),
+                 "events": events_of(session)}
     path = pathlib.Path(args.out)
     path.write_text(json.dumps(recording, indent=1))
     print(f"wrote {path}  ({len(recording['events'])} events, "
