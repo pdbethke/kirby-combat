@@ -421,6 +421,20 @@ def main() -> None:
               "Nothing to do; exiting cleanly.")
         return
 
+    # AND THE TEMPLATE, which is a SEPARATE requirement and was not
+    # checked. With build docs present and `KIRBY_COST_HDT` unset this
+    # exited 1 on a FileNotFoundError from four frames inside kirby-cost
+    # -- an example whose whole job is to be readable, failing unreadably
+    # on a missing environment variable it knows the name of.
+    try:
+        arsenal()
+    except FileNotFoundError as exc:
+        print("The O.K. Corral has its build docs but no HERO Designer "
+              "template to cost them against.")
+        print(f"  KIRBY_COST_HDT -- {exc}")
+        print("Nothing to do; exiting cleanly.")
+        return
+
     guns = arsenal()
     print(f"HSEG arsenal loaded: {len(guns)} nineteenth-century weapons\n")
 
