@@ -133,13 +133,152 @@ def the_cast() -> list:
     ]
 
 
-#: The seed the public demo records. Searched over 40 for the historical
-#: result and several give it: exactly Billy Clanton and both McLaurys
-#: down, Wyatt untouched, and Ike Clanton and Billy Claiborne --- who ran
-#: --- alive. 21 is the longest of those at 22 Phases, which is the most
-#: to watch. The one thing it does not reproduce is that Virgil, Morgan
-#: and Doc were all wounded; here they come through clean.
-DEMO_SEED = 21
+#: The seed the public demo records, re-searched over 40 after the lot was
+#: rebuilt to its real shape --- the geometry decides the fight, so the old
+#: seed was chosen for a different place.
+#:
+#: 23 gives the historical casualties: exactly Billy Clanton and both
+#: McLaurys down, Wyatt untouched, and Ike Clanton and Billy Claiborne ---
+#: who ran --- alive, in ten Phases. The one thing NO seed reproduced is
+#: that Virgil, Morgan and Doc were all wounded; here the Earps come
+#: through clean, which makes the engine's gunfight less costly than the
+#: real one was.
+DEMO_SEED = 23
+
+
+#: Where each man stood when it started, in metres, with Fremont Street
+#: running east-west along y = 0 and the lot running SOUTH from it.
+#:
+#: THE GROUND, as the inquest and the surveys have it. The vacant lot lay
+#: between the Harwood house on the WEST and C.S. Fly's boarding house and
+#: photograph gallery on the EAST, about eighteen feet across, opening
+#: north onto Fremont. The Earps and Holliday came west along Fremont and
+#: turned in at the mouth; the Cowboys were already in the lot. The whole
+#: thing was fought at six to ten feet, which is the single most
+#: surprising fact about it and the one a wide corridor destroys.
+#:
+#: The benchmark's lot runs the two sides down the length of a ten-metre
+#: corridor in interleaved columns, which is a fine test fixture and looks
+#: nothing like the place. Here the two groups FACE each other across the
+#: width of the lot, a bare two metres apart.
+STANDING = {
+    # The Earps, in from Fremont at the mouth, in the order they walked.
+    "virgil_earp":     (2.0, 3.6),
+    "wyatt_earp":      (3.1, 3.7),
+    "morgan_earp":     (4.2, 3.9),
+    "doc_holliday":    (5.0, 4.5),
+    # The Cowboys, backed against the Harwood house on the west side.
+    "billy_clanton":   (1.6, 1.2),
+    "frank_mclaury":   (2.9, 1.0),
+    "tom_mclaury":     (4.2, 1.1),
+    # Ike Clanton, unarmed, who ran at Wyatt and then ran for Fly's.
+    "ike_clanton":     (3.4, 2.4),
+    # Billy Claiborne, who left before the shooting and kept going.
+    "billy_claiborne": (5.4, 1.0),
+}
+
+
+def the_lot_as_it_was():
+    """The vacant lot beside Fly's, at the scale it was fought at.
+
+    A FUNCTION AND NOT A CONSTANT, because `combatant_positions` is a
+    mutable dict the fight writes into as people move. Calling this again
+    after a fight gives the OPENING positions; reading them off the
+    finished session gives the closing ones, which is a distinction a
+    recorder needs and got wrong once.
+
+    NOT `the_ok_corral.the_lot()`, which this used to borrow. That scene is
+    a benchmark fixture: a ten-metre corridor with the two sides in
+    interleaved columns down its length, buildings represented by a single
+    wall face each, and no ground beyond the lot itself. It measures the
+    engine well and it does not look like Tombstone -- PeterB, shown the
+    replay: "doesnt much look like the tombstone layout". This one is
+    built to be looked at.
+    """
+    from kirby_combat.scene.construct import Construct
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
+    )
+
+    def wall(wid, name, a, b, *, h, cover, body, defv, part_of=None):
+        return Wall(id=wid, name=name,
+                    segment=(Position(*a, 0.0), Position(*b, 0.0)),
+                    height_m=h, blocks_los=h >= 2.0, blocks_movement=True,
+                    cover_level=cover, body=body, def_value=defv,
+                    ed_value=6 if part_of else None, part_of=part_of,
+                    climb_difficulty=-3 if part_of else 0)
+
+    def building(oid, poly, *, h):
+        """A real footprint, so it reads as a building and not a fin."""
+        xs = [p[0] for p in poly]
+        ys = [p[1] for p in poly]
+        return Construct(
+            obj_id=oid, kind="wall",
+            segment=(Position(xs[0], ys[0], 0.0), Position(xs[0], ys[-1], 0.0)),
+            polygon_xy=list(poly), elevation_range_m=(0.0, h), height_m=h,
+            blocks_los=True, blocks_movement=True, cover_level=4,
+            def_value=8, body=30,
+        )
+
+    return Scene(
+        id="fremont-lot", name="The vacant lot beside Fly's, Fremont Street",
+        # TIGHT ON THE LOT, because the camera frames the BOUNDS
+        # (`geometry.framingForBounds`). The first cut ran the street the
+        # full width of Tombstone and the replay zoomed out until nine men
+        # were a single smudge. The street still runs past the frame; the
+        # bounds say where to look.
+        bounds=SceneBounds(-3.0, -4.0, 0.0, 9.5, 7.5, 10.0),
+        surfaces=[
+            # Fremont Street, running east-west across the north. The lot
+            # opens onto it and the Earps walked in along it, so a replay
+            # that stops at the lot line shows a fight in a black void.
+            Surface(id="fremont", name="Fremont Street",
+                    polygon_xy=[(-3.0, 4.6), (9.5, 4.6), (9.5, 7.5), (-3.0, 7.5)],
+                    elevation_m=0.0, surface_type="street", cover_level=0),
+            Surface(id="lot-ground", name="The vacant lot",
+                    polygon_xy=[(0.6, -3.0), (5.6, -3.0), (5.6, 4.6), (0.6, 4.6)],
+                    elevation_m=0.0, surface_type="ground", cover_level=0),
+            Surface(id="boardwalk", name="Boardwalk",
+                    polygon_xy=[(-3.0, 4.0), (9.5, 4.0), (9.5, 4.6), (-3.0, 4.6)],
+                    elevation_m=0.0, surface_type="street", cover_level=0),
+        ],
+        walls=[
+            # The two faces that front the lot, eighteen feet apart.
+            wall("harwood", "Harwood house (east wall)", (0.6, -3.0), (0.6, 4.0),
+                 h=5.0, cover=4, body=3, defv=4, part_of="harwood-house"),
+            wall("flys-lodgings", "C.S. Fly's boarding house (west wall)",
+                 (5.6, -0.4), (5.6, 4.0), h=6.0, cover=4, body=3, defv=4,
+                 part_of="flys-house"),
+            wall("flys-studio", "C.S. Fly's photograph gallery",
+                 (5.6, -3.0), (5.6, -0.6), h=4.5, cover=4, body=3, defv=4,
+                 part_of="flys-house"),
+            # What was actually in the lot to get behind.
+            wall("wagon", "Photographer's wagon", (1.4, 4.1), (3.4, 4.1),
+                 h=1.5, cover=2, body=12, defv=3),
+            wall("barrels", "Water barrels", (4.9, 2.0), (4.9, 2.8),
+                 h=1.2, cover=2, body=4, defv=2),
+            wall("crates", "Packing crates", (1.0, 0.2), (1.0, 1.0),
+                 h=1.4, cover=2, body=4, defv=2),
+        ],
+        hazards=[], ambient=AmbientConditions(light_level=4),
+        constructs=[
+            # The buildings themselves. The wall faces above front them;
+            # these are the mass behind, and without them the lot is two
+            # fins standing in the dark.
+            building("harwood-house",
+                     [(-3.0, -3.0), (0.6, -3.0), (0.6, 4.0), (-3.0, 4.0)], h=5.0),
+            building("flys-house",
+                     [(5.6, -3.0), (9.5, -3.0), (9.5, 4.0), (5.6, 4.0)], h=6.0),
+        ],
+        combatant_positions={
+            cid: Position(x, y, 0.0) for cid, (x, y) in STANDING.items()
+        },
+    )
+
+
+def the_scene():
+    """The lot, freshly built, with only this cast standing in it."""
+    return the_lot_as_it_was()
 
 
 def the_fight(seed: int = DEMO_SEED):
@@ -150,9 +289,6 @@ def the_fight(seed: int = DEMO_SEED):
     Harwood House wall, Fly's Studio, wagon, barrels, trough and crates
     stand here. Only the men are different.
     """
-    from dataclasses import replace
-
-    from the_ok_corral import the_lot
     from kirby_combat.encounter import Encounter
     from kirby_combat.loop import TacticChooser, run_encounter
     from kirby_combat.session.combat_session import CombatSession
@@ -160,12 +296,7 @@ def the_fight(seed: int = DEMO_SEED):
     from kirby_dice import RandomRoller
 
     cast = the_cast()
-    scene = the_lot()
-    # Only the men who are actually here; `the_lot` places the benchmark's
-    # nine under the same ids, so the positions carry across.
-    here = {c.id for c in cast}
-    scene = replace(scene, combatant_positions={
-        k: v for k, v in scene.combatant_positions.items() if k in here})
+    scene = the_scene()
 
     roller = RandomRoller(seed=seed)
     chooser = TacticChooser()

@@ -76,8 +76,58 @@ def commit_move(
     positions = getattr(scene, "combatant_positions", None)
     if positions is None:
         return session
+    start = positions.get(combatant_id)
     positions[combatant_id] = outcome.landing
-    return session
+    return _record_move(session, combatant_id, start, outcome)
+
+
+def _record_move(session, combatant_id, start, outcome):
+    """Put the move in the log, so a replay can draw it.
+
+    `MovementResolved` is defined, exported, in the event union, handled by
+    `apply_event` and round-trip tested --- and the LOOP had never emitted
+    one. Two paths move people and only the other logged:
+    `MovementAction.resolve` builds the event, while every loop resolver
+    (`move_to_cover`, `disengage`, each `reposition`) came through here and
+    said nothing.
+
+    Measured on a recording of the O.K. Corral made for the Krackle
+    replay: 22 actions, 8 of them movement, and ZERO MovementResolved.
+    Watching it back, nobody moved --- the renderer had no way to know they
+    had. `MovementAction.resolve`'s own comment already points here: "A
+    caller that has a destination goes through `scene/placement.py`, which
+    decides the landing and writes it onto the Scene."
+
+    A ZERO-LENGTH MOVE IS NOT A MOVE. `movement_reach` lands a refusal back
+    at the start, and a log full of those is noise a replay would animate
+    as a twitch.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    landing = outcome.landing
+    if start is not None and (start.x, start.y, start.z) == (
+            landing.x, landing.y, landing.z):
+        return session
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import (
+        MovementResolved, make_author_combatant,
+    )
+
+    return apply_event(session, MovementResolved(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(combatant_id),
+        combatant_id=combatant_id,
+        from_pos=({"x": start.x, "y": start.y, "z": start.z}
+                  if start is not None else None),
+        to_pos={"x": landing.x, "y": landing.y, "z": landing.z},
+        velocity_mps=float(getattr(outcome, "distance_m", 0.0) or 0.0),
+        move_type=getattr(outcome, "mode", None) or "move",
+    ))
 
 
 def move_toward(

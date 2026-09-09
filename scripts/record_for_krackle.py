@@ -155,14 +155,20 @@ def main() -> None:
     ap.add_argument("--out", default="demoRecording.json")
     args = ap.parse_args()
 
-    from the_shootout_we_can_publish import DEMO_SEED, the_cast, the_fight
+    from the_shootout_we_can_publish import (
+        DEMO_SEED, the_cast, the_fight, the_scene,
+    )
 
     seed = DEMO_SEED if args.seed is None else args.seed
 
-    # THE OPENING STATE IS TAKEN BEFORE THE FIGHT, not reconstructed after
-    # it. `the_fight` builds and runs in one call, so the cast is rebuilt
-    # here at its starting values and the scene read off the finished
-    # session, whose geometry only changes where the fight changed it.
+    # THE OPENING STATE IS REBUILT, not read off the finished session.
+    # BOTH HALVES, and the first cut got this half wrong: the cast was
+    # rebuilt at its starting vitals while the positions came off the
+    # finished session's SCENE, whose `combatant_positions` the fight
+    # mutates in place. So every man began the replay standing where he
+    # ended it, the MovementResolved events moved him to where he already
+    # was, and nobody appeared to move at all. `the_scene()` is a function
+    # for exactly this reason.
     chooser, result = the_fight(seed)
     session = result.encounter.sessions[0]
 
@@ -170,7 +176,7 @@ def main() -> None:
 
     fresh = {c.id: c for c in the_cast()}
     opening = _replace(session, combatants=fresh)
-    snapshot = opening_snapshot(opening, session.scene)
+    snapshot = opening_snapshot(opening, the_scene())
 
     recording = {"snapshot": snapshot, "events": events_of(session)}
     path = pathlib.Path(args.out)
