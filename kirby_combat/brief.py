@@ -272,6 +272,37 @@ class Terrain:
         return "\n".join(lines)
 
 
+#: How each complication reads on the page. HD's xmlids, in the book's
+#: own vocabulary (6E1 Complications).
+_KINDS = {
+    "PSYCHOLOGICALLIMITATION": "Psychological",
+    "SOCIALLIMITATION": "Social",
+    "PHYSICALLIMITATION": "Physical",
+    "HUNTED": "Hunted by",
+    "SUSCEPTIBILITY": "Susceptible to",
+    "VULNERABILITY": "Vulnerable to",
+    "DEPENDENTNPC": "Dependent NPC",
+    "DEPENDENCE": "Dependent on",
+    "ENRAGED": "Enraged",
+    "BERSERK": "Berserk",
+    "RIVALRY": "Rivalry",
+    "DISTINCTIVEFEATURES": "Distinctive",
+    "ACCIDENTALCHANGE": "Accidental change",
+    "UNLUCK": "Unluck",
+    "REPUTATION": "Reputation",
+}
+
+
+def _readable(xmlid: str) -> str:
+    """A label for a complication this mapping has never seen.
+
+    Never a bare string: an unlabelled line under "What drives you" reads
+    as a motive whatever it actually is, which is the defect this exists
+    to prevent.
+    """
+    return (xmlid or "Complication").replace("_", " ").title()
+
+
 class Brief:
     """A written description of one Phase.
 
@@ -385,6 +416,12 @@ class Brief:
         from kirby_combat.complications import complications_of
 
         out = []
+        # A HUNTER IS NOT A MOTIVE. Measured on the corral: Billy
+        # Clanton's page read "What drives you: Gunfighter / Law
+        # Enforcement". "Law Enforcement" is who HUNTS him, and a reader
+        # told that was a drive would conclude the Cowboy is motivated by
+        # the marshals. `complications_of` returns every kind there is, so
+        # each line says which kind it is.
         for comp in complications_of(self._situation.actor) or []:
             # `name` FIRST: `complications_of` fills it with the raw's
             # `input` -- the text a player actually wrote ("Code Against
@@ -396,7 +433,9 @@ class Brief:
             if not text:
                 continue
             severity = (getattr(comp, "adders", None) or {}).get("INTENSITY")
-            out.append(f"{text} ({severity.title()})" if severity else text)
+            if severity:
+                text = f"{text} ({severity.title()})"
+            out.append(f"{_KINDS.get(comp.xmlid, _readable(comp.xmlid))}: {text}")
         return out
 
     @property
@@ -428,6 +467,14 @@ class Brief:
 
         lines.append("")
         lines.append(self.terrain.render())
+
+        # WHAT THE SIDE WANTS, which is not the same as what the man
+        # wants. See `Side.objective`.
+        objective = getattr(getattr(self._situation.actor, "side", None),
+                            "objective", None)
+        if objective:
+            lines.append("")
+            lines.append(f"What your side is trying to do: {objective}")
 
         # NO HEADING OVER NOTHING. Most combatants carry no complications,
         # and an empty section is noise on a page something pays by the

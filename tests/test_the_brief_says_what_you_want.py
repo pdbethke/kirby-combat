@@ -85,13 +85,15 @@ class _RawComp:
         self.adder_string = adder_string
 
 
-def _comp(text, *, severity=None):
-    return _RawComp(
+def _comp(text, *, severity=None, xmlid="PSYCHOLOGICALLIMITATION"):
+    comp = _RawComp(
         text,
         # HD writes severity as free text; `_adders_of` parses these words.
         adder_string=(f"Intensity Is {severity.title()}, Situation Is (Common)"
                       if severity else ""),
     )
+    comp.xmlid = xmlid
+    return comp
 
 
 def _page(actor):
@@ -126,3 +128,36 @@ def test_the_side_is_on_the_page():
     belongs to it."""
     page = _page(_Actor(side=Side.named("Earps")))
     assert "Earps" in page
+
+
+# ---- A hunter is not a motive ----
+
+def test_a_complication_says_what_KIND_it_is():
+    """Measured on the corral: Billy Clanton's page read
+
+        What drives you:
+          Gunfighter
+          Law Enforcement
+
+    "Law Enforcement" is who HUNTS him, not what he wants, and a reader
+    told it was a drive would conclude the Cowboy is motivated by the
+    marshals. `complications_of` returns every kind of complication --
+    Hunted, Social, Susceptibility, Psychological -- and the heading
+    claimed all of them were motives.
+    """
+    page = _page(_Actor(complications=[
+        _comp("Law Enforcement", xmlid="HUNTED"),
+        _comp("Gunfighter", xmlid="SOCIALLIMITATION"),
+        _comp("Protective of the town", xmlid="PSYCHOLOGICALLIMITATION"),
+    ]))
+    assert "Hunted by: Law Enforcement" in page
+    assert "Social: Gunfighter" in page
+    assert "Psychological: Protective of the town" in page
+
+
+def test_an_unfamiliar_kind_still_says_something():
+    """A complication this mapping has never seen must not render as a
+    bare string that reads like a motive."""
+    page = _page(_Actor(complications=[_comp("Sunlight", xmlid="WEIRDNEWTHING")]))
+    assert "Sunlight" in page
+    assert ": Sunlight" in page, "it should still be labelled with its kind"

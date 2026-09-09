@@ -55,7 +55,7 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from dataclasses import replace
 
     from the_ok_corral import (
-        COWBOYS, LAWMEN, arm, arsenal, the_interloper, the_lot,
+        COWBOYS, LAWMEN, arm, arsenal, the_interloper, the_lot, the_sides,
     )
     from kirby_combat.encounter import Encounter
     from kirby_combat.loop import TacticChooser, run_encounter
@@ -66,7 +66,8 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from kirby_dice import RandomRoller
 
     guns = arsenal()
-    law, cow = Side.named("Earps"), Side.named("Cowboys")
+    # The sides carry their objectives -- see `the_ok_corral.the_sides`.
+    law, cow = the_sides()
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
     scene = the_lot()

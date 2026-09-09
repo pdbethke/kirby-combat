@@ -306,6 +306,38 @@ def arsenal() -> dict:
     return out
 
 
+
+def the_sides():
+    """The two sides, and what each was in that lot to do.
+
+    Shared by the example and by `scripts/telemetry.py`, because a
+    benchmark whose sides want different things from the demo's is not
+    measuring the demo.
+    """
+    # WHAT EACH SIDE WANTED, which is the history and not a flavour note.
+    # Virgil Earp was Tombstone's chief of police and went into that lot
+    # to enforce the ordinance against carrying firearms in town: the
+    # errand was to DISARM the Cowboys. Ike Clanton and Billy Claiborne,
+    # both unarmed, ran -- which is what the Cowboys' objective says and
+    # what the benchmark's withdrawals have always been doing without
+    # anything on the page to explain them.
+    #
+    # PeterB: "virgil's goal should be kill the cowboys" -- "not shoot
+    # buildings". The second half is the point; the first is softened to
+    # the historical errand, which constrains a chooser more usefully
+    # than "kill them" and is what the marshal was actually there for.
+    law = Side.named(
+        "Earps",
+        objective=("Disarm the Cowboys and place them under arrest. "
+                   "Shoot the men, not the buildings."),
+    )
+    cow = Side.named(
+        "Cowboys",
+        objective=("Do not be disarmed. Fight your way clear of the lot, "
+                   "and get the unarmed men out."),
+    )
+    return law, cow
+
 def arm(name: str, archetype: str, weapons: list, side: Side, guns: dict):
     """Load an archetype and hand it its guns.
 
@@ -392,7 +424,7 @@ def main() -> None:
     guns = arsenal()
     print(f"HSEG arsenal loaded: {len(guns)} nineteenth-century weapons\n")
 
-    law, cow = Side.named("Earps"), Side.named("Cowboys")
+    law, cow = the_sides()
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
     scene = the_lot()

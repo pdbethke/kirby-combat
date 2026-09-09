@@ -58,6 +58,27 @@ class Side:
     #: Opaque reference to the campaign Team this side was drawn from, if
     #: any. Never dereferenced here.
     team_id: str | None = field(default=None, compare=False)
+    #: What this side is trying to achieve, in one sentence, for whatever
+    #: is choosing actions to read.
+    #:
+    #: THE OTHER HALF OF A GOALS MODEL. Individual goals are Psychological
+    #: Complications and the Brief renders them; a fighter could read his
+    #: own code of honour and had no way to learn that the Earps were in
+    #: that lot to DISARM the Cowboys rather than to kill them or to
+    #: demolish Fly's Boarding House.
+    #:
+    #: A STRING, NOT A TEAM. kirby-combat must never import
+    #: kirby-campaign: the bridge from a standing team to a fight's sides
+    #: is deliberately a plain side, and `team_id` above is an opaque
+    #: back-reference this module never dereferences. An objective is the
+    #: same shape --- the campaign layer knows what the Earps want and
+    #: writes it down when it builds the sides. Holding a real Team here
+    #: would drag the entity layer behind every fight.
+    #:
+    #: `compare=False` for the same reason `team_id` is: two references to
+    #: one side must compare equal, and a fight whose halves word the goal
+    #: differently is still one fight.
+    objective: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if not (self.id or "").strip():
@@ -109,7 +130,8 @@ class Side:
         return cls(id=f"{SOLO_PREFIX}{combatant_id}", name=combatant_id)
 
     @classmethod
-    def named(cls, name: str, *, team_id: str | None = None) -> "Side":
+    def named(cls, name: str, *, team_id: str | None = None,
+              objective: str | None = None) -> "Side":
         """A named side, with its id derived from the name.
 
         The id is canonicalised (trimmed, internal whitespace collapsed,
@@ -121,7 +143,8 @@ class Side:
         canonical = _WHITESPACE.sub(" ", (name or "").strip())
         if not canonical:
             raise ValueError("a named Side needs a name")
-        return cls(id=canonical.casefold(), name=canonical, team_id=team_id)
+        return cls(id=canonical.casefold(), name=canonical, team_id=team_id,
+                   objective=objective)
 
     @property
     def is_solo(self) -> bool:
