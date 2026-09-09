@@ -45,6 +45,29 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "example
 from kirby_combat.serialization.to_dict import to_dict
 
 
+def _flat(polygon) -> list[float]:
+    """A polygon as the front end reads it.
+
+    THE ENGINE SAYS PAIRS, KRACKLE SAYS FLAT. `Surface.polygon_xy` and
+    `Construct.polygon_xy` are lists of (x, y) tuples; `polygon.ts` takes
+    a flat [x1,y1,x2,y2,...] and pairs it itself. Emitting pairs is not a
+    type error anywhere --- it is JSON either way --- so it fails SILENTLY
+    and late: `polygonPoints` pairs the first two POINTS into one, comes
+    back with two vertices, and `isDegenerate` skips the mesh rather than
+    risk blanking the board.
+
+    The cost of getting it wrong was every surface and every building
+    vanishing. The lot rendered as two thin wall faces in a black void,
+    which read as a corridor -- PeterB, twice: "doesnt much look like the
+    tombstone layout", "still a cooridor". The geometry had been right the
+    whole time and nothing was drawing it.
+    """
+    out: list[float] = []
+    for point in polygon or []:
+        out.extend(float(v) for v in point[:2])
+    return out
+
+
 def _scene_dict(scene) -> dict:
     """The scene as Krackle reads it.
 
@@ -68,7 +91,7 @@ def _scene_dict(scene) -> dict:
             "id": s.id, "name": s.name, "surface_type": s.surface_type,
             "elevation_m": s.elevation_m, "cover_level": s.cover_level,
             "is_supporting": True,
-            "polygon_xy": [list(p) for p in s.polygon_xy],
+            "polygon_xy": _flat(s.polygon_xy),
         }
 
     b = scene.bounds
@@ -109,12 +132,14 @@ def _combatant_dict(c, scene) -> dict:
 def _construct_dict(k) -> dict:
     a, b = k.segment
     return {
-        "obj_id": k.obj_id, "kind": k.kind,
+        # `id`, not `obj_id`: the front end's constructs are keyed `id`,
+        # which is what the reference recording emits.
+        "id": k.obj_id, "obj_id": k.obj_id, "kind": k.kind,
         "start": [a.x, a.y, a.z], "end": [b.x, b.y, b.z],
         "height_m": k.height_m, "blocks_los": k.blocks_los,
         "blocks_movement": k.blocks_movement, "cover_level": k.cover_level,
         "def_value": k.def_value, "body": k.body,
-        "polygon_xy": [list(p) for p in (k.polygon_xy or [])] or None,
+        "polygon_xy": _flat(k.polygon_xy) or None,
     }
 
 
