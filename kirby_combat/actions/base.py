@@ -141,10 +141,11 @@ class AttackAction:
         # on deliberately aimed shots, which is not the rule.
         location = None
         if uses_hit_locations(template, target):
-            location = effect_for(attack.aim)
+            location = effect_for(attack.aim, template=template)
             if location is None:
                 rolled = sum(attack.dice.hit_location or ())
-                location = effect_for(location_for_roll(rolled)) if rolled else None
+                location = (effect_for(location_for_roll(rolled), template=template)
+                            if rolled else None)
         if location is not None:
             if effective_power.damage_type == "killing":
                 stun_dealt, body_dealt = killing_damage(

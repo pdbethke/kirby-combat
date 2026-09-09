@@ -59,15 +59,30 @@ class LocationEffect:
     ocv_mod: int
 
 
-def effect_for(location: str | None) -> LocationEffect | None:
+def effect_for(location: str | None, *, template: Any = None) -> LocationEffect | None:
     """The table row for a location name, or None when there is none.
 
     None is the ordinary case --- most attacks are not aimed and most
     campaigns do not roll locations --- and it means "resolve damage the
     way this engine always has".
+
+    `CombatTemplate.allowed_hit_locations` narrows it. The field is a GM
+    setting whose own comment reads "empty = all", and it was written by
+    nothing and read by nothing, so a table that listed the locations it
+    uses was ignored. A location outside the list comes back None: the
+    campaign has taken it out of play, so the multipliers do not apply.
+
+    NOT THE SAME THING as 6E2 p.45's cover case --- "Only Andarra's head,
+    arms, shoulders, and chest are exposed, so any Hit Location roll of 12
+    or more hits the rock, doing no damage to her" --- which is per-TARGET
+    and per-cover, needs a map from cover to exposed locations that the
+    book leaves to the GM, and is not built here.
     """
     row = HIT_LOCATIONS.get(location or "")
     if row is None:
+        return None
+    allowed = list(getattr(template, "allowed_hit_locations", None) or [])
+    if allowed and location not in allowed:
         return None
     return LocationEffect(
         name=str(row.get("label", location)),

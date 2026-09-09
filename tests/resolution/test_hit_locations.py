@@ -289,3 +289,34 @@ def test_the_loop_rolls_one():
         "a heroic fight must roll a hit location; audit was "
         f"{out.result.audit_trail}"
     )
+
+
+# ---- A campaign that only uses some locations ----
+
+def test_a_campaign_can_restrict_which_locations_are_in_play():
+    """`CombatTemplate.allowed_hit_locations` -- "empty = all", its own
+    comment -- was written by nothing and read by nothing, so a GM who
+    listed the locations their table uses was ignored.
+
+    A location outside the list resolves as no location at all: the
+    campaign has taken it out of play, so the multipliers do not apply and
+    damage falls through to the ordinary path.
+    """
+    from dataclasses import replace
+
+    from kirby_combat.template import RAW_HEROIC
+
+    only_torso = replace(RAW_HEROIC, allowed_hit_locations=["Chest", "Stomach"])
+    assert effect_for("Head", template=only_torso) is None
+    assert effect_for("Chest", template=only_torso) is not None
+
+
+def test_an_empty_list_means_every_location():
+    from kirby_combat.template import RAW_HEROIC
+
+    assert RAW_HEROIC.allowed_hit_locations == []
+    assert effect_for("Head", template=RAW_HEROIC) is not None
+
+
+def test_no_template_restricts_nothing():
+    assert effect_for("Head") is not None
