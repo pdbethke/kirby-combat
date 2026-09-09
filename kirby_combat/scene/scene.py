@@ -70,6 +70,13 @@ class Wall:
     def_value: int | None = None            # resistant DEF an attack must beat (None = legacy/indestructible)
     ed_value: int | None = None             # ED, when it differs from PD (6E2 p173)
     resistant: bool = True                  # False = Normal Defense, not applied vs Killing
+    #: The obj_id of the structure this wall is a FACE of, when it is one.
+    #: Nothing else in the data could tell a boarding-house wall from a
+    #: stack of whiskey barrels: both are `Wall`, both block, both have
+    #: BODY. It decides what happens when the BODY runs out --- a face is
+    #: BREACHED (a hole you can shoot through) and the building stands;
+    #: anything else is simply destroyed. See `kirby_combat.collapse`.
+    part_of: str | None = None
     walkable_width_m: float = 0.0           # 0 = nothing to stand on
     # 6E1 p70: None = cannot be climbed; 0 = ordinary (a ladder — no Climbing
     # Skill needed); > 0 = difficult, and subtracts from the Climbing roll.

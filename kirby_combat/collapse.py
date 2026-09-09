@@ -31,6 +31,58 @@ METRES_PER_DIE = 2.0
 #: book has no opinion about the footprint of a collapse.
 COLLAPSE_RADIUS_M = 2.0
 
+#: What a wall with a hole in it still covers. 6E2 p.45's Behind Cover
+#: Modifiers price cover level 3 (75% covered) at -4 OCV --- "full cover
+#: except head/torso", which is what a man seen through a hole in a wall
+#: is. PeterB asked for "a substantial ocv penalty due to the size of the
+#: hole"; this takes it from the book's table rather than inventing one.
+BREACHED_COVER_LEVEL = 3
+
+
+def is_structure(construct: Any) -> bool:
+    """Whether this is a BUILDING rather than one face of one.
+
+    A footprint is the difference. `polygon_xy` is what lets
+    `constructs_containing` tell a man sheltering INSIDE Fly's from a man
+    leaning on its outside wall, and a thing you can be inside is a
+    structure. A bare segment --- a wall face, a stack of barrels --- is
+    not.
+    """
+    return bool(getattr(construct, "polygon_xy", None))
+
+
+def _breach(session: Any, wall: Any):
+    """Put a hole in a wall and leave the building standing.
+
+    6E2 p.172's own worked example is the authority for what a wall's
+    BODY buys: Chiron chops a 5 PD, 6 BODY wall, takes 5 through, and it
+    is "damaged but still standing --- another good blow will cut THROUGH
+    it easily". Cutting through a wall is a HOLE. The book is describing a
+    breach and never a demolition, and the Objects Table agrees about the
+    scale --- a Wooden wall is BODY 3, a Brick wall BODY 3 (6E2 p.173).
+
+    So a holed wall STAYS ON THE BOARD. It stops blocking line of sight,
+    which is the genre tactic PeterB named --- shoot a hole, shoot the man
+    through it --- and it goes on blocking movement, because a bullet hole
+    is not a doorway.
+    """
+    from dataclasses import replace
+
+    scene = getattr(session, "scene", None)
+    wall_id = getattr(wall, "id", None) or getattr(wall, "obj_id", None)
+    if scene is None or wall_id is None:
+        return session
+    walls = list(getattr(scene, "walls", None) or [])
+    for i, existing in enumerate(walls):
+        if existing.id != wall_id:
+            continue
+        walls[i] = replace(
+            existing, blocks_los=False, blocks_movement=True,
+            cover_level=min(existing.cover_level, BREACHED_COVER_LEVEL),
+        )
+        return replace(session, scene=replace(scene, walls=walls))
+    return session
+
 
 def collapse_damage_dice(height_m: float) -> int:
     """Dice of Normal Damage a structure of this height does as it falls."""
@@ -101,7 +153,24 @@ def _inside(pos: Any, construct: Any) -> bool:
 
 
 def bring_it_down(session: Any, construct: Any, *, roller, template):
-    """Drop a destroyed structure on whoever is standing under it.
+    """What happens when something's BODY runs out.
+
+    THREE THINGS, AND THIS USED TO KNOW ONE. Every destroyed construct
+    came here, left the board, and dropped its full height in dice on
+    everyone nearby --- so a wall face and a building were the same
+    object, and putting a hole through the west wall of the Harwood House
+    levelled the Harwood House. Four pistol shots. PeterB: "you cannot
+    actually shoot down an entire saloon."
+
+        a barrel      SMASHES  --- gone, nothing falls on anybody
+        a wall face   BREACHES --- a hole; see `_breach`
+        a building    COLLAPSES --- below, unchanged
+
+    A face is one that names the structure it belongs to (`Wall.part_of`),
+    because nothing else in the data could tell a boarding-house wall from
+    a stack of whiskey barrels.
+
+    Drop a destroyed structure on whoever is standing under it.
 
     Returns ``(session, [{"combatant_id", "stun", "body"}, ...])`` --- the
     caller records it, because a collapse is part of the action that
@@ -115,9 +184,19 @@ def bring_it_down(session: Any, construct: Any, *, roller, template):
     from kirby_combat.models import AttackPower, DiceValues
     from kirby_combat.resolution.damage import compute_damage
 
+    # A FACE OF A BUILDING IS NOT THE BUILDING.
+    if getattr(construct, "part_of", None) and not is_structure(construct):
+        return _breach(session, construct), []
+
     dice = collapse_damage_dice(getattr(construct, "height_m", 0.0))
     if dice <= 0:
-        return session, []
+        # DESTROYED IS DESTROYED, even when it is too low to hurt anybody.
+        # This returned here BEFORE taking the thing off the board, so a
+        # smashed stack of whiskey barrels (1.2m, no dice) stayed in the
+        # scene and went on granting cover and turning movement back for
+        # the rest of the fight -- the same defect `_off_the_board` was
+        # written to fix, surviving in the one branch that skipped it.
+        return _off_the_board(session, construct), []
 
     rubble = AttackPower(
         xmlid="COLLAPSE", name="falling structure", damage_dice=dice,
@@ -162,7 +241,11 @@ def _off_the_board(session: Any, construct: Any):
     from dataclasses import replace
 
     scene = getattr(session, "scene", None)
-    obj_id = getattr(construct, "obj_id", None)
+    # EITHER NAME. Resolvers hand this the projected `Construct` (obj_id);
+    # a caller holding the authored `Wall` has `id`. Reading only one of
+    # them silently left the other on the board.
+    obj_id = (getattr(construct, "obj_id", None)
+              or getattr(construct, "id", None))
     if scene is None or obj_id is None:
         return session
     walls = [w for w in (getattr(scene, "walls", None) or []) if w.id != obj_id]

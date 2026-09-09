@@ -150,24 +150,41 @@ def the_lot() -> Scene:
             elevation_m=0.0, surface_type="ground", cover_level=0,
         )],
         walls=[
+            # THE BOOK'S OWN NUMBERS. 6E2 p.173's Objects Table: a Home
+            # outside wall is PD 4 / ED 6 / BODY 3. These were BODY 8, and
+            # p.172's worked example says what a wall's BODY actually buys
+            # --- Chiron chops a 5 PD, 6 BODY wall and it is "damaged but
+            # still standing; another good blow will cut THROUGH it
+            # easily". That is a HOLE, not a demolition.
+            #
+            # `part_of` names the building each is a face of, so running
+            # the BODY out breaches the wall instead of levelling the
+            # house. The structure's own BODY is on the interiors below.
             Wall(id="harwood", name="Harwood House (west wall)",
                  segment=(Position(0.0, 0.0, 0.0), Position(0.0, 10.0, 0.0)),
                  height_m=6.0, blocks_los=True, blocks_movement=True,
-                 cover_level=4, body=8, def_value=4, climb_difficulty=-3),
+                 cover_level=4, body=3, def_value=4, ed_value=6,
+                 part_of="harwood-interior", climb_difficulty=-3),
             Wall(id="flys-lodgings", name="C.S. Fly's Lodgings (east wall)",
                  segment=(Position(5.5, 2.5, 0.0), Position(5.5, 10.0, 0.0)),
                  height_m=6.0, blocks_los=True, blocks_movement=True,
-                 cover_level=4, body=8, def_value=4, climb_difficulty=-3),
+                 cover_level=4, body=3, def_value=4, ed_value=6,
+                 part_of="flys-interior", climb_difficulty=-3),
             Wall(id="flys-studio", name="C.S. Fly's Studio (south-east)",
                  segment=(Position(5.5, 0.0, 0.0), Position(5.5, 2.0, 0.0)),
                  height_m=5.0, blocks_los=True, blocks_movement=True,
-                 cover_level=4, body=8, def_value=4, climb_difficulty=-3),
+                 cover_level=4, body=3, def_value=4, ed_value=6,
+                 part_of="flys-interior", climb_difficulty=-3),
             # A photographer's wagon stood at the lot's mouth on Fremont.
             # Low: something to drop behind, not something to hide inside.
+            # 6E2 p.173: Wagon, covered --- PD 3 / ED 2 / BODY 12. A wagon
+            # is a solid thing to shelter behind and takes real work to
+            # break, which is the opposite of a wall.
             Wall(id="wagon", name="Photographer's wagon",
                  segment=(Position(1.0, 9.5, 0.0), Position(4.5, 9.5, 0.0)),
                  height_m=1.5, blocks_los=False, blocks_movement=True,
-                 cover_level=2, body=6, def_value=2, climb_difficulty=0),
+                 cover_level=2, body=12, def_value=3, ed_value=2,
+                 climb_difficulty=0),
 
             # ---- SET DRESSING, and it changes the fight ----
             #
@@ -228,7 +245,19 @@ def the_lot() -> Scene:
                 polygon_xy=[(-2.0, 0.0), (0.0, 0.0), (0.0, 10.0), (-2.0, 10.0)],
                 elevation_range_m=(0.0, 6.0),
                 height_m=6.0, blocks_los=True, blocks_movement=True,
-                cover_level=4, def_value=4, body=8,
+                # THE STRUCTURE, not a face of it. A JUDGEMENT, and the
+                # book has no building entry to cite --- but it does scale
+                # its largest objects (Truck or bus BODY 17, Tank BODY 19,
+                # large Spaceship BODY 30-80), and a two-storey timber
+                # boarding house belongs with those and not with a BODY 3
+                # wall panel. DEF 8 is the frame rather than the cladding:
+                # above a Brick wall's PD 5 and a Concrete wall's PD 6.
+                #
+                # The point of the number: a Colt Peacemaker (2d6-1, 6
+                # BODY average) does NOTHING to it, so no pistol levels a
+                # building however long it fires. Shooting the WALL still
+                # works and makes a hole.
+                cover_level=4, def_value=8, body=30,
             ),
             Construct(
                 obj_id="flys-interior", kind="wall",
@@ -236,7 +265,7 @@ def the_lot() -> Scene:
                 polygon_xy=[(5.5, 0.0), (8.0, 0.0), (8.0, 10.0), (5.5, 10.0)],
                 elevation_range_m=(0.0, 6.0),
                 height_m=6.0, blocks_los=True, blocks_movement=True,
-                cover_level=4, def_value=4, body=8,
+                cover_level=4, def_value=8, body=30,   # see Harwood, above
             ),
             Construct(
             obj_id="freight-wagon", kind="wall", portable=True,

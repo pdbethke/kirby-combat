@@ -69,6 +69,11 @@ class Construct:
     ed_value: int | None = None             # ED, when it differs from PD (6E2 p173)
     resistant: bool = True                  # False = Normal Defense, not applied vs Killing
     body: int | None = None
+    #: The obj_id of the structure this is a FACE of. Rides across from
+    #: `Wall.part_of` --- and MUST, because the resolvers act on the
+    #: projected Construct, so a face that lost this on the way through
+    #: would be demolished as a building instead of breached as a wall.
+    part_of: str | None = None
     # effect / provenance
     effect: ConstructEffect | None = None
     source_combatant_id: str | None = None
@@ -156,7 +161,7 @@ def construct_from_wall(wall: Wall) -> Construct:
         permeability="impermeable" if wall.blocks_movement else "porous",
         cover_level=wall.cover_level,
         def_value=wall.def_value, ed_value=wall.ed_value, resistant=wall.resistant,
-        body=wall.body,
+        body=wall.body, part_of=wall.part_of,
     )
 
 
