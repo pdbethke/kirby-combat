@@ -17,6 +17,7 @@ point of decision rather than smuggled in as though it were RAW.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from kirby_combat.actions.recording import (
@@ -1541,8 +1542,50 @@ def _resolve_reposition(
     No attack follows: the destination IS the action. `reposition_vantage`
     differs only in why enumeration picked the point (a line of sight it
     wanted), which is already baked into ``reposition_dest``.
+
+    AND A PUSH IS PAID FOR. `reposition_push` is the offer to shove past
+    your normal movement --- the menu prints it as "+8m for +10 END" ---
+    and `LegalAction.push_end` carries that price. Enumeration set it and
+    this read `reposition_dest` and nothing else, so the extra metres were
+    free in every fight the engine has run. 6E2 p.135 is the rule the
+    engine already cites for Pushing: END is what a Push is bought with.
+
+    The distance was never the bug --- enumeration computes the
+    destination inside the pushed radius, so the actor does travel it.
+    Only the price was missing.
     """
-    return _reposition(session, actor, action, roller=roller, then_attack=False)
+    out = _reposition(session, actor, action, roller=roller, then_attack=False)
+    cost = int(getattr(action, "push_end", 0) or 0)
+    if action.kind == "reposition_push" and cost > 0:
+        out = replace(out, session=_spend_end(out.session, actor.id, cost))
+    return out
+
+
+def _spend_end(session, combatant_id: str, cost: int):
+    """Take END off a combatant, beside the resolution.
+
+    `session/apply.py` deliberately treats `ActionResolved` as log-only ---
+    "combatant stat mutations in apply would force log replay to mirror
+    combatant state, which is more brittle" --- so this folds the spend
+    here, exactly as `_apply_damage` folds damage and
+    `MovementAction.resolve` applies its own.
+
+    Clamped at zero. HERO's rule for spending END you do not have (take
+    STUN instead) is NOT implemented and is not claimed to be; this only
+    refuses to record a negative pool.
+    """
+    from kirby_combat.vitals import apply_vitals_delta
+
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None:
+        return session
+    have = int(getattr(combatant.state, "current_end", 0) or 0)
+    spend = min(cost, max(0, have))
+    if spend <= 0:
+        return session
+    new_combatants = dict(session.combatants)
+    new_combatants[combatant_id] = apply_vitals_delta(combatant, end=-spend)
+    return replace(session, combatants=new_combatants)
 
 
 @resolves("reposition_strike", "move_strike")
