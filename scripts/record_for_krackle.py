@@ -84,6 +84,12 @@ def _scene_dict(scene) -> dict:
             "blocks_movement": w.blocks_movement,
             "cover_level": w.cover_level,
             "def_value": w.def_value, "body": w.body,
+            # THE FACE'S BUILDING. Without it the front end cannot tell a
+            # boarding-house wall from a stack of barrels, and draws the
+            # face on top of the building mass behind it -- two coplanar
+            # surfaces, which the renderer stripes. The filter that stops
+            # that was written first and had nothing to read.
+            "part_of": w.part_of,
         }
 
     def surface(s):
