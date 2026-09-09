@@ -62,7 +62,7 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from kirby_combat.scene.scene import Position
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.side import Side
-    from kirby_combat.template import CombatTemplate
+    from kirby_combat.template import RAW_HEROIC
     from kirby_dice import RandomRoller
 
     guns = arsenal()
@@ -84,10 +84,30 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     chooser = make_chooser() if make_chooser is not None else TacticChooser()
     session = CombatSession.create(
         id=f"run-{seed}", combatants=fighters, scene=scene,
-        template=CombatTemplate.default_6e_superheroic(),
+        # A WESTERN GUNFIGHT IS A HEROIC FIGHT, and this ran the
+        # SUPERHEROIC template -- which ships `use_hit_locations=False`
+        # and `manage_endurance=False`, because four-colour games
+        # hand-wave both. Nine men with revolvers in a vacant lot in 1881
+        # are the other genre: `RAW_HEROIC` is "grittier; hit locations
+        # and END tracked", which is the fight this benchmark is trying
+        # to be. PeterB, on hit locations: "esp relevant to heroic fights
+        # like ok corral".
+        #
+        # It costs nothing in END here -- those Colts run on Charges --
+        # and it means a bullet now lands somewhere: a shot to the Vitals
+        # and a shot to the foot stop being the same shot.
+        template=RAW_HEROIC,
         dice_roller=roller).start()
     result = run_encounter(
-        Encounter(id=f"t-{seed}", turn=1, segment=12, sessions=[session]),
+        Encounter(id=f"t-{seed}", turn=1, segment=12, sessions=[session],
+                  # ON THE ENCOUNTER TOO, and this is not belt-and-braces.
+                  # `run_encounter` resolves the template it hands every
+                  # resolver from `encounter._resolve_template(campaign)`
+                  # -- the ENCOUNTER's, falling back to DEFAULT_TEMPLATE --
+                  # not from the session's own `template` field. Setting
+                  # only the session left the whole fight resolving under
+                  # the default, so the heroic flags did nothing.
+                  template=RAW_HEROIC),
         chooser, roller=roller, on_unresolvable="skip", max_turns=40)
     return chooser, result
 
