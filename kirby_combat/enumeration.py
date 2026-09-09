@@ -582,6 +582,12 @@ _ATTACKING_KINDS = frozenset({
 })
 
 
+#: How close is "the same place". A JUDGEMENT: 6E has no rule about two
+#: characters in one space because it assumes a hex map. Half a metre is
+#: near enough that a man walking there would be walking into somebody.
+_SAME_SPACE_M = 0.5
+
+
 #: Headings tried when looking for a way out, as degrees off "straight
 #: away from the enemies' centroid". Straight away comes first so it wins
 #: every tie: it is the honest answer on open ground, and the fan only
@@ -3172,6 +3178,26 @@ def enumerate_actions(
                 combatant_id=actor.id,
             )
             if not _reach.reachable:
+                continue
+            # AND NOBODY IS STANDING THERE. `move_to_cover` computes ONE
+            # covered spot per wall and sends whoever asks to it, so at
+            # the O.K. Corral five men all chose `move_to_cover:barrels`
+            # in the same Segment and finished the fight in pairs, inside
+            # each other: billy_clanton and tom_mclaury both on
+            # (1.30, 3.20), morgan_earp and wyatt_earp both on
+            # (3.30, 3.20).
+            #
+            # A JUDGEMENT, and there is nothing to cite: 6E assumes a hex
+            # map, where one character to a hex is a convention rather
+            # than a printed rule. What is not a judgement is that a man
+            # does not walk into another man and stop there.
+            if any(
+                _xyz_dist(_other, _spot) < _SAME_SPACE_M
+                for _cid, _other in (
+                    (getattr(scene, "combatant_positions", None) or {}).items()
+                )
+                if _cid != actor.id
+            ):
                 continue
             # STATE THE TRADE, NOT JUST THE NUMBER. Cover is applied per
             # shooter, so "cover 2/4" alone invites hiding from one man
