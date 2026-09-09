@@ -438,21 +438,31 @@ def test_pushing_costs_five_end_ON_TOP_OF_the_attack_and_adds_a_damage_class():
     """6E2 p.133's exchange rate, exactly as the offer promises it -- one
     Damage Class for five END, neither re-derived here.
 
-    PLUS WHAT THE ATTACK ITSELF COSTS. This asserted a flat 5, which was
-    right only while attacks were free: nothing subtracted `end_spent`, so
-    the Push was the only END anyone ever paid. Pushing is extra END on
-    top of the power's own cost (6E1 p.132), so the two are asserted
-    separately rather than folded into one number.
+    PLUS WHAT THE ATTACK ITSELF COSTS, WHEN THE CAMPAIGN COUNTS IT. This
+    asserted a flat 5, which was right only while attacks were free:
+    nothing subtracted `end_spent`, so the Push was the only END anyone
+    ever paid. The power's own END (6E1 p.132) is now charged too --
+    but only where `manage_endurance` says to, and these fixtures run
+    `RAW_SUPERHEROIC`, which says not to.
+
+    THE PUSH ITSELF IS ALWAYS PAID. `manage_endurance` governs the routine
+    END cost of using a power; a Push is a deliberate purchase of extra
+    effect that 6E2 p.133 prices in END specifically, and a table that
+    hand-waves routine END would still make you pay for that. Stated here
+    because it is a reading, not a quotation.
     """
+    from kirby_combat.actions.recording import _tracks_endurance
     from kirby_combat.endurance import end_cost
 
     power = blast("p", dice=6)
     before, resolved = _resolve(_action("push", power=power))
+    actor = before.combatants["actor"]
     spent = (
-        before.combatants["actor"].state.current_end
+        actor.state.current_end
         - resolved.session.combatants["actor"].state.current_end
     )
-    assert spent == 5 + end_cost(power)
+    routine = end_cost(power) if _tracks_endurance(TEMPLATE, actor) else 0
+    assert spent == 5 + routine
     assert resolved.result is not None
 
 

@@ -130,7 +130,16 @@ def test_an_attacker_takes_no_damage_from_their_own_attack():
     assert (after.current_stun, after.current_body) == (
         before.current_stun, before.current_body
     ), "an attacker takes no damage from their own attack"
-    assert before.current_end - after.current_end == result.end_spent
+
+    # END is the campaign's call, not this test's: `RAW_SUPERHEROIC` ships
+    # `manage_endurance=False` ("END optional"), so nothing is charged
+    # here. Computed from the template rather than assumed, so this stays
+    # true whichever template the fixture moves to.
+    from kirby_combat.actions.recording import _tracks_endurance
+
+    template = CombatTemplate.default_6e_superheroic()
+    expected = result.end_spent if _tracks_endurance(template, a) else 0
+    assert before.current_end - after.current_end == expected
 
 
 # ---- Damage accumulates across exchanges: the thing that was impossible ----

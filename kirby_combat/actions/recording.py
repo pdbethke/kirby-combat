@@ -112,8 +112,31 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
     return replace(session, combatants=new_combatants)
 
 
-def _spend_attack_end(session: CombatSession, attacker_id: str, cost: int) -> CombatSession:
-    """Take an attack's END off the attacker.
+def _tracks_endurance(template, attacker) -> bool:
+    """Whether this campaign counts END at all.
+
+    THE TEMPLATES HAVE SAID THIS SINCE THEY WERE WRITTEN and nothing read
+    them: `RAW_SUPERHEROIC` ships `manage_endurance=False` ("END
+    optional"), `RAW_HEROIC` ships `manage_endurance=True` ("grittier; hit
+    locations and END tracked"). That is the genre split -- four-colour
+    games hand-wave END, gritty ones count it -- and charging END
+    unconditionally quietly overrode a policy the data already stated.
+
+    `manage_endurance_npc` is the second half of the same pair, and
+    `StatBlockCombatant.is_npc` was likewise read by nothing: a table that
+    tracks END for the player characters and not for the mooks is an
+    ordinary house rule, and both fields exist to express it.
+    """
+    if template is None:
+        return True
+    if getattr(attacker, "is_npc", False):
+        return bool(getattr(template, "manage_endurance_npc", False))
+    return bool(getattr(template, "manage_endurance", False))
+
+
+def _spend_attack_end(session: CombatSession, attacker, cost: int,
+                      template) -> CombatSession:
+    """Take an attack's END off the attacker, when the campaign counts it.
 
     Clamped at zero. HERO's rule for acting without the END to pay (take
     STUN instead) is NOT implemented and is not claimed to be; this only
@@ -124,9 +147,9 @@ def _spend_attack_end(session: CombatSession, attacker_id: str, cost: int) -> Co
     object rather than a session member, and charging nobody is the safe
     reading.
     """
-    if cost <= 0:
+    if cost <= 0 or not _tracks_endurance(template, attacker):
         return session
-    combatant = session.combatants.get(attacker_id)
+    combatant = session.combatants.get(getattr(attacker, "id", None))
     if combatant is None:
         return session
     have = int(getattr(combatant.state, "current_end", 0) or 0)
@@ -134,7 +157,7 @@ def _spend_attack_end(session: CombatSession, attacker_id: str, cost: int) -> Co
     if spend <= 0:
         return session
     new_combatants = dict(session.combatants)
-    new_combatants[attacker_id] = apply_vitals_delta(combatant, end=-spend)
+    new_combatants[combatant.id] = apply_vitals_delta(combatant, end=-spend)
     return replace(session, combatants=new_combatants)
 
 
@@ -241,7 +264,7 @@ def resolve_attack_in_session(
     #
     # Folded here beside the damage for the same reason: `apply_event`
     # deliberately treats `ActionResolved` as log-only.
-    s = _spend_attack_end(s, attack.attacker.id, int(result.end_spent or 0))
+    s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
     # resolver with no session, so it read the build's CON and could not

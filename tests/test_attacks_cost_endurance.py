@@ -128,7 +128,12 @@ def test_the_resolver_prices_the_attack_from_active_points():
 
 def test_a_fight_actually_drains_the_pool():
     """THE DEFECT. Nothing subtracted `end_spent`, so a fighter threw an
-    8d6 Blast and finished the Phase at the END he started with."""
+    8d6 Blast and finished the Phase at the END he started with.
+
+    Run under `RAW_HEROIC`, because whether END is counted at all is the
+    campaign's call and `RAW_SUPERHEROIC` says not to -- see
+    `test_a_superheroic_campaign_does_not`.
+    """
     import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
     from fixtures.synthetic_hero import synthetic_combatant
     from kirby_combat.enumeration import enumerate_actions
@@ -146,8 +151,10 @@ def test_a_fight_actually_drains_the_pool():
             max_end=40, current_stun=40, current_body=12, current_end=40,
             side=side, attacks=list(attacks))
 
+    from kirby_combat.template import RAW_HEROIC
+
     session = CombatSession.create(
-        id="s", scene=None, template=CombatTemplate.default_6e_superheroic(),
+        id="s", scene=None, template=RAW_HEROIC,
         dice_roller=RandomRoller(seed=2),
         combatants=[_guy("a", Side.named("x"), [_power(40)]),
                     _guy("b", Side.named("y"))],
@@ -157,7 +164,65 @@ def test_a_fight_actually_drains_the_pool():
 
     before = session.combatants["a"].state.current_end
     out = resolve_chosen(session, session.combatants["a"], attack,
-                         template=CombatTemplate.default_6e_superheroic(),
-                         roller=RandomRoller(seed=2))
+                         template=RAW_HEROIC, roller=RandomRoller(seed=2))
     after = out.session.combatants["a"].state.current_end
     assert after < before, "an attack that costs END must cost END"
+
+
+# ---- Whether END is tracked at all is the campaign's call ----
+
+def _tracked_fight(template):
+    """One attack under `template`; returns (END before, END after)."""
+    import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
+    from fixtures.synthetic_hero import synthetic_combatant
+    from kirby_combat.enumeration import enumerate_actions
+    from kirby_combat.loop.registry import resolve_chosen
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.side import Side
+    from kirby_dice import RandomRoller
+
+    def _guy(cid, side, attacks=()):
+        return synthetic_combatant(
+            id=cid, name=cid, ocv=9, dcv=5, omcv=5, dmcv=5, spd=4, dex=20,
+            ego=15, str_=15, con=18, pre=15, rec=6, pd=4, ed=4, rpd=0, red=0,
+            md=3, power_defense=0, flash_defense=0, max_stun=40, max_body=12,
+            max_end=40, current_stun=40, current_body=12, current_end=40,
+            side=side, attacks=list(attacks))
+
+    session = CombatSession.create(
+        id="s", scene=None, template=template,
+        dice_roller=RandomRoller(seed=2),
+        combatants=[_guy("a", Side.named("x"), [_power(40)]),
+                    _guy("b", Side.named("y"))],
+    ).start()
+    menu = enumerate_actions(session.combatants["a"], [session.combatants["b"]])
+    attack = next(m for m in menu if m.kind == "attack")
+    before = session.combatants["a"].state.current_end
+    out = resolve_chosen(session, session.combatants["a"], attack,
+                         template=template, roller=RandomRoller(seed=2))
+    return before, out.session.combatants["a"].state.current_end
+
+
+def test_a_heroic_campaign_tracks_endurance():
+    """`RAW Heroic` ships `manage_endurance=True`. Gritty games count it."""
+    from kirby_combat.template import CombatTemplate
+
+    from kirby_combat.template import RAW_HEROIC
+
+    before, after = _tracked_fight(RAW_HEROIC)
+    assert after < before
+
+
+def test_a_superheroic_campaign_does_not():
+    """`RAW Superheroic` ships `manage_endurance=False`, and it always has.
+
+    THIS CAUGHT A DEFECT IN THE COMMIT BEFORE IT. Spending END was made
+    unconditional, which quietly overrode a policy the templates had
+    stated since they were written -- superheroic games hand-wave END,
+    heroic ones count it, and that split is exactly what these two flags
+    are for. They were read by nothing, so the contradiction was silent.
+    """
+    from kirby_combat.template import CombatTemplate
+
+    before, after = _tracked_fight(CombatTemplate.default_6e_superheroic())
+    assert after == before
