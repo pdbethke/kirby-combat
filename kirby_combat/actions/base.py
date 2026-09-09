@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from kirby_combat.models import AttackInput, AttackResult, DamageResult, DefenseProfile, KnockbackResult, ToHitResult
 from kirby_combat.endurance import end_cost
+from kirby_combat.resolution.hit_location import (
+    effect_for, killing_damage, normal_damage, uses_hit_locations,
+)
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
 from kirby_combat.resolution.knockback import compute_knockback
@@ -117,7 +120,37 @@ class AttackAction:
         # ------------------------------------------------------------------
         # 5. Apply defenses (subtract PD/ED/rPD/rED)
         # ------------------------------------------------------------------
-        if effective_power.damage_type == "killing":
+        # WHERE IT LANDED, WHEN THE CAMPAIGN CARES (6E2 p.110-111).
+        # `tables.HIT_LOCATIONS` has carried STUNx / N STUN / BODYx for
+        # every body part all along and only `ocvMod` was ever read, so a
+        # fighter could aim at the head, pay -8 OCV, hit, and do ordinary
+        # damage. Aiming was strictly worse than not aiming.
+        #
+        # The multipliers do NOT commute with defenses and the book is
+        # specific about the order, which is why this goes through
+        # `resolution/hit_location.py` rather than a factor applied here:
+        # Killing STUN multiplies BEFORE defenses, Normal STUN AFTER, and
+        # BODY always after.
+        location = (effect_for(attack.aim)
+                    if uses_hit_locations(template, target) else None)
+        if location is not None:
+            if effective_power.damage_type == "killing":
+                stun_dealt, body_dealt = killing_damage(
+                    damage.body, total_defense=defense.total_defense,
+                    resistant_defense=defense.resistant_defense,
+                    effect=location,
+                )
+            else:
+                stun_dealt, body_dealt = normal_damage(
+                    damage.stun, damage.body,
+                    total_defense=defense.total_defense, effect=location,
+                )
+            audit_trail.append(
+                f"Hit Location {location.name}: STUNx {location.stun_x}, "
+                f"N STUN x{location.normal_stun_x}, BODYx {location.body_x} "
+                f"(6E2 p110-111) -> STUN {stun_dealt}, BODY {body_dealt}"
+            )
+        elif effective_power.damage_type == "killing":
             stun_dealt = max(0, damage.stun - defense.total_defense)
             body_dealt = max(0, damage.body - defense.resistant_defense)
         else:
