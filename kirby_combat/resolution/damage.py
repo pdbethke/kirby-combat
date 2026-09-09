@@ -262,5 +262,3 @@ def scale_variable_slot_dice(
     if not active_points or assigned_points >= active_points:
         return base_dice
     return max(0, int(base_dice * assigned_points / active_points))
-
-    return stun, body, stun_mult

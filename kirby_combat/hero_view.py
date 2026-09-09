@@ -96,7 +96,10 @@ _CHARACTERISTIC_FOR_STAT: dict[str, str] = {
 }
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:                                  # pragma: no cover
+    # Named in `framework_view`'s return annotation and imported only
+    # inside the method body, so the annotation referred to nothing.
+    from kirby_combat.models import FrameworkView
     # Avoid forcing kirby-cost import at module load time;
     # callers that don't use the new path won't pay the dep.
     from kirby_cost.io.hdc_loader import LoadedHero

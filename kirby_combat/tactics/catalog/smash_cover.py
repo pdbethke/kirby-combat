@@ -16,6 +16,8 @@ Terrain linkage:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from kirby_combat.perception import perceive
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.library import register

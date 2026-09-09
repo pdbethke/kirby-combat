@@ -11,16 +11,18 @@ from __future__ import annotations
 
 from kirby_combat.tactics.base import Complication
 
-def _extract_keywords(text: str) -> tuple[str, ...]:
-    if not text:
-        return ()
-    text_lower = text.lower()
-    found: list[str] = []
-    for pattern, tag in _KEYWORD_PATTERNS:
-        if re.search(pattern, text_lower):
-            if tag not in found:
-                found.append(tag)
-    return tuple(found)
+# `_extract_keywords` USED TO LIVE HERE AND COULD NEVER RUN. It was carved
+# out of the parked kirby-api with its body intact and neither of its
+# dependencies -- `re` was not imported and `_KEYWORD_PATTERNS` was not
+# defined -- so every call raised `NameError: name '_KEYWORD_PATTERNS' is
+# not defined`. Nothing called it, which is why nothing noticed.
+#
+# Deleted rather than repaired. Keyword extraction already has one live
+# home, `complications.py::_keywords`, which is what fills
+# `Complication.trigger_keywords`; reviving this would have been a second
+# vocabulary for the same job, mapping patterns to semantic tags where the
+# live one keeps the words. Both tactics that read complications
+# (`bait_enraged`, `exploit_susceptibility`) search by xmlid anyway.
 
 def has_complication(complications: list[Complication], xmlid: str) -> bool:
     """Predicate: target_xmlid match (case-insensitive)."""

@@ -22,7 +22,13 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:                                  # pragma: no cover
+    # The forward reference in these signatures named a type nothing
+    # imported, so it resolved to nothing for any reader or checker.
+    from kirby_combat.hero_view import MartialManeuverView
 from typing import Any, Optional
 
 from kirby_combat.session.combat_session import CombatSession
