@@ -8,13 +8,16 @@ from kirby_combat.tactics.library import all_tactics
 def test_the_catalogue_is_populated():
     """A ratchet, not a fact about the world: this number going UP is the
     measure of the doctrine layer growing, and it should never move by
-    accident. 21 -> 22 -> 23 -> 24 on 2026-09-08 with `break_off_when_nothing_works`
+    accident. 21 -> 22 -> 23 -> 24 on 2026-09-08 with `break_off_when_nothing_works`;
+    24 -> 25 on 2026-09-09 with `go_around_the_cover`, which is the first
+    tactic ever to name `reposition_strike` -- a subsystem that was fully
+    built, offered and resolved, and that no doctrine could ask for.
     and `leave_when_the_side_has_broken`.
 
     It counts REGISTERED tactics, which is one fewer than the catalogue
     has files: `_filters` is a helper, and `raise_force_wall_t` registers
     under a name that is not its filename."""
-    assert len(all_tactics()) == 24
+    assert len(all_tactics()) == 25
 
 
 def test_every_tactic_is_a_tactic_with_a_name():
