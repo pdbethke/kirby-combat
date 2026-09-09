@@ -1930,7 +1930,18 @@ def _build_attack_power(
     # Modifiers
     armor_piercing = _modifier_levels(power, "ARMORPIERCING")
     penetrating = _modifier_levels(power, "PENETRATING")
-    reduced_end = _has_modifier(power, "REDUCEDEND")  # noqa: F841 (END calc TBD)
+    # END CALC NO LONGER TBD. This line carried `# noqa: F841 (END calc
+    # TBD)` for a long time: the modifier was parsed and thrown away, and
+    # nothing in the engine ever charged END for an attack. See
+    # `kirby_combat.endurance`.
+    reduced_end = _has_modifier(power, "REDUCEDEND")
+    from kirby_combat.charges import charges_on
+
+    charges = charges_on(power)
+    try:
+        active_points = int(float(getattr(power, "active_cost", 0) or 0))
+    except (TypeError, ValueError):
+        active_points = 0
 
     # Range: HKA / STR-based attacks have no range; RKA + Blast etc. do.
     if xmlid in {"HKA", "KILLINGATTACKHTH", "STR", "HANDTOHANDATTACK", "HA"}:
@@ -1971,6 +1982,9 @@ def _build_attack_power(
         avad=bool(avad_def),
         avad_defense=(avad_def or ""),
         avad_does_body=avad_does_body,
+        charges=charges,
+        reduced_end=reduced_end,
+        active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,
         slot_id=slot_id,

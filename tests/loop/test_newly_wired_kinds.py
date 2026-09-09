@@ -434,15 +434,25 @@ def test_a_group_presence_attack_with_nobody_to_frighten_refuses():
         )
 
 
-def test_pushing_costs_five_end_and_adds_a_damage_class():
+def test_pushing_costs_five_end_ON_TOP_OF_the_attack_and_adds_a_damage_class():
     """6E2 p.133's exchange rate, exactly as the offer promises it -- one
-    Damage Class for five END, neither re-derived here."""
-    before, resolved = _resolve(_action("push", power=blast("p", dice=6)))
+    Damage Class for five END, neither re-derived here.
+
+    PLUS WHAT THE ATTACK ITSELF COSTS. This asserted a flat 5, which was
+    right only while attacks were free: nothing subtracted `end_spent`, so
+    the Push was the only END anyone ever paid. Pushing is extra END on
+    top of the power's own cost (6E1 p.132), so the two are asserted
+    separately rather than folded into one number.
+    """
+    from kirby_combat.endurance import end_cost
+
+    power = blast("p", dice=6)
+    before, resolved = _resolve(_action("push", power=power))
     spent = (
         before.combatants["actor"].state.current_end
         - resolved.session.combatants["actor"].state.current_end
     )
-    assert spent == 5
+    assert spent == 5 + end_cost(power)
     assert resolved.result is not None
 
 

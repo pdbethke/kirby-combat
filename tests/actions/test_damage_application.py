@@ -111,18 +111,26 @@ def test_the_original_session_is_not_mutated():
     assert s.combatants["target"].current_stun == 40
 
 
-def test_attacker_vitals_are_untouched_by_their_own_attack():
-    """END cost for an attack is a separate rule and not this change's
-    business — the attacker must come through unchanged."""
+def test_an_attacker_takes_no_damage_from_their_own_attack():
+    """The attacker's STUN and BODY come through untouched.
+
+    This used to assert END was untouched too, with the docstring "END
+    cost for an attack is a separate rule and not this change's business"
+    -- it was scoping the damage-application change and deferring END, not
+    claiming attacks are free. END is now charged (6E1 p.132), so the
+    assertion is split: no DAMAGE to the attacker, and exactly the END the
+    result priced. Strictly stronger than what it replaced.
+    """
     a, t = _attacker(), _target()
     s = _session(a, t)
-    s2, _ = resolve_attack_in_session(
+    s2, result = resolve_attack_in_session(
         s, _attack(a, t, dice=[3] * 8), CombatTemplate.default_6e_superheroic(),
     )
     before, after = s.combatants["attacker"], s2.combatants["attacker"]
-    assert (after.current_stun, after.current_body, after.current_end) == (
-        before.current_stun, before.current_body, before.current_end
-    )
+    assert (after.current_stun, after.current_body) == (
+        before.current_stun, before.current_body
+    ), "an attacker takes no damage from their own attack"
+    assert before.current_end - after.current_end == result.end_spent
 
 
 # ---- Damage accumulates across exchanges: the thing that was impossible ----

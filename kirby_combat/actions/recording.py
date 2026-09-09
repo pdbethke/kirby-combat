@@ -112,6 +112,32 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
     return replace(session, combatants=new_combatants)
 
 
+def _spend_attack_end(session: CombatSession, attacker_id: str, cost: int) -> CombatSession:
+    """Take an attack's END off the attacker.
+
+    Clamped at zero. HERO's rule for acting without the END to pay (take
+    STUN instead) is NOT implemented and is not claimed to be; this only
+    refuses to record a negative pool.
+
+    An attacker the session does not know is not an error here the way a
+    missing TARGET is: pure resolution is routinely handed a combatant
+    object rather than a session member, and charging nobody is the safe
+    reading.
+    """
+    if cost <= 0:
+        return session
+    combatant = session.combatants.get(attacker_id)
+    if combatant is None:
+        return session
+    have = int(getattr(combatant.state, "current_end", 0) or 0)
+    spend = min(cost, max(0, have))
+    if spend <= 0:
+        return session
+    new_combatants = dict(session.combatants)
+    new_combatants[attacker_id] = apply_vitals_delta(combatant, end=-spend)
+    return replace(session, combatants=new_combatants)
+
+
 def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
     """Cover the TARGET enjoys against THIS attacker, and its OCV cost.
 
@@ -202,6 +228,20 @@ def resolve_attack_in_session(
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
     )
+
+    # AND THE ATTACKER PAYS FOR IT. `result.end_spent` has been computed
+    # and returned since attacks existed, and nothing ever subtracted it:
+    # a fighter threw an 8d6 Blast and finished the Phase at the END he
+    # started with, in an engine that implements Recovery, Post-Segment 12
+    # Recovery and a REC characteristic with nothing to recover from.
+    #
+    # 6E1 p.132 prices it; `kirby_combat.endurance` computes it, and a
+    # power on Charges or with Reduced Endurance (0 END) comes back 0, so
+    # a gunfight full of charged revolvers still costs nobody anything.
+    #
+    # Folded here beside the damage for the same reason: `apply_event`
+    # deliberately treats `ActionResolved` as log-only.
+    s = _spend_attack_end(s, attack.attacker.id, int(result.end_spent or 0))
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
     # resolver with no session, so it read the build's CON and could not

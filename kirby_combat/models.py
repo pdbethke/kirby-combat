@@ -41,6 +41,20 @@ class AttackPower:
     #: takes the pip back. Defaulted so every existing construction site
     #: keeps working -- an attack that does not say otherwise loses no pip.
     minus_one: bool = False
+    #: Uses remaining on the build's CHARGES modifier, or None when the
+    #: power is not limited that way. NONE IS NOT ZERO --- "unlimited" and
+    #: "has a clip" must never be the same answer. A charged power costs
+    #: no END (6E1 p.132); see `kirby_combat.endurance`.
+    charges: int | None = None
+    #: Reduced Endurance (0 END). `hero_view` has parsed this modifier for
+    #: a long time and discarded it, with the comment "(END calc TBD)".
+    reduced_end: bool = False
+    #: The cost engine's Active Points for this power. 6E1 p.132 prices END
+    #: at 1 per 10 Active Points, and this is the only place that figure
+    #: was available -- `SlotView` carried one and a bare AttackPower did
+    #: not, so the END calculation had been reading the DICE count instead,
+    #: which is roughly double.
+    active_points: int = 0
     is_ranged: bool = False       # True when range_m > 0
     reach_m: float = 0.0         # effective melee reach in metres (0.0 for ranged)
     avad: bool = False              # Attack Versus Alternate Defense / NND

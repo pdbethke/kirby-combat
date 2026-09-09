@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from kirby_combat.models import AttackInput, AttackResult, DamageResult, DefenseProfile, KnockbackResult, ToHitResult
+from kirby_combat.endurance import end_cost
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
 from kirby_combat.resolution.knockback import compute_knockback
@@ -52,7 +53,7 @@ class AttackAction:
                 defense=None,
                 stun_dealt=0,
                 body_dealt=0,
-                end_spent=max(1, power.damage_dice),
+                end_spent=end_cost(power),
                 knockback=None,
                 status_changes=[],
                 power_xmlid=power.xmlid,
@@ -222,7 +223,11 @@ class AttackAction:
         # ------------------------------------------------------------------
         # 7. END cost (simplified Phase 1)
         # ------------------------------------------------------------------
-        end_spent = max(1, power.damage_dice)
+        # 1 END per 10 Active Points (6E1 p.132). This read the DICE
+        # count, which is roughly double -- an 8d6 Blast is 40 Active
+        # Points and costs 4 END, not 8 -- and a power on Charges or with
+        # Reduced Endurance (0 END) was charged as if it were neither.
+        end_spent = end_cost(effective_power)
 
         # ------------------------------------------------------------------
         # 8. Return
