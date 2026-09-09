@@ -78,6 +78,38 @@ class PhaseSituation:
     def action_ids(self) -> list[str]:
         return [a.action_id for a in self.menu]
 
+    @property
+    def ordered_menu(self) -> list[LegalAction]:
+        """The same offers, with scenery at the bottom.
+
+        MEN BEFORE BUILDINGS. Virgil Earp takes cover behind Fly's Studio,
+        where no Cowboy can be seen and so no offer against a Cowboy
+        survives the perception gate. Doctrine correctly declines, the
+        fallback takes the first legal offer --- and the first legal offer
+        is ``attack:construct:harwood-interior``. The marshal of Tombstone
+        spends his Phase shooting a house.
+
+        ``LegalAction.targets_construct`` was added for exactly this and
+        says so: "Terrain offers led the action list --- six of the first
+        six entries in a 21-action menu --- while 'Flight toward <enemy>'
+        sat at #18, so the picker spent 8 of 19 real actions demolishing
+        scenery. Used for PRESENTATION ORDER only; the legal set is
+        unchanged." It was set in three places, read by the resolver to
+        route damage, and NOTHING EVER ORDERED ON IT.
+
+        Here rather than in ``enumerate_actions`` because that function
+        answers what is LEGAL and this object is the presentation of it.
+
+        A stable partition, not a sort: relative order within each group
+        is exactly what the enumerator decided. And the legal set is
+        untouched --- when a wall is all there is, a wall is what he hits.
+        """
+        if not self.menu:
+            return []
+        real = [a for a in self.menu if not getattr(a, "targets_construct", False)]
+        scenery = [a for a in self.menu if getattr(a, "targets_construct", False)]
+        return real + scenery
+
     def brief(self):
         """This Phase written down, for a chooser that reads text.
 
@@ -133,7 +165,9 @@ class FirstLegalChooser:
     def choose(self, situation: PhaseSituation) -> str:
         if not situation.menu:
             raise InvalidChoice("<empty menu>", [])
-        return situation.menu[0].action_id
+        # `ordered_menu`, not `menu`: taking the first LEGAL offer must not
+        # mean taking the first BUILDING. See `PhaseSituation.ordered_menu`.
+        return situation.ordered_menu[0].action_id
 
 
 @dataclass
@@ -212,7 +246,10 @@ class TacticChooser:
             raise InvalidChoice("<empty menu>", [])
 
         by_kind: dict[str, list[LegalAction]] = {}
-        for action in situation.menu:
+        # Scenery last here too: a tactic that names a kind but no target
+        # takes `offers[0]`, and `attack` offers include every wall on the
+        # map. Same reason as the fallback.
+        for action in situation.ordered_menu:
             by_kind.setdefault(action.kind, []).append(action)
 
         tactical = situation.tactical_situation()
