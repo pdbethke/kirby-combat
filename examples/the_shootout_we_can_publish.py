@@ -229,17 +229,19 @@ def the_lot_as_it_was():
         # bounds say where to look.
         bounds=SceneBounds(-3.0, -4.0, 0.0, 9.5, 7.5, 10.0),
         surfaces=[
-            # Fremont Street, running east-west across the north. The lot
-            # opens onto it and the Earps walked in along it, so a replay
-            # that stops at the lot line shows a fight in a black void.
-            Surface(id="fremont", name="Fremont Street",
-                    polygon_xy=[(-3.0, 4.6), (9.5, 4.6), (9.5, 7.5), (-3.0, 7.5)],
-                    elevation_m=0.0, surface_type="street", cover_level=0),
-            Surface(id="lot-ground", name="The vacant lot",
-                    polygon_xy=[(0.6, -3.0), (5.6, -3.0), (5.6, 4.6), (0.6, 4.6)],
+            # TWO BIG TILES THAT DO NOT OVERLAP, which is the whole trick.
+            # Coplanar surfaces at the same elevation z-fight, so the
+            # ground stops exactly where the street starts rather than
+            # running underneath it. Both extend well past the camera
+            # bounds: the buildings sat on nothing before this, and a man
+            # who ran out of the lot stood on black.
+            Surface(id="tombstone-dirt", name="Tombstone",
+                    polygon_xy=[(-24.0, -20.0), (30.0, -20.0),
+                                (30.0, 4.0), (-24.0, 4.0)],
                     elevation_m=0.0, surface_type="ground", cover_level=0),
-            Surface(id="boardwalk", name="Boardwalk",
-                    polygon_xy=[(-3.0, 4.0), (9.5, 4.0), (9.5, 4.6), (-3.0, 4.6)],
+            Surface(id="fremont", name="Fremont Street",
+                    polygon_xy=[(-24.0, 4.0), (30.0, 4.0),
+                                (30.0, 24.0), (-24.0, 24.0)],
                     elevation_m=0.0, surface_type="street", cover_level=0),
         ],
         walls=[
