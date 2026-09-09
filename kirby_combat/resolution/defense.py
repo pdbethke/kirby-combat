@@ -189,6 +189,16 @@ def compute_defense(target: StatBlockCombatant, power: AttackPower) -> DefensePr
     # ------------------------------------------------------------------
     total_from_items = 0
     res_from_items = 0
+    # HARDENED IS PER-DEFENSE, which is what decides the shape here. 6E1
+    # p.149: "A character cannot have partially Hardened defenses. A given
+    # defense must be all Hardened, or it's not Hardened at all. A
+    # character can, however, have some defenses that are Hardened, and
+    # others that are not." So Armor Piercing halves the UNHARDENED
+    # portion and leaves the rest alone --- a single flag on the target
+    # could not express that, and halving the combined total (which is
+    # what happened) ignored the Advantage entirely.
+    hardened_total = 0
+    hardened_res = 0
     # Damage Reduction: per HERO 6E1 p185 multiple DR powers don't
     # stack — apply max(matching). Track candidate %s per class.
     matching_dr_pcts: list[int] = []
@@ -221,6 +231,11 @@ def compute_defense(target: StatBlockCombatant, power: AttackPower) -> DefensePr
 
         total_from_items += added_base
         res_from_items += added_res
+        # "Characters can buy Hardened multiple times to counteract
+        # multiple purchases of Armor Piercing" -- level against level.
+        if power.armor_piercing > 0 and getattr(item, "hardened", 0) >= power.armor_piercing:
+            hardened_total += added_base
+            hardened_res += added_res
         total_kb_from_items += item.knockback_resistance
 
         # Class-match DR / DN per attack class. Empty class on item
@@ -280,13 +295,24 @@ def compute_defense(target: StatBlockCombatant, power: AttackPower) -> DefensePr
     # 4. Armor Piercing — halves both totals (integer division)
     # ------------------------------------------------------------------
     if power.armor_piercing > 0:
-        gross_total = gross_total // 2
-        gross_resistant = gross_resistant // 2
+        # Only what is NOT Hardened is halved (6E1 p.149). A character's
+        # own PD/ED can be Hardened in the book and this model has nowhere
+        # to record it -- `DefenseItem` carries the flag, the combatant's
+        # characteristics do not -- so natural defenses are treated as
+        # unhardened. Pre-existing behaviour, stated rather than hidden.
+        soft_total = gross_total - hardened_total
+        soft_res = gross_resistant - hardened_res
+        gross_total = hardened_total + soft_total // 2
+        gross_resistant = hardened_res + soft_res // 2
         audit.append(
             f"Armor Piercing x{power.armor_piercing}: "
-            f"total halved to {gross_total}, resistant halved to {gross_resistant}"
+            f"halved the unhardened portion (total {soft_total}, resistant "
+            f"{soft_res}); Hardened kept total {hardened_total}, resistant "
+            f"{hardened_res} -> total={gross_total}, resistant={gross_resistant}"
         )
         defense_tags.append("armor_piercing")
+        if hardened_total or hardened_res:
+            defense_tags.append("hardened")
 
     # ------------------------------------------------------------------
     # 5. Knockback resistance
