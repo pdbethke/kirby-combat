@@ -64,6 +64,12 @@ def _resolve_attack(
         dice=DiceValues(
             to_hit=roller.roll_dice(3),
             damage=roller.roll_dice(max(1, int(power.damage_dice))),
+            # 6E2 p.110 step 1, rolled whether or not the campaign uses
+            # it: `resolve_attack` ignores the value unless
+            # `use_hit_locations` says otherwise, and rolling
+            # unconditionally keeps one dice sequence for a given seed
+            # rather than two that diverge by template.
+            hit_location=roller.roll_dice(3),
         ),
     )
     new_session, result = resolve_attack_in_session(

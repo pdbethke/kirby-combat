@@ -4,7 +4,8 @@ from __future__ import annotations
 from kirby_combat.models import AttackInput, AttackResult, DamageResult, DefenseProfile, KnockbackResult, ToHitResult
 from kirby_combat.endurance import end_cost
 from kirby_combat.resolution.hit_location import (
-    effect_for, killing_damage, normal_damage, uses_hit_locations,
+    effect_for, killing_damage, location_for_roll, normal_damage,
+    uses_hit_locations,
 )
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
@@ -131,8 +132,19 @@ class AttackAction:
         # `resolution/hit_location.py` rather than a factor applied here:
         # Killing STUN multiplies BEFORE defenses, Normal STUN AFTER, and
         # BODY always after.
-        location = (effect_for(attack.aim)
-                    if uses_hit_locations(template, target) else None)
+        # THE AIM BEATS THE ROLL (6E2 p.111's Placed Shot: the character
+        # chose the location, so the dice do not choose it for him).
+        # Otherwise the table is rolled, which is step 1 of BOTH damage
+        # procedures -- "Roll 3d6 and consult the first two columns" --
+        # and is why `DiceValues.hit_location` exists. Nothing wrote it
+        # and nothing read it, so a heroic campaign got hit locations only
+        # on deliberately aimed shots, which is not the rule.
+        location = None
+        if uses_hit_locations(template, target):
+            location = effect_for(attack.aim)
+            if location is None:
+                rolled = sum(attack.dice.hit_location or ())
+                location = effect_for(location_for_roll(rolled)) if rolled else None
         if location is not None:
             if effective_power.damage_type == "killing":
                 stun_dealt, body_dealt = killing_damage(

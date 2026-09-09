@@ -151,10 +151,10 @@ def test_npcs_can_be_rolled_for_even_when_the_flag_is_off():
 
 # ---- And the resolver uses it ----
 
-def _guy(**kw):
+def _guy(side=None, attacks=(), **kw):
     from fixtures.synthetic_hero import synthetic_combatant
 
-    base = dict(
+    base = dict(side=side, attacks=list(attacks),
         id="c", name="C", ocv=9, dcv=5, omcv=5, dmcv=5, spd=4, dex=20,
         ego=10, str_=15, con=18, pre=10, rec=5, pd=0, ed=0, rpd=0, red=0,
         md=0, power_defense=0, flash_defense=0, max_stun=60, max_body=20,
@@ -211,3 +211,81 @@ def test_a_superheroic_campaign_ignores_the_location_entirely():
     head = _shoot("Head", RAW_SUPERHEROIC)
     chest = _shoot("Chest", RAW_SUPERHEROIC)
     assert (head.stun_dealt, head.body_dealt) == (chest.stun_dealt, chest.body_dealt)
+
+
+# ---- Rolling for a location when nobody aimed ----
+
+def test_an_unaimed_shot_rolls_for_a_location():
+    """6E2 p.110 step 1: "Roll 3d6 and consult the first two columns of
+    the Hit Location Table to find out where the attack struck."
+
+    `DiceValues.hit_location` exists for exactly this and was written by
+    nothing and read by nothing. Without it a heroic campaign got hit
+    locations only on deliberately aimed shots, which is not the rule --
+    the table is rolled on every hit.
+    """
+    from kirby_combat.actions import resolve_attack
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.template import RAW_HEROIC
+
+    # 3d6 = 3 is the Head; 3d6 = 6 is the Hand. Same damage, same defenses.
+    def _at(loc_dice):
+        return resolve_attack(
+            AttackInput(attacker=_guy(id="a"), target=_guy(id="t"),
+                        power=_rka(), distance_m=5.0, aim=None,
+                        dice=DiceValues(to_hit=[1, 1, 1], damage=[5, 5, 3],
+                                        hit_location=loc_dice,
+                                        stun_multiplier=[3])),
+            RAW_HEROIC,
+        )
+
+    head = _at([1, 1, 1])     # 3 -> Head
+    hand = _at([2, 2, 2])     # 6 -> Hand
+    assert head.stun_dealt > hand.stun_dealt
+    assert head.body_dealt > hand.body_dealt
+
+
+def test_an_aimed_shot_beats_the_roll():
+    """6E2 p.111's Placed Shot: the character chose, so the dice do not.
+    Aiming at the Hand and rolling a 3 (Head) must hit the Hand."""
+    from kirby_combat.actions import resolve_attack
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.template import RAW_HEROIC
+
+    out = resolve_attack(
+        AttackInput(attacker=_guy(id="a"), target=_guy(id="t"), power=_rka(),
+                    distance_m=5.0, aim="Hand",
+                    dice=DiceValues(to_hit=[1, 1, 1], damage=[5, 5, 3],
+                                    hit_location=[1, 1, 1], stun_multiplier=[3])),
+        RAW_HEROIC,
+    )
+    assert "Hand" in " ".join(out.audit_trail)
+
+
+def test_the_loop_rolls_one():
+    """The wiring: a live attack in a heroic fight must arrive with a
+    location roll, or the table only ever fires on aimed shots."""
+    import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
+    from kirby_combat.enumeration import enumerate_actions
+    from kirby_combat.loop.registry import resolve_chosen
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.side import Side
+    from kirby_combat.template import RAW_HEROIC
+    from kirby_dice import RandomRoller
+
+    a = _guy(id="a", side=Side.named("x"), attacks=[_rka()])
+    t = _guy(id="t", side=Side.named("y"))
+    session = CombatSession.create(
+        id="s", scene=None, template=RAW_HEROIC,
+        dice_roller=RandomRoller(seed=5), combatants=[a, t],
+    ).start()
+    attack = next(m for m in enumerate_actions(session.combatants["a"],
+                                               [session.combatants["t"]])
+                  if m.kind == "attack")
+    out = resolve_chosen(session, session.combatants["a"], attack,
+                         template=RAW_HEROIC, roller=RandomRoller(seed=5))
+    assert out.result is not None
+    assert any("Hit Location" in line for line in out.result.audit_trail), (
+        "a heroic fight must roll a hit location; audit was "
+        f"{out.result.audit_trail}"
+    )
