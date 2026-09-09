@@ -120,12 +120,54 @@ class PhaseSituation:
 
         return Brief(self)
 
+    @property
+    def targetable_enemies(self) -> list[Any]:
+        """The enemies at least one offer on the menu names.
+
+        WHO YOU MAY PLAN AGAINST, which is not the same question as who is
+        in the fight. Measured over 25 seeded O.K. Corral runs: 142 of 638
+        decisions fell through the entire tactic catalogue to
+        ``FirstLegalChooser``, and Virgil Earp --- who spends the fight
+        behind Fly's Studio, a LoS-blocking wall --- fell through on 51%
+        of his own. Six tactics in a row named ``virgil_earp``, the
+        perception gate had already dropped every offer against a man
+        nobody could see, and so every plan was unexecutable.
+
+        Perception governs combat here; an AI cannot target an enemy it
+        cannot perceive. That was enforced on the MENU and never on the
+        SITUATION, so doctrine went on making plans about a man it had no
+        business knowing the position of.
+
+        This re-derives none of it. The menu has already applied
+        perception, range, reach, ammunition, frameworks and aborts, so
+        reading the menu gets all of them for free --- including the one
+        case where an enemy you cannot see is still fair game: an adjacent
+        HtH offer survives the gate marked ``blind`` and keeps him on the
+        list.
+
+        Construct offers are excluded: ``attack_construct`` is keyed by
+        WALL id, and a wall must never put a fighter back on the roll.
+
+        An EMPTY menu filters nothing. A caller assembling a Situation
+        without one is not claiming nobody is targetable, and blanking
+        every enemy list there would be a silent, total change.
+        """
+        if not self.menu:
+            return list(self.enemies)
+        named = {
+            a.target_id for a in self.menu
+            if a.target_id and not getattr(a, "targets_construct", False)
+        }
+        return [e for e in self.enemies if getattr(e, "id", None) in named]
+
     def tactical_situation(self) -> Situation:
         """This Phase as the ``Situation`` the tactic catalogue consumes."""
+        targetable = self.targetable_enemies
         return Situation(
             actor=self.actor,
             allies=list(self.allies),
-            enemies=list(self.enemies),
+            # NOT ``self.enemies`` --- see ``targetable_enemies``.
+            enemies=list(targetable),
             current_segment=self.segment,
             turn=self.turn,
             # Carries the event log, which is the half of `threat` that is
@@ -138,7 +180,7 @@ class PhaseSituation:
             # loop-driven fight.
             actor_complications=complications_of(self.actor),
             enemy_complications={
-                getattr(e, "id", ""): complications_of(e) for e in self.enemies
+                getattr(e, "id", ""): complications_of(e) for e in targetable
             },
         )
 
