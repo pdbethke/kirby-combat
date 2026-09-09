@@ -357,6 +357,49 @@ class Brief:
                        self._situation.enemies)
 
     @property
+    def drives(self) -> list[str]:
+        """What this fighter will and will not do.
+
+        A Brief listed the actor, the allies, the enemies, the ground, the
+        doctrine and the menu, and never once said what the man WANTED. A
+        reader got a complete tactical picture with the motive cut out of
+        it and was then asked to choose --- so "sensible" could only ever
+        mean "legal". That is the whole of Virgil Earp shooting the
+        Harwood House: nothing on his page said he was a marshal whose
+        business was the Cowboys, and the house was the first thing he was
+        allowed to hit.
+
+        HERO ALREADY HAS THIS AND IT IS NOT A NEW SUBSYSTEM. Psychological
+        Complications are exactly a character's standing goals and
+        refusals --- "Code Against Killing", "Overconfidence", "Protective
+        Of Innocents" --- bought on the sheet and, per 6E2 p.138, severe
+        enough that an attack playing to one is worth Presence dice.
+        `complications_of` has read them since the loop learned to fill
+        `Situation.actor_complications`; two tactics look at them and the
+        page showed them to nobody.
+
+        Severity travels with the text, because "Code Against Killing
+        (Total)" and a Moderate reluctance are different instructions and
+        the book already grades them on these rungs.
+        """
+        from kirby_combat.complications import complications_of
+
+        out = []
+        for comp in complications_of(self._situation.actor) or []:
+            # `name` FIRST: `complications_of` fills it with the raw's
+            # `input` -- the text a player actually wrote ("Code Against
+            # Killing") -- and falls back to the alias only when there is
+            # none. The alias alone is the generic "Psychological
+            # Complication", which says nothing to anybody.
+            text = (getattr(comp, "name", "") or getattr(comp, "alias", "")
+                    or getattr(comp, "notes", "")).strip()
+            if not text:
+                continue
+            severity = (getattr(comp, "adders", None) or {}).get("INTENSITY")
+            out.append(f"{text} ({severity.title()})" if severity else text)
+        return out
+
+    @property
     def menu(self) -> list["LegalAction"]:
         return list(self._situation.menu)
 
@@ -385,6 +428,14 @@ class Brief:
 
         lines.append("")
         lines.append(self.terrain.render())
+
+        # NO HEADING OVER NOTHING. Most combatants carry no complications,
+        # and an empty section is noise on a page something pays by the
+        # token to read.
+        if self.drives:
+            lines.append("")
+            lines.append("What drives you:")
+            lines.extend(f"  {drive}" for drive in self.drives)
 
         import os as _os
 
