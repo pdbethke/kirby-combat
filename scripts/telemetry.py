@@ -42,7 +42,16 @@ FIELDS = (
 )
 
 
-def _fight(seed: int, with_power_lad: bool):
+def _fight(seed: int, with_power_lad: bool, make_chooser=None):
+    """One fight. `make_chooser` builds the seat that decides each Phase.
+
+    INJECTED, so the same benchmark can be driven by doctrine or by a
+    model without a second copy of the setup. It defaults to
+    `TacticChooser`; kirby-ai's runner passes a `DeliberatingChooser`, and
+    the two produce the same CSV because both keep the same shape of pick
+    record. A benchmark you can only run one way cannot answer whether the
+    other way is better.
+    """
     from dataclasses import replace
 
     from the_ok_corral import (
@@ -71,7 +80,7 @@ def _fight(seed: int, with_power_lad: bool):
             })
 
     roller = RandomRoller(seed=seed)
-    chooser = TacticChooser()
+    chooser = make_chooser() if make_chooser is not None else TacticChooser()
     session = CombatSession.create(
         id=f"run-{seed}", combatants=fighters, scene=scene,
         template=CombatTemplate.default_6e_superheroic(),
