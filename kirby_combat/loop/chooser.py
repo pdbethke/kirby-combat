@@ -136,6 +136,29 @@ class FirstLegalChooser:
         return situation.menu[0].action_id
 
 
+@dataclass
+class TacticPick:
+    """One decision and the doctrine behind it.
+
+    `ModelChooser` keeps the same record for the same reason --- "a fight
+    driven by a model is worth being able to explain afterwards". A fight
+    driven by DOCTRINE is worth it more, because doctrine can cite a page:
+    `basis` is either a rulebook reference or a stated judgement, and it
+    is what makes a choice arguable with a GM rather than merely observed.
+
+    Without this the doctrine layer was unmeasurable. You could not ask
+    which tactics fire, which never fire, or which correlate with winning
+    --- and attributing picks after the fact is guesswork, because several
+    tactics emit `attack` and only the chooser knows which one it took.
+    """
+
+    action_id: str
+    tactic: str | None = None
+    rationale: str = ""
+    basis: str = ""
+    fell_back: bool = False
+
+
 class TacticChooser:
     """Picks by role and doctrine.
 
@@ -159,6 +182,21 @@ class TacticChooser:
 
     def __init__(self, *, fallback: Chooser | None = None) -> None:
         self._fallback = fallback or FirstLegalChooser()
+        #: Every decision, in order, with the doctrine that made it.
+        self.picks: list[TacticPick] = []
+
+    def _record(self, action_id: str, tactic=None, plan=None,
+                fell_back: bool = False) -> str:
+        basis = getattr(tactic, "basis", None) if tactic else None
+        self.picks.append(TacticPick(
+            action_id=action_id,
+            tactic=getattr(tactic, "name", None) if tactic else None,
+            rationale=getattr(plan, "rationale", "") if plan else "",
+            basis=(getattr(basis, "judgement", "")
+                   or getattr(basis, "rulebook", "") or "") if basis else "",
+            fell_back=fell_back,
+        ))
+        return action_id
 
     def choose(self, situation: PhaseSituation) -> str:
         if not situation.menu:
@@ -205,10 +243,13 @@ class TacticChooser:
                     # right KIND at the wrong MAN is worse than falling
                     # through, because it looks like a decision.
                     continue
-                return aimed[0].action_id
-            return offers[0].action_id
+                return self._record(aimed[0].action_id, tactic, plan)
+            return self._record(offers[0].action_id, tactic, plan)
 
-        return self._fallback.choose(situation)
+        # Falling through to the fallback IS a decision, and this class
+        # says so --- but it must be visible as one, or a fight driven
+        # entirely by the fallback reads as doctrine working.
+        return self._record(self._fallback.choose(situation), fell_back=True)
 
     @staticmethod
     def role_of(combatant) -> str:
