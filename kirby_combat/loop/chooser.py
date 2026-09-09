@@ -157,6 +157,12 @@ class TacticPick:
     rationale: str = ""
     basis: str = ""
     fell_back: bool = False
+    #: WHO decided and WHEN. Without these a record of decisions cannot
+    #: answer "does this fighter fall through more than that one", which
+    #: is the first question anyone asks of it.
+    actor_id: str = ""
+    turn: int = 0
+    segment: int = 0
 
 
 class TacticChooser:
@@ -186,7 +192,7 @@ class TacticChooser:
         self.picks: list[TacticPick] = []
 
     def _record(self, action_id: str, tactic=None, plan=None,
-                fell_back: bool = False) -> str:
+                fell_back: bool = False, situation=None) -> str:
         basis = getattr(tactic, "basis", None) if tactic else None
         self.picks.append(TacticPick(
             action_id=action_id,
@@ -195,6 +201,9 @@ class TacticChooser:
             basis=(getattr(basis, "judgement", "")
                    or getattr(basis, "rulebook", "") or "") if basis else "",
             fell_back=fell_back,
+            actor_id=getattr(getattr(situation, "actor", None), "id", ""),
+            turn=getattr(situation, "turn", 0) or 0,
+            segment=getattr(situation, "segment", 0) or 0,
         ))
         return action_id
 
@@ -243,13 +252,16 @@ class TacticChooser:
                     # right KIND at the wrong MAN is worse than falling
                     # through, because it looks like a decision.
                     continue
-                return self._record(aimed[0].action_id, tactic, plan)
-            return self._record(offers[0].action_id, tactic, plan)
+                return self._record(aimed[0].action_id, tactic, plan,
+                                    situation=situation)
+            return self._record(offers[0].action_id, tactic, plan,
+                                situation=situation)
 
         # Falling through to the fallback IS a decision, and this class
         # says so --- but it must be visible as one, or a fight driven
         # entirely by the fallback reads as doctrine working.
-        return self._record(self._fallback.choose(situation), fell_back=True)
+        return self._record(self._fallback.choose(situation), fell_back=True,
+                            situation=situation)
 
     @staticmethod
     def role_of(combatant) -> str:
