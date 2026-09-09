@@ -140,3 +140,42 @@ def uses_hit_locations(template: Any, target: Any) -> bool:
         return True
     return bool(getattr(target, "is_npc", False)
                 and getattr(template, "auto_roll_hit_location_npc", False))
+
+
+#: How much of a man each level of cover hides, as a threshold on the 3d6
+#: Hit Location roll. A JUDGEMENT, stated because the book does not give a
+#: general rule --- it gives one worked example and leaves the rest to the
+#: GM, exactly as `collapse.COLLAPSE_RADIUS_M` is a judgement about a
+#: footprint the book has no opinion on.
+#:
+#: THE EXAMPLE IS THE ANCHOR (6E2 p.45): "Only Andarra's head, arms,
+#: shoulders, and chest are exposed, so any Hit Location roll of 12 or
+#: more hits the rock, doing no damage to her." Her rock is cover 2 on
+#: this engine's 0-4 scale, and 18 - 3*2 = 12 --- the FIRST BLOCKED roll,
+#: not the last exposed one, which is what "12 or more" says. The other
+#: levels follow the same three-rolls-per-level slope: cover 1 blocks 15
+#: and up, cover 3 blocks 9 and up, cover 4 blocks 6 and up --- leaving
+#: only 3-5, the head, which is the cover table's own "full cover except
+#: head/torso" for the top band.
+#:
+#: The ordering does the work: `HIT_LOCATION_ROLL` runs head-first (3-5
+#: Head, 9 Shoulder, 10-11 Chest, 15 Thigh, 18 Foot), so a man crouched
+#: behind something is exposed on the LOW rolls and covered on the high
+#: ones, which is what "12 or more hits the rock" describes.
+ROLLS_HIDDEN_PER_COVER_LEVEL = 3
+MAX_LOCATION_ROLL = 18
+
+
+def exposed_through_cover(roll: int, *, cover_level: int) -> bool:
+    """Whether a Hit Location roll finds the man or the thing he is behind.
+
+    A roll above the threshold hits the cover and, per p.45, does no
+    damage to him. Damaging the COVER on such a shot is not modelled here;
+    the book's example does not do it either.
+    """
+    level = max(0, min(4, int(cover_level or 0)))
+    if level <= 0:
+        return True
+    # STRICTLY LESS THAN: p.45's "12 or more hits the rock" makes 12 the
+    # first blocked roll at cover 2, and 18 - 3*2 is 12.
+    return int(roll) < MAX_LOCATION_ROLL - ROLLS_HIDDEN_PER_COVER_LEVEL * level

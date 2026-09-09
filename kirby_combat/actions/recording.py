@@ -238,6 +238,13 @@ def resolve_attack_in_session(
     cover_level, cover_ocv = _cover_against(session, attack)
     if cover_ocv:
         attack = replace(attack, ocv_modifier=attack.ocv_modifier + cover_ocv)
+    # AND THE LEVEL ITSELF, not just its OCV cost. `_cover_against` has
+    # computed a per shooter-target cover level since cover was wired and
+    # only the penalty was ever used; a rolled Hit Location needs the
+    # level to know whether the shot found the man or the barrel he is
+    # behind (6E2 p.45).
+    if cover_level:
+        attack = replace(attack, target_cover_level=cover_level)
 
     result = resolve_attack(attack, template)
 

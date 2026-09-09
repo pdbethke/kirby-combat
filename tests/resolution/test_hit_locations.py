@@ -320,3 +320,82 @@ def test_an_empty_list_means_every_location():
 
 def test_no_template_restricts_nothing():
     assert effect_for("Head") is not None
+
+
+# ---- Cover stops the shots that would have hit what it covers ----
+
+def test_the_rock_takes_the_low_shots():
+    """6E2 p.45, quoted: "Only Andarra's head, arms, shoulders, and chest
+    are exposed, so any Hit Location roll of 12 or more hits the rock,
+    doing no damage to her."
+
+    The roll table runs head-first: 3-5 Head, 6 Hand, 7-8 Arm, 9 Shoulder,
+    10-11 Chest, 12 Stomach, 13-14 Vitals, 15 Thigh, 16-17 Leg, 18 Foot.
+    So a man crouched behind something is exposed on the LOW rolls and
+    covered on the high ones, and "12 or more hits the rock" is a
+    threshold on that ordering.
+    """
+    from kirby_combat.resolution.hit_location import exposed_through_cover
+
+    # Andarra's rock is cover 2 by this engine's scale -- see the module.
+    assert exposed_through_cover(11, cover_level=2) is True
+    assert exposed_through_cover(12, cover_level=2) is False
+    assert exposed_through_cover(18, cover_level=2) is False
+
+
+def test_no_cover_exposes_everything():
+    from kirby_combat.resolution.hit_location import exposed_through_cover
+
+    assert all(exposed_through_cover(r, cover_level=0) for r in range(3, 19))
+
+
+def test_deeper_cover_leaves_less_of_you():
+    """Cover 4 is the cover table's own "full cover except head/torso"."""
+    from kirby_combat.resolution.hit_location import exposed_through_cover
+
+    assert exposed_through_cover(5, cover_level=4) is True     # head
+    assert exposed_through_cover(10, cover_level=4) is False   # chest
+
+
+def test_a_shot_into_the_cover_does_nothing_to_the_man():
+    """"...hits the rock, doing no damage to her." """
+    from kirby_combat.actions import resolve_attack
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.template import RAW_HEROIC
+
+    def _at(loc_dice, cover):
+        return resolve_attack(
+            AttackInput(attacker=_guy(id="a"), target=_guy(id="t"),
+                        power=_rka(), distance_m=5.0, aim=None,
+                        dice=DiceValues(to_hit=[1, 1, 1], damage=[5, 5, 3],
+                                        hit_location=loc_dice,
+                                        stun_multiplier=[3]),
+                        target_cover_level=cover),
+            RAW_HEROIC,
+        )
+
+    # 6,6,6 = 18, the foot -- behind a barrel there is no foot to shoot.
+    behind = _at([6, 6, 6], 2)
+    assert (behind.stun_dealt, behind.body_dealt) == (0, 0)
+    # The same roll with nobody behind anything still lands.
+    open_ground = _at([6, 6, 6], 0)
+    assert open_ground.body_dealt > 0 or open_ground.stun_dealt > 0
+
+
+def test_aiming_is_not_blocked_by_the_threshold():
+    """A Placed Shot chose a location; cover either allows that location or
+    the shot should never have been offered. The roll threshold is about
+    the ROLL, and an aimed shot does not roll."""
+    from kirby_combat.actions import resolve_attack
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.template import RAW_HEROIC
+
+    out = resolve_attack(
+        AttackInput(attacker=_guy(id="a"), target=_guy(id="t"), power=_rka(),
+                    distance_m=5.0, aim="Head",
+                    dice=DiceValues(to_hit=[1, 1, 1], damage=[5, 5, 3],
+                                    hit_location=[6, 6, 6], stun_multiplier=[3]),
+                    target_cover_level=2),
+        RAW_HEROIC,
+    )
+    assert out.stun_dealt > 0

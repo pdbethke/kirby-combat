@@ -4,8 +4,8 @@ from __future__ import annotations
 from kirby_combat.models import AttackInput, AttackResult, DamageResult, DefenseProfile, KnockbackResult, ToHitResult
 from kirby_combat.endurance import end_cost
 from kirby_combat.resolution.hit_location import (
-    effect_for, killing_damage, location_for_roll, normal_damage,
-    uses_hit_locations,
+    effect_for, exposed_through_cover, killing_damage, location_for_roll,
+    normal_damage, uses_hit_locations,
 )
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
@@ -140,10 +140,23 @@ class AttackAction:
         # and nothing read it, so a heroic campaign got hit locations only
         # on deliberately aimed shots, which is not the rule.
         location = None
+        blocked_by_cover = False
         if uses_hit_locations(template, target):
             location = effect_for(attack.aim, template=template)
             if location is None:
                 rolled = sum(attack.dice.hit_location or ())
+                # BEHIND SOMETHING, THE HIGH ROLLS HIT IT (6E2 p.45):
+                # "any Hit Location roll of 12 or more hits the rock,
+                # doing no damage to her". An AIMED shot is exempt --- it
+                # chose a location and did not roll one.
+                if rolled and not exposed_through_cover(
+                        rolled, cover_level=attack.target_cover_level):
+                    blocked_by_cover = True
+                    audit_trail.append(
+                        f"Hit Location roll {rolled} finds the cover, not the "
+                        f"target (cover {attack.target_cover_level}/4, 6E2 "
+                        f"p45): no damage"
+                    )
                 location = (effect_for(location_for_roll(rolled), template=template)
                             if rolled else None)
         if location is not None:
@@ -170,6 +183,14 @@ class AttackAction:
             stun_dealt = max(0, damage.stun - defense.total_defense)
             body_dealt = max(0, damage.body - defense.total_defense)
 
+        # THE SHOT WENT INTO THE COVER. Applied after the branches above
+        # so the audit still shows what the attack would have done, and
+        # before Penetrating, whose minimum is a minimum of damage TO THE
+        # TARGET and there is none.
+        if blocked_by_cover:
+            stun_dealt = 0
+            body_dealt = 0
+
         # PENETRATING: a floor on BODY, whatever the defenses stopped.
         # 6E1 p.188's worked example -- "he takes 4 BODY - the minimum BODY
         # damage the Penetrating attack can cause with that roll" for a 4d6
@@ -184,7 +205,7 @@ class AttackAction:
         from kirby_combat.resolution.penetrating import penetrating_floor
 
         floor = penetrating_floor(effective_power, target)
-        if floor > body_dealt:
+        if floor > body_dealt and not blocked_by_cover:
             audit_trail.append(
                 f"Penetrating: BODY {body_dealt} raised to the minimum "
                 f"{floor} ({floor} dice, 6E1 p188)"

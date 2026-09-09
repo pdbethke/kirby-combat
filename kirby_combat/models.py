@@ -267,6 +267,12 @@ class AttackInput:
     ocv_modifier: int = 0
     dcv_modifier: int = 0
     dc_modifier: int = 0
+    #: How much cover the TARGET has from this attacker, 0-4. Used to
+    #: decide whether a rolled Hit Location finds the man or the thing he
+    #: is behind (6E2 p.45). `_cover_against` has computed it per
+    #: shooter-target pair since cover was wired; the pure resolver had no
+    #: way to be told.
+    target_cover_level: int = 0
 
 
 @dataclass
