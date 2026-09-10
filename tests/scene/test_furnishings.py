@@ -260,3 +260,70 @@ class TestItProjectsIntoWalls:
         )
         assert "fence" in {w.id for w in scene.walls}
         assert len(scene.walls) == 5
+
+
+class TestItIsOneTargetNotFive:
+    """A wagon is one thing to shoot at.
+
+    `constructs_in` is what `attack_construct` and `rapid_fire` enumerate
+    over. It projects every authored Furnishing AND every Wall --- and a
+    footprint's four edges ARE walls, because the engine projects them
+    there so movement and line of sight keep working. So a wagon arrived
+    as FIVE targets: itself and its four sides, each a separate offer,
+    each with the same DEF and BODY.
+
+    Measured on the long street: 30 constructs from 5 furnishings and 25
+    walls, of which 25 were those five objects repeated --- and the menu
+    carried 10,853 `attack_construct` and 11,762 `rapid_fire` offers over
+    six fights, about nine in ten of everything a chooser was shown.
+
+    The same distinction the Brief and the front end already draw. It is
+    asked in three places now, so the SCENE answers it rather than each
+    consumer keeping its own copy.
+    """
+
+    def test_a_furnishing_is_one_construct(self):
+        from kirby_combat.scene.construct import constructs_in
+
+        ids = [c.obj_id for c in constructs_in(_lot([WAGON]))]
+        assert ids.count("wagon") == 1
+        assert not [i for i in ids if i.startswith("wagon#")], ids
+
+    def test_the_wall_it_projected_into_is_still_there_for_movement(self):
+        """Skipping the edges as TARGETS must not remove them from
+        `scene.walls` --- that is where line of sight and movement read
+        them, and the whole projection exists for that."""
+        scene = _lot([WAGON])
+        assert len([w for w in scene.walls if w.part_of == "wagon"]) == 4
+
+    def test_an_authored_wall_is_still_a_target(self):
+        from kirby_combat.scene.construct import constructs_in
+        from kirby_combat.scene.scene import Wall
+
+        fence = Wall(id="fence", name="Fence",
+                     segment=(Position(-5, -5, 0), Position(-5, 5, 0)),
+                     height_m=1.2, cover_level=2, body=4, def_value=2)
+        scene = Scene(
+            id="s", name="s", bounds=SceneBounds(-20, -20, 0, 20, 20, 10),
+            surfaces=[], walls=[fence], hazards=[],
+            ambient=AmbientConditions(light_level=4), furnishings=[WAGON])
+        ids = {c.obj_id for c in constructs_in(scene)}
+        assert "fence" in ids
+        assert "wagon" in ids
+
+    def test_a_building_face_is_still_a_target(self):
+        """Building faces carry `part_of` too, and they are authored
+        separately for a reason --- shooting out one wall of Fly's is a
+        real tactic. Only ids naming a FURNISHING are folded."""
+        from kirby_combat.scene.construct import constructs_in
+        from kirby_combat.scene.scene import Wall
+
+        face = Wall(id="north-face", name="North wall",
+                    segment=(Position(-5, 5, 0), Position(5, 5, 0)),
+                    height_m=5.0, cover_level=4, body=3, def_value=4,
+                    part_of="some-building")
+        scene = Scene(
+            id="s", name="s", bounds=SceneBounds(-20, -20, 0, 20, 20, 10),
+            surfaces=[], walls=[face], hazards=[],
+            ambient=AmbientConditions(light_level=4), furnishings=[])
+        assert "north-face" in {c.obj_id for c in constructs_in(scene)}

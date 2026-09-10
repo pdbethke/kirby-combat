@@ -260,6 +260,15 @@ def constructs_in(scene, session=None) -> list[Construct]:
             continue
         if wall.id in seen:
             continue
+        # A FURNISHING'S EDGES ARE THAT FURNISHING, which is already in
+        # this list. Without this a wagon is FIVE targets --- itself and
+        # its four sides, each a separate offer with the same DEF and
+        # BODY. Measured on the long street: 30 constructs from 5
+        # furnishings and 25 walls, 25 of them five objects repeated, and
+        # a menu where `attack_construct` and `rapid_fire` were about
+        # nine offers in ten.
+        if hasattr(scene, "is_furnishing_edge") and scene.is_furnishing_edge(wall):
+            continue
         out.append(construct_from_wall(wall))
 
     # HYDRATION. Without a fight in hand these are the buildings as

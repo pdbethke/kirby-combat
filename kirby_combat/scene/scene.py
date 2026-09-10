@@ -405,6 +405,33 @@ class Scene:
                 continue
             self.walls = list(self.walls) + f.as_walls()
 
+    @property
+    def furnishing_ids(self) -> frozenset[str]:
+        """Every id that names a Furnishing.
+
+        THREE CONSUMERS ASK THE SAME QUESTION. A footprint projects into
+        four wall segments so movement and line of sight keep working,
+        and every reader of `walls` then has to know those four are one
+        object: the Brief listed a wagon four times with contradictory
+        cover advice, `constructs_in` offered it as five separate things
+        to shoot, and the front end drew a fence around it. So the SCENE
+        answers it once rather than each consumer keeping its own copy
+        and drifting.
+        """
+        return frozenset(f.id for f in self.furnishings)
+
+    def is_furnishing_edge(self, wall) -> bool:
+        """Whether this wall is one side of a Furnishing's footprint.
+
+        Matched on `part_of`, which BUILDING faces carry too --- and they
+        must keep counting: somebody authored "C.S. Fly's photograph
+        gallery" separately from the boarding house wall because a
+        fighter relates to them separately, and shooting out one wall of
+        a building is a real tactic. Only an id naming a FURNISHING folds.
+        """
+        owner = getattr(wall, "part_of", None)
+        return owner is not None and owner in self.furnishing_ids
+
     def supporting_surfaces(self) -> list[Surface]:
         """Authored surfaces plus derived wall-top strips — THE support
         authority for this scene.

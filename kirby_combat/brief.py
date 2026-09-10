@@ -241,9 +241,9 @@ class Terrain:
         # the page. The same distinction Krackle draws in
         # `isFurnishingEdge`: an id that names a FURNISHING, not any
         # `part_of` at all.
-        furnishing_ids = {
-            f.id for f in (getattr(self.scene, "furnishings", None) or [])
-        }
+        # THE SCENE ANSWERS THIS, so the Brief, `constructs_in` and the
+        # front end cannot drift apart about what counts as one object.
+        furnishing_ids = getattr(self.scene, "furnishing_ids", frozenset())
         best: dict[str, tuple] = {}
         out = []
         for wall in self.features:
