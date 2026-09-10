@@ -125,6 +125,35 @@ def _surface_cover_for(target: Position, surfaces: list[Surface]) -> int:
     return best
 
 
+def _covers_the_target(wall: Wall, shooter_pos: Position, target_pos: Position) -> bool:
+    """Whether this wall is the TARGET's cover rather than the shooter's.
+
+    6E2 p.45 makes cover a fact about the target: "Targets who are partly
+    Behind Cover are harder to hit. The less of the target that can be
+    perceived and targeted, the worse the attacker's OCV penalty." A wall
+    standing at the shooter's feet hides the SHOOTER and hides nothing of
+    the man he is aiming at --- he fires over it, which is exactly what
+    the page's own example has Andarra do: she "ducks behind a rock
+    before firing", and it is the Marines shooting back who take the -2.
+
+    WITHOUT THIS TEST THE RULE RAN BACKWARDS. Every wall intersecting the
+    line was collected and the nearest one to the target chosen; when the
+    only wall was the shooter's own, it was trivially also the nearest,
+    so his cover was credited to his target. Measured at the O.K. Corral:
+    Doc Holliday takes the only cover anybody uses in the fight and is
+    the only man in it who ever pays a cover penalty --- -2 OCV on both
+    his shots, against two men standing in the open --- while nobody
+    shooting at Doc paid anything. Taking cover cost two OCV and bought
+    nothing.
+
+    The midpoint belongs to the target, so a wall exactly between two men
+    covers each of them from the other, which is the symmetric answer and
+    the one that keeps a shared barricade working for both sides.
+    """
+    mid = _wall_midpoint(wall)
+    return distance_3d(mid, target_pos) <= distance_3d(mid, shooter_pos)
+
+
 def compute_cover_level(
     *,
     shooter_pos: Position,
@@ -137,7 +166,9 @@ def compute_cover_level(
     Caller converts to OCV penalty per the 6E table.
     """
     # 1. Find blocking walls; pick the one nearest the target.
-    blocking = [w for w in scene.walls if _wall_blocks_los(shooter_pos, target_pos, w)]
+    blocking = [w for w in scene.walls
+                if _wall_blocks_los(shooter_pos, target_pos, w)
+                and _covers_the_target(w, shooter_pos, target_pos)]
     wall_cover = 0
     if blocking:
         nearest = min(blocking, key=lambda w: distance_3d(_wall_midpoint(w), target_pos))
@@ -147,7 +178,9 @@ def compute_cover_level(
     # this module's own table gives "behind a low wall" as the -2 example.
     # Taken only when no sight-blocking wall already gives more, so a
     # parapet never downgrades a building.
-    low = [w for w in scene.walls if _low_wall_between(shooter_pos, target_pos, w)]
+    low = [w for w in scene.walls
+           if _low_wall_between(shooter_pos, target_pos, w)
+           and _covers_the_target(w, shooter_pos, target_pos)]
     if low:
         nearest_low = min(
             low, key=lambda w: distance_3d(_wall_midpoint(w), target_pos),

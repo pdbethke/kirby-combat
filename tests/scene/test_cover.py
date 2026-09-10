@@ -297,12 +297,29 @@ def test_shooter_exactly_at_wall_top_gets_no_cover_from_that_wall():
     assert level == 0
 
 
-def test_shooter_just_below_the_wall_top_still_gets_cover_from_it():
+def test_a_man_just_below_the_parapet_has_cover_FROM_THE_GROUND():
+    """The parapet covers whoever is behind it, and that is the man on the
+    roof --- so it is the shot coming UP at him that pays.
+
+    THIS TEST USED TO ASSERT THE OPPOSITE, and its old name gave the
+    error away: "shooter ... still gets cover from it", asked of a
+    function whose docstring says it returns "cover level 0-4 the TARGET
+    enjoys against the shooter". It was checking the shooter's cover on
+    the target's number, so it passed only while the two were confused
+    --- see `_covers_the_target`, and the O.K. Corral measurement in it.
+
+    Both directions are asserted here, because the whole point of the
+    rule is that they differ."""
     s = _scene_with_wall(_ROOFTOP_WALL)
-    level = compute_cover_level(
-        shooter_pos=Position(-9.0, -4.8, 7.9),
-        target_pos=_GROUND_TARGET,
-        target_is_prone_or_diving=False,
-        scene=s,
+    on_the_roof = Position(-9.0, -4.8, 7.9)
+
+    shooting_down = compute_cover_level(
+        shooter_pos=on_the_roof, target_pos=_GROUND_TARGET,
+        target_is_prone_or_diving=False, scene=s,
     )
-    assert level == 4
+    shooting_up = compute_cover_level(
+        shooter_pos=_GROUND_TARGET, target_pos=on_the_roof,
+        target_is_prone_or_diving=False, scene=s,
+    )
+    assert shooting_up == 4, "the parapet is the rooftop man's cover"
+    assert shooting_down == 0, "and it hides nothing of the man on the ground"
