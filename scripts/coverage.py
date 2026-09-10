@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 from collections import Counter
@@ -250,6 +251,15 @@ def measure(seeds: range, chooser_name: str, scene: str = "corral") -> dict:
     return {
         "chooser": chooser_name,
         "scene": scene,
+        # WHICH PAGE THIS MEASURED. A baseline records the numbers and,
+        # until now, nothing about the Brief that produced them --- so a
+        # run with a switch flipped compared silently against one without
+        # it and the diff read as a behaviour change. Every switch that
+        # alters what a chooser SEES belongs here.
+        "brief_switches": {
+            name: os.environ.get(name, "1")
+            for name in ("KIRBY_BRIEF_FORMATION",)
+        },
         "decisions": len(picks),
         "fell_back": fell_back,
         "first_fallback_notes": notes,
@@ -292,6 +302,11 @@ def report(m: dict) -> None:
 
 def compare(now: dict, before: dict) -> None:
     print("\n--- against the baseline ---")
+    was = before.get("brief_switches") or {}
+    now_switches = now.get("brief_switches") or {}
+    if was and was != now_switches:
+        print(f"  ⚠ DIFFERENT PAGE: switches were {was}, now {now_switches}. "
+              f"Any difference below may be the switch, not the chooser.")
     for field in ("fights", "phases"):
         print(f"  {field}: {before[field]} -> {now[field]}")
     gained = set(now["chosen"]) - set(before["chosen"])

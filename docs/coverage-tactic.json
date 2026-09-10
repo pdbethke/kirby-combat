@@ -1,6 +1,9 @@
 {
  "chooser": "tactic",
  "scene": "corral",
+ "brief_switches": {
+  "KIRBY_BRIEF_FORMATION": "1"
+ },
  "decisions": 69,
  "fell_back": 0,
  "first_fallback_notes": [],
@@ -10,14 +13,14 @@
  "kinds_total": 62,
  "offered": {
   "attack": 230,
-  "attack_construct": 1158,
-  "rapid_fire": 1370,
+  "attack_construct": 468,
+  "rapid_fire": 686,
   "move_strike": 280,
   "presence_attack": 236,
-  "dodge": 69,
+  "dodge": 65,
   "set": 69,
   "hide": 69,
-  "block": 236,
+  "block": 223,
   "coordinate": 188,
   "hold": 69,
   "haymaker": 57,

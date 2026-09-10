@@ -1,6 +1,9 @@
 {
  "chooser": "tactic",
  "scene": "street",
+ "brief_switches": {
+  "KIRBY_BRIEF_FORMATION": "1"
+ },
  "decisions": 362,
  "fell_back": 0,
  "first_fallback_notes": [],
@@ -10,12 +13,12 @@
  "kinds_total": 62,
  "offered": {
   "attack": 909,
-  "attack_construct": 10853,
-  "rapid_fire": 11762,
+  "attack_construct": 3613,
+  "rapid_fire": 4522,
   "presence_attack": 909,
-  "dodge": 362,
+  "dodge": 352,
   "set": 362,
-  "block": 909,
+  "block": 883,
   "coordinate": 909,
   "hold": 362,
   "haymaker": 362,
