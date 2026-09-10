@@ -2,109 +2,109 @@
 
 The shootout exists to FLEX the engine, not to reproduce 1881. Its seed is
 chosen for how many distinct rule paths it exercises, and this file is the
-other half of that measurement: what fifty-nine fights never touched.
+other half of that measurement: what the fights never touch.
 
-Measured 2026-09-10 over seeds 1-59 of `examples/the_shootout_we_can_publish.py`.
-Regenerate by re-running the probe described at the bottom.
+Regenerate with `python scripts/coverage.py --seeds 20 --baseline docs/coverage-tactic.json`.
+Figures below are that script's output over seeds 1-20, 235 Phases, all 20
+fights decided.
+
+**These are DOCTRINE's numbers.** `TacticChooser` is the deterministic
+fallback, not the model this platform exists to run; see "The measurement
+this file cannot yet make" at the bottom.
 
 ## The headline
 
-**Four of sixty-two action kinds are ever chosen.** Across 59 complete
-fights and 772 resolved actions:
+**Three of sixty-two action kinds are ever chosen.**
 
-| kind | times chosen |
-|---|---|
-| `attack` | 525 |
-| `move_to_cover` | 128 |
-| `disengage` | 118 |
-| `attack_construct` | 1 |
+| kind | chosen | offered |
+|---|---|---|
+| `attack` | 153 | 775 |
+| `move_to_cover` | 42 | 140 |
+| `disengage` | 40 | 235 |
 
-Everything else in the engine is either never offered here or offered and
-never taken.
+Everything else in the engine is offered and refused.
 
 ## Offered and never taken
 
-These are on the menu and `TacticChooser` has never once picked them.
-Counts are offers in a single opening menu across all nine men.
+Both columns are now counted the same way --- every menu of every Phase,
+recorded off the chooser itself rather than off one opening menu --- so
+they can honestly be set beside each other.
 
 | kind | offers | chosen |
 |---|---|---|
-| `move_strike` | 48 | 0 |
-| `presence_attack` | 40 | 0 |
-| `block` | 40 | 0 |
-| `move` | 40 | 0 |
-| `rapid_fire` | 37 | 0 |
-| `move_by` | 36 | 0 |
-| `move_through` | 36 | 0 |
-| `coordinate` | 32 | 0 |
-| `dodge` | 9 | 0 |
-| `set` | 9 | 0 |
-| `hide` | 9 | 0 |
-| `hold` | 9 | 0 |
-| `presence_attack_group` | 9 | 0 |
-| `multiple_attack` | 8 | 0 |
-| `haymaker` | 7 | 0 |
-| `spread` | 5 | 0 |
-| `climb` / `climb_fast` | 2 each | 0 |
+| `rapid_fire` | 4675 |
+| `attack_construct` | 3960 |
+| `move_strike` | 931 |
+| `presence_attack` | 791 |
+| `move` | 791 |
+| `block` | 791 |
+| `coordinate` | 633 |
+| `move_through` | 632 |
+| `move_by` | 632 |
+| `set` | 235 |
+| `hold` | 235 |
+| `hide` | 235 |
+| `dodge` | 235 |
+| `haymaker` | 195 |
+| `presence_attack_group` | 191 |
+| `multiple_attack` | 187 |
+| `spread` | 142 |
+| `stabilize` | 78 |
+| `climb_fast` | 63 |
+| `climb` | 63 |
+| `trip` | 18 |
+| `strike` | 18 |
+| `grab` | 18 |
+| `disarm` | 18 |
+| `recover` | 13 |
 
-`move_strike` is the **most-offered action in the game** and has never been
-taken. Two reasons, and only the second is a defect:
+Three of these are worth naming.
 
-1. It wraps a MELEE attack, and every offer here wraps the bare STR
-   Strike — so the chooser is being asked to walk up and punch a man it
-   could shoot. Declining is correct.
-2. There is no offer that closes the range to improve a RANGED shot, which
-   is a real HERO tactic the engine cannot express at any distance.
+**`rapid_fire`, at 4,675 offers, is the most-offered action in the game**
+and has never once been taken. So is `attack_construct` at 3,960: every
+building and barrel in the lot is a legal target on every Phase.
 
-`hide` never being taken is the one with the widest blast radius: it is the
-only manoeuvre in the game that produces 6E2 p.52's Surprised, so the whole
-Surprised path — half DCV, doubled STUN out of combat — is unreachable in
-this fight even though it is wired.
+**`stabilize` is offered 78 times and taken never.** That is the action
+built for 6E2 p.109 --- a Paramedics roll that stops a dying man losing a
+BODY a Turn --- and Doc Holliday carries Paramedics 11- for it. Men bleed
+to death in these fights (`status:Dead` is among the rule paths reached)
+while somebody who could have saved them shoots instead.
 
-## Never offered here at all
-
-Forty-one kinds do not appear in the **opening menu** of this scene. Some
-are legitimately absent — nobody has a mental power, an Entangle or a VPP,
-and a state-dependent offer like `release_held` or `escape_str` cannot
-appear before the state exists. Others are absences worth explaining:
-
-- **`stabilize`** — built for 6E2 p.109 and offered only for a DYING ALLY.
-  Nobody is dying at the start, so it cannot be in an opening menu; whether
-  it is ever offered MID-fight is a separate measurement this file does not
-  yet make. Doc Holliday carries Paramedics 11- specifically for it.
-- **`push`** — correctly absent now: every weapon in the lot runs on
-  Charges, and 6E2 p.135 forbids Pushing those. This was 37 illegal offers
-  until 2026-09-10.
-- **`grab`, `trip`, `disarm`, `strike`, `throw`** — melee, and gated off by
-  distance the same way `move_strike` is gated on.
-- **`reposition*`** — needs a vantage or a line-of-sight problem to solve,
-  and this lot is flat and open.
+**`hide` is offered 235 times and taken never**, and it is the only route
+to 6E2 p.52's Surprised. A rule wired into the engine cannot fire in this
+benchmark because nothing ever chooses the manoeuvre that causes it.
 
 ## Rules that fire, and rules that do not
 
-Reached by the chosen seed (59): eight Hit Locations including Head and
-Vitals, both bleeding rules, Stunned, Knocked Out, Dying, a cover penalty,
-and a shot whose Hit Location roll finds the cover instead of the man
-(6E2 p.45).
+Twenty-one distinct rule paths are reached: `bleed:bleed_out`, `bleed:wound`, `cover-penalty`, `loc:Arm`, `loc:Chest`, `loc:Foot`, `loc:Hand`, `loc:Head`, `loc:Leg`, `loc:Shoulder`, `loc:Stomach`, `loc:Thigh`, `loc:Vitals`, `loc:roll`, `moved`, `recovery`, `shot-hit-cover`, `status:Dead`, `status:Dying`, `status:Knocked Out`, `status:Stunned`.
 
-Never reached in any of the 59:
+Never reached in twenty fights:
 
-- **Surprised** (6E2 p.52) — needs `hide`, which is never chosen.
-- **The Range Modifier** — every shot in the lot is inside 8 m, so the
+- **Surprised** (6E2 p.52) --- needs `hide`, never chosen.
+- **The Range Modifier** --- every shot in the lot is inside 8 m, so the
   penalty is always zero. The table is exercised only by unit tests.
-- **Penetrating / Armor Piercing** — no weapon here has either.
-- **Stabilize** — see above.
+- **Penetrating / Armor Piercing** --- no weapon here has either.
 
-The Corral cannot test any of these. That is a limit of the SCENE, not of
-the engine, and the honest fix is a second benchmark laid out for range and
-concealment rather than stretching this one.
+The Corral cannot test any of those. That is a limit of the SCENE, not of
+the engine, and the honest fix is a second benchmark laid out for range
+and concealment rather than stretching this one.
 
-## Regenerating
+## The measurement this file cannot yet make
 
-The probe counts, per seed, the distinct rule paths an attack touches — it
-spies on `AttackAction.resolve` for cover, surprise, range and Hit Location
-audit lines, and folds `ActionResolved` kinds, `status_changes` and
-`BleedingSuffered` rules out of the event log. Offers come from one opening
-menu via `enumerate_actions`; **offers are an opening-menu count and choices
-are a whole-fight count**, so the two columns are not directly comparable
-and the table above says so.
+Everything above is `TacticChooser`, which is doctrine and a fallback.
+The question that matters is whether a MODEL reaches more, because the
+two answers call for opposite repairs: if a model also takes three kinds
+of sixty-two, the fault is in what the Brief SHOWS it, and no amount of
+chooser work will help.
+
+`scripts/coverage.py --chooser deliberate` runs exactly that comparison
+and was blocked on 2026-09-10 by the model provider, not by code:
+
+    Google AI error (429): "Your prepayment credits are depleted"
+
+Auth reached the provider, so the local token path is fine; the container
+is wired to Google AI alone and every other model name 404s. Worth
+knowing before re-running: a model run that cannot reach its provider
+does NOT fail --- `ModelChooser` falls back to doctrine by design and
+records a note --- so it produces a baseline identical to this one and
+looks like a finished experiment. The tell is speed.

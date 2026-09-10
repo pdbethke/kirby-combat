@@ -326,7 +326,7 @@ def the_scene():
     return the_lot_as_it_was()
 
 
-def the_fight(seed: int = DEMO_SEED):
+def the_fight(seed: int = DEMO_SEED, *, chooser=None):
     """Run it, and hand back the finished encounter.
 
     The LOT is imported from the benchmark rather than copied: terrain is
@@ -353,7 +353,13 @@ def the_fight(seed: int = DEMO_SEED):
     template = replace(RAW_HEROIC, use_bleeding_rules=True)
 
     roller = RandomRoller(seed=seed)
-    chooser = TacticChooser()
+    # WHO DECIDES IS AN ARGUMENT. Doctrine is the default and the only
+    # thing this repository can run on its own --- kirby-combat is Tier 1
+    # pure and owns no network hop --- but the benchmark's whole job is to
+    # show where the engine is thin, and "thin" means different repairs
+    # depending on whether a MODEL also fails to reach a rule. See
+    # `scripts/coverage.py`.
+    chooser = chooser if chooser is not None else TacticChooser()
     session = CombatSession.create(
         id=f"shootout-{seed}", combatants=cast, scene=scene,
         template=template, dice_roller=roller).start()
