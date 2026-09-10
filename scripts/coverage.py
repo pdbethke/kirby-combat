@@ -127,56 +127,34 @@ def _chooser(name: str):
     lazily and by name so a machine without kirby-ai can still run the
     doctrine baseline.
     """
-    import os
-
     from kirby_combat.loop import TacticChooser
 
     if name == "tactic":
         return TacticChooser()
 
-    missing = [v for v in ("KIRBY_MEDIALIB_URL", "KIRBY_MEDIALIB_TOKEN",
-                           "KIRBY_SEATS") if not os.environ.get(v)]
-    if missing:
-        raise SystemExit(
-            f"--chooser {name} needs {', '.join(missing)}. A seats file maps a\n"
-            f"seat name to a provider and a model, e.g.\n"
-            f'  {{"tactics": {{"provider": "claude-agent-sdk", '
-            f'"model": "claude-haiku-4-5-20251001"}}}}'
-        )
-
-    from kirby_ai import MedialibClient, SeatRegistry
-
-    client = MedialibClient(
-        base_url=os.environ["KIRBY_MEDIALIB_URL"],
-        bearer_token=os.environ["KIRBY_MEDIALIB_TOKEN"],
-        registry=SeatRegistry.load(os.environ["KIRBY_SEATS"]),
-    )
-    seat = os.environ.get("KIRBY_SEAT", "tactics")
-
+    # EVERYTHING ABOUT PROVIDERS LIVES IN kirby-ai. This module used to
+    # assemble the client itself and had to name a base-URL variable, a
+    # token variable and a provider to do it --- which
+    # `tests/test_vocabulary.py` refused, correctly: "a library must not
+    # name its consumers' internals". This engine is Tier 1 pure and owns
+    # no network hop. It asks for a chooser BY NAME.
+    #
     # DOCTRINE IS THE FALLBACK, never `FirstLegalChooser`: when the model
     # cannot answer, the next best thing is the catalogue tuned against
     # this same fight. It also means a run that cannot reach its provider
-    # QUIETLY BECOMES the doctrine baseline instead of failing --- see the
-    # note in `docs/gaps.md`. The tell is speed.
-    if name == "model":
-        from kirby_ai import ModelChooser
+    # QUIETLY BECOMES the doctrine baseline instead of failing, which is
+    # why `report` prints how many decisions the model actually answered.
+    try:
+        from kirby_ai import chooser_from_env
+    except ImportError as exc:            # pragma: no cover - env-dependent
+        raise SystemExit(
+            f"--chooser {name} needs kirby-ai on the path ({exc})"
+        ) from exc
 
-        return ModelChooser(client, seat=seat, fallback=TacticChooser())
-    if name == "deliberate":
-        from kirby_ai import DeliberatingChooser
-
-        return DeliberatingChooser(
-            client, propose_seat=seat,
-            review_seat=os.environ.get("KIRBY_REVIEW_SEAT", seat),
-            fallback=TacticChooser())
-    if name == "council":
-        from kirby_ai import RoleCouncil
-
-        return RoleCouncil(
-            client, advisor_seat=seat,
-            adjudicator_seat=os.environ.get("KIRBY_REVIEW_SEAT", seat),
-            fallback=TacticChooser())
-    raise SystemExit(f"unknown chooser {name!r}")
+    try:
+        return chooser_from_env(name, fallback=TacticChooser())
+    except (RuntimeError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def measure(seeds: range, chooser_name: str) -> dict:
@@ -228,7 +206,10 @@ def report(m: dict) -> None:
     chosen, offered = m["chosen"], m["offered"]
     print(f"chooser: {m['chooser']}   {m['fights']} fights, "
           f"{m['phases']} Phases, {m['decided']} decided")
-    if m.get("decisions"):
+    # ONLY FOR A MODEL RUN. `TacticChooser` records picks too, so this
+    # printed "MODEL ANSWERED 69 of 69" for a run with no model in it --
+    # true of the recording and false of the sentence.
+    if m["chooser"] != "tactic" and m.get("decisions"):
         answered = m["decisions"] - m["fell_back"]
         print(f"MODEL ANSWERED {answered} of {m['decisions']} decisions "
               f"({m['fell_back']} fell back to doctrine)")

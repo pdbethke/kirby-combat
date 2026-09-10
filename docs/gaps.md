@@ -9,8 +9,8 @@ Figures below are that script's output over seeds 1-20, 235 Phases, all 20
 fights decided.
 
 **These are DOCTRINE's numbers.** `TacticChooser` is the deterministic
-fallback, not the model this platform exists to run; see "The measurement
-this file cannot yet make" at the bottom.
+fallback, not the model this platform exists to run; see "The measurement,
+made: doctrine vs a model" at the bottom.
 
 ## The headline
 
@@ -89,22 +89,64 @@ The Corral cannot test any of those. That is a limit of the SCENE, not of
 the engine, and the honest fix is a second benchmark laid out for range
 and concealment rather than stretching this one.
 
-## The measurement this file cannot yet make
+## The measurement, made: doctrine vs a model
 
-Everything above is `TacticChooser`, which is doctrine and a fallback.
-The question that matters is whether a MODEL reaches more, because the
-two answers call for opposite repairs: if a model also takes three kinds
-of sixty-two, the fault is in what the Brief SHOWS it, and no amount of
-chooser work will help.
+Made 2026-09-10 against a current frontier model, the same six seeds
+each, 89 of 89 decisions answered by the model and none fallen back.
+Which model, and how to reach one, belongs to `kirby-ai` --- this engine
+owns no network hop and this file must not name one (see
+`tests/test_vocabulary.py`).
 
-`scripts/coverage.py --chooser deliberate` runs exactly that comparison
-and was blocked on 2026-09-10 by the model provider, not by code:
+| | doctrine | model |
+|---|---|---|
+| Phases | 69 | 89 |
+| **kinds chosen** | **3 of 62** | **4 of 62** |
+| `attack` | 45 | 61 |
+| `move_to_cover` | 12 | 18 |
+| `disengage` | 12 | 9 |
+| `reposition_strike` | 0 | 1 |
 
-    Google AI error (429): "Your prepayment credits are depleted"
+**THE CHOOSER IS NOT THE BOTTLENECK.** Swapping a deterministic catalogue
+for a frontier model moved the count by one kind out of sixty-two. Both
+spend about nine actions in ten on `attack`. `move_strike` is offered 310
+times and taken by neither; `hide` 89 times and taken by neither, which
+keeps 6E2 p.52's Surprised unreachable no matter who is deciding.
 
-Auth reached the provider, so the local token path is fine; the container
-is wired to Google AI alone and every other model name 404s. Worth
-knowing before re-running: a model run that cannot reach its provider
-does NOT fail --- `ModelChooser` falls back to doctrine by design and
-records a note --- so it produces a baseline identical to this one and
-looks like a finished experiment. The tell is speed.
+The two differences worth naming, neither of them large:
+
+* The model finds `reposition_strike` --- move to a vantage, then shoot ---
+  once in 89 decisions. Doctrine never does. It is the only kind either
+  reached that the other did not.
+* The model fights LONGER: 89 Phases against 69, and disengages less (9
+  against 12). It is more willing to stay in a fight it is losing.
+
+So the repair is in what the Brief SHOWS and how offers are WORDED, not
+in what is deciding. An offer that reads "Close to within reach via
+Running, then strike" does not say the shot gets easier, and nothing on
+the page says that hiding is what causes Surprise. A reader who does not
+already know the rules cannot see the point of either, and it turns out
+neither can a model that does.
+
+### Reproducing it
+
+    python scripts/coverage.py --seeds 6 --chooser model
+
+`--chooser model` needs the three environment variables `kirby-ai`
+defines for reaching a provider; the script names them when they are
+missing. Their values, and the provider itself, live over there.
+
+**Check the ANSWERED line before believing any of it.** A chooser that
+cannot reach its provider does not fail --- it falls back to doctrine,
+records the reason, and returns a baseline identical to the doctrine one.
+The first run here came back in seconds picking exactly doctrine's three
+kinds, and was 0 of 9 answered: every call a 403, because
+`MedialibClient` sends `X-Tenant: kirby` and a token minted without a
+matching `tenant` claim is refused with "Cannot access a different
+tenant". A curl WITHOUT that header succeeds, which is exactly why
+hand-testing said the path was fine.
+
+Two provider-side traps cost an hour and are written up where they
+belong, in the deployment notes rather than here: a reasoning model can
+spend its whole output budget thinking and return EMPTY content on a
+small `max_tokens`, and the production wrapper pins its model with no
+environment override.
