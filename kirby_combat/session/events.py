@@ -89,6 +89,30 @@ class RecoveryTaken(_BaseEvent):
 
 
 @dataclass
+class BleedingSuffered(_BaseEvent):
+    """BODY (and, under the optional rules, STUN) lost between Phases.
+
+    6E2 p.109's bleeding to death is 1 BODY at the end of each Turn for
+    anyone at or below 0 BODY; p.115's optional Bleeding rules take STUN
+    per Turn from any wound, and a further BODY on a six. Both are losses
+    nobody chose and no attack caused, so neither has an ActionResolved
+    to hang off --- and a man who quietly got worse between Segments,
+    with nothing in the log, is indistinguishable from a bookkeeping
+    error to a reader and invisible to a replay.
+    """
+
+    kind: Literal["BleedingSuffered"] = field(
+        default="BleedingSuffered", init=False)
+    combatant_id: str = ""
+    body_lost: int = 0
+    stun_lost: int = 0
+    #: "bleed_out" (p.109) or "wound" (p.115) --- two different rules that
+    #: both take BODY, and a reader must be able to tell which fired.
+    rule: str = ""
+    dice: tuple[int, ...] = ()
+
+
+@dataclass
 class MovementResolved(_BaseEvent):
     kind: Literal["MovementResolved"] = field(default="MovementResolved", init=False)
     combatant_id: str = ""
@@ -311,6 +335,7 @@ CombatEvent = (
     | ActionDeclared
     | ActionResolved
     | RecoveryTaken
+    | BleedingSuffered
     | MovementResolved
     | StatusChanged
     | StatusEffectsChanged

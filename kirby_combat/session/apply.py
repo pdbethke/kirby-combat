@@ -87,6 +87,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     # would force log replay to mirror combatant state, which is more brittle.
     if kind in {
         "ActionResolved", "RecoveryTaken", "MovementResolved",
+        "BleedingSuffered",
         "StatusChanged", "StatusEffectsChanged", "HeldActionReleased",
         "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Callable, Iterable
 from kirby_combat.resolution.recovery import compute_recovery
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import (
-    RecoveryTaken, SegmentAdvanced, make_author_engine,
+    BleedingSuffered, RecoveryTaken, SegmentAdvanced, make_author_engine,
 )
 from kirby_combat.session.timeline import (
     ActionIntent,
@@ -135,6 +135,63 @@ def _apply_post_12_recovery(
         session = apply_event(session, evt)
 
     return replace(session, combatants=new_combatants)
+
+
+def _apply_bleeding(session: "CombatSession") -> "CombatSession":
+    """6E2 p.109's bleeding to death, at the end of Segment 12.
+
+    "A character at or below 0 BODY is dying. He loses 1 BODY each Turn
+    (at the end of Segment 12)." That is THIS hook --- the one the free
+    Post-Segment 12 Recovery already fires on --- and it only ever handed
+    STUN back. So a dying man lay at -2 BODY for the rest of the fight,
+    never got worse, never reached Death by attrition, and could not be
+    saved either, because nothing could stabilize a condition that was
+    not deteriorating.
+
+    NOT CLAMPED AT DEATH. Once he is past -max BODY he is Dead, and
+    `resolution/status.py` says so; continuing to subtract would be
+    bookkeeping on a corpse. Stopping the loss is what a Paramedics roll
+    is for (p.109), and this is the loss it stops.
+    """
+    from kirby_combat.resolution.bleeding import bleed_out_body
+    from kirby_combat.vitals import apply_vitals_delta
+
+    new_combatants = dict(session.combatants)
+    for combatant_id, combatant in session.combatants.items():
+        body = combatant.state.current_body
+        max_body = max_body_of(combatant)
+        if max_body is not None and body <= -max_body:
+            continue                      # already Dead; nothing left to lose
+        lost = bleed_out_body(current_body=body)
+        if not lost:
+            continue
+        new_combatants[combatant_id] = apply_vitals_delta(combatant, body=-lost)
+        session = apply_event(session, BleedingSuffered(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_engine(),
+            combatant_id=combatant_id,
+            body_lost=lost,
+            rule="bleed_out",
+        ))
+    return replace(session, combatants=new_combatants)
+
+
+def max_body_of(combatant) -> int | None:
+    """Starting BODY --- 6E2 p.109's death threshold denominator.
+
+    ``max_body`` is a property of the COMBATANT, not of its state: that
+    is where `hero_view` puts it and where `actions/recording.py` reads
+    it (`attack.target.max_body`) to decide Dead. Looking on the state
+    first returned None for every real fighter, which silently disabled
+    the "already Dead, stop bleeding" guard below.
+    """
+    value = getattr(combatant, "max_body", None)
+    if value is not None:
+        return int(value)
+    return getattr(getattr(combatant, "state", None), "max_body", None)
 
 
 def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
@@ -463,7 +520,16 @@ class Encounter:
                 _record_segment_advanced(
                     _tick_presence(
                         _apply_adjustment_fade(
-                            _apply_post_12_recovery(session, template),
+                            # 6E2 p.109's bleeding to death goes here, on
+                            # the same end-of-Segment-12 hook the free
+                            # Recovery uses and AFTER it: the Recovery is
+                            # STUN and END, the bleed is BODY, and a dying
+                            # man getting his wind back does not stop him
+                            # bleeding. Ordering matters only for the log,
+                            # and both belong to the Turn that is ending.
+                            _apply_bleeding(
+                                _apply_post_12_recovery(session, template),
+                            ),
                         ),
                     ),
                     from_segment=self.segment, to_segment=1, to_turn=to_turn,

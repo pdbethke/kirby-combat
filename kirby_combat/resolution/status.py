@@ -24,8 +24,9 @@ def determine_status_changes(
         max_body: Target's maximum (starting) BODY (Death threshold denominator).
 
     Returns:
-        A list of status-change strings, in the order: Stunned, Knocked Out, Dead.
-        Returns an empty list when no thresholds are crossed.
+        A list of status-change strings, in the order: Stunned, Knocked
+        Out, Dying, Dead. Returns an empty list when no thresholds are
+        crossed.
     """
     statuses: list[str] = []
 
@@ -39,8 +40,29 @@ def determine_status_changes(
     if stun_after <= 0:
         statuses.append("Knocked Out")
 
-    # Dead: BODY has fallen to −max_body or worse
-    if body_after <= -max_body:
+    # Dead: BODY has fallen to −max_body or worse.
+    # 6E2 p.109's own example: 10 BODY dies at −10, 8 BODY at −8.
+    dead = body_after <= -max_body
+
+    # Dying: "A character at or below 0 BODY is dying" (6E2 p.109), and
+    # he loses 1 BODY each Turn until he is Dead or someone stops it ---
+    # see `dying.bleed_out`, applied at the Post-Segment 12 hook the same
+    # page puts it on.
+    #
+    # NOT KNOCKED OUT, and this is the distinction the engine was missing:
+    # `is_down` folds "STUN <= 0 or BODY <= 0" into one boolean, which is
+    # the right answer to "can he keep fighting" and the wrong DESCRIPTION
+    # of what happened. 6E2 p.105: "A character can have 0 BODY or
+    # negative BODY and still have lots of STUN --- he's dying, but awake
+    # and active." A replay showed a man at 0 BODY badged only "KO".
+    #
+    # NOT ALSO DEAD. Past the threshold there is nothing left to bleed
+    # out, and two mutually exclusive words on one status card help
+    # nobody.
+    if body_after <= 0 and not dead:
+        statuses.append("Dying")
+
+    if dead:
         statuses.append("Dead")
 
     return statuses
