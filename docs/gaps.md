@@ -194,3 +194,69 @@ the Corral cannot exercise range, concealment or elevation because it has
 none of them. The next useful move is a SECOND scenario built for those,
 not further edits to this page --- and now there is an instrument that
 will say whether it worked.
+
+## The second benchmark: the long street
+
+Built 2026-09-10, because the conclusion above was that the SCENE was the
+limit and not the page. The Corral keeps what it is good at --- a
+knife-range brawl where cover, Hit Locations and bleeding all bite --- and
+this is a different fight whose every feature exists to make one
+previously-unreachable rule reachable.
+
+  * **Forty-five metres between the sides at the start**, which is 6E2's
+    -6 OCV band, with -4 and -2 bands to cross on the way in.
+  * **A rifle that outranges a revolver four to one**, so "can I even
+    reach" is a question somebody has to answer.
+  * **Rooftops at 4.5m** and building fronts you can climb to reach them.
+  * **Cover taller than a standing man**, which the Corral has none of ---
+    everything there is chest-high and shot over.
+
+Measured over six seeds each, doctrine:
+
+| | corral | street |
+|---|---|---|
+| Phases | 69 | 362 |
+| kinds chosen | 3 | 4 |
+| rule paths | 20 | 23 |
+
+**Street-only paths: `range-penalty`, `shot-across-height`, `loc:Head`.**
+The Range Modifier had never once fired in a benchmark before this; every
+shot at the Corral is inside 8m, so the table was exercised only by unit
+tests. Beck shoots down from the feed-store roof at three different
+people and two shoot back up at him.
+
+Between them the two scenes reach 23 distinct paths, and nothing the
+Corral reaches is lost.
+
+### It did not work the first time, and the reason is worth keeping
+
+The first layout had all four furnishings, both roofs and five climbable
+fronts --- and offered `move_to_cover`, `hide`, `climb` and
+`reposition_vantage` **zero times in six fights**. Two engine constants
+decide what a fighter is even shown:
+
+  * `CLIMB_FACE_REACH_M = 1.0` --- you must be within a METRE of a face to
+    climb it. Ida started two metres off the stable front, so both roofs
+    were decoration.
+  * Cover must be inside a Half Move, 6m. The nearest furnishing was 8m
+    from the posse.
+
+And doctrine never moves --- `move` is offered 914 times and taken zero ---
+so nothing came into reach later either. **A scene has to put its
+affordances where the rules can see them**, and "the file contains a
+rooftop" is not "anybody can get to one".
+
+The probe could not see that either, which is the other half of the
+lesson: it had no marker for height, so a scene with unused rooftops
+measured identically to one without any. `shot-across-height` exists now.
+It took two attempts to wire --- a combatant carries no position (the
+SCENE does), and `loop.resolvers` imports `resolve_attack_in_session` by
+name at import time, so patching the defining module intercepts nothing.
+
+### Still not reached, by either scene
+
+`hide` and `climb` are now OFFERED on the street and still taken zero
+times by doctrine, so 6E2 p.52's Surprised remains unreached. That is now
+a chooser question rather than a scene one, and for the first time the
+two can be told apart.
+

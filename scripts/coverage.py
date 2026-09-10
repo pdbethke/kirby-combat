@@ -82,9 +82,54 @@ def _rule_paths(session, attack_audits) -> set[str]:
             hits.add(f"bleed:{payload.get('rule', '')}")
         elif kind == "MovementResolved":
             hits.add("moved")
+            move = payload.get("move_type") or ""
+            if move and move != "move":
+                hits.add(f"move:{move}")
+            a, b = payload.get("from_pos") or {}, payload.get("to_pos") or {}
+            if a and b and abs((b.get("z") or 0) - (a.get("z") or 0)) >= 1.0:
+                hits.add("changed-height")
         elif kind == "RecoveryTaken":
             hits.add("recovery")
     return hits
+
+
+def _watch_height(seen: set) -> callable:
+    """Note shots taken across a height difference.
+
+    A SEPARATE SEAM, and it has to be: a combatant does not carry a
+    position --- the SCENE does, in `combatant_positions` --- and
+    `AttackAction.resolve` is handed neither. `resolve_attack_in_session`
+    is the layer that holds both, which is exactly why cover is folded in
+    there too.
+
+    Without this the probe could not tell "there are rooftops in the
+    scene file" from "anybody ever shot from one", and the second
+    benchmark's whole reason for existing is the difference.
+    """
+    # PATCHED WHERE IT IS USED, not where it is defined. `loop.resolvers`
+    # does `from ...recording import resolve_attack_in_session` at import
+    # time, so rebinding the attribute on `recording` afterwards
+    # intercepts nothing --- the first attempt saw zero calls while the
+    # fight was plainly resolving attacks.
+    import kirby_combat.loop.resolvers as recording
+
+    original = recording.resolve_attack_in_session
+
+    def spy(session, attack, template, **kwargs):
+        scene = getattr(session, "scene", None)
+        positions = getattr(scene, "combatant_positions", None) or {}
+        here = positions.get(getattr(attack.attacker, "id", None))
+        there = positions.get(getattr(attack.target, "id", None))
+        if here is not None and there is not None and abs(here.z - there.z) >= 1.0:
+            seen.add("shot-across-height")
+        return original(session, attack, template, **kwargs)
+
+    recording.resolve_attack_in_session = spy
+
+    def restore() -> None:
+        recording.resolve_attack_in_session = original
+
+    return restore
 
 
 def _watch_attacks() -> tuple[set, callable]:
@@ -102,6 +147,7 @@ def _watch_attacks() -> tuple[set, callable]:
             seen.add("surprised")
         if attack.distance_m and attack.distance_m > 8:
             seen.add("range-penalty")
+
         for line in result.audit_trail:
             if line.startswith("Hit Location "):
                 seen.add("loc:" + line.split()[2].rstrip(":"))
@@ -112,9 +158,11 @@ def _watch_attacks() -> tuple[set, callable]:
         return result
 
     base.AttackAction.resolve = spy
+    restore_height = _watch_height(seen)
 
     def restore() -> None:
         base.AttackAction.resolve = original
+        restore_height()
 
     return seen, restore
 
@@ -157,8 +205,20 @@ def _chooser(name: str):
         raise SystemExit(str(exc)) from exc
 
 
-def measure(seeds: range, chooser_name: str) -> dict:
-    from the_shootout_we_can_publish import the_fight
+#: The benchmarks, and what each is FOR. Two, because one scene cannot
+#: exercise everything: the Corral is a knife-range brawl where cover,
+#: Hit Locations and bleeding bite, and it has no range, no height and
+#: nothing you can get out of sight behind. See `docs/gaps.md`.
+SCENES = {
+    "corral": "the_shootout_we_can_publish",
+    "street": "the_long_street",
+}
+
+
+def measure(seeds: range, chooser_name: str, scene: str = "corral") -> dict:
+    import importlib
+
+    the_fight = importlib.import_module(SCENES[scene]).the_fight
 
     recorder = Recorder(_chooser(chooser_name))
     audits, restore = _watch_attacks()
@@ -189,6 +249,7 @@ def measure(seeds: range, chooser_name: str) -> dict:
 
     return {
         "chooser": chooser_name,
+        "scene": scene,
         "decisions": len(picks),
         "fell_back": fell_back,
         "first_fallback_notes": notes,
@@ -204,7 +265,8 @@ def measure(seeds: range, chooser_name: str) -> dict:
 
 def report(m: dict) -> None:
     chosen, offered = m["chosen"], m["offered"]
-    print(f"chooser: {m['chooser']}   {m['fights']} fights, "
+    print(f"scene: {m.get('scene', 'corral')}   "
+          f"chooser: {m['chooser']}   {m['fights']} fights, "
           f"{m['phases']} Phases, {m['decided']} decided")
     # ONLY FOR A MODEL RUN. `TacticChooser` records picks too, so this
     # printed "MODEL ANSWERED 69 of 69" for a run with no model in it --
@@ -248,13 +310,16 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--first-seed", type=int, default=1)
+    ap.add_argument("--scene", default="corral", choices=tuple(SCENES),
+                    help="which benchmark to measure")
     ap.add_argument("--chooser", default="tactic",
                     choices=("tactic", "model", "deliberate", "council"))
     ap.add_argument("--baseline", default=None,
                     help="compare against this file, and write it when absent")
     args = ap.parse_args()
 
-    m = measure(range(args.first_seed, args.first_seed + args.seeds), args.chooser)
+    m = measure(range(args.first_seed, args.first_seed + args.seeds),
+                args.chooser, args.scene)
     report(m)
 
     if args.baseline:
