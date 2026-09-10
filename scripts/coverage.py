@@ -127,22 +127,55 @@ def _chooser(name: str):
     lazily and by name so a machine without kirby-ai can still run the
     doctrine baseline.
     """
+    import os
+
     from kirby_combat.loop import TacticChooser
 
     if name == "tactic":
         return TacticChooser()
+
+    missing = [v for v in ("KIRBY_MEDIALIB_URL", "KIRBY_MEDIALIB_TOKEN",
+                           "KIRBY_SEATS") if not os.environ.get(v)]
+    if missing:
+        raise SystemExit(
+            f"--chooser {name} needs {', '.join(missing)}. A seats file maps a\n"
+            f"seat name to a provider and a model, e.g.\n"
+            f'  {{"tactics": {{"provider": "claude-agent-sdk", '
+            f'"model": "claude-haiku-4-5-20251001"}}}}'
+        )
+
+    from kirby_ai import MedialibClient, SeatRegistry
+
+    client = MedialibClient(
+        base_url=os.environ["KIRBY_MEDIALIB_URL"],
+        bearer_token=os.environ["KIRBY_MEDIALIB_TOKEN"],
+        registry=SeatRegistry.load(os.environ["KIRBY_SEATS"]),
+    )
+    seat = os.environ.get("KIRBY_SEAT", "tactics")
+
+    # DOCTRINE IS THE FALLBACK, never `FirstLegalChooser`: when the model
+    # cannot answer, the next best thing is the catalogue tuned against
+    # this same fight. It also means a run that cannot reach its provider
+    # QUIETLY BECOMES the doctrine baseline instead of failing --- see the
+    # note in `docs/gaps.md`. The tell is speed.
     if name == "model":
-        from kirby_ai.chooser import ModelChooser
+        from kirby_ai import ModelChooser
 
-        return ModelChooser(fallback=TacticChooser())
+        return ModelChooser(client, seat=seat, fallback=TacticChooser())
     if name == "deliberate":
-        from kirby_ai.deliberation import DeliberatingChooser
+        from kirby_ai import DeliberatingChooser
 
-        return DeliberatingChooser(fallback=TacticChooser())
+        return DeliberatingChooser(
+            client, propose_seat=seat,
+            review_seat=os.environ.get("KIRBY_REVIEW_SEAT", seat),
+            fallback=TacticChooser())
     if name == "council":
-        from kirby_ai.council import RoleCouncil
+        from kirby_ai import RoleCouncil
 
-        return RoleCouncil(fallback=TacticChooser())
+        return RoleCouncil(
+            client, advisor_seat=seat,
+            adjudicator_seat=os.environ.get("KIRBY_REVIEW_SEAT", seat),
+            fallback=TacticChooser())
     raise SystemExit(f"unknown chooser {name!r}")
 
 
@@ -165,8 +198,22 @@ def measure(seeds: range, chooser_name: str) -> dict:
 
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
+    # DID THE MODEL ACTUALLY ANSWER? A chooser that cannot reach its
+    # provider does NOT fail --- it falls back to doctrine by design and
+    # records the reason --- so a broken run produces a baseline identical
+    # to the doctrine one and reads as a finished experiment. `ModelChooser`
+    # carries every fallback in `.notes`; a run where that count equals the
+    # decision count called nothing.
+    inner = recorder._inner
+    picks = list(getattr(inner, "picks", []) or [])
+    fell_back = sum(1 for p in picks if getattr(p, "fell_back", False))
+    notes = [n for n in (getattr(inner, "notes", []) or [])][:3]
+
     return {
         "chooser": chooser_name,
+        "decisions": len(picks),
+        "fell_back": fell_back,
+        "first_fallback_notes": notes,
         "fights": len(list(seeds)),
         "phases": phases,
         "decided": decided,
@@ -181,6 +228,12 @@ def report(m: dict) -> None:
     chosen, offered = m["chosen"], m["offered"]
     print(f"chooser: {m['chooser']}   {m['fights']} fights, "
           f"{m['phases']} Phases, {m['decided']} decided")
+    if m.get("decisions"):
+        answered = m["decisions"] - m["fell_back"]
+        print(f"MODEL ANSWERED {answered} of {m['decisions']} decisions "
+              f"({m['fell_back']} fell back to doctrine)")
+        for note in m.get("first_fallback_notes") or []:
+            print(f"    fallback: {note}")
     print(f"\nKINDS CHOSEN: {len(chosen)} of {m['kinds_total']}")
     for kind, n in sorted(chosen.items(), key=lambda kv: -kv[1]):
         print(f"  {kind:24} {n:5}   (offered {offered.get(kind, 0)})")
