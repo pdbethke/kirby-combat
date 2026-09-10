@@ -32,6 +32,7 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
+from kirby_combat.concealment import concealment_for
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
@@ -253,6 +254,15 @@ def run_phase(
         # is: it lives in the fight, not in the caller.
         actor_holding=_held is not None,
         held_construct_id=_held,
+        # WHO HE CANNOT SEE. `enumerate_actions` has always taken this map
+        # and this caller never passed one, so the perception gate ran
+        # blind to hiding: a man who had just vanished stayed on
+        # everybody's list of things to shoot, and the Phase he spent
+        # Hiding bought a log entry and nothing else. `concealment` folds
+        # it from the fight the same way `slot_allocation`,
+        # `spent_charges` and `actor_holding` are folded just above, and
+        # for the same reason -- it lives in the fight, not in the caller.
+        concealment=concealment_for(session, observer_id=actor_id),
     )
     if not menu:
         _mark_acted(session, actor_id)

@@ -103,25 +103,41 @@ def location_for_roll(total: int) -> str | None:
 
 
 def killing_damage(body_rolled: int, *, total_defense: int,
-                   resistant_defense: int, effect: LocationEffect) -> tuple[int, int]:
+                   resistant_defense: int, effect: LocationEffect,
+                   stun_multiplier: int = 1) -> tuple[int, int]:
     """STUN and BODY for a Killing attack at a location (6E2 p.110).
 
     STUN is BODY x STUNx and THEN defenses; BODY is defenses and THEN
     BODYx. The book's worked example: an RKA rolling 13 BODY into the Arms
     (BODYx 1/2) against 3 PD leaves 10, halved to "5 BODY".
+
+    ``stun_multiplier`` is 6E2 p.52's doubling for a target Surprised out
+    of combat: "Double the STUN damage before applying defenses (and, in
+    campaigns using the Hit Locations rules, before applying the STUN
+    modifier for a location)." Killing STUN already multiplies ahead of
+    defenses, so it joins that product and the ordering is satisfied by
+    construction. It NEVER touches BODY -- p.52 doubles STUN.
     """
-    stun = max(0, int(body_rolled * effect.stun_x) - total_defense)
+    stun = max(0, int(body_rolled * effect.stun_x) * stun_multiplier
+               - total_defense)
     body = int(max(0, body_rolled - resistant_defense) * effect.body_x)
     return stun, max(0, body)
 
 
 def normal_damage(stun_rolled: int, body_rolled: int, *, total_defense: int,
-                  effect: LocationEffect) -> tuple[int, int]:
+                  effect: LocationEffect,
+                  stun_multiplier: int = 1) -> tuple[int, int]:
     """STUN and BODY for a Normal attack at a location (6E2 p.111).
 
     Both multiply AFTER defenses --- the opposite of Killing STUN.
+
+    Which is exactly why 6E2 p.52's Surprised doubling cannot be folded
+    into the location multiplier here the way it can for a Killing
+    attack: the doubling happens BEFORE defenses and the location's
+    nSTUNx after, so the two sit on opposite sides of the subtraction.
     """
-    stun = int(max(0, stun_rolled - total_defense) * effect.normal_stun_x)
+    stun = int(max(0, stun_rolled * stun_multiplier - total_defense)
+               * effect.normal_stun_x)
     body = int(max(0, body_rolled - total_defense) * effect.body_x)
     return max(0, stun), max(0, body)
 

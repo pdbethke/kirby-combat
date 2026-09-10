@@ -70,6 +70,57 @@ def _range_to(session, actor, target) -> float | None:
     return distance_3d(here, there)
 
 
+def _surprise_for(session, actor, target):
+    """6E2 p.52's Surprised for this attack, or None when it cannot apply.
+
+    THE LAST MILE. `perception.is_surprised` has answered the perception
+    half since the perception line shipped and its docstring said the
+    rest "is applied by the driver, which knows the combat clock". No
+    driver ever applied it: before this, `is_surprised` had ZERO
+    production callers and nothing outside `perception.py` mentioned
+    surprise at all, so neither the halved DCV nor the doubled STUN had
+    ever reached a roll.
+
+    The attacker's concealment comes from `concealment`, which reads the
+    fight's own log --- a successful Hide recorded who lost track of whom
+    and nothing had ever read it back.
+
+    NOT GEOMETRY. p.52 refuses the positional reading outright: moving
+    behind a man who can see you "does not per se earn an attacker a
+    Surprised bonus". So no angle is computed here, and none should be.
+    """
+    from kirby_combat.concealment import concealment_for
+    from kirby_combat.perception import is_surprised
+    from kirby_combat.resolution.surprise import surprise_for
+
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return None                     # no map, no senses to model
+    conceal = concealment_for(session, observer_id=getattr(target, "id", ""))
+    invisible, hidden = conceal.get(getattr(actor, "id", ""), (False, False))
+
+    # A RECORDED HIDE IS NOT RE-LITIGATED. `_resolve_hide` already ran the
+    # contest -- Stealth against this watcher's PER, this Phase -- and the
+    # log says he lost. `perceive` would run a SECOND contest with
+    # different terms: it demands a real STEALTH skill and, finding none,
+    # concludes "the target can't actually hide", while `_resolve_hide`
+    # falls back to 6E1 p.60's 9 + DEX/5 characteristic roll. Asking twice
+    # means the hider must win twice, and with the two using different
+    # numbers he can win the one that counted and lose the one that is
+    # checked. The resolved contest is the answer.
+    if hidden:
+        return surprise_for(target=target, perceives_attacker=False)
+
+    try:
+        blind = is_surprised(
+            observer=target, attacker=actor, scene=scene,
+            attacker_invisible=invisible, attacker_hidden=hidden,
+        )
+    except Exception:
+        return None                     # fail OPEN: never invent a surprise
+    return surprise_for(target=target, perceives_attacker=not blind)
+
+
 def _attack_dice(roller, dice_count: int) -> DiceValues:
     """Every die one attack on a PERSON needs, rolled in one place.
 
@@ -137,6 +188,7 @@ def _resolve_attack(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice))),
+        surprise=_surprise_for(session, actor, target),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",

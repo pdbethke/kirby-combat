@@ -159,17 +159,28 @@ class AttackAction:
                     )
                 location = (effect_for(location_for_roll(rolled), template=template)
                             if rolled else None)
+        # 6E2 p.52's doubling for a target Surprised OUT of combat:
+        # "Double the STUN damage before applying defenses (and, in
+        # campaigns using the Hit Locations rules, before applying the
+        # STUN modifier for a location)." It is passed INTO each damage
+        # function rather than applied to a result here, because the two
+        # damage types put the subtraction in different places and only
+        # they know where "before defenses" is.
+        surprise = getattr(attack, "surprise", None)
+        surprise_stun_x = surprise.stun_multiplier if surprise else 1
+
         if location is not None:
             if effective_power.damage_type == "killing":
                 stun_dealt, body_dealt = killing_damage(
                     damage.body, total_defense=defense.total_defense,
                     resistant_defense=defense.resistant_defense,
-                    effect=location,
+                    effect=location, stun_multiplier=surprise_stun_x,
                 )
             else:
                 stun_dealt, body_dealt = normal_damage(
                     damage.stun, damage.body,
                     total_defense=defense.total_defense, effect=location,
+                    stun_multiplier=surprise_stun_x,
                 )
             audit_trail.append(
                 f"Hit Location {location.name}: STUNx {location.stun_x}, "
@@ -177,11 +188,18 @@ class AttackAction:
                 f"(6E2 p110-111) -> STUN {stun_dealt}, BODY {body_dealt}"
             )
         elif effective_power.damage_type == "killing":
-            stun_dealt = max(0, damage.stun - defense.total_defense)
+            stun_dealt = max(
+                0, damage.stun * surprise_stun_x - defense.total_defense)
             body_dealt = max(0, damage.body - defense.resistant_defense)
         else:
-            stun_dealt = max(0, damage.stun - defense.total_defense)
+            stun_dealt = max(
+                0, damage.stun * surprise_stun_x - defense.total_defense)
             body_dealt = max(0, damage.body - defense.total_defense)
+
+        if surprise_stun_x != 1:
+            audit_trail.append(
+                f"{surprise}: STUN doubled before defenses (6E2 p52)"
+            )
 
         # THE SHOT WENT INTO THE COVER. Applied after the branches above
         # so the audit still shows what the attack would have done, and

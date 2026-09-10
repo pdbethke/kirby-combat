@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kirby_combat.resolution.surprise import Surprise
 from typing import Any
 
 from kirby_combat.side import Side
@@ -278,6 +282,11 @@ class AttackInput:
     #: shooter-target pair since cover was wired; the pure resolver had no
     #: way to be told.
     target_cover_level: int = 0
+    #: 6E2 p.52's Surprised, decided by `resolution/surprise.py` from the
+    #: perception answer `perception.is_surprised` has always given. None
+    #: means "nobody asked", which is what every caller in the engine did
+    #: until this field existed, and is treated as not surprised.
+    surprise: "Surprise | None" = None
 
 
 @dataclass

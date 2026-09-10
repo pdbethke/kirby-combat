@@ -115,6 +115,24 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     else:
         audit.append(f"Effective DCV: {effective_dcv}")
 
+    # 6E2 p.52. Surprised is 1/2 DCV whether the target was in combat or
+    # out of it -- only the STUN doubling and the Placed Shot halving
+    # depend on which. Applied to the MODIFIED DCV rather than the base,
+    # so a Surprised man who is also prone is halved once from where the
+    # other modifiers left him rather than from an untouched 8.
+    surprise = getattr(attack, "surprise", None)
+    if surprise is not None and surprise:
+        from kirby_combat.cv_modifiers import apply_cv_factor
+
+        # ASK THE ENGINE. `apply_cv_factor` is 6E2 p.39's halving, already
+        # grounded and already sign-aware: it rounds a positive CV in the
+        # character's favour (5 -> 3, not 2) and makes a NEGATIVE CV worse
+        # rather than better. A bare `int(dcv * 0.5)` here would have been
+        # a second, quietly different halving living next to the first.
+        before = effective_dcv
+        effective_dcv = apply_cv_factor(effective_dcv, surprise.dcv_factor)
+        audit.append(f"{surprise}: DCV {before} -> {effective_dcv}")
+
     # ------------------------------------------------------------------
     # 8. Target number
     # ------------------------------------------------------------------
