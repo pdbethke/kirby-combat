@@ -189,6 +189,25 @@ class Roster:
             and not self.has_left(c.id)
         ]
 
+    def fallen_allies_of(self, actor) -> list:
+        """Side-mates who are DOWN but still on the field.
+
+        `allies_of` answers "who can help me fight" and so excludes them,
+        which is right for every question it was written for and exactly
+        wrong for the one that matters to a man bleeding out: somebody
+        has to be able to see him in order to kneel down and stop it
+        (6E2 p.109).
+
+        Still HERE, though. A man who walked off the field took his
+        wounds with him and is nobody's patient.
+        """
+        mine = Side.of(actor)
+        return [
+            c for c in self.combatants
+            if c.id != actor.id and Side.of(c) == mine and is_down(c)
+            and not self.has_left(c.id)
+        ]
+
     def decide(self, condition: StopCondition | None = None) -> Verdict:
         return (condition or LastSideStanding()).decide(self)
 

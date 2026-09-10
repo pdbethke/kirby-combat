@@ -162,6 +162,8 @@ def _apply_bleeding(session: "CombatSession") -> "CombatSession":
         max_body = max_body_of(combatant)
         if max_body is not None and body <= -max_body:
             continue                      # already Dead; nothing left to lose
+        if _is_stabilized(session, combatant_id):
+            continue                      # 6E2 p.109: he stops losing BODY
         lost = bleed_out_body(current_body=body)
         if not lost:
             continue
@@ -192,6 +194,113 @@ def max_body_of(combatant) -> int | None:
     if value is not None:
         return int(value)
     return getattr(getattr(combatant, "state", None), "max_body", None)
+
+
+def _is_stabilized(session, combatant_id: str) -> bool:
+    """Whether somebody made the Paramedics roll on this man (6E2 p.109).
+
+    Folded from the log, like every other fight-fact in this engine, so a
+    `dataclasses.replace` on a vitals change cannot drop it.
+
+    A LATER WOUND UNDOES IT. p.109 stabilizes "his condition", and being
+    shot again is a new one --- so a stabilize only counts while it is
+    the most recent thing to have happened to him. Without this a man
+    patched up once was immune to bleeding for the rest of the fight
+    however many times he was hit afterwards.
+    """
+    stabilized = False
+    for event in getattr(session, "event_log", None) or []:
+        payload = getattr(event, "result_payload", None)
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("target_id") != combatant_id:
+            continue
+        if payload.get("kind") == "stabilize":
+            stabilized = bool(payload.get("stabilized"))
+        elif payload.get("body_dealt"):
+            stabilized = False            # shot again; the wound is new
+    return stabilized
+
+
+def _damage_was_all_normal(session, combatant_id: str) -> bool:
+    """Whether every hit this man took was Normal Damage.
+
+    6E2 p.115: "Blunt weapons or Normal Damage (from any kind of attack)
+    are less likely to induce Bleeding. Such damage is considered to be
+    -1 level on the Bleeding table." Read off the log, which has carried
+    `damage_type` on every attack payload since the recording gained it,
+    rather than kept as a second flag on the combatant that could drift.
+
+    A man who has taken NOTHING has taken nothing killing, so the honest
+    default is False -- he is not on the table at all and the caller's
+    `body_lost` of zero settles it.
+    """
+    saw_any = False
+    for event in getattr(session, "event_log", None) or []:
+        payload = getattr(event, "result_payload", None)
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("target_id") != combatant_id:
+            continue
+        if not payload.get("body_dealt"):
+            continue
+        saw_any = True
+        if payload.get("damage_type") == "killing":
+            return False
+    return saw_any
+
+
+def _apply_wound_bleeding(
+    session: "CombatSession", template: "CombatTemplate",
+) -> "CombatSession":
+    """6E2 p.115's optional Bleeding, rolled on Segment 1 of each Turn.
+
+    "Whenever a character loses BODY, he will Bleed, thus losing STUN and
+    occasionally some extra BODY ... Wounded characters should roll the
+    dice on Segment 1 of each Turn."
+
+    Gated on the template because the page frames it as optional. p.109's
+    bleeding to DEATH is a different rule, is not optional, and fires at
+    the END of Segment 12 -- both can take from the same man in the same
+    Turn, which is why the event says which one did.
+    """
+    from kirby_combat.resolution.bleeding import bleeding_dice, bleeding_result
+    from kirby_combat.vitals import apply_vitals_delta
+
+    if not getattr(template, "use_bleeding_rules", False):
+        return session
+
+    roller = getattr(session, "dice_roller", None)
+    if roller is None:
+        return session
+
+    new_combatants = dict(session.combatants)
+    for combatant_id, combatant in session.combatants.items():
+        max_body = max_body_of(combatant)
+        if max_body is None:
+            continue
+        body_lost = max_body - combatant.state.current_body
+        killing = not _damage_was_all_normal(session, combatant_id)
+        dice = bleeding_dice(body_lost, killing=killing)
+        if dice <= 0:
+            continue
+        loss = bleeding_result(roller.roll_dice(dice))
+        new_combatants[combatant_id] = apply_vitals_delta(
+            combatant, stun=-loss.stun_lost, body=-loss.body_lost,
+        )
+        session = apply_event(session, BleedingSuffered(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_engine(),
+            combatant_id=combatant_id,
+            body_lost=loss.body_lost,
+            stun_lost=loss.stun_lost,
+            rule="wound",
+            dice=loss.rolled,
+        ))
+    return replace(session, combatants=new_combatants)
 
 
 def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
@@ -527,8 +636,17 @@ class Encounter:
                             # man getting his wind back does not stop him
                             # bleeding. Ordering matters only for the log,
                             # and both belong to the Turn that is ending.
-                            _apply_bleeding(
-                                _apply_post_12_recovery(session, template),
+                            # p.115's wound Bleeding belongs to Segment 1
+                            # of the Turn now beginning, so it goes
+                            # OUTSIDE p.109's end-of-Segment-12 bleed-out
+                            # -- last in, first out: recovery and
+                            # bleed-out close the old Turn, the wound roll
+                            # opens the new one.
+                            _apply_wound_bleeding(
+                                _apply_bleeding(
+                                    _apply_post_12_recovery(session, template),
+                                ),
+                                template,
                             ),
                         ),
                     ),

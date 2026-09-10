@@ -263,6 +263,17 @@ def run_phase(
         # `spent_charges` and `actor_holding` are folded just above, and
         # for the same reason -- it lives in the fight, not in the caller.
         concealment=concealment_for(session, observer_id=actor_id),
+        # WHO IS ON HIS SIDE. Enumeration had only ever been handed
+        # ENEMIES, so an ally-targeted offer had nothing to name --- Aid
+        # and Healing surface with `target_id=None` for exactly that
+        # reason. Stabilizing a dying man (6E2 p.109) cannot: the roll's
+        # difficulty depends on WHICH man is bleeding. Already computed
+        # just below for the PhaseSituation.
+        # STANDING AND FALLEN BOTH. `allies_of` excludes the down,
+        # which is right for "who can help me fight" and exactly wrong
+        # for the man on the ground who needs somebody to kneel beside
+        # him.
+        allies=roster.allies_of(actor) + roster.fallen_allies_of(actor),
     )
     if not menu:
         _mark_acted(session, actor_id)

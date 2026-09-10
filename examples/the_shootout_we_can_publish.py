@@ -67,7 +67,7 @@ def shotgun() -> AttackPower:
 
 
 def _man(cid: str, name: str, side: Side, *, dex: int, spd: int, ocv: int,
-         dcv: int, stun: int, body: int, attacks=()):
+         dcv: int, stun: int, body: int, attacks=(), skills=None):
     """One ordinary man. No characteristic here is above the human maximum
     a 6E campaign would allow a competent gunfighter.
 
@@ -83,7 +83,7 @@ def _man(cid: str, name: str, side: Side, *, dex: int, spd: int, ocv: int,
         pd=2, ed=2, rpd=0, red=0, md=0, power_defense=0, flash_defense=0,
         max_stun=stun, max_body=body, max_end=25,
         current_stun=stun, current_body=body, current_end=25,
-        side=side, attacks=list(attacks),
+        side=side, attacks=list(attacks), skills=skills,
         # A long coat is not armour. One rPD so a graze is survivable and
         # a solid hit is not.
         defenses=[DefenseItem(name="Heavy coat", pd=1, rpd=1, is_resistant=True)],
@@ -118,8 +118,14 @@ def the_cast() -> list:
              stun=26, body=11, attacks=[revolver("Colt revolver")]),
         _man("morgan_earp", "Morgan Earp", law, dex=13, spd=3, ocv=6, dcv=4,
              stun=24, body=10, attacks=[revolver("Colt revolver")]),
+        # Doc Holliday was a dentist, which in HERO terms is Paramedics
+        # -- and 6E2 p.109 makes that the roll that stops a man at 0 or
+        # negative BODY bleeding to death. In a fight where three men go
+        # down it is the most consequential thing on his sheet after the
+        # coach gun.
         _man("doc_holliday", "Doc Holliday", law, dex=15, spd=3, ocv=7, dcv=5,
-             stun=20, body=9, attacks=[shotgun(), revolver("Nickel revolver")]),
+             stun=20, body=9, attacks=[shotgun(), revolver("Nickel revolver")],
+             skills={"PARAMEDICS": 11}),
         _man("billy_clanton", "Billy Clanton", cow, dex=13, spd=3, ocv=6, dcv=4,
              stun=22, body=10, attacks=[revolver("Colt revolver")]),
         _man("frank_mclaury", "Frank McLaury", cow, dex=14, spd=3, ocv=6, dcv=5,
@@ -292,6 +298,8 @@ def the_fight(seed: int = DEMO_SEED):
     Harwood House wall, Fly's Studio, wagon, barrels, trough and crates
     stand here. Only the men are different.
     """
+    from dataclasses import replace
+
     from kirby_combat.encounter import Encounter
     from kirby_combat.loop import TacticChooser, run_encounter
     from kirby_combat.session.combat_session import CombatSession
@@ -301,14 +309,21 @@ def the_fight(seed: int = DEMO_SEED):
     cast = the_cast()
     scene = the_scene()
 
+    # 6E2 p.115's optional Bleeding rules, ON. The page frames them as a
+    # choice -- "In situations where a character can get immediate
+    # medical care, there's no need to use the Bleeding rules" -- and a
+    # gunfight behind a saloon in 1881 is the case they were written for.
+    # 6E2 p.109's bleeding to DEATH is core and applies either way.
+    template = replace(RAW_HEROIC, use_bleeding_rules=True)
+
     roller = RandomRoller(seed=seed)
     chooser = TacticChooser()
     session = CombatSession.create(
         id=f"shootout-{seed}", combatants=cast, scene=scene,
-        template=RAW_HEROIC, dice_roller=roller).start()
+        template=template, dice_roller=roller).start()
     result = run_encounter(
         Encounter(id=f"shootout-{seed}", turn=1, segment=12,
-                  sessions=[session], template=RAW_HEROIC),
+                  sessions=[session], template=template),
         chooser, roller=roller, on_unresolvable="skip", max_turns=40)
     return chooser, result
 

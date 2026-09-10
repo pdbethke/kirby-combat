@@ -73,6 +73,18 @@ class CombatTemplate:
     killing_stun_mult_base: int = 1     # base before the d3 roll
     killing_stun_mult_fixed: int | None = None  # None → roll d3; int → fixed value
 
+    # 6E2 p.115's optional Bleeding rules. OFF by default, because the
+    # page itself frames them as a choice -- "In situations where a
+    # character can get immediate medical care, there's no need to use
+    # the Bleeding rules" -- and because every fight this engine has run
+    # so far ran without them. A gunfight is the case they were written
+    # for; see `resolution/bleeding.py`.
+    #
+    # 6E2 p.109's bleeding to DEATH is NOT gated by this and never should
+    # be: it is a core rule, it applies only at or below 0 BODY, and it
+    # takes BODY rather than STUN.
+    use_bleeding_rules: bool = False
+
     # Extension hooks
     custom_rules: dict = field(default_factory=dict)
 

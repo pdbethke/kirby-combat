@@ -25,6 +25,10 @@ from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
 from kirby_combat.scene.cover import cover_ocv_modifier
+from kirby_combat.resolution.bleeding import (
+    EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
+    stabilize_target as _stabilize_target,
+)
 from kirby_combat.endurance import costs_end
 from kirby_combat.actions.throw import resolve_object_throw
 from kirby_combat.hero_view import HeroCombatant
@@ -569,6 +573,7 @@ ALL_ACTION_KINDS = frozenset({
     "pickup", "presence_attack", "presence_attack_group", "push",
     "rapid_fire", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_push", "reposition_strike",
+    "stabilize",
     "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
     "throw", "throw_object", "trading", "trip",
 })
@@ -628,6 +633,7 @@ def enumerate_actions(
     physical_entangle: PhysicalEntangleState | None = None,
     already_aborted: bool = False,
     spent_charges: dict[str, int] | None = None,
+    allies: list[HeroCombatant] | None = None,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -1853,6 +1859,39 @@ def enumerate_actions(
                     f"to MC degree ladder (APG p34)"
                 ),
             ))
+    # STABILIZE A DYING ALLY (6E2 p.109). "This unpleasant fate is not
+    # inevitable. Another character can stabilize a character at 0 or
+    # negative BODY with a successful Paramedics roll (at -1 for every
+    # negative 2 BODY)."
+    #
+    # ALLIES ARE NEW HERE. This function has only ever been handed
+    # ENEMIES; Aid and Healing target allies and work around it by
+    # surfacing them with `target_id=None`, which is tolerable for a
+    # power the actor aims himself and useless for a roll whose
+    # difficulty depends on WHICH man is bleeding. The driver already
+    # computes `roster.allies_of(actor)` for the PhaseSituation, so
+    # passing it costs nothing.
+    #
+    # Offered on the ALLY's condition, not the actor's skill: 6E2 p.115
+    # gives the attempt to anyone, "even just the Everyman 8- roll".
+    for _ally in (allies or []):
+        if _ally.state.current_body > 0:
+            continue
+        _para = actor.skill_roll_value("PARAMEDICS") or _EVERYMAN_PARAMEDICS
+        _target = _stabilize_target(paramedics_roll=_para,
+                                    current_body=_ally.state.current_body)
+        actions.append(LegalAction(
+            action_id=f"stabilize:{_ally.id}",
+            kind="stabilize",
+            target_id=_ally.id,
+            power_xmlid=None, power_name=None,
+            summary=(
+                f"Stabilize {getattr(_ally, 'name', None) or _ally.id} at "
+                f"{_ally.state.current_body} BODY — Paramedics {_target}- "
+                f"to stop the bleeding (6E2 p109)"
+            ),
+        ))
+
     # PR-48/RAW: Coordinate attacks with same-phase allies against one
     # target. The driver resolves roll + join + execution semantics.
     if alive_enemies and allow_coordinate:

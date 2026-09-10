@@ -1496,6 +1496,47 @@ def _resolve_hide(
     })
 
 
+@resolves("stabilize")
+def _resolve_stabilize(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Stop a dying man losing BODY (6E2 p.109).
+
+    "Another character can stabilize a character at 0 or negative BODY
+    with a successful Paramedics roll (at -1 for every negative 2 BODY).
+    This doesn't give the wounded character back any BODY, it just
+    stabilizes his condition so he doesn't lose any more BODY."
+
+    So this restores NOTHING. What it changes is the end of every
+    subsequent Turn: `encounter._apply_bleeding` reads the log for a
+    successful stabilize and stops taking the BODY. Recorded rather than
+    stored on the combatant for the reason everything else in this engine
+    is --- the fight knows, and a `replace` on a vitals change cannot
+    lose it.
+    """
+    from kirby_combat.resolution.bleeding import (
+        EVERYMAN_PARAMEDICS, stabilize_target,
+    )
+
+    target_id = action.target_id
+    if not target_id or target_id not in session.combatants:
+        raise UnresolvableAction(action.kind, action.action_id)
+    patient = session.combatants[target_id]
+
+    paramedics = actor.skill_roll_value("PARAMEDICS") or EVERYMAN_PARAMEDICS
+    needed = stabilize_target(paramedics_roll=paramedics,
+                              current_body=patient.state.current_body)
+    rolled = sum(roller.roll_dice(3))
+    made = rolled <= needed
+
+    return _recorded(session, actor, action, made, {
+        "kind": action.kind, "target_id": target_id,
+        "stabilized": made, "roll": rolled, "needed": needed,
+        "body_at": patient.state.current_body,
+    })
+
+
 @resolves("force_wall")
 def _resolve_force_wall(
     session: "CombatSession", actor, action: LegalAction, *,

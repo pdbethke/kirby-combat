@@ -206,6 +206,23 @@ class _SyntheticCombatant(HeroCombatant):
         return s
 
 
+@dataclasses.dataclass
+class _SyntheticSkill:
+    """The two fields `hero_view.skill_roll_value` actually reads.
+
+    Deliberately not a kirby-cost `Skill`: constructing one needs the
+    licensed Hero Designer template, and the whole point of this module
+    is a combatant that can be built without it.
+    """
+
+    xmlid: str
+    roll_value: int
+    name: str = ""
+
+    def __post_init__(self) -> None:
+        self.name = self.name or self.xmlid.replace("_", " ").title()
+
+
 def synthetic_combatant(
     *,
     id: str,
@@ -247,6 +264,7 @@ def synthetic_combatant(
     is_mentalist: bool = False,
     is_npc: bool = False,
     knockback_resistance: int = 0,
+    skills: dict[str, int] | None = None,
 ) -> _SyntheticCombatant:
     """Construct a HeroCombatant with the same flat kwargs that the
     pre-migration Combatant dataclass accepted.
@@ -271,6 +289,16 @@ def synthetic_combatant(
         # the wanted defenses already in the explicit list.
     }
     hero = _SyntheticHero(name=name, char_values=char_values)
+
+    # SKILLS, as ``{xmlid: roll target}``. `hero_view.skill_roll_value`
+    # reads `hero.skills` for an `.xmlid` and a numeric `.roll_value` --
+    # it is how STEALTH reaches a perception contest and how PARAMEDICS
+    # reaches 6E2 p.109's stabilize roll -- and a synthetic hero had an
+    # empty list with no way to fill it. So an authored cast could not
+    # own a skill at all, which is a real limit on what this file was
+    # built to make shippable, not a test convenience.
+    for xmlid, roll in (skills or {}).items():
+        hero.skills.append(_SyntheticSkill(xmlid=xmlid, roll_value=int(roll)))
 
     state = HeroCombatState(
         current_stun=current_stun if current_stun is not None else max_stun,
