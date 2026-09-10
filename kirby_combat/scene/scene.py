@@ -165,6 +165,161 @@ class Hazard:
     effect: HazardEffect
 
 
+#: 6E2 p.45's cover is about how much of a target can be seen. A standing
+#: man is about two metres, so anything shorter is something he shoots
+#: over --- which is what makes a wagon cover rather than a wall.
+SEE_OVER_M = 2.0
+
+
+@dataclass(frozen=True)
+class Furnishing:
+    """A solid thing standing on the ground, described by its FOOTPRINT.
+
+    Scenery in this engine has only ever been a `Wall`: a segment and a
+    height. That is right for the side of a building and wrong for
+    everything you can walk around --- a wagon, a stack of barrels, a
+    crate pile, a boulder, a parked car --- and three separate defects
+    came out of the same missing fact.
+
+    THE RENDERER GUESSED. `wallToBox` draws every wall 0.4 m thick,
+    a constant with nothing behind it, because a line has no width to
+    read. A wagon drawn 0.4 m across reads as a plank; drawn its real
+    width it swallowed three of the Earps, because a line occupies no
+    ground and nothing could refuse them.
+
+    MEN STOOD INSIDE THE FURNITURE. Measured at the O.K. Corral: Wyatt
+    0.40 m from the wagon's line, Virgil 0.50, Morgan 0.82.
+
+    AND DURABILITY WAS TYPED IN BY HAND, wall by wall, while
+    `kirby_terrain.OBJECT_DURABILITY` --- 6E2 p.173's own Objects Table
+    --- sat there carrying DEF and BODY for eighteen materials.
+
+    One footprint answers all three, which is why this is one type and
+    not three patches.
+
+    THE MODEL IS A SKIN AND THE FOOTPRINT IS THE TRUTH. `model` names a
+    glTF for a renderer that wants one --- the format Dungeon Alchemist's
+    own asset importer takes, and the one three.js loads natively, so the
+    same file serves both. Nothing in the rules ever reads it: cover,
+    line of sight, where a man may stand and what a bullet has to chew
+    through all come from the polygon and the height.
+    """
+
+    id: str
+    name: str
+    #: Footprint on the ground, CCW, in metres. THE authoritative shape.
+    polygon_xy: list[tuple[float, float]]
+    height_m: float
+    #: Keyed to `kirby_terrain.OBJECT_DURABILITY` (6E2 p.173). None is
+    #: allowed only when the numbers are given outright --- the table is
+    #: walls, doors and glass, and has no row for a wagon or a tree.
+    material: str | None = None
+    #: 6E2 p.172: the table is "a baseline the GM should change to fit the
+    #: adventure", so an override is the rule and not a hack.
+    pd: int | None = None
+    ed: int | None = None
+    body: int | None = None
+    cover_level: int = 2
+    blocks_movement: bool = True
+    #: None means "decide from the height": you can see over a wagon and
+    #: not over a stack of crates. An author who says otherwise is
+    #: describing a thicket, and wins.
+    blocks_los_override: bool | None = None
+    #: A glTF/GLB for the renderer. Never read by any rule.
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        if len(self.polygon_xy) < 3:
+            raise ValueError(
+                f"{self.id}: a footprint needs at least three corners, "
+                f"got {len(self.polygon_xy)}"
+            )
+        if self.material is None:
+            missing = [n for n, v in
+                       (("pd", self.pd), ("ed", self.ed), ("body", self.body))
+                       if v is None]
+            if missing:
+                raise ValueError(
+                    f"{self.id}: no material named, so {', '.join(missing)} "
+                    f"must be given outright --- 6E2 p.173's table covers "
+                    f"walls, doors and glass and has no row for this"
+                )
+        else:
+            from kirby_terrain import OBJECT_DURABILITY
+
+            if self.material not in OBJECT_DURABILITY:
+                raise ValueError(
+                    f"{self.id}: {self.material!r} is not in the Objects "
+                    f"Table (6E2 p.173)"
+                )
+
+    @property
+    def _table(self):
+        from kirby_terrain import OBJECT_DURABILITY
+
+        return OBJECT_DURABILITY.get(self.material) if self.material else None
+
+    @property
+    def pd_value(self) -> int:
+        return self.pd if self.pd is not None else self._table.pd
+
+    @property
+    def ed_value(self) -> int:
+        return self.ed if self.ed is not None else self._table.ed
+
+    @property
+    def body_value(self) -> int:
+        return self.body if self.body is not None else self._table.body
+
+    @property
+    def blocks_los(self) -> bool:
+        """You can see over a wagon and not over a stack of crates.
+
+        Derived from the height against `SEE_OVER_M` rather than authored,
+        because an author writing both a height and a sight flag can write
+        a two-metre wall you can see over and never notice.
+        """
+        if self.blocks_los_override is not None:
+            return self.blocks_los_override
+        return self.height_m >= SEE_OVER_M
+
+    def occupies(self, x: float, y: float) -> bool:
+        """Whether this thing is standing on that spot.
+
+        The question a line could never answer, and the reason a man could
+        stand inside a wagon.
+        """
+        from kirby_combat.scene.geometry import point_in_polygon_xy
+
+        return point_in_polygon_xy((x, y), self.polygon_xy)
+
+    @property
+    def centre_xy(self) -> tuple[float, float]:
+        xs = [p[0] for p in self.polygon_xy]
+        ys = [p[1] for p in self.polygon_xy]
+        return ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0)
+
+    @property
+    def length_m(self) -> float:
+        """The longer side of the footprint's bounding box."""
+        return max(self._extent_x, self._extent_y)
+
+    @property
+    def width_m(self) -> float:
+        """The shorter side --- the number the renderer had to invent."""
+        return min(self._extent_x, self._extent_y)
+
+    @property
+    def _extent_x(self) -> float:
+        xs = [p[0] for p in self.polygon_xy]
+        return max(xs) - min(xs)
+
+    @property
+    def _extent_y(self) -> float:
+        ys = [p[1] for p in self.polygon_xy]
+        return max(ys) - min(ys)
+
+
 @dataclass
 class Scene:
     """Engine-authoritative scene. Mutable combatant_positions dict.
@@ -183,6 +338,10 @@ class Scene:
     ambient: AmbientConditions
     combatant_positions: dict[str, Position] = field(default_factory=dict)
     constructs: list["Construct"] = field(default_factory=list)
+    #: Solid things standing on the ground, described by their FOOTPRINT
+    #: rather than by a line --- a wagon, a barrel stack, a boulder. See
+    #: `Furnishing` for the three defects a line could not avoid.
+    furnishings: list["Furnishing"] = field(default_factory=list)
     # 6E2 p.8, "COMBAT AND NONCOMBAT TIME": precise (Segment-level) time is
     # only tracked when a sequence needs it. A Scene at rest -- a house,
     # five occupants doing chores -- has no Encounter at all; this is that

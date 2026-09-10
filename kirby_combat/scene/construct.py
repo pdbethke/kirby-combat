@@ -237,6 +237,24 @@ def constructs_in(scene, session=None) -> list[Construct]:
     """
     out = list(getattr(scene, "constructs", None) or [])
     seen = {getattr(c, "obj_id", None) for c in out}
+    # FURNISHINGS ARE THINGS YOU CAN SHOOT. A wagon nobody can hit is a
+    # wagon nobody can shoot the cover out from under, which is precisely
+    # what `smash_cover` exists to do. Their durability comes from 6E2
+    # p.173's Objects Table via the material they name, so nobody types a
+    # BODY into a scene file by hand.
+    for f in (getattr(scene, "furnishings", None) or []):
+        if f.id in seen:
+            continue
+        seen.add(f.id)
+        out.append(Construct(
+            obj_id=f.id, kind="wall",
+            polygon_xy=list(f.polygon_xy),
+            elevation_range_m=(0.0, f.height_m),
+            body=f.body_value, def_value=f.pd_value,
+            ed_value=f.ed_value,
+            blocks_los=f.blocks_los,
+            blocks_movement=f.blocks_movement,
+        ))
     for wall in (getattr(scene, "walls", None) or []):
         if getattr(wall, "def_value", None) is None:
             continue

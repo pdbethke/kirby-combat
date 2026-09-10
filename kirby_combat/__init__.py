@@ -174,8 +174,8 @@ from kirby_combat.serialization import from_dict, to_dict  # noqa: E402
 
 # Place TYPES only -- see the note above on why the operations are absent.
 from kirby_combat.scene.scene import (  # noqa: E402
-    AmbientConditions, Hazard, HazardEffect, Position, Scene, SceneBounds,
-    Surface, Wall,
+    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene,
+    SceneBounds, Surface, Wall,
 )
 from kirby_combat.scene.construct import Construct, ConstructEffect  # noqa: E402
 
@@ -256,5 +256,6 @@ __all__ = [
     "from_dict", "to_dict",
     # Place TYPES (operations live in kirby-world)
     "AmbientConditions", "Construct", "ConstructEffect", "Hazard",
+    "Furnishing",
     "HazardEffect", "Position", "Scene", "SceneBounds", "Surface", "Wall",
 ]

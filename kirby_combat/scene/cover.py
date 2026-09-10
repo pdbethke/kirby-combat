@@ -125,6 +125,12 @@ def _surface_cover_for(target: Position, surfaces: list[Surface]) -> int:
     return best
 
 
+#: How finely a sight line is walked across a footprint, in metres.
+#: Half a metre is narrower than a person, so nothing man-sized is
+#: stepped over.
+FOOTPRINT_SAMPLE_M = 0.5
+
+
 def _covers_the_target(wall: Wall, shooter_pos: Position, target_pos: Position) -> bool:
     """Whether this wall is the TARGET's cover rather than the shooter's.
 
@@ -152,6 +158,31 @@ def _covers_the_target(wall: Wall, shooter_pos: Position, target_pos: Position) 
     """
     mid = _wall_midpoint(wall)
     return distance_3d(mid, target_pos) <= distance_3d(mid, shooter_pos)
+
+
+def _footprint_between(furnishing, shooter_pos: Position, target_pos: Position) -> bool:
+    """Whether the sight line crosses this thing's footprint.
+
+    Sampled along the line rather than solved analytically: a footprint is
+    an arbitrary polygon, `point_in_polygon_xy` is the engine's own
+    containment test, and walking it keeps ONE answer to "is this point
+    inside" instead of a second, subtly different intersection routine
+    living here. The step is finer than a person is wide, so nothing
+    man-sized is stepped over.
+    """
+    from kirby_combat.scene.geometry import distance_3d as _d
+
+    span = _d(shooter_pos, target_pos)
+    if span <= 0:
+        return False
+    steps = max(2, int(span / FOOTPRINT_SAMPLE_M))
+    for i in range(steps + 1):
+        t = i / steps
+        x = shooter_pos.x + (target_pos.x - shooter_pos.x) * t
+        y = shooter_pos.y + (target_pos.y - shooter_pos.y) * t
+        if furnishing.occupies(x, y):
+            return True
+    return False
 
 
 def compute_cover_level(
@@ -186,6 +217,22 @@ def compute_cover_level(
             low, key=lambda w: distance_3d(_wall_midpoint(w), target_pos),
         )
         wall_cover = max(wall_cover, nearest_low.cover_level)
+
+    # 1c. FURNISHINGS, which are cover by their FOOTPRINT rather than by
+    # a line. A wagon is the classic case and the reason the type exists:
+    # authored as a segment it had no width, so the renderer invented one
+    # and placement could not keep men out of it.
+    #
+    # The same ownership test as the walls above --- `_covers_the_target`
+    # --- because cover belongs to whoever is behind it (6E2 p.45), and
+    # that rule does not change with the shape of the thing.
+    for f in (getattr(scene, "furnishings", None) or []):
+        if not _footprint_between(f, shooter_pos, target_pos):
+            continue
+        mid = f.centre_xy
+        here = Position(mid[0], mid[1], target_pos.z)
+        if distance_3d(here, target_pos) <= distance_3d(here, shooter_pos):
+            wall_cover = max(wall_cover, f.cover_level)
 
     # 2. Surface cover (foxhole etc).
     surface_cover = _surface_cover_for(target_pos, scene.surfaces)
