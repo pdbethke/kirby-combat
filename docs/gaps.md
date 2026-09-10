@@ -295,3 +295,58 @@ does --- and not yet as evidence that the engine's tactical breadth is
 usable. Those are different claims and the instrument can tell them
 apart, which is the thing that actually changed today.
 
+## The page was telling the model our answer
+
+Measured 2026-09-10, and it reframes most of what is above.
+
+Five real decision points were captured from a fight, held FIXED, and
+replayed under four pages with the identical menu. Twenty trials each.
+
+| arm | attack | disengage | move_to_cover | move_strike | push |
+|---|---|---|---|---|---|
+| A the Brief as it was | 8 | 8 | 4 | 0 | 0 |
+| B + a line saying they are bunched | 8 | 8 | 4 | 0 | 0 |
+| C + the point-of-view render | 8 | 8 | 4 | 0 | 0 |
+| **D minus our doctrine hint** | **15** | 1 | 0 | **3** | **1** |
+
+A, B and C are not merely similar. They are IDENTICAL, trial for trial ---
+adding a whole rendered image changed not one decision. D changes
+everything.
+
+**The Brief ends with "What your doctrine says, best first:" --- the
+TacticChooser catalogue's own ranked answer --- eleven lines above the
+menu.** Remove it and the model stops agreeing with doctrine.
+
+`move_strike` is the tell. It is offered 931 times across six fights and
+was taken ZERO times all week by either chooser; without the hint it is
+picked three times in twenty. `push` likewise --- and legitimately: the
+one that took it was an unarmed man Pushing his bare STR strike, which
+6E2 p.135 allows because STR costs END.
+
+### What this invalidates
+
+**"The chooser is not the bottleneck" (475fd0d6) is now unsafe.** That
+conclusion rested on a model reaching the same three kinds as doctrine ---
+while being shown doctrine's recommendation. The agreement was
+substantially circular.
+
+It also explains the two null results above. Stating an offer's payoff
+and halving the menu both moved nothing because neither competed with an
+explicit ranked recommendation sitting above the list.
+
+### What it does NOT show
+
+That removing the hint is BETTER. D concentrates harder on `attack` (15 of
+20 against 8) and abandons `move_to_cover` entirely; more variety is not
+the same as better play, and this benchmark still cannot grade a decision
+as right or wrong. Five situations and four trials can show an effect this
+large and nothing subtle.
+
+### What to do about it
+
+The hint is not obviously wrong to include --- a GM briefing a player
+offers advice. But it must be a MEASURED choice, so the doctrine section
+needs the same off switch the formation line has, and every
+model-versus-doctrine number in this file should be re-taken with it
+off before any of them is trusted.
+
