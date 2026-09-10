@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
 from kirby_combat.scene.cover import cover_ocv_modifier
+from kirby_combat.endurance import costs_end
 from kirby_combat.actions.throw import resolve_object_throw
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.perception import flash_groups, perceive
@@ -877,9 +878,18 @@ def enumerate_actions(
         its parent List's. So ASK the source power rather than keeping a
         second copy of the rule here that can disagree with it.
 
-        A view with no findable source --- the bare STR strike, and the
-        synthetic attacks tests build --- is pushable: STR costs END, and
-        the absence of a source object is not evidence of Charges.
+        A view with no findable source --- the bare STR strike, an
+        AUTHORED weapon, and every synthetic attack this suite builds ---
+        used to be pushable unconditionally, on the reasoning that STR
+        costs END and the absence of a source object is not evidence of
+        Charges. True as far as it went, and far too permissive: the
+        VIEW itself carries `charges` and `reduced_end`, both read off
+        the build, and `endurance.costs_end` is already the book's own
+        test over exactly those two fields. Falling back to a blanket yes
+        threw that away, so every man at the O.K. Corral was offered a
+        Push of a six-shot Colt --- 37 offers in one opening menu --- and
+        taking one charged him the 5 END of 6E2 p.133 for a Power that
+        can never spend END at all.
         """
         target = _src_id(ap)
         if not target:
@@ -901,7 +911,7 @@ def enumerate_actions(
         src = (_find(getattr(actor.hero, "powers", None))
                or _find(getattr(actor.hero, "equipment", None)))
         if src is None:
-            return True
+            return costs_end(ap)
         return bool(getattr(src, "uses_end", True))
 
     # PR-37: _MENTAL_ATTACK_XMLIDS is module-level; referenced below for

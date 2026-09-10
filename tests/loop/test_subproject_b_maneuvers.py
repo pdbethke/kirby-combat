@@ -48,16 +48,25 @@ def _act(kind: str, *, action_id: str | None = None, power=None) -> LegalAction:
     )
 
 
+#: `resolvers._attack_dice` draws in this order: to-hit 3d6, damage, Hit
+#: Location 3d6 (6E2 p.110 step 1), STUN Multiplier 1/2d6 (6E2 p.100).
+#: The last two are rolled whether or not the template wants them, so a
+#: FakeRoller pool must carry them even for a maneuver that does no
+#: damage -- otherwise the pool runs dry mid-attack.
+_LOCATION = [3, 3, 3]
+_STUN_MULT = [1]
+
+
 def _hits(damage_dice: int = 0) -> FakeRoller:
     """A guaranteed hit: 3 on 3d6, then damage if the maneuver rolls any."""
     pool = [[1, 1, 1]]
     if damage_dice:
         pool.append([3] * damage_dice)
-    return FakeRoller(pool)
+    return FakeRoller([*pool, _LOCATION, _STUN_MULT])
 
 
 def _misses() -> FakeRoller:
-    return FakeRoller([[6, 6, 6]])
+    return FakeRoller([[6, 6, 6], _LOCATION, _STUN_MULT])
 
 
 def _resolve(action, *, roller=None):

@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from kirby_combat.models import DiceValues
 from kirby_combat.actions.recording import (
     resolve_attack_in_session, resolve_mental_blast_in_session,
 )
@@ -69,6 +70,48 @@ def _range_to(session, actor, target) -> float | None:
     return distance_3d(here, there)
 
 
+def _attack_dice(roller, dice_count: int) -> DiceValues:
+    """Every die one attack on a PERSON needs, rolled in one place.
+
+    THE STUN MULTIPLIER WAS NEVER ROLLED. 6E2 p.100: "To determine the
+    STUN done, the character rolls a STUN Multiplier -- 1/2d6 -- and
+    multiplies the result by the amount of BODY done." `compute_damage`
+    implements that exactly, reading the die from
+    `DiceValues.stun_multiplier`, and not one construction site in this
+    module ever wrote the field. Its fallback is 1, `(1 + 1) // 2` is 1,
+    and so every killing attack came out at the template's base
+    multiplier: STUN equal to BODY, forever.
+
+    Heroic campaigns hid it. 6E2 p.100 offers the Hit Location table
+    "instead of a rolled STUN Multiplier" and `actions/base` takes that
+    branch, so the O.K. Corral's shotgun to the shoulder really did do
+    x3 and the benchmark looked right. Turn Hit Locations off -- the
+    default superheroic template, and everything the model-driven line
+    runs on -- and the roll underneath stands exposed at its minimum.
+
+    AND FIVE OF THE SIX SITES ROLLED NO LOCATION EITHER. Only the plain
+    attack passed `hit_location`; a Push, a Haymaker, a sweep, a
+    move-through and the autofire sequence did not, so a heroic fight
+    quietly lost Hit Locations for exactly the dramatic attacks most
+    likely to decide it.
+
+    Both dice are rolled WHETHER OR NOT the campaign uses them, which is
+    the rule this module already followed for the location: resolution
+    ignores a value the template does not want, and rolling
+    unconditionally keeps ONE dice sequence for a given seed instead of
+    two that diverge by template.
+    """
+    return DiceValues(
+        to_hit=roller.roll_dice(3),
+        damage=roller.roll_dice(dice_count) if dice_count > 0 else [],
+        hit_location=roller.roll_dice(3),
+        # 6E2 p.100's 1/2d6, passed as a raw d6 -- `compute_damage` does
+        # the round-up halving, and has done all along.
+        stun_multiplier=roller.roll_dice(1),
+    )
+
+
+
 @resolves("attack", "strike")
 def _resolve_attack(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -93,16 +136,7 @@ def _resolve_attack(
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=DiceValues(
-            to_hit=roller.roll_dice(3),
-            damage=roller.roll_dice(max(1, int(power.damage_dice))),
-            # 6E2 p.110 step 1, rolled whether or not the campaign uses
-            # it: `resolve_attack` ignores the value unless
-            # `use_hit_locations` says otherwise, and rolling
-            # unconditionally keeps one dice sequence for a given seed
-            # rather than two that diverge by template.
-            hit_location=roller.roll_dice(3),
-        ),
+        dice=_attack_dice(roller, max(1, int(power.damage_dice))),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",
@@ -984,8 +1018,7 @@ def _resolve_throw(
         attack = AttackInput(
             attacker=actor, target=target, power=missile,
             distance_m=None, aim=None,
-            dice=DiceValues(to_hit=roller.roll_dice(3),
-                            damage=roller.roll_dice(dice)),
+            dice=_attack_dice(roller, dice),
         )
         new_session, result = resolve_attack_in_session(
             session, attack, template, action_type="throw_object",
@@ -1361,7 +1394,7 @@ def _resolve_push(
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=DiceValues(to_hit=roller.roll_dice(3), damage=roller.roll_dice(dice)),
+        dice=_attack_dice(roller, dice),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",
@@ -1556,10 +1589,7 @@ def _reposition(session, actor, action, *, roller, then_attack: bool):
     attack = AttackInput(
         attacker=new_session.combatants[actor.id], target=target, power=power,
         distance_m=None, aim=None,
-        dice=DiceValues(
-            to_hit=roller.roll_dice(3),
-            damage=roller.roll_dice(max(1, int(power.damage_dice or 0))),
-        ),
+        dice=_attack_dice(roller, max(1, int(power.damage_dice or 0))),
     )
     after, result = resolve_attack_in_session(
         new_session, attack, session.template, action_type="attack",
@@ -1704,10 +1734,7 @@ def _maneuver_attack(
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=DiceValues(
-            to_hit=roller.roll_dice(3),
-            damage=roller.roll_dice(max(0, dice)) if dice > 0 else [],
-        ),
+        dice=_attack_dice(roller, max(0, dice)),
         ocv_modifier=ocv_modifier,
     )
     return resolve_attack_in_session(session, attack, session.template,
@@ -2018,8 +2045,7 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
         attack = AttackInput(
             attacker=session.combatants[actor.id], target=current, power=power,
             distance_m=None, aim=None,
-            dice=DiceValues(to_hit=roller.roll_dice(3),
-                            damage=roller.roll_dice(dice)),
+            dice=_attack_dice(roller, dice),
             ocv_modifier=ocv - base_ocv,
         )
         session, result = resolve_attack_in_session(

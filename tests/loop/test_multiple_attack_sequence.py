@@ -24,18 +24,32 @@ from kirby_dice import RandomRoller
 
 
 class _Rigged(RandomRoller):
-    """Hands out dictated to-hit totals in order; damage stays random.
+    """Hands out dictated to-hit totals in order; everything else random.
 
-    A 3d6 request is a to-hit roll here --- every attack asks for one
-    before it asks for damage --- so the queue is consumed by count.
+    "A 3d6 request is a to-hit roll" WAS the rule here, and it stopped
+    being true the day `resolvers._attack_dice` began rolling a Hit
+    Location --- also 3d6, also once per attack (6E2 p.110 step 1). The
+    queue was then consumed twice per shot, so a sequence dictated to
+    hit, hit, hit spent its second total on a location roll and missed.
+
+    So the double now tracks the attack, not the die count. One attack
+    draws to-hit 3d6, damage, location 3d6, then the STUN Multiplier
+    1/2d6 (6E2 p.100). The single-die draw is the boundary: it re-arms
+    the queue for the next shot, and only the first 3d6 after it is
+    treated as the to-hit.
     """
 
     def __init__(self, totals):
         super().__init__(seed=1)
         self._to_hit = list(totals)
+        self._armed = True
 
     def roll_dice(self, n):
-        if n == 3 and self._to_hit:
+        if n == 1:
+            self._armed = True                  # end of one attack's dice
+            return super().roll_dice(n)
+        if n == 3 and self._armed and self._to_hit:
+            self._armed = False
             base, rem = divmod(self._to_hit.pop(0), 3)
             return [base + (1 if i < rem else 0) for i in range(3)]
         return super().roll_dice(n)
