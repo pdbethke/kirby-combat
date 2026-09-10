@@ -92,6 +92,19 @@ def _scene_dict(scene) -> dict:
             "part_of": w.part_of,
         }
 
+    def furnishing(f):
+        return {
+            "id": f.id, "name": f.name,
+            "polygon_xy": _flat(f.polygon_xy),
+            "height_m": f.height_m,
+            "cover_level": f.cover_level,
+            "blocks_los": f.blocks_los,
+            "def_value": f.pd_value, "body": f.body_value,
+            # The glTF a renderer may load instead of drawing primitives.
+            # Never read by any rule; see `Furnishing.model`.
+            "model": f.model,
+        }
+
     def surface(s):
         return {
             "id": s.id, "name": s.name, "surface_type": s.surface_type,
@@ -107,6 +120,13 @@ def _scene_dict(scene) -> dict:
         "ambient_light_level": getattr(scene.ambient, "light_level", 4),
         "walls": [wall(w) for w in (scene.walls or [])],
         "surfaces": [surface(s) for s in (scene.surfaces or [])],
+        # SOLID THINGS, WITH THE GROUND THEY STAND ON. Their edges are
+        # already in `walls` above -- the engine projects them so movement
+        # and line of sight keep working -- and the front end needs the
+        # FOOTPRINT to know how wide to draw a wagon, which a line could
+        # never tell it. `part_of` on those edges is what stops it drawing
+        # both.
+        "furnishings": [furnishing(f) for f in (getattr(scene, "furnishings", None) or [])],
         "hazards": [],
     }
 

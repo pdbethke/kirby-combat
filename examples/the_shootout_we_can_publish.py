@@ -143,13 +143,23 @@ def the_cast() -> list:
 #: rebuilt to its real shape --- the geometry decides the fight, so the old
 #: seed was chosen for a different place.
 #:
-#: 23 gives the historical casualties: exactly Billy Clanton and both
-#: McLaurys down, Wyatt untouched, and Ike Clanton and Billy Claiborne ---
-#: who ran --- alive, in ten Phases. The one thing NO seed reproduced is
-#: that Virgil, Morgan and Doc were all wounded; here the Earps come
-#: through clean, which makes the engine's gunfight less costly than the
-#: real one was.
-DEMO_SEED = 23
+#: CHOSEN FOR COVERAGE, NOT FOR HISTORY. The seed used to be picked so
+#: the casualties matched 1881 --- three Cowboys down, Wyatt untouched ---
+#: which is a fine thing for a museum and the wrong criterion for a
+#: benchmark. The job of this fight is to FLEX the engine and show where
+#: it is thin, so the seed is the one that exercises the most distinct
+#: rule paths, measured over the first sixty.
+#:
+#: 59 reaches twenty of them: eight different Hit Locations including a
+#: Head and a Vitals, both bleeding rules (6E2 p.109's bleed-out and
+#: p.115's wound), Stunned, Knocked Out and Dying, a cover penalty, and a
+#: shot whose Hit Location roll finds the cover instead of the man
+#: (6E2 p.45). An Earp goes down, which history is clear did not happen
+#: and which this file no longer optimises against.
+#:
+#: WHAT SIXTY SEEDS NEVER REACHED is the more useful half of the
+#: measurement, and it is written down in `docs/gaps.md`.
+DEMO_SEED = 59
 
 
 #: Where each man stood when it started, in metres, with Fremont Street
@@ -203,6 +213,7 @@ def the_lot_as_it_was():
     """
     from kirby_combat.scene.construct import Construct
     from kirby_combat.scene.scene import (
+        Furnishing,
         AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
     )
 
@@ -261,15 +272,40 @@ def the_lot_as_it_was():
             wall("flys-studio", "C.S. Fly's photograph gallery",
                  (5.6, -3.0), (5.6, -0.6), h=4.5, cover=4, body=3, defv=4,
                  part_of="flys-house"),
-            # What was actually in the lot to get behind.
-            wall("wagon", "Photographer's wagon", (1.4, 4.1), (3.4, 4.1),
-                 h=1.5, cover=2, body=12, defv=3),
-            wall("barrels", "Water barrels", (4.9, 2.0), (4.9, 2.8),
-                 h=1.2, cover=2, body=4, defv=2),
-            wall("crates", "Packing crates", (1.0, 0.2), (1.0, 1.0),
-                 h=1.4, cover=2, body=4, defv=2),
+            # The things to get behind are FURNISHINGS now, below --- a
+            # wagon is a footprint and not a line. Their edges project
+            # back into this list, so movement, line of sight, cover
+            # moves, collapse and Area Of Effect all still see them.
         ],
         hazards=[], ambient=AmbientConditions(light_level=4),
+        # WHAT WAS ACTUALLY IN THE LOT TO GET BEHIND, with real ground
+        # under it. Authored as lines these had no width, so the renderer
+        # invented 0.4 m for each and men stood inside them; a wagon is
+        # four metres of bed and two of axle and everyone knows it.
+        #
+        # The wagon has moved NORTH of where its line sat. It had to: the
+        # Earps come into the lot at y 3.6-3.9 and the line was at 4.1,
+        # so any wagon of a real width had three of them standing in it.
+        # A line could hide that; a footprint cannot.
+        furnishings=[
+            Furnishing(
+                id="wagon", name="Photographer's wagon",
+                polygon_xy=[(1.0, 4.6), (3.6, 4.6), (3.6, 6.0), (1.0, 6.0)],
+                height_m=1.5, material="wooden wall", body=12, cover_level=2),
+            Furnishing(
+                id="barrels", name="Water barrels",
+                polygon_xy=[(4.7, 1.9), (5.5, 1.9), (5.5, 3.0), (4.7, 3.0)],
+                height_m=1.2, material="wooden wall", body=4, cover_level=2),
+            # Pulled west and south of where the line sat: the first
+            # footprint drawn here had Billy Clanton standing inside the
+            # crates at (1.6, 1.2), which the line it replaced could not
+            # possibly have shown. That is the type doing its job on its
+            # first outing.
+            Furnishing(
+                id="crates", name="Packing crates",
+                polygon_xy=[(0.2, -0.4), (1.2, -0.4), (1.2, 0.6), (0.2, 0.6)],
+                height_m=1.4, material="wooden wall", body=4, cover_level=2),
+        ],
         constructs=[
             # The buildings themselves. The wall faces above front them;
             # these are the mass behind, and without them the lot is two

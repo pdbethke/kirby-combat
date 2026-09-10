@@ -196,3 +196,67 @@ class TestYouCanShootIt:
         wagon = next(c for c in constructs_in(_lot([WAGON]))
                      if c.obj_id == "wagon")
         assert wagon.body == 3       # wooden wall, 6E2 p173
+
+
+# ---------------------------------------------------------------------------
+# It has to work with everything that already reads `scene.walls`
+# ---------------------------------------------------------------------------
+class TestItProjectsIntoWalls:
+    """Twelve modules ask `scene.walls` about movement, line of sight,
+    visibility, cover moves, collapse, knockback and Area Of Effect.
+    Authoring a wagon as a Furnishing and stopping there would silently
+    REMOVE all of that — you could walk through it, nobody could take
+    cover behind it, and it would not stop a blast.
+
+    So a footprint projects into the wall segments its edges already are.
+    The same move `constructs_in` makes in the other direction, and its
+    own words for it: "a second VIEW of the same geometry rather than a
+    second copy of it".
+    """
+
+    def test_a_footprint_becomes_its_edges(self):
+        walls = WAGON.as_walls()
+        assert len(walls) == 4, "a rectangle has four sides"
+
+    def test_the_edges_carry_the_furnishings_own_facts(self):
+        wall = WAGON.as_walls()[0]
+        assert wall.height_m == WAGON.height_m
+        assert wall.cover_level == WAGON.cover_level
+        assert wall.body == WAGON.body_value
+        assert wall.def_value == WAGON.pd_value
+        assert wall.blocks_los is WAGON.blocks_los
+
+    def test_every_edge_says_which_thing_it_belongs_to(self):
+        """`part_of` already means "this is a face of that structure",
+        and it is what stops a shot at one plank destroying the wagon."""
+        assert all(w.part_of == "wagon" for w in WAGON.as_walls())
+
+    def test_the_scene_projects_them_without_being_asked(self):
+        """An author who has to remember is an author who will forget,
+        and forgetting means a wagon nothing can bump into."""
+        scene = _lot([WAGON])
+        assert [w.id for w in scene.walls if w.part_of == "wagon"]
+
+    def test_projecting_twice_does_not_double_the_wagon(self):
+        """`dataclasses.replace` rebuilds a Scene on every move anybody
+        makes, so this runs constantly."""
+        from dataclasses import replace
+
+        scene = _lot([WAGON])
+        again = replace(scene, name="lot again")
+        assert len([w for w in again.walls if w.part_of == "wagon"]) == 4
+
+    def test_an_authored_wall_is_left_alone(self):
+        from kirby_combat.scene.scene import Wall
+
+        fence = Wall(id="fence", name="Fence",
+                     segment=(Position(-5, -5, 0), Position(-5, 5, 0)),
+                     height_m=1.2, cover_level=2, body=4, def_value=2)
+        scene = Scene(
+            id="s", name="s", bounds=SceneBounds(-20, -20, 0, 20, 20, 10),
+            surfaces=[], walls=[fence], hazards=[],
+            ambient=AmbientConditions(light_level=4),
+            furnishings=[WAGON],
+        )
+        assert "fence" in {w.id for w in scene.walls}
+        assert len(scene.walls) == 5

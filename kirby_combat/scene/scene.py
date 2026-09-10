@@ -283,6 +283,44 @@ class Furnishing:
             return self.blocks_los_override
         return self.height_m >= SEE_OVER_M
 
+    #: How an edge's wall id is built. The prefix is what makes the
+    #: projection idempotent — see `Scene.__post_init__`.
+    EDGE_ID = "{id}#edge{n}"
+
+    def as_walls(self) -> list["Wall"]:
+        """This footprint as the wall segments its edges already are.
+
+        TWELVE MODULES ASK `scene.walls` about movement, line of sight,
+        visibility, cover moves, collapse, knockback and Area Of Effect.
+        Authoring a wagon as a Furnishing and stopping there would
+        silently REMOVE all of it: you could walk through the thing,
+        nobody could take cover behind it, and it would not stop a blast.
+
+        So the footprint projects, which is the move `constructs_in`
+        already makes in the other direction and its own words for it ---
+        "a second VIEW of the same geometry rather than a second copy of
+        it". Each edge carries the furnishing's height, cover and
+        durability, and `part_of` says which thing it is a face of, so a
+        shot at one plank does not destroy the wagon.
+        """
+        corners = list(self.polygon_xy)
+        walls: list[Wall] = []
+        for n, (a, b) in enumerate(zip(corners, corners[1:] + corners[:1])):
+            walls.append(Wall(
+                id=self.EDGE_ID.format(id=self.id, n=n),
+                name=self.name,
+                segment=(Position(a[0], a[1], 0.0), Position(b[0], b[1], 0.0)),
+                height_m=self.height_m,
+                blocks_los=self.blocks_los,
+                blocks_movement=self.blocks_movement,
+                cover_level=self.cover_level,
+                body=self.body_value,
+                def_value=self.pd_value,
+                ed_value=self.ed_value,
+                part_of=self.id,
+            ))
+        return walls
+
     def occupies(self, x: float, y: float) -> bool:
         """Whether this thing is standing on that spot.
 
@@ -348,6 +386,24 @@ class Scene:
     # normal, resting state, not an omission. Set only when the scene needs
     # Segment-level accounting (a fight, a car chase, a rocket countdown).
     encounter: "Encounter | None" = None
+
+    def __post_init__(self) -> None:
+        """Project every furnishing's footprint into `walls`.
+
+        DONE HERE, not asked of the author, because an author who has to
+        remember is an author who will forget, and forgetting means a
+        wagon nothing can bump into.
+
+        IDEMPOTENT, which matters more than it looks: `dataclasses
+        .replace` rebuilds a Scene every time anybody moves, so this runs
+        constantly and must not grow the wall list each time. An edge is
+        recognised by its `part_of`.
+        """
+        already = {w.part_of for w in self.walls if w.part_of}
+        for f in self.furnishings:
+            if f.id in already:
+                continue
+            self.walls = list(self.walls) + f.as_walls()
 
     def supporting_surfaces(self) -> list[Surface]:
         """Authored surfaces plus derived wall-top strips — THE support
