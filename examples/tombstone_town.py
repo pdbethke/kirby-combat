@@ -102,10 +102,10 @@ def streets() -> list[dict]:
     south = EW_STREETS[-1][1] - BLOCK
     north = EW_STREETS[0][2] + BLOCK
     for name, y0, y1 in EW_STREETS:
-        out.append({"id": f"st-{name}", "name": name, "surface_type": "street",
+        out.append({"id": f"st-{name}", "name": name, "surface_type": "road",
                     "polygon": [(west, y0), (east, y0), (east, y1), (west, y1)]})
     for name, x0, x1 in NS_STREETS:
-        out.append({"id": f"st-{name}", "name": name, "surface_type": "street",
+        out.append({"id": f"st-{name}", "name": name, "surface_type": "road",
                     "polygon": [(x0, south), (x1, south), (x1, north), (x0, north)]})
     return out
 
