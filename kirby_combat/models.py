@@ -49,6 +49,11 @@ class AttackPower:
     #: Reduced Endurance (0 END). `hero_view` has parsed this modifier for
     #: a long time and discarded it, with the comment "(END calc TBD)".
     reduced_end: bool = False
+    #: No Range Modifier (+1/2). 6E1 p.346: a power bought with it
+    #: "ignores the Range Modifier when making Attack Rolls", so it hits
+    #: as well at maximum range as at point blank. NOT a reduction -- the
+    #: penalty does not apply at all.
+    no_range_modifier: bool = False
     #: The cost engine's Active Points for this power. 6E1 p.132 prices END
     #: at 1 per 10 Active Points, and this is the only place that figure
     #: was available -- `SlotView` carried one and a bare AttackPower did

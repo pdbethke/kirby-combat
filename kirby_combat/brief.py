@@ -129,10 +129,33 @@ class EnemyBearing:
     cover_ocv: int = 0
     in_line_of_sight: bool = True
 
+    @property
+    def range_ocv(self) -> int:
+        """What this distance costs to hit, 6E2's Range Modifier table.
+
+        DERIVED, never stored: it is a function of the range and nothing
+        else, so it cannot drift from `range_m` the way a second field
+        would. Zero when the position is unknown -- an unknown distance
+        must stay unknown rather than reading as point blank.
+
+        Quoted for the same reason `cover_ocv` is: a page that prints
+        cover's price and leaves range as a bare distance asks its reader
+        to know the table by heart to tell a free shot from a -6, and
+        every fight this engine has run has had a reader who did not.
+        A power bought with No Range Modifier (6E1 p.346) pays none of
+        this; that is a property of the POWER, and the offer to use it
+        says so.
+        """
+        from kirby_combat.tables import range_penalty
+
+        return 0 if self.range_m is None else range_penalty(self.range_m)
+
     def render(self) -> str:
         if self.range_m is None:
             return f"{self.name}: position unknown"
         bits = [f"{self.range_m:.1f}m"]
+        if self.range_ocv:
+            bits.append(f"{self.range_ocv:+d} OCV at that range")
         if self.cover_level:
             bits.append(f"cover {self.cover_level}/4 ({self.cover_ocv:+d} OCV to hit)")
         if not self.in_line_of_sight:

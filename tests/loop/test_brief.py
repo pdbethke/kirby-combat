@@ -248,3 +248,19 @@ def test_terrain_reads_state_and_changes_none():
     before = dict(situation.session.scene.combatant_positions)
     Brief(situation).render()
     assert situation.session.scene.combatant_positions == before
+
+
+def test_a_bearing_says_what_the_distance_costs_to_hit():
+    """The page prints what COVER costs to shoot through and, until now,
+    printed range as a bare distance -- leaving whatever is choosing to
+    know 6E2's Range Modifier table by heart to tell a free shot from a
+    -6. Cover's OCV cost is quoted beside its level for exactly this
+    reason; distance is the other half of the same sum."""
+    from kirby_combat.brief import EnemyBearing
+
+    near = EnemyBearing("a", "a", range_m=4.0)
+    assert near.range_ocv == 0
+    far = EnemyBearing("b", "b", range_m=100.0)
+    assert far.range_ocv == -8
+    assert "-8 OCV" in far.render()
+    assert "OCV" not in near.render(), "point blank costs nothing; say nothing"

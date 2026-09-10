@@ -47,7 +47,13 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     #    Applied only if the power has a range AND distance is provided.
     # ------------------------------------------------------------------
     rng_penalty = 0
-    if attack.power.range_m is not None and attack.distance_m is not None:
+    if getattr(attack.power, "no_range_modifier", False):
+        # 6E1 p.346. The audit must say WHY it is zero: a zero that was
+        # bought with an Advantage and a zero that means "nobody measured"
+        # are different facts, and for a long time this line only ever
+        # reported the second one.
+        audit.append("Range penalty: 0 (No Range Modifier)")
+    elif attack.power.range_m is not None and attack.distance_m is not None:
         rng_penalty = _range_penalty(attack.distance_m)
         audit.append(
             f"Range penalty ({attack.distance_m}m): {rng_penalty:+d}"

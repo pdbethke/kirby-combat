@@ -37,6 +37,38 @@ if TYPE_CHECKING:
     from kirby_combat.template import CombatTemplate
 
 
+def _range_to(session, actor, target) -> float | None:
+    """Metres between two combatants, or None when the map cannot say.
+
+    THE RANGE MODIFIER WAS NEVER CHARGED. Every attack resolver here
+    passed `distance_m=None`, so `resolution/to_hit.py` logged "Range
+    penalty: 0 (HTH or distance not specified)" on every ranged attack
+    this engine has ever resolved -- a revolver at twenty metres hit as
+    easily as one pressed against a coat. 6E2's table was right,
+    `range_penalty()` read it correctly, and nothing supplied the input.
+
+    The distance was already being measured twice over: `distances_from`
+    computes it to gate the MENU, and `Brief.bearings` prints it for
+    whatever is choosing. Only resolution never asked.
+
+    NONE IS NOT ZERO. A fight with no Scene, or a combatant the Scene has
+    no position for, has an UNKNOWN range -- and `to_hit` charges nothing
+    when it is unknown, which is the behaviour every scene-less fight and
+    most of this suite depends on.
+    """
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return None
+    from kirby_combat.scene.geometry import distance_3d
+    from kirby_combat.scene.placement import position_of
+
+    here = position_of(scene, getattr(actor, "id", None))
+    there = position_of(scene, getattr(target, "id", None))
+    if here is None or there is None:
+        return None
+    return distance_3d(here, there)
+
+
 @resolves("attack", "strike")
 def _resolve_attack(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -60,7 +92,7 @@ def _resolve_attack(
 
     attack = AttackInput(
         attacker=actor, target=target, power=power,
-        distance_m=None, aim=None,
+        distance_m=_range_to(session, actor, target), aim=None,
         dice=DiceValues(
             to_hit=roller.roll_dice(3),
             damage=roller.roll_dice(max(1, int(power.damage_dice))),
@@ -1328,7 +1360,7 @@ def _resolve_push(
     dice = max(1, int(power.damage_dice or 0)) + 1      # the pushed Damage Class
     attack = AttackInput(
         attacker=actor, target=target, power=power,
-        distance_m=None, aim=None,
+        distance_m=_range_to(session, actor, target), aim=None,
         dice=DiceValues(to_hit=roller.roll_dice(3), damage=roller.roll_dice(dice)),
     )
     new_session, result = resolve_attack_in_session(
@@ -1671,7 +1703,7 @@ def _maneuver_attack(
     dice = damage_dice if damage_dice is not None else int(power.damage_dice or 0)
     attack = AttackInput(
         attacker=actor, target=target, power=power,
-        distance_m=None, aim=None,
+        distance_m=_range_to(session, actor, target), aim=None,
         dice=DiceValues(
             to_hit=roller.roll_dice(3),
             damage=roller.roll_dice(max(0, dice)) if dice > 0 else [],

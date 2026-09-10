@@ -1935,6 +1935,10 @@ def _build_attack_power(
     # nothing in the engine ever charged END for an attack. See
     # `kirby_combat.endurance`.
     reduced_end = _has_modifier(power, "REDUCEDEND")
+    # 6E1 p.346. HD writes the +1/2 Advantage as NORANGEMODIFIER. Nothing
+    # downstream can honour a modifier the view never carries, and every
+    # ranged attack was paying full range penalties regardless.
+    no_range_modifier = _has_modifier(power, "NORANGEMODIFIER")
     from kirby_combat.charges import charges_on
 
     charges = charges_on(power)
@@ -1984,6 +1988,7 @@ def _build_attack_power(
         avad_does_body=avad_does_body,
         charges=charges,
         reduced_end=reduced_end,
+        no_range_modifier=no_range_modifier,
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,
