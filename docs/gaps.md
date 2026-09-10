@@ -150,3 +150,47 @@ belong, in the deployment notes rather than here: a reasoning model can
 spend its whole output budget thinking and return EMPTY content on a
 small `max_tokens`, and the production wrapper pins its model with no
 environment override.
+
+## What stating the payoff bought: nothing
+
+Recorded 2026-09-10, because a negative result that is not written down
+gets re-attempted.
+
+The measurement above pointed at the page, so two offers were rewritten
+to state what taking them is worth --- `attack` gained the number it
+needs on 3d6, and `hide` gained the sentence that hiding is the only way
+to cause 6E2 p.52's Surprised, at half DCV. Then the same six seeds, run
+again against the same model.
+
+| | before | after |
+|---|---|---|
+| kinds chosen | 4 of 62 | 4 of 62 |
+| `attack` | 61 | 65 |
+| `move_to_cover` | 18 | 20 |
+| `disengage` | 9 | 11 |
+| `reposition_strike` | 1 | 1 |
+| **`hide`** | **0 of 89 offers** | **0 of 97 offers** |
+
+Nothing moved. Telling a model, in the rules' own terms and with the page
+cited, that an action buys half the target's DCV did not make it choose
+that action once in ninety-seven Phases.
+
+So "the page does not say what things buy" is now largely disconfirmed
+too, and the remaining explanations are worth separating:
+
+1. **The scene.** Nine men inside four metres of open ground. Hiding
+   costs a whole Phase, every enemy is already adjacent, and Doc holds a
+   coach gun needing 14-. Surprise at half DCV does not pay for a Phase
+   there. **A chooser declining `hide` at the O.K. Corral may simply be
+   right**, and this benchmark cannot tell the difference between a
+   correct refusal and a blind one.
+2. **The menu.** 71 offers a Phase, of which `rapid_fire` and
+   `attack_construct` are about half --- and reading them shows why they
+   are refused: they are mostly offers to shoot SCENERY. That is a
+   composition problem, not a wording one.
+
+Explanation 1 is the one this file has been circling since the beginning:
+the Corral cannot exercise range, concealment or elevation because it has
+none of them. The next useful move is a SECOND scenario built for those,
+not further edits to this page --- and now there is an instrument that
+will say whether it worked.
