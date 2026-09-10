@@ -608,6 +608,26 @@ _DISENGAGE_HEADINGS_DEG = (0, -30, 30, -60, 60, -90, 90, -120, 120, -150, 150)
 _DISENGAGE_MIN_GAIN_M = 1.0
 
 
+#: 6E2's attack roll: 3d6 <= OCV + 11 - DCV.
+BASE_TO_HIT = 11
+
+
+def _to_hit_number(ocv: int, enemy) -> int:
+    """What this attack must roll under, on 3d6.
+
+    THE BASELINE OFFER SAID THE LEAST OF ANY OF THEM. `attack` is taken
+    nine times in ten by every chooser measured, and it read "OCV 7" with
+    no target number --- while every alternative quoted a CV modifier.
+    A -2 OCV is uncomparable without the number it modifies: -2 off a
+    comfortable 14- is a different decision from -2 off a marginal 9-.
+
+    Situational modifiers (cover, range, a maneuver) are NOT folded in.
+    They belong to the offer that causes them and are quoted there; this
+    is the number they modify.
+    """
+    return int(ocv) + BASE_TO_HIT - int(enemy.combat_stats().dcv)
+
+
 def enumerate_actions(
     actor: HeroCombatant,
     enemies: list[HeroCombatant],
@@ -1054,7 +1074,9 @@ def enumerate_actions(
                 power_name=ap.name or None,
                 summary=(
                     f"Attack {_friendly(enemy)} with {label} "
-                    f"({dmg_summary}, OCV {s.ocv}){limit_tag}"
+                    f"({dmg_summary}, OCV {s.ocv} vs DCV "
+                    f"{enemy.combat_stats().dcv} — needs "
+                    f"{_to_hit_number(s.ocv, enemy)}- on 3d6){limit_tag}"
                 ),
                 _attack_view=ap,
             ))
@@ -1706,8 +1728,11 @@ def enumerate_actions(
                 kind="hide",
                 target_id=None, power_xmlid=None, power_name=None,
                 summary=(
-                    "Hide — break line-of-sight behind cover; enemies who "
-                    "can't perceive you can't target you (breaks if you attack)"
+                    "Hide — break line-of-sight behind cover. An enemy who "
+                    "can't perceive you can't target you, and is SURPRISED "
+                    "when you break cover to shoot: half DCV against that "
+                    "attack (6E2 p52). Hiding is the only way to cause it. "
+                    "Ends the moment you attack."
                 ),
             ))
     # PR-70 / PR-71 / PR-72: Adjustment + Healing powers.
