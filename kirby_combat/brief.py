@@ -221,6 +221,30 @@ class Terrain:
             p for p in (self.position_of(e.id) for e in self._enemies)
             if p is not None
         ]
+        # ONE THING, ONE LINE. A `Furnishing` projects its footprint into
+        # four wall segments so movement and line of sight keep working,
+        # and this reads `scene.walls` -- so a wagon arrived as four
+        # planks at four distances, two of them saying "would not shield
+        # you" because they are the far edges of the same object. A reader
+        # cannot act on that, and the page is what a chooser acts on.
+        #
+        # Folded by `part_of`, which already means "a face of that
+        # structure": nearest edge for the distance, best cover any edge
+        # offers for the worth. Standing behind a wagon means standing
+        # behind the side that faces the shooting.
+        # ONLY THE DERIVED EDGES FOLD. A `Furnishing`'s four edges were
+        # never authored --- they are one object's outline --- so they are
+        # one line. A BUILDING's faces were: somebody wrote "C.S. Fly's
+        # boarding house (west wall)" and "C.S. Fly's photograph gallery"
+        # as separate walls because a fighter relates to them separately,
+        # and folding them by `part_of` silently deleted the gallery from
+        # the page. The same distinction Krackle draws in
+        # `isFurnishingEdge`: an id that names a FURNISHING, not any
+        # `part_of` at all.
+        furnishing_ids = {
+            f.id for f in (getattr(self.scene, "furnishings", None) or [])
+        }
+        best: dict[str, tuple] = {}
         out = []
         for wall in self.features:
             name = getattr(wall, "name", None) or getattr(wall, "id", "?")
@@ -250,8 +274,18 @@ class Terrain:
                 hardness = f"; BODY {body} to break through"
             elif defense is not None:
                 hardness = f"; DEF {defense}"
-            out.append(f"{name}: {distance:.1f}m away, {worth}{hardness}")
-        return out
+            line = f"{name}: {distance:.1f}m away, {worth}{hardness}"
+            owner = getattr(wall, "part_of", None)
+            if owner not in furnishing_ids:
+                out.append(line)
+                continue
+            # Keep the best of the faces: more cover wins, and among equals
+            # the nearer one -- which is the face a mover would actually
+            # put between himself and the threat.
+            prior = best.get(owner)
+            if prior is None or (level, -distance) > (prior[0], -prior[1]):
+                best[owner] = (level, distance, line)
+        return out + [entry[2] for entry in best.values()]
 
     @property
     def bearings(self) -> list[EnemyBearing]:
