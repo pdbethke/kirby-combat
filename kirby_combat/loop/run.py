@@ -32,6 +32,7 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
+from kirby_combat.statuses import stunned_or_recovering_for
 from kirby_combat.concealment import concealment_for
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
@@ -240,7 +241,16 @@ def run_phase(
         # killed the O.K. Corral benchmark the first time a man dodged
         # twice. Computed here because enumeration holds no session, the
         # same way `slot_allocation` above is assembled by this caller.
-        already_aborted=is_aborting(session, actor_id),
+        # MAY HE ABORT AT ALL --- one question, and `mark_aborting`
+        # refuses for two reasons. This asked only whether he had already
+        # aborted; 6E2 p.106's "a character who's Stunned or recovering
+        # from being Stunned ... cannot Abort to a defensive Action" was
+        # left to escape as a ValueError past `on_unresolvable="skip"`,
+        # which is what it did to a model-driven street fight.
+        can_abort=not (
+            is_aborting(session, actor_id)
+            or stunned_or_recovering_for(session, actor_id)
+        ),
         # AMMUNITION. `used_charges` sat on `HeroCombatState` for a long
         # time, documented and serialized both ways, written by nothing
         # and read by nothing, so nobody ever had to reload. Folded from

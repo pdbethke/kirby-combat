@@ -31,11 +31,18 @@ def _menu(session, actor_id="a"):
     caller and passed in, which is how `actor_holding` and the lockout
     ids already reach enumeration. Enumeration stays pure."""
     from kirby_combat.actions.reactive.abort import is_aborting
+    from kirby_combat.statuses import stunned_or_recovering_for
 
+    # `already_aborted` became `can_abort` --- ONE question, because
+    # `mark_aborting` refuses for two reasons and gating only this one let
+    # 6E2 p.106's Stunned clause escape as a ValueError. This helper
+    # mirrors the driver, so it asks the whole question too.
     actor = session.combatants[actor_id]
     enemies = [c for c in session.combatants.values() if c.id != actor_id]
-    return enumerate_actions(actor, enemies,
-                             already_aborted=is_aborting(session, actor_id))
+    return enumerate_actions(actor, enemies, can_abort=not (
+        is_aborting(session, actor_id)
+        or stunned_or_recovering_for(session, actor_id)
+    ))
 
 
 def _kinds(menu):

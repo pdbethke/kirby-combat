@@ -651,7 +651,7 @@ def enumerate_actions(
     slot_allocation: dict[str, tuple[int, int, set[str], dict[str, int]]] | None = None,
     extra_attacks: list | None = None,
     physical_entangle: PhysicalEntangleState | None = None,
-    already_aborted: bool = False,
+    can_abort: bool = True,
     spent_charges: dict[str, int] | None = None,
     allies: list[HeroCombatant] | None = None,
 ) -> list[LegalAction]:
@@ -1692,9 +1692,19 @@ def enumerate_actions(
     # middle of the turn loop, past `on_unresolvable="skip"`, killing the
     # O.K. Corral benchmark the first time a man dodged twice.
     #
+    # ONE QUESTION, NOT ONE REASON. This was `already_aborted`, and
+    # `mark_aborting` refuses for TWO reasons: a second abort in a Phase,
+    # and 6E2 p.106's "a character who's Stunned or recovering from being
+    # Stunned ... cannot Abort to a defensive Action". Gating only the
+    # first left the second to escape exactly as the paragraph above
+    # describes --- a ValueError past `on_unresolvable="skip"`, killing a
+    # model-driven street fight on its second seed. Naming the gate after
+    # the QUESTION rather than one of its answers is what stops the next
+    # reason leaking the same way.
+    #
     # Passed in rather than read: enumeration holds no session, exactly as
     # `actor_holding` and the lockout ids are computed by the caller.
-    if not already_aborted:
+    if can_abort:
         actions.append(LegalAction(
             action_id="dodge",
             kind="dodge",
@@ -1842,7 +1852,10 @@ def enumerate_actions(
     # 6E1 p373: Block has -2 OCV penalty BUT successful Block grants
     # +1 OCV initiative bonus next phase against the blocked attacker.
     # Useful as a defensive setup when expecting a specific incoming.
-    if alive_enemies:
+    # Block reaches `mark_aborting` too (see `recording.py`), so it wears
+    # the same gate. Gating one defence and not the others is how this
+    # class of defect survived its first fix.
+    if alive_enemies and can_abort:
         for enemy in alive_enemies:
             actions.append(LegalAction(
                 action_id=f"block:{enemy.id}",
