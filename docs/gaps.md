@@ -260,3 +260,38 @@ times by doctrine, so 6E2 p.52's Surprised remains unreached. That is now
 a chooser question rather than a scene one, and for the first time the
 two can be told apart.
 
+## Two mechanical improvements, neither of which moved a decision
+
+Recorded 2026-09-10 alongside the first negative result, because the
+pattern is now the finding.
+
+| change | expected | measured |
+|---|---|---|
+| offers state their payoff | more kinds chosen | 4 of 62 -> 4 of 62 |
+| menu halved (one target per object) | more kinds chosen | 3 of 62 -> 3 of 62 |
+
+The second is worth spelling out. Folding a furnishing's four projected
+edges back into one target cut `attack_construct` from 10,853 offers to
+3,613 and `rapid_fire` from 11,762 to 4,522; the page a chooser reads
+went from 71 offers a Phase to 52 and from ~17,600 characters to ~9,800.
+Half the input, and the model chose the same three kinds: `attack`,
+`move_to_cover`, `disengage`.
+
+Both changes were worth making on other grounds --- one is a correctness
+fix I had introduced that morning, the other halves the cost of every
+decision --- but neither is evidence about tactics, and neither should be
+sold as one.
+
+**What the model HAS done that doctrine cannot** is find an engine
+defect. It chose `dodge` for a Stunned combatant, which 6E2 p.106
+forbids, which enumeration was not gating, and which `mark_aborting`
+answers with a `ValueError` that escapes `on_unresolvable="skip"` and
+kills the fight. `TacticChooser` picks `dodge` zero times in 362 Phases,
+so doctrine could have run that scene forever without meeting it.
+
+So the honest read after a day of this: a model driving the benchmark is
+valuable right now as a FUZZER --- it reaches states doctrine never
+does --- and not yet as evidence that the engine's tactical breadth is
+usable. Those are different claims and the instrument can tell them
+apart, which is the thing that actually changed today.
+
