@@ -1504,6 +1504,44 @@ def _move_capacity(actor, mode: str) -> float:
     return float(actor.hero.characteristic_value(mode.upper()) or 0)
 
 
+def _reach_of(actor, action) -> float:
+    """How close this attack needs the actor to be, in metres.
+
+    The power's own melee reach when it has one, else the actor's --- the
+    same figure `enumeration` gates the offer on (6E2 p.56's 1m base plus
+    a metre per level of Stretching), asked of the same objects rather
+    than re-derived here.
+    """
+    power = getattr(action, "_attack_view", None)
+    reach = float(getattr(power, "reach_m", 0.0) or 0.0)
+    if reach > 0.0:
+        return reach
+    stats = actor.combat_stats()
+    return float(getattr(stats, "reach_m", 1.0) or 1.0)
+
+
+def _stop_at_reach(here, there, reach_m: float):
+    """A point on the line to `there`, `reach_m` short of it.
+
+    Returns `there` unchanged when the mover is already inside reach ---
+    closing on someone you can already hit is not a move backwards.
+    """
+    from kirby_combat.scene.geometry import distance_3d
+    from kirby_combat.scene.scene import Position
+
+    if here is None:
+        return there
+    gap = distance_3d(here, there)
+    if gap <= reach_m or gap == 0.0:
+        return there
+    keep = (gap - reach_m) / gap
+    return Position(
+        here.x + (there.x - here.x) * keep,
+        here.y + (there.y - here.y) * keep,
+        here.z + (there.z - here.z) * keep,
+    )
+
+
 def _half_move(actor, mode: str = "running") -> float:
     """A Half Move --- what a combatant covers while still attacking (6E2 p.42)."""
     return _move_capacity(actor, mode) / 2.0
@@ -1566,9 +1604,19 @@ def _reposition(session, actor, action, *, roller, then_attack: bool):
 
     mode = action.mode or "running"
     x, y, z = action.reposition_dest
+    # 6E2 p.26: "A Full Move is defined as moving more than half of a
+    # character's movement distance ... a character who has made a Full
+    # Move can't perform any other Action in that Phase." So a reposition
+    # that ENDS IN AN ATTACK gets a Half Move and nothing more.
+    # `enumeration._melee_gate` has always applied that rule when deciding
+    # whether to OFFER the close (`half_move_m >= verdict.shortfall_m`);
+    # this handed the mover his whole Running anyway, and the sibling
+    # resolvers below already ask `_half_move` / `_full_move` by name.
+    allowance = (_half_move(actor, mode) if then_attack
+                 else _move_capacity(actor, mode))
     new_session, outcome = move_toward(
         session, actor.id, Position(x, y, z),
-        mode=mode, distance_m=_move_capacity(actor, mode),
+        mode=mode, distance_m=allowance,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -1588,7 +1636,11 @@ def _reposition(session, actor, action, *, roller, then_attack: bool):
     target = new_session.combatants[action.target_id]
     attack = AttackInput(
         attacker=new_session.combatants[actor.id], target=target, power=power,
-        distance_m=None, aim=None,
+        # FROM THE LANDING POINT. `new_session` already holds the new
+        # position, so this is the range after the move, which is the only
+        # one the shot is actually taken at.
+        distance_m=_range_to(new_session, new_session.combatants[actor.id], target),
+        aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice or 0))),
     )
     after, result = resolve_attack_in_session(
@@ -1671,9 +1723,16 @@ def _resolve_reposition_strike(
 
     if action.reposition_dest is None and action.target_id:
         # `move_strike` names an enemy rather than a point: close on them.
+        # TO WITHIN REACH OF HIM, not ONTO him. This used the target's own
+        # position as the destination, so a closing fighter walked the
+        # whole gap and finished the Phase standing in the same spot as
+        # the man he had just hit --- and paid the full distance for it,
+        # which is what pushed the move over a Half Move (6E2 p.26).
         destination = position_of(session.scene, action.target_id)
         if destination is None:
             raise UnresolvableAction(action.kind, action.action_id)
+        here = position_of(session.scene, actor.id)
+        destination = _stop_at_reach(here, destination, _reach_of(actor, action))
         object.__setattr__(
             action, "reposition_dest",
             (destination.x, destination.y, destination.z),

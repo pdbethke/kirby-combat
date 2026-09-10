@@ -160,18 +160,41 @@ def test_repositioning_goes_where_the_offer_said():
 
 def test_a_reposition_strike_attacks_from_the_NEW_position():
     """The move buys the shot -- that is why these are one action and not
-    two."""
+    two.
+
+    Five metres, because the Phase also holds an attack. This asked for
+    nine and asserted it landed there, which on a Running 12 character is
+    a FULL Move (6E2 p.26: "more than half of a character's movement
+    distance ... can't perform any other Action in that Phase"). What the
+    test is actually about -- the shot comes from where he ended up, not
+    where he began -- is unchanged by moving a legal distance.
+    """
     session = _session(apart=10.0)
     before = session.combatants["mark"].state.current_stun
 
     resolved = _resolve(session, _act(
+        "reposition_strike", reposition_dest=(5.0, 0.0, 0.0),
+        _attack_view=blast("eb", dice=8),
+    ))
+
+    assert position_of(session.scene, "actor").x == pytest.approx(5.0)
+    assert resolved.result is not None
+    assert resolved.session.combatants["mark"].state.current_stun <= before
+
+
+def test_a_reposition_strike_is_capped_at_a_half_move():
+    """Ask for nine and get six. 6E2 p.26 measures a Full Move by the
+    DISTANCE covered, so the cap is what keeps the following attack legal
+    rather than a check that refuses it after the fact."""
+    session = _session(apart=20.0)
+    running = float(session.combatants["actor"].hero.characteristic_value("RUNNING"))
+
+    _resolve(session, _act(
         "reposition_strike", reposition_dest=(9.0, 0.0, 0.0),
         _attack_view=blast("eb", dice=8),
     ))
 
-    assert position_of(session.scene, "actor").x == pytest.approx(9.0)
-    assert resolved.result is not None
-    assert resolved.session.combatants["mark"].state.current_stun <= before
+    assert position_of(session.scene, "actor").x == pytest.approx(running / 2.0)
 
 
 def test_move_strike_closes_on_the_target_then_strikes():
