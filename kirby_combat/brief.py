@@ -288,6 +288,24 @@ class Terrain:
         return out + [entry[2] for entry in best.values()]
 
     @property
+    def formation(self):
+        """How the enemy is arranged, or None when that is not a question.
+
+        SWITCHABLE, because the reason this exists is to be MEASURED. Two
+        Brief improvements predicted to help this week moved no decision
+        at all, so a third arrives with a way to turn it off and compare
+        rather than an assertion that it helps. `KIRBY_BRIEF_FORMATION=0`
+        removes the line; anything else leaves it.
+        """
+        import os
+
+        from kirby_combat.formation import formation_of
+
+        if os.environ.get("KIRBY_BRIEF_FORMATION", "1") == "0":
+            return None
+        return formation_of([self.position_of(e.id) for e in self._enemies])
+
+    @property
     def bearings(self) -> list[EnemyBearing]:
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
         from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
@@ -323,6 +341,14 @@ class Terrain:
         lines = [f"Ground: {getattr(self.scene, 'name', None) or 'unnamed'}"]
         lines.append("Where they are:")
         lines.extend(f"  {b.render()}" for b in self.bearings)
+        # THE SHAPE, WHICH THE LIST ABOVE NEVER SAYS. Individual bearings
+        # are exact and silent about whether one attack could catch
+        # several. See `kirby_combat.formation` --- it exists because a
+        # picture of this same moment told a reader "they are tightly
+        # bunched together" and the page did not.
+        shape = self.formation
+        if shape is not None:
+            lines.append(f"  {shape.render()}")
         if self.sightings:
             lines.append("What is around you:")
             lines.extend(f"  {sighting}" for sighting in self.sightings)
