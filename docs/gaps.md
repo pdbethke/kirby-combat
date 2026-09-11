@@ -396,3 +396,50 @@ A benchmark driven only by its own catalogue re-tests the catalogue's
 habits. Turning the hint off is what reached them, which is a better
 argument for the model-driven runs than any tactical number in this file.
 
+## The street, hint off — and Surprised finally fires
+
+Three fights, 275 of 275 decisions answered by the model, none fallen
+back.
+
+| street, model | hint ON | hint OFF |
+|---|---|---|
+| **kinds chosen** | **3 of 62** | **6 of 62** |
+| `attack` | 139 | 225 |
+| `move` | 0 | **20** |
+| `hide` | 0 | **17** |
+| `dodge` | 0 | **6** |
+| `move_to_cover` | 6 | 5 |
+| `recover` | 0 | **2** |
+| `disengage` | 6 | 0 |
+
+**`surprised` is in the rule paths reached.** This file has said five
+separate times that 6E2 p.52's Surprised cannot fire in any benchmark ---
+"a rule wired into the engine cannot fire", "unreachable no matter who is
+deciding". It fires now, and the whole chain is what fired: `hide` chosen
+17 times, `_resolve_hide` recording who lost track of whom, `concealment`
+reading that back, `is_surprised` agreeing, and the attack resolving at
+half DCV.
+
+The marker only trips when `Surprise.applies` is true --- the dataclass's
+`__bool__` returns it --- so this is a real Surprised attack and not a
+Surprise object that declined.
+
+`move` likewise: offered 914 times across the week and taken zero times
+by anything, chosen 20 times here. The model closes distance when nobody
+tells it not to.
+
+### What this does and does not settle
+
+It settles that the engine's tactical breadth is REACHABLE, which no
+measurement before this had shown. Three kinds became six; a rule wired
+two days ago and declared unreachable four times fired.
+
+It does not settle that the choices are GOOD. `attack` still takes 225 of
+275, `disengage` collapses to zero, and nothing here grades a decision as
+right or wrong. Three fights, one scene, one model.
+
+And it does not make the doctrine hint wrong to include --- a GM briefing
+a player does offer advice. It makes it a CHOICE that has to be measured,
+which until 2026-09-11 it never was: the switch existed, unused, with a
+comment saying it was there for exactly this.
+
