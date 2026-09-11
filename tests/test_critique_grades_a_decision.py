@@ -132,6 +132,33 @@ def test_shooting_a_wall_when_a_wall_is_all_there_is_is_not_a_finding():
     assert "scenery" not in _kinds(_situation([wall], []), wall.action_id)
 
 
+def test_a_targetless_maneuver_is_not_a_man():
+    """REGRESSION, and the grader's first false positive.
+
+    Pointed at doctrine on the street benchmark this reported three
+    Phases of "shooting a house while a man was on the menu". The trace
+    said otherwise: the only non-scenery attack offer was
+    `haymaker` with `target_id=None` -- a maneuver naming nobody -- and
+    the tactic that fired was `smash_cover`, whose whole basis is that
+    "cover the enemy is using is worth more destroyed than ignored".
+
+    Doctrine was right and the grader was wrong. An offer only counts as
+    a man if it NAMES one.
+    """
+    hay = LegalAction(action_id="haymaker", kind="haymaker", target_id=None,
+                      power_xmlid=None, power_name=None, summary="Haymaker")
+    wall = _attack("harwood-interior", _power(6), construct=True)
+    assert "scenery" not in _kinds(_situation([wall, hay], []), wall.action_id)
+
+
+def test_an_offer_naming_someone_not_in_the_fight_is_not_a_man():
+    """A target_id that matches no combatant is not evidence a man was
+    available -- the same failure one step further on."""
+    ghost = _attack("nobody-here", _power(6))
+    wall = _attack("harwood-interior", _power(6), construct=True)
+    assert "scenery" not in _kinds(_situation([wall, ghost], []), wall.action_id)
+
+
 def test_shooting_the_man_is_never_scenery():
     mark = _fighter("mark")
     man = _attack("mark", _power(6))

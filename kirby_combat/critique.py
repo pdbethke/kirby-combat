@@ -128,9 +128,19 @@ def _scenery(situation, action) -> Finding | None:
     """
     if not getattr(action, "targets_construct", False):
         return None
+    # AN OFFER ONLY COUNTS AS A MAN IF IT NAMES ONE. This first read
+    # "any attack-kind offer that is not scenery", and reported three
+    # Phases of doctrine shooting a house on the street benchmark. The
+    # trace said otherwise: the only such offer was a `haymaker` with
+    # `target_id=None`, a maneuver naming nobody, and the tactic that
+    # fired was `smash_cover` -- whose basis is that "cover the enemy is
+    # using is worth more destroyed than ignored", chosen with no shot at
+    # a man on the menu at all. Doctrine was right and this was wrong.
     men = [a for a in situation.menu
            if not getattr(a, "targets_construct", False)
-           and a.kind in _ATTACK_KINDS]
+           and a.kind in _ATTACK_KINDS
+           and a.target_id
+           and _target_of(situation, a) is not None]
     if not men:
         return None
     return Finding(

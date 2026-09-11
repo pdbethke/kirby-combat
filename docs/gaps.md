@@ -468,17 +468,31 @@ indicting only what is provably wrong and never endorsing anything:
 | run | decisions | bad |
 |---|---|---|
 | doctrine, corral, 6 fights | 69 | **0** |
-| doctrine, street, 3 fights | 193 | **3 scenery** |
+| doctrine, street, 3 fights | 193 | **0** (see the correction below) |
 | model, corral, hint ON, 6 fights | 81 | **0** |
 | model, corral, hint OFF, 6 fights | 80 | **0** |
 
-**Doctrine shoots buildings.** `TacticChooser` spent three Phases on the
-street attacking terrain while a man was on the menu. `ordered_menu`
-already sorts scenery to the bottom and names this exact case --- "the
-marshal of Tombstone spends his Phase shooting a house" --- but doctrine
-does not pick by menu order, so the ordering never protected it. That is
-an ENGINE finding, surfaced only because the grader was pointed at
-doctrine as well as at a model. Not yet traced to a tactic.
+**The first finding was the GRADER's, not doctrine's.** This first read
+"doctrine shoots buildings --- three Phases on the street attacking
+terrain while a man was on the menu", which would have been an engine
+defect. Tracing it to a tactic showed the opposite:
+
+    T3 S12  deputy
+      picked   : [attack:construct:east-saloon:...]  kind=attack_construct
+      tactic   : 'smash_cover'   fell_back=False
+      basis    : cover the enemy is using is worth more destroyed than ignored
+      men      : ['haymaker->None']
+
+The only non-scenery attack offer was a `haymaker` naming NOBODY, and the
+tactic that fired was `smash_cover` --- deliberately stripping the cover
+an unreachable enemy is hiding behind. Doctrine was right. The grader
+counted a target-less maneuver as "a man was available", and an offer now
+counts as a man only if it NAMES one who is in the fight.
+
+Two lessons, both cheap here and expensive later: a grader's first
+finding deserves the same scepticism as any other measurement, and
+`docs/gaps.md` is where a retracted finding has to be written down, not
+quietly dropped. Doctrine's real score on both scenes is **0 of 262**.
 
 **Removing the doctrine hint cost the frontier model nothing in quality.**
 Four action kinds became five with zero bad decisions either way, so the
