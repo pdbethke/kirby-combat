@@ -471,9 +471,12 @@ def _resolve_recover(
     before = replace(
         session, combatants={**session.combatants, actor.id: recovered},
     )
+    # `apply_event(session, event)` takes TWO arguments. This passed
+    # three --- `(before, session, RecoveryTaken(...))` --- so the resolver
+    # raised `TypeError` on every call it ever received, and `recover`
+    # has been registered, enumerated and unrunnable.
     new_session = apply_event(
         before,
-        session,
         RecoveryTaken(
             id=str(uuid.uuid4()),
             session_id=session.id,
