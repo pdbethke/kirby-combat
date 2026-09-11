@@ -531,7 +531,15 @@ class Brief:
         against exactly this list."""
         return [a.action_id for a in self.menu]
 
-    def render(self) -> str:
+    def render(self, *, doctrine: bool | None = None) -> str:
+        """The page, as one string.
+
+        `doctrine` decides whether the section of ranked advice is on it.
+        `None` means the caller has no opinion and it is shown. This is a
+        property of the READER --- measured, the hint narrows a capable
+        model and holds a local one together, so `kirby_ai.Seat` carries
+        the answer the way it carries `vision`.
+        """
         situation = self._situation
         lines = [
             f"Turn {situation.turn}, Segment {situation.segment}.",
@@ -569,15 +577,17 @@ class Brief:
 
         import os as _os
 
-        # An escape hatch for measuring the section's effect, not a
-        # feature: set KIRBY_BRIEF_NO_DOCTRINE=1 to render the page
-        # without it and compare the same fight both ways.
-        doctrine = ([] if _os.environ.get("KIRBY_BRIEF_NO_DOCTRINE")
-                    else self.doctrine)
-        if doctrine:
+        # KIRBY_BRIEF_NO_DOCTRINE is the measurement harness's global
+        # override, and it can only ever REMOVE. A switch that could also
+        # put the section back would make every A/B arm depend on which
+        # seat answered, which is the one thing an arm must not do.
+        suppressed = bool(_os.environ.get("KIRBY_BRIEF_NO_DOCTRINE"))
+        lines_of_doctrine = ([] if suppressed or doctrine is False
+                             else self.doctrine)
+        if lines_of_doctrine:
             lines.append("")
             lines.append("What your doctrine says, best first:")
-            lines.extend(f"  {line}" for line in doctrine)
+            lines.extend(f"  {line}" for line in lines_of_doctrine)
 
         lines.append("")
         lines.append(f"Legal actions this Phase ({len(self.menu)}):")
