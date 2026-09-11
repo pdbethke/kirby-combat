@@ -187,6 +187,7 @@ from kirby_combat.scene.construct import Construct, ConstructEffect  # noqa: E40
 # package fails to import at all, with an error that reads like a missing
 # name rather than a cycle. Everything the loop needs exists by this point.
 from kirby_combat.brief import Brief, CombatantLine  # noqa: E402
+from kirby_combat.critique import Finding, critique  # noqa: E402
 from kirby_combat.loop import (  # noqa: E402
     Chooser, EncounterResult, FirstLegalChooser, InvalidChoice, PhaseResult,
     PhaseSituation, ResolvedAction, TacticChooser, UnresolvableAction,
@@ -208,6 +209,7 @@ __all__ = [
     "run_phase", "run_encounter", "next_actor_id", "registered_kinds",
     "Side", "Roster", "Verdict", "LastSideStanding", "StopCondition",
     "Brief", "CombatantLine",
+    "Finding", "critique",
     # Combatants
     "Basis",
     "LegalAction",

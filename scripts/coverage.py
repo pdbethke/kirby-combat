@@ -56,6 +56,14 @@ class Recorder:
         self._inner = inner
         self.offered: Counter[str] = Counter()
         self.chosen: Counter[str] = Counter()
+        #: Findings against the decisions actually made, by kind.
+        #: VARIETY WAS NEVER QUALITY. Everything above counts what was
+        #: picked; this counts what was picked WRONG -- see
+        #: `kirby_combat.critique`, and `docs/gaps.md`'s closing line.
+        self.findings: Counter[str] = Counter()
+        #: One example sentence per finding kind, so a count of
+        #: "futile: 14" can be chased to the man and the gun.
+        self.examples: dict[str, str] = {}
 
     def choose(self, situation) -> str:
         for action in situation.menu:
@@ -65,7 +73,28 @@ class Recorder:
             if action.action_id == picked:
                 self.chosen[action.kind] += 1
                 break
+        self._grade(situation, picked)
         return picked
+
+    def _grade(self, situation, picked) -> None:
+        """Grade the decision, and never let grading kill the fight.
+
+        A grader is an OBSERVER. If it raises -- a target shape it cannot
+        read, an id it cannot match -- the measurement loses one datum and
+        the run continues; the alternative is a benchmark that dies on the
+        thing it was built to find.
+        """
+        from kirby_combat.critique import critique
+
+        try:
+            found = critique(situation, picked)
+        except Exception as exc:                        # noqa: BLE001
+            self.findings["grader-error"] += 1
+            self.examples.setdefault("grader-error", f"{type(exc).__name__}: {exc}")
+            return
+        for finding in found:
+            self.findings[finding.kind] += 1
+            self.examples.setdefault(finding.kind, finding.why)
 
 
 def _rule_paths(session, attack_audits) -> set[str]:
@@ -275,6 +304,11 @@ def measure(seeds: range, chooser_name: str, scene: str = "corral") -> dict:
         "kinds_total": len(ALL_ACTION_KINDS),
         "offered": dict(recorder.offered),
         "chosen": dict(recorder.chosen),
+        # WHAT WAS PICKED WRONG. Counts only; each kind's example
+        # sentence rides alongside so a number can be chased to the Phase
+        # that produced it.
+        "findings": dict(recorder.findings),
+        "finding_examples": dict(recorder.examples),
         "rule_paths": sorted(paths),
     }
 
@@ -302,6 +336,23 @@ def report(m: dict) -> None:
     for kind, n in sorted(dead.items(), key=lambda kv: -kv[1]):
         print(f"  {kind:24} offered {n:5}, chosen 0")
 
+    # QUALITY, WHICH IS NOT VARIETY. Everything above says what was
+    # chosen; this says what was chosen WRONG. A clean sweep is NOT a
+    # good chooser -- these graders only ever indict, never endorse.
+    findings = m.get("findings") or {}
+    decisions = m.get("decisions") or 0
+    total = sum(findings.values())
+    print(f"\nBAD DECISIONS: {total}"
+          + (f" of {decisions} ({100.0 * total / decisions:.1f}%)"
+             if decisions else ""))
+    if not findings:
+        print("  none provable — NOT the same as none made")
+    for kind, n in sorted(findings.items(), key=lambda kv: -kv[1]):
+        print(f"  {kind:24} {n:5}")
+        example = (m.get("finding_examples") or {}).get(kind)
+        if example:
+            print(f"      e.g. {example}")
+
     print(f"\nRULE PATHS REACHED: {len(m['rule_paths'])}")
     print("  " + ", ".join(m["rule_paths"]))
 
@@ -320,6 +371,10 @@ def compare(now: dict, before: dict) -> None:
     print(f"  kinds chosen: {len(before['chosen'])} -> {len(now['chosen'])}"
           + (f"   NEW: {sorted(gained)}" if gained else "")
           + (f"   LOST: {sorted(lost)}" if lost else ""))
+    was_bad = sum((before.get("findings") or {}).values())
+    now_bad = sum((now.get("findings") or {}).values())
+    print(f"  bad decisions: {was_bad} -> {now_bad}")
+
     gained_paths = set(now["rule_paths"]) - set(before["rule_paths"])
     lost_paths = set(before["rule_paths"]) - set(now["rule_paths"])
     print(f"  rule paths: {len(before['rule_paths'])} -> {len(now['rule_paths'])}"

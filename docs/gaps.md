@@ -443,3 +443,50 @@ a player does offer advice. It makes it a CHOICE that has to be measured,
 which until 2026-09-11 it never was: the switch existed, unused, with a
 comment saying it was there for exactly this.
 
+
+---
+
+## 2026-09-11 — grading the decision, not just counting it
+
+This document ended, until today, on: "It does not settle that the
+choices are GOOD ... nothing here grades a decision as right or wrong."
+`kirby_combat.critique` closes that. Three deterministic graders, each
+indicting only what is provably wrong and never endorsing anything:
+
+* **futile** — an attack whose BEST possible roll gets 0 STUN and 0 BODY
+  through the target's defenses, and therefore every roll for the rest of
+  the fight. Asks `compute_defense` and the resolver's own
+  `killing_damage` / `normal_damage`; a second damage calculation here
+  would drift from the resolver silently.
+* **scenery** — terrain attacked while an offer against a combatant was
+  on the menu. NOT flagged when scenery is all there is.
+* **wasted** — Recover at full STUN and END, which restores nothing and
+  costs the Phase.
+
+### What the first graded pass found
+
+| run | decisions | bad |
+|---|---|---|
+| doctrine, corral, 6 fights | 69 | **0** |
+| doctrine, street, 3 fights | 193 | **3 scenery** |
+| model, corral, hint ON, 6 fights | 81 | **0** |
+| model, corral, hint OFF, 6 fights | 80 | **0** |
+
+**Doctrine shoots buildings.** `TacticChooser` spent three Phases on the
+street attacking terrain while a man was on the menu. `ordered_menu`
+already sorts scenery to the bottom and names this exact case --- "the
+marshal of Tombstone spends his Phase shooting a house" --- but doctrine
+does not pick by menu order, so the ordering never protected it. That is
+an ENGINE finding, surfaced only because the grader was pointed at
+doctrine as well as at a model. Not yet traced to a tactic.
+
+**Removing the doctrine hint cost the frontier model nothing in quality.**
+Four action kinds became five with zero bad decisions either way, so the
+extra variety measured on 2026-09-11 is clean variety, not noise.
+
+### What this still does not settle
+
+A clean sweep is not a good chooser. These graders cannot see a shot
+declined in favour of a worse one, a target chosen badly among several
+viable ones, or a Phase spent well. "Nothing provable was wrong" is the
+whole claim.
