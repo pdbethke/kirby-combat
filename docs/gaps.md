@@ -553,3 +553,39 @@ lost `hide`. That came from five fixed situations, three trials, fifteen
 decisions, calling the provider directly. Run through real fights it does
 what the cloud models do, more so: corral 5 kinds -> 9, street 4 -> 10.
 The small harness was wrong and the claim is withdrawn.
+
+---
+
+## 2026-09-11 (later still) — the corral finding replicates; terrain futility finds nothing
+
+Two independent clean runs of the same four arms, local 35B. The model is
+non-deterministic, so the fights diverge and the decision counts differ;
+the finding does not.
+
+| arm | run A | run B |
+|---|---|---|
+| corral, hint ON  | **5 of 80** | **5 of 70** |
+| corral, hint OFF | 0 of 127 | 0 of 118 |
+| street, hint ON  | 0 of 73  | 0 of 68  |
+| street, hint OFF | 0 of 188 | 0 of 130 |
+
+Variety holds across both: corral 4-5 kinds with the hint, 8-9 without;
+street 4 with, 8-10 without.
+
+So on the corral the doctrine hint costs roughly **7% of decisions**, and
+removing it costs nothing measurable. On the street it costs nothing
+either way --- whatever makes the corral different (nine men inside four
+metres, buildings on every side) is not yet isolated.
+
+### A NULL result, recorded as one
+
+Extending `futile` to terrain found **zero** findings across all four
+arms. That is the correct answer and was predicted before the run: the
+Harwood house is DEF 8 BODY 30 and a Colt gets 4 BODY through at best ---
+slow, not impossible. The grader is exercised only by its unit tests
+here, which is worth saying out loud rather than letting an unfired
+grader read as a clean bill.
+
+Every attack on terrain in these fights was `scenery` and none was
+`futile`. The two graders are measuring different things and both
+answers are right.
