@@ -99,19 +99,31 @@ def _futile(situation, action) -> Finding | None:
     futile 1d6 blast" without anything able to count it.
     """
     power = getattr(action, "_attack_view", None)
-    if action.kind not in _ATTACK_KINDS or power is None:
-        return None
-    target = _target_of(situation, action)
-    if target is None:
+    if power is None:
         return None
 
-    best = _best_case(power, target)
+    # TERRAIN COUNTS. Constructs are not in `situation.enemies`, so until
+    # this every shot at a wall was invisible here -- a local model
+    # emptying a Colt into the Harwood house (DEF 8, BODY 30) was graded
+    # only as `scenery`, and a shot at a wall it genuinely could not mark
+    # was not graded at all.
+    if getattr(action, "targets_construct", False):
+        best = _best_case_against_terrain(situation, power, action)
+        what = action.target_id or "it"
+    elif action.kind in _ATTACK_KINDS:
+        target = _target_of(situation, action)
+        if target is None:
+            return None
+        best = _best_case(power, target)
+        what = _name_of(target)
+    else:
+        return None
     if best is None or best != (0, 0):
         return None
     return Finding(
         kind="futile", action_id=action.action_id,
-        why=(f"{power.name} cannot hurt {_name_of(target)} on its best "
-             f"possible roll: 0 STUN and 0 BODY get through"),
+        why=(f"{power.name} cannot hurt {what} on its best possible "
+             f"roll: 0 STUN and 0 BODY get through"),
     )
 
 
@@ -225,6 +237,42 @@ def _best_case(power, target) -> tuple[int, int] | None:
             effect=neutral,
         )
     return int(stun), int(body)
+
+
+def _best_case_against_terrain(situation, power, action) -> tuple[int, int] | None:
+    """(0, BODY) through a construct's DEF on the luckiest roll.
+
+    Asks `apply_attack_to_construct`, which owns the rules a wall answers
+    to -- including 6E2 p.173's parenthesised Normal Defense, which does
+    not apply against Killing damage at all. STUN is always 0 because a
+    wall has none to lose.
+
+    `None` whenever the construct cannot be found or is indestructible:
+    an unreadable target is not evidence of futility.
+    """
+    from kirby_combat.models import DiceValues
+    from kirby_combat.resolution.object_damage import apply_attack_to_construct
+    from kirby_combat.scene.construct import constructs_in
+    from kirby_combat.template import DEFAULT_TEMPLATE
+
+    session = getattr(situation, "session", None)
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return None
+    target = next((c for c in constructs_in(scene, session=session)
+                   if getattr(c, "obj_id", None) == action.target_id), None)
+    if target is None or not target.destructible:
+        return None
+
+    dice_count = int(getattr(power, "damage_dice", 0) or 0)
+    if dice_count <= 0:
+        return None
+    rolled = [_BEST_DIE] * (dice_count + (1 if getattr(power, "half_die", False) else 0))
+    hit = apply_attack_to_construct(
+        power, DiceValues(damage=rolled, stun_multiplier=[_BEST_STUN_MULT]),
+        target, DEFAULT_TEMPLATE,
+    )
+    return 0, int(hit.body_through)
 
 
 def _target_of(situation, action) -> Any | None:

@@ -112,6 +112,71 @@ def test_a_borderline_attack_is_not_futile():
     assert "futile" not in _kinds(_situation([a], [mark]), a.action_id)
 
 
+# ---- futility against TERRAIN ---------------------------------------
+
+def _scene_with(construct):
+    """A session whose scene holds one shootable thing."""
+    class _Scene:
+        constructs = [construct]
+        walls = ()
+        furnishings = ()
+
+    class _Session:
+        scene = _Scene()
+    return _Session()
+
+
+def _wall(obj_id: str, *, pd: int, body: int, resistant: bool = True):
+    from kirby_combat.scene.construct import Construct
+
+    return Construct(obj_id=obj_id, kind="wall", def_value=pd, body=body,
+                     resistant=resistant)
+
+
+def test_a_revolver_against_a_stone_wall_is_futile():
+    """A construct's BODY is reduced by its DEF (6E2 p.173). 2d6 killing
+    maxes at 12 BODY; against DEF 12 nothing ever gets through, so the
+    wall can be shot all day and never mark.
+
+    Terrain was invisible to this grader until now: constructs are not in
+    `situation.enemies`, so a local model firing a Colt at the Harwood
+    house -- DEF 8, BODY 30 -- was graded only as `scenery`, and a shot
+    at a wall it genuinely could not scratch would not have been graded
+    at all."""
+    wall = _wall("stone-bank", pd=12, body=30)
+    a = _attack("stone-bank", _power(2, killing=True), construct=True)
+    situation = PhaseSituation(actor=_fighter("frank"), menu=[a], enemies=[],
+                               session=_scene_with(wall), segment=12, turn=1)
+    assert "futile" in _kinds(situation, a.action_id)
+
+
+def test_a_revolver_against_a_plank_wall_is_not_futile():
+    wall = _wall("board-fence", pd=3, body=8)
+    a = _attack("board-fence", _power(2, killing=True), construct=True)
+    situation = PhaseSituation(actor=_fighter("frank"), menu=[a], enemies=[],
+                               session=_scene_with(wall), segment=12, turn=1)
+    assert "futile" not in _kinds(situation, a.action_id)
+
+
+def test_a_killing_attack_ignores_a_NON_resistant_construct_defense():
+    """6E2 p.173: a defense printed in parentheses is Normal Defense and
+    does not apply against Killing damage at all. Glass is (1)/(1)/1."""
+    glass = _wall("shop-window", pd=20, body=2, resistant=False)
+    a = _attack("shop-window", _power(1, killing=True), construct=True)
+    situation = PhaseSituation(actor=_fighter("frank"), menu=[a], enemies=[],
+                               session=_scene_with(glass), segment=12, turn=1)
+    assert "futile" not in _kinds(situation, a.action_id)
+
+
+def test_terrain_the_scene_does_not_hold_is_not_graded():
+    """A target this cannot READ is not evidence of futility and must
+    never be reported as such."""
+    a = _attack("a-wall-elsewhere", _power(1), construct=True)
+    situation = PhaseSituation(actor=_fighter("frank"), menu=[a], enemies=[],
+                               segment=12, turn=1)
+    assert "futile" not in _kinds(situation, a.action_id)
+
+
 # ---- scenery --------------------------------------------------------
 
 def test_shooting_a_wall_while_a_man_is_on_the_menu_is_a_finding():

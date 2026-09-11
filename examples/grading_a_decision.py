@@ -115,6 +115,28 @@ def main() -> None:
     print(verdict(PhaseSituation(actor=ironclad, menu=[wall], enemies=[],
                                  segment=12), wall.action_id))
 
+    print("\n5b. Emptying a revolver into a stone bank wall")
+    print("    A construct's BODY answers to its DEF (6E2 p.173).")
+    print("    2d6 killing maxes at 12 BODY; DEF 12 eats all of it,")
+    print("    so the wall can be shot all day and never mark.")
+    from kirby_combat.scene.construct import Construct
+
+    class _Scene:
+        constructs = [Construct(obj_id="stone-bank", kind="wall",
+                                def_value=12, body=30)]
+        walls = ()
+        furnishings = ()
+
+    class _Session:
+        scene = _Scene()
+
+    bank = shot_at("stone-bank", a_gun("Colt", 2, killing=True), scenery=True)
+    print(verdict(PhaseSituation(actor=ironclad, menu=[bank], enemies=[],
+                                 session=_Session(), segment=12), bank.action_id))
+    print("    (A plank fence at DEF 3 would NOT be a finding --- and the")
+    print("     Harwood house at DEF 8 is not either: a Colt gets 4 BODY")
+    print("     through at best, which is slow, not impossible.)")
+
     print("\n6. Recovering at full STUN and END")
     whole = a_man("Whole", pd=10, rpd=2)
     print(verdict(PhaseSituation(actor=whole, menu=[RECOVER], segment=12),
