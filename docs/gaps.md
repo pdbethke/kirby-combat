@@ -504,3 +504,52 @@ A clean sweep is not a good chooser. These graders cannot see a shot
 declined in favour of a worse one, a target chosen badly among several
 viable ones, or a Phase spent well. "Nothing provable was wrong" is the
 whole claim.
+
+---
+
+## 2026-09-11 (later) — the doctrine hint causes bad decisions
+
+The graders' first VALIDATED finding, traced before it was believed.
+
+A local 35B on the corral, six fights, the doctrine hint ON: **5 scenery
+findings in 80 decisions**. With the hint OFF, across 127 decisions on the
+corral and 188 on the street: **zero**.
+
+Every one of the five is the same shape --- RAPID FIRE with a Colt
+revolver at a wall of **DEF 8, BODY 30**, while fifteen or sixteen offers
+against a standing Earp were on the menu:
+
+    T1 S12  frank_mclaury
+      picked : [rapid_fire:harwood-house:gun-colt-revolver:3]
+      reason : "The doctrine prioritizes fighting from cover and
+                destroying enemy protection; attacking the nearby
+                Harwood house wall chips its BODY, eroding their co..."
+      MEN (16): attack->wyatt_earp, move_strike->wyatt_earp,
+                attack->virgil_earp, ...
+
+**The reasons name the doctrine.** Three of the five cite it explicitly
+--- "the doctrine prioritizes sustained fire to erode cover", "aligning
+with the doctrine to chip away at enemy cover". `smash_cover` is sound
+doctrine and doctrine itself applies it correctly: on the street,
+`TacticChooser` fired it three times with NO shot at a man available.
+The model reads the same advice and applies it with sixteen men
+shootable.
+
+So this is not "the model is worse". It is the hint being **misapplied**,
+and it is visible only because the grader was pointed at the arm that had
+the hint. The variety table said the hint-ON arm was merely narrower
+(5 kinds vs 9); it was also the only arm making provably bad decisions.
+
+Not futile, though close: a Colt gets at most 4 BODY per hit through DEF
+8, against BODY 30. `futile` cannot see it --- constructs are not in
+`situation.enemies`, so `_target_of` returns None and the grader declines.
+Grading an attack on TERRAIN is the obvious next extension.
+
+### Retraction carried forward
+
+An earlier note today said a local model went the OPPOSITE way from the
+cloud models --- that removing the hint collapsed it onto `attack` and
+lost `hide`. That came from five fixed situations, three trials, fifteen
+decisions, calling the provider directly. Run through real fights it does
+what the cloud models do, more so: corral 5 kinds -> 9, street 4 -> 10.
+The small harness was wrong and the claim is withdrawn.
