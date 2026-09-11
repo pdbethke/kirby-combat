@@ -350,3 +350,49 @@ needs the same off switch the formation line has, and every
 model-versus-doctrine number in this file should be re-taken with it
 off before any of them is trusted.
 
+## Re-taken with the hint off
+
+The probe above used five fixed decision points. This is the same thing
+at fight scale, six seeds, 80 of 80 decisions answered by the model and
+none fallen back.
+
+| corral, model | hint ON (89 Phases) | hint OFF (80 Phases) |
+|---|---|---|
+| **kinds chosen** | **4 of 62** | **5 of 62** |
+| `attack` | 61 | 64 |
+| `move_to_cover` | 18 | **0** |
+| `disengage` | 9 | 9 |
+| `reposition_strike` | 1 | 0 |
+| `move_strike` | 0 | **5** |
+| `move_through` | 0 | **1** |
+| `strike` | 0 | **1** |
+
+`move_strike` --- offered 931 times across a week and taken zero times by
+anything --- is picked five times once the page stops printing our answer.
+`move_through` and `strike` are first-ever picks too. And `move_to_cover`
+goes 18 to 0: that was doctrine's recommendation being echoed back, not
+the model's judgement.
+
+**The hint-ON figure predates the flag being recorded**, so the baseline
+file cannot prove it was on. It is asserted from the fact that nothing
+set `KIRBY_BRIEF_NO_DOCTRINE` until 2026-09-11. Every baseline written
+since records both switches.
+
+### And it broke the engine again
+
+The street re-take did not finish. It died on:
+
+    TypeError: apply_event() takes 2 positional arguments but 3 were given
+      loop/resolvers.py, in _resolve_recover
+
+`_resolve_recover` passed a stray argument, so it raised on EVERY call it
+had ever received --- `recover` was registered, enumerated and unrunnable.
+It survived because nothing ever chose it: doctrine never does, and a
+model shown doctrine's hint agreed with doctrine.
+
+**That is two engine defects found the same way in two days** --- `dodge`
+for a Stunned combatant, and this --- both in kinds doctrine never picks.
+A benchmark driven only by its own catalogue re-tests the catalogue's
+habits. Turning the hint off is what reached them, which is a better
+argument for the model-driven runs than any tactical number in this file.
+
