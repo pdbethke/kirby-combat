@@ -2,7 +2,8 @@
  "chooser": "tactic",
  "scene": "street",
  "brief_switches": {
-  "KIRBY_BRIEF_FORMATION": "1"
+  "KIRBY_BRIEF_FORMATION": "1",
+  "KIRBY_BRIEF_NO_DOCTRINE": ""
  },
  "decisions": 362,
  "fell_back": 0,

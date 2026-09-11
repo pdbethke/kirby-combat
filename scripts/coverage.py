@@ -256,9 +256,15 @@ def measure(seeds: range, chooser_name: str, scene: str = "corral") -> dict:
         # run with a switch flipped compared silently against one without
         # it and the diff read as a behaviour change. Every switch that
         # alters what a chooser SEES belongs here.
+        # KIRBY_BRIEF_NO_DOCTRINE is the one that matters most: the page
+        # ends with TacticChooser's own ranked answer, and a model shown
+        # it agrees with it. Every model-versus-doctrine number taken
+        # without recording this flag was comparing a chooser against its
+        # own advice. Default "" because UNSET is the on state for this
+        # one, unlike the others.
         "brief_switches": {
-            name: os.environ.get(name, "1")
-            for name in ("KIRBY_BRIEF_FORMATION",)
+            "KIRBY_BRIEF_FORMATION": os.environ.get("KIRBY_BRIEF_FORMATION", "1"),
+            "KIRBY_BRIEF_NO_DOCTRINE": os.environ.get("KIRBY_BRIEF_NO_DOCTRINE", ""),
         },
         "decisions": len(picks),
         "fell_back": fell_back,
