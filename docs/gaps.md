@@ -1028,3 +1028,71 @@ reach two action kinds cost six others, and nothing about the fight
 looked wrong --- it still ran, still produced a winner, still graded 0
 bad decisions. Only the offered-and-never-chosen column showed it, and
 only because the column is taken every time.
+
+---
+
+## 2026-09-12 — reach for tactics, grappling, and a Grab that led nowhere
+
+### `Situation` can finally measure
+
+`disarm_the_armed` was written today and fired ZERO times, and the reason
+was not doctrine: `Situation` carried actor, allies, enemies,
+complications and skills, and **no distance of any kind**. A Disarm is
+legal only within reach, so the tactic named the biggest gun on the
+field, `TacticChooser` found that man was not on the menu, and discarded
+the plan. It had to ship naming nobody.
+
+Every melee tactic in the catalogue had been reasoning blind about the
+one fact melee depends on --- `close_and_strike` plans [close, strike]
+because it cannot ask, `grab_and_throw` gates on STR 30 instead of
+distance.
+
+`Situation.distances_m` / `.reach_m` / `.in_reach()` / `.enemies_in_reach()`,
+fed from the SAME measurements the menu was built from (bound once in
+`run.py` rather than measured twice). `in_reach` delegates to
+`actions.reach.within_reach`, so a tactic and the menu cannot disagree.
+An absent distance means UNKNOWN, not far: a scene-less fight has no
+positions, and reading that as "out of reach" would silently disable
+every melee tactic in the catalogue's own suite.
+
+`disarm_the_armed` names its victim again.
+
+### Grappling
+
+`grab_the_gun_arm` (priority 40). Not `grab_and_throw`'s fight --- that
+one wants a melee-best attack and STR 30, both right for out-muscling a
+superhero and wrong for seizing the arm of a man a metre away who is
+about to shoot you.
+
+**It is dominated, and that is correct.** `grab` and `disarm` are offered
+in exactly the same 12 phases out of 100 --- never once does one appear
+without the other --- and taking the gun beats holding the arm, so
+`disarm_the_armed` (41) wins every time. Bumping grappling above it would
+be tuning priorities for coverage. The tactic is unit-tested and will
+fire where the offers diverge, which needs an enemy whose weapon is not a
+takeable Focus.
+
+### A Grab that led nowhere
+
+`held_target_ids` gates the `throw` offer and its own comment says the
+driver should fill it: "lets the driver pre-compute who's eligible
+without this function needing DB access." **The driver never did** --- no
+caller anywhere passed the argument, so it was always None and `throw`
+has never been offered in any fight this engine has run. The reader was
+written too and never called: `Grab.is_grabbed` scans the log and returns
+`(True, grabber_id)`.
+
+Wired. Proven at unit level and by live probe --- Frank McLaury is held,
+`is_grabbed` correctly names doc_holliday, and Wyatt and Morgan correctly
+get no `throw` because they are not the grabber. **NOT yet observed end
+to end in a benchmark fight**: Doc never survives to a second Phase while
+still holding him. Said plainly because "wired" and "seen working" are
+different claims.
+
+### Still open: a grabbed man cannot escape
+
+The escape ladder in `enumerate_actions` is keyed to `physical_entangle`
+only, so it answers 6E1 p.217's Entangle and not 6E2 p.67's Grab.
+`Grab.escape` exists and nothing offers it. `escape_str`,
+`escape_attack` and `release_held` therefore remain unreachable --- a
+second offer and a second resolver route, not a wiring fix.

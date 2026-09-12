@@ -219,6 +219,26 @@ def run_phase(
     # a construct -- was silently absent from every menu. A fight on a map
     # enumerated as though it were in a void.
     scene = session.scene
+    # Bound once rather than computed inline: the PhaseSituation below
+    # hands the SAME measurements to the tactic layer, and measuring
+    # twice is how a tactic and the offer it names come to disagree.
+    distances = distances_from(scene, actor, enemies)
+    # WHO THIS ACTOR IS HOLDING. `held_target_ids` gates the `throw`
+    # offer and its own comment says the driver should pre-compute it:
+    # "lets the driver pre-compute who's eligible without this function
+    # needing DB access." The driver never did, so the parameter was
+    # always None and `throw` has never been offered in any fight this
+    # engine has run -- the same shape as `allow_coordinate`.
+    #
+    # `Grab.is_grabbed` was written for exactly this and never called. It
+    # returns (held, grabber_id), so the grabber check is what stops a
+    # man throwing somebody another man is holding.
+    from kirby_combat.actions.grab import Grab
+
+    held_by_actor = frozenset(
+        e.id for e in enemies
+        if Grab.is_grabbed(session, e.id) == (True, actor_id)
+    )
     menu = enumerate_actions(
         actor, enemies,
         has_scene=scene is not None,
@@ -229,7 +249,8 @@ def run_phase(
         # you could hit.
         constructs=((constructs_in(scene, session=session) or None)
                     if scene is not None else None),
-        distances=distances_from(scene, actor, enemies),
+        distances=distances,
+        held_target_ids=held_by_actor or None,
         # THE FRAMEWORK GATE, fed from the build and the fight's own log.
         # `slot_allocation` was a parameter the caller had to keep in step
         # with reallocations it was not otherwise tracking; `allocation_for`
@@ -302,6 +323,12 @@ def run_phase(
         # A separate field rather than a widened `allies` because three
         # tactics read that one as "who can help me fight".
         fallen_allies=roster.fallen_allies_of(actor),
+        # THE SAME DISTANCES THE MENU WAS BUILT FROM. Computed once above
+        # for `enumerate_actions` and handed on rather than measured
+        # twice, so a tactic and the offer it names cannot disagree about
+        # who is adjacent.
+        distances_m=dict(distances or {}),
+        reach_m=float(getattr(actor.combat_stats(), "reach_m", 1.0)),
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
     )

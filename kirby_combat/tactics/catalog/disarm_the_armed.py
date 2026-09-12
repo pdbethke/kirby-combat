@@ -80,32 +80,25 @@ class DisarmTheArmed(Tactic):
 
     def execute(self, situation: Situation) -> Plan:
         armed = _armed_enemies(situation)
-        # The biggest gun, for the RATIONALE only.
-        loudest = max(armed, key=lambda e: max(
+        close = [e for e in armed if situation.in_reach(getattr(e, "id", None))]
+        # The biggest gun among the men who can actually be reached.
+        loudest = max(close or armed, key=lambda e: max(
             (getattr(a, "damage_dice", 0) or 0)
             for a in e.attacks if _is_a_weapon(a)))
         name = getattr(loudest, "name", None) or getattr(loudest, "id", "him")
 
-        # NO TARGET NAMED, and that is a concession rather than a
-        # preference. A Disarm is only legal against a man already in
-        # reach, and THE TACTIC LAYER CANNOT SEE REACH --- `Situation`
-        # carries actor, allies, enemies, complications and skills, and
-        # no distance of any kind. Naming the biggest gun on the field
-        # therefore named a man who was usually across the lot, and
-        # `TacticChooser` discards a plan whose target is not on the menu
-        # ("Firing the right KIND at the wrong MAN is worse than falling
-        # through"). Measured: with a name, this tactic fired zero times.
+        # NAMED AGAIN. This tactic shipped target-less because
+        # `Situation` carried no distance and naming the biggest gun on
+        # the field named a man across the lot, whose plan
+        # `TacticChooser` then discarded -- so it fired zero times. The
+        # tactic layer can now ask (`Situation.in_reach`), so doctrine
+        # names its victim as the catalogue says it should: "DOCTRINE
+        # NAMES A VICTIM, AND IT IS NOT DECORATION."
         #
-        # Target-less, the chooser takes `offers[0]` --- the first Disarm
-        # the enumerator produced, which is by construction against an
-        # adjacent armed man. That is the right answer here even though
-        # the catalogue rightly warns that "DOCTRINE NAMES A VICTIM, AND
-        # IT IS NOT DECORATION": for this maneuver, legality already
-        # narrows the field to men worth naming.
-        #
-        # The real fix is reach on `Situation`, which is a change to the
-        # tactic layer's contract and is recorded in docs/gaps.md rather
-        # than smuggled in here.
+        # Falls back to naming nobody when nothing is measurably in reach
+        # --- a scene-less fight reports every enemy as reachable, so
+        # this only empties when distances are KNOWN and all far, and
+        # then `offers[0]` is still a legal Disarm if one exists at all.
         return Plan(
             tactic_name=self.name,
             rationale=(
@@ -113,5 +106,7 @@ class DisarmTheArmed(Tactic):
                 f"weapon on the field. Taking a gun ends its owner's part "
                 f"in this without killing him (6E2 p66)."
             ),
-            steps=[PlanStep(kind="disarm", target_id=None)],
+            steps=[PlanStep(kind="disarm",
+                            target_id=getattr(loudest, "id", None)
+                            if close else None)],
         )

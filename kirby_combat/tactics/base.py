@@ -53,6 +53,22 @@ class Situation:
     #: 'who can help me fight' and exactly wrong for the man on the
     #: ground who needs somebody to kneel beside him."
     fallen_allies: list[Any] = field(default_factory=list)
+    #: enemy_id -> metres between the actor and that enemy.
+    #:
+    #: THE ONE FACT MELEE DEPENDS ON, and this object did not carry it.
+    #: `disarm_the_armed` fired zero times because a Disarm is legal only
+    #: within reach, the tactic could not ask, and so it named the
+    #: biggest gun on the field -- a man usually across the lot, whose
+    #: plan `TacticChooser` then discarded. `close_and_strike` plans
+    #: [close, strike] because it cannot ask either, and
+    #: `grab_and_throw` gates on STR 30 instead of distance.
+    #:
+    #: EMPTY MEANS UNKNOWN, NOT FAR. A scene-less fight has no positions;
+    #: reading that as "out of reach" would silently disable every melee
+    #: tactic in the catalogue's own suite. See `in_reach`.
+    distances_m: dict[str, float] = field(default_factory=dict)
+    #: The actor's effective melee reach in metres (6E2 p.56; 1m base).
+    reach_m: float = 1.0
     scene_features: list[Any] = field(default_factory=list)  # CoverFeature etc.
     current_segment: int = 0
     turn: int = 1
@@ -64,6 +80,31 @@ class Situation:
     #: The fight, when the caller has one. Optional because most callers do
     #: not: `threat` falls back to what is visible without it.
     session: Any = None
+
+    def in_reach(self, enemy_id: str) -> bool:
+        """Whether `enemy_id` is close enough to touch.
+
+        Asks `kirby_combat.actions.reach.within_reach` --- the same
+        predicate enumeration uses --- rather than comparing numbers
+        here, so a tactic and the menu cannot disagree about who is
+        adjacent. The enumerator carries a comment about exactly that
+        class of disagreement.
+
+        True when the distance is unknown: absent positions mean a
+        scene-less fight, not a distant enemy, and `_melee_gate` takes
+        the same branch for the same reason.
+        """
+        from kirby_combat.actions.reach import within_reach
+
+        distance = (self.distances_m or {}).get(enemy_id)
+        if distance is None:
+            return True
+        return bool(within_reach(distance, self.reach_m).in_reach)
+
+    def enemies_in_reach(self) -> list[Any]:
+        """The enemies this actor could touch this Phase."""
+        return [e for e in self.enemies
+                if self.in_reach(getattr(e, "id", None))]
 
     @property
     def threat(self) -> dict[str, float]:

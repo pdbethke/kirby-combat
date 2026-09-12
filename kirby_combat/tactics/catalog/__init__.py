@@ -27,6 +27,8 @@ from kirby_combat.tactics.catalog import (
     take_cover_when_hurt,
     # Disarming --- the Earps' stated objective, which no tactic served
     disarm_the_armed,
+    # Grappling --- and the escape family it is the only way to reach
+    grab_the_gun_arm,
     # Saving --- doctrine let men bleed to death for want of this one
     stabilize_the_dying,
     # Leaving --- the doctrine the catalogue had no version of
@@ -37,6 +39,7 @@ from kirby_combat.tactics.catalog import (
 
 __all__ = [
     "disarm_the_armed",
+    "grab_the_gun_arm",
     "stabilize_the_dying",
     "throw_something_heavy",
     "leave_when_the_side_has_broken",

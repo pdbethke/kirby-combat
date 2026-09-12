@@ -104,20 +104,20 @@ def test_a_downed_enemy_is_not_a_target():
         _situation([_Man("billy", [_Gun()], stun=0)]))
 
 
-def test_the_plan_deliberately_names_no_victim():
-    """A Disarm is legal only against a man already in reach, and the
-    tactic layer CANNOT SEE REACH --- `Situation` carries no distance of
-    any kind. Naming the biggest gun named a man across the lot, and
-    `TacticChooser` discards a plan whose target is not on the menu, so
-    the tactic fired zero times. Target-less, the chooser takes the first
-    Disarm offer, which is by construction against an adjacent armed man.
+def test_the_plan_names_the_man_it_can_reach():
+    """`Situation.in_reach` now exists, so doctrine names its victim.
+
+    This test asserted the opposite an hour ago: the tactic shipped
+    target-less because the layer carried no distance and naming the
+    biggest gun named a man across the lot, whose plan the chooser
+    discarded. Reach on `Situation` removed the reason.
     """
     plan = _tactic().execute(_situation([
         _Man("ike_clanton", []), _Man("frank_mclaury", [_Gun()]),
     ]))
     assert plan.steps
     assert plan.steps[0].kind == "disarm"
-    assert plan.steps[0].target_id is None
+    assert plan.steps[0].target_id == "frank_mclaury"
 
 
 def test_the_rationale_still_names_the_biggest_gun():

@@ -73,6 +73,12 @@ class PhaseSituation:
     #: Allies who are DOWN. Separate from `allies` --- see
     #: `kirby_combat.tactics.base.Situation.fallen_allies`.
     fallen_allies: list[Any] = field(default_factory=list)
+    #: enemy_id -> metres. Handed on to the tactic layer, which could not
+    #: previously ask how far anybody was --- see
+    #: `kirby_combat.tactics.base.Situation.distances_m`.
+    distances_m: dict[str, float] = field(default_factory=dict)
+    #: The actor's melee reach in metres (6E2 p.56).
+    reach_m: float = 1.0
     session: "CombatSession | None" = None
     segment: int = 0
     turn: int = 1
@@ -170,6 +176,8 @@ class PhaseSituation:
             actor=self.actor,
             allies=list(self.allies),
             fallen_allies=list(self.fallen_allies),
+            distances_m=dict(self.distances_m),
+            reach_m=self.reach_m,
             # NOT ``self.enemies`` --- see ``targetable_enemies``.
             enemies=list(targetable),
             current_segment=self.segment,
