@@ -1248,12 +1248,58 @@ def _resolve_darkness_zone(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_grab_escape(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Break a Grab: STR against the grabber's STR (6E2 p.64).
+
+    `Grab.escape` owns the rule, including "grabber wins ties", and had
+    never been called by anything --- the escape ladder was keyed to
+    Entangle, so a grabbed man was offered no escape at all.
+
+    A CASUAL attempt is half STR (6E2 p.64 gives the victim one
+    immediately, at no cost to his action); a full attempt spends the
+    Phase and uses all of it.
+    """
+    from kirby_combat.actions.grab import Grab
+
+    grabber_id = action.target_id or Grab.is_grabbed(session, actor.id)[1]
+    if not grabber_id or grabber_id not in session.combatants:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    casual = action.action_id.endswith(":casual")
+    own_str = int(actor.combat_stats().str_)
+    new_session, result = Grab.escape(
+        session,
+        escaper_id=actor.id,
+        escaper_str=own_str // 2 if casual else own_str,
+        grabber_str=int(session.combatants[grabber_id].combat_stats().str_),
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
 @resolves("escape_str")
 def _resolve_escape_str(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Escape by main force: a STR attempt against the Entangle's BODY."""
+    """Escape by main force.
+
+    TWO DIFFERENT CONTESTS SHARE THIS KIND. An Entangle escape chews
+    through BODY and DEF (6E1 p.217); a Grab escape is STR against the
+    grabber's STR, the grabber winning ties (6E2 p.64). Routing a Grab
+    through `str_escape_dice` would roll against an Entangle that does
+    not exist, so the branch is taken off the `escape:grab:` id the
+    enumerator minted for exactly this.
+    """
+    if action.action_id.startswith("escape:grab:"):
+        return _resolve_grab_escape(
+            session, actor, action, template=template, roller=roller,
+        )
     from kirby_combat.actions.entangle import Entangle, str_escape_dice
 
     dice = max(1, str_escape_dice(int(actor.combat_stats().str_)))

@@ -628,6 +628,11 @@ def _to_hit_number(ocv: int, enemy) -> int:
     return int(ocv) + BASE_TO_HIT - int(enemy.combat_stats().dcv)
 
 
+def _friendly_id(combatant_id: str) -> str:
+    """A readable name for an id, when only the id is in hand."""
+    return (combatant_id or "").replace("_", " ").title() or "your attacker"
+
+
 def enumerate_actions(
     actor: HeroCombatant,
     enemies: list[HeroCombatant],
@@ -638,6 +643,7 @@ def enumerate_actions(
     movement: list[Any] | None = None,
     scene: Any = None,
     held_target_ids: frozenset[str] | None = None,
+    grabbed_by: str | None = None,
     block_mental_powers: bool = False,
     open_held_action_ids: list[str] | None = None,
     blocked_lockout_ids: frozenset[str] | None = None,
@@ -804,6 +810,32 @@ def enumerate_actions(
             attack_powers = [actor.str_strike_view()]
         except Exception:
             attack_powers = []
+
+    # A GRABBED MAN MAY STRUGGLE. 6E2 p.64: "the victim immediately gets
+    # a Casual STR roll to break free, if desired." The ladder below is
+    # keyed to `physical_entangle` and answers 6E1 p.217's Entangle only,
+    # so a man held by a Grab was offered no escape at all --- while
+    # `Grab.escape` sat in the package unused, tie rule and all.
+    #
+    # ITS OWN PAIR, not the Entangle ladder: an Entangle escape chews
+    # through BODY and DEF, a Grab escape is STR against the grabber's
+    # STR. Sharing the offers would put an Entangle's numbers in a Grab's
+    # summary and route a STR contest through `str_escape_dice`. The
+    # `escape:grab:*` ids keep the resolver's routing unambiguous.
+    if grabbed_by:
+        actions.append(LegalAction(
+            action_id="escape:grab:full", kind="escape_str",
+            target_id=grabbed_by, power_xmlid=None, power_name=None,
+            summary=(f"Break {_friendly_id(grabbed_by)}'s hold with full "
+                     f"STR — your action this phase (6E2 p64)"),
+        ))
+        actions.append(LegalAction(
+            action_id="escape:grab:casual", kind="escape_str",
+            target_id=grabbed_by, power_xmlid=None, power_name=None,
+            summary=(f"Twist out of {_friendly_id(grabbed_by)}'s grip with "
+                     f"Casual STR (half STR, ZERO phase — you keep your "
+                     f"action either way)"),
+        ))
 
     # Spec 2026-08-31: an Entangled character must escape before doing
     # anything else (6E1 p217) — the menu IS the escape ladder. Fail-open:

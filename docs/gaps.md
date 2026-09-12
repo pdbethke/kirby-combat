@@ -1096,3 +1096,58 @@ only, so it answers 6E1 p.217's Entangle and not 6E2 p.67's Grab.
 `Grab.escape` exists and nothing offers it. `escape_str`,
 `escape_attack` and `release_held` therefore remain unreachable --- a
 second offer and a second resolver route, not a wiring fix.
+
+---
+
+## 2026-09-12 — a grabbed man can struggle, and the grapple chain closes
+
+The escape ladder was keyed to `physical_entangle`, answering 6E1 p.217's
+Entangle and nothing else. A man held by a GRAB was offered no escape at
+all --- while `Grab.escape` sat in the package unused, tie rule and all.
+
+6E2 p.64 is explicit that the struggle is immediate:
+
+    "To Grab an opponent, a character must make an Attack Roll with
+     appropriate modifiers. If successful, he has Grabbed his opponent.
+     (As described below under Escaping From Grabs, the victim
+     immediately gets a Casual STR roll to break free, if desired.)"
+
+Its own pair of offers (`escape:grab:full` / `escape:grab:casual`), not
+the Entangle ladder: an Entangle escape chews through BODY and DEF, a
+Grab escape is STR against the grabber's STR. Sharing them would have put
+an Entangle's numbers in a Grab's summary and routed a STR contest
+through `str_escape_dice`. The resolver branches off the id.
+
+### The chain, forced end to end
+
+    grab         3
+    escape_str   3
+    throw        1
+    errors       0
+
+**`throw` has now fired for the first time in this engine's history.**
+It was gated on `held_target_ids`, a parameter whose own comment asked
+the driver to compute it and which no caller had ever passed.
+
+### What the grapple thread cost, and what it was
+
+Four action kinds were unreachable behind one another:
+
+| kind | was blocked by |
+|---|---|
+| `grab` | no tactic picked it |
+| `throw` | `held_target_ids` never populated |
+| `escape_str` (Grab) | ladder keyed to Entangle only |
+| `release_held` | still unoffered --- see below |
+
+Every one of them had its rule implemented and its reader written.
+`Grab.is_grabbed` and `Grab.escape` both existed and neither had ever
+been called by anything but a unit test.
+
+### Still open
+
+`release_held` --- the grabber letting go --- is still never offered.
+`escape_attack` likewise remains Entangle-only: 6E2 p.64 does not give a
+grabbed man an attack-to-escape the way an Entangle does, so its absence
+may be correct rather than a gap, and saying which needs the page rather
+than a guess.

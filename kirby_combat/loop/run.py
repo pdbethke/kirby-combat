@@ -251,6 +251,10 @@ def run_phase(
                     if scene is not None else None),
         distances=distances,
         held_target_ids=held_by_actor or None,
+        # AND WHO IS HOLDING HIM. 6E2 p.64 gives a grabbed man an
+        # immediate Casual STR roll to break free; the ladder below was
+        # keyed to Entangle only, so he had no offer at all.
+        grabbed_by=Grab.is_grabbed(session, actor_id)[1],
         # THE FRAMEWORK GATE, fed from the build and the fight's own log.
         # `slot_allocation` was a parameter the caller had to keep in step
         # with reallocations it was not otherwise tracking; `allocation_for`
