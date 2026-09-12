@@ -58,6 +58,17 @@ class AttackPower:
     #: as well at maximum range as at point blank. NOT a reduction -- the
     #: penalty does not apply at all.
     no_range_modifier: bool = False
+    #: Beam. The HERO System Equipment Guide p.69 lists the limitations
+    #: every firearm is built with and says it plainly: "Beam: Bullets
+    #: can't be Spread". Spreading widens an attack (6E2 p.51) and a
+    #: bullet does not widen.
+    #:
+    #: The corral arsenal has carried `BEAM` on every pistol since it was
+    #: imported, and nothing read it -- so `spread` was offered 95 times
+    #: across the western benchmarks for weapons that cannot do it.
+    #: Defaults False so a power that does not declare the limitation
+    #: does not acquire one.
+    beam: bool = False
     #: The cost engine's Active Points for this power. 6E1 p.132 prices END
     #: at 1 per 10 Active Points, and this is the only place that figure
     #: was available -- `SlotView` carried one and a bare AttackPower did

@@ -1939,6 +1939,11 @@ def _build_attack_power(
     # downstream can honour a modifier the view never carries, and every
     # ranged attack was paying full range penalties regardless.
     no_range_modifier = _has_modifier(power, "NORANGEMODIFIER")
+    # Equipment Guide p.69: "Beam: Bullets can't be Spread". Parsed here
+    # beside the modifiers this function already reads, because a
+    # limitation the build declares and the view drops is unenforceable
+    # everywhere downstream.
+    beam = _has_modifier(power, "BEAM")
     from kirby_combat.charges import charges_on
 
     charges = charges_on(power)
@@ -1989,6 +1994,7 @@ def _build_attack_power(
         charges=charges,
         reduced_end=reduced_end,
         no_range_modifier=no_range_modifier,
+        beam=beam,
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,

@@ -2061,6 +2061,13 @@ def enumerate_actions(
                 xmlid_upper = (ap.xmlid or "").upper()
                 if xmlid_upper in {"MENTALBLAST", "EGO_ATTACK", "EGOATTACK"}:
                     continue
+                # A BULLET DOES NOT WIDEN. Equipment Guide p.69: "Beam:
+                # Bullets can't be Spread". Every firearm in the corral
+                # arsenal carries the limitation and this offer ignored
+                # it, so a gunfighter was invited 95 times across the
+                # benchmarks to do something the rules forbid.
+                if getattr(ap, "beam", False):
+                    continue
                 pname = ap.name or ap.xmlid.lower()
                 # Default: 3 shots. The picker chooses "rapid_fire" with
                 # an implicit shot count; resolver uses 3.
@@ -2142,6 +2149,13 @@ def enumerate_actions(
                 pname = ap.name or ap.xmlid.lower()
                 xmlid_upper = (ap.xmlid or "").upper()
                 if xmlid_upper in {"MENTALBLAST", "EGO_ATTACK", "EGOATTACK"}:
+                    continue
+                # A BULLET DOES NOT WIDEN. Equipment Guide p.69: "Beam:
+                # Bullets can't be Spread". Every firearm in the corral
+                # arsenal carries the limitation and this offer ignored
+                # it, so a gunfighter was invited 95 times across the
+                # benchmarks to do something the rules forbid.
+                if getattr(ap, "beam", False):
                     continue  # mental attacks have their own kind
                 # Reach spec §2 (extended): pushing a MELEE attack at range is
                 # the same phantom-punch bug — gate it. Pushing a RANGED attack
@@ -2177,6 +2191,13 @@ def enumerate_actions(
                     continue
                 xmlid_upper = (ap.xmlid or "").upper()
                 if xmlid_upper in {"MENTALBLAST", "EGO_ATTACK", "EGOATTACK"}:
+                    continue
+                # A BULLET DOES NOT WIDEN. Equipment Guide p.69: "Beam:
+                # Bullets can't be Spread". Every firearm in the corral
+                # arsenal carries the limitation and this offer ignored
+                # it, so a gunfighter was invited 95 times across the
+                # benchmarks to do something the rules forbid.
+                if getattr(ap, "beam", False):
                     continue
                 # Reach spec §2 (extended): spreading a MELEE attack at range is
                 # phantom-punching — gate it. Ranged spread at range is legal.

@@ -589,3 +589,53 @@ grader read as a clean bill.
 Every attack on terrain in these fights was `scenery` and none was
 `futile`. The two graders are measuring different things and both
 answers are right.
+
+---
+
+## 2026-09-12 — Beam: a bullet does not widen
+
+First defect found by asking "what is OFFERED in a western and never
+taken, and should it have been offered at all?"
+
+`spread` was offered 95 times across both benchmarks and taken zero
+times. It should never have been offered to most of them. The HERO
+System Equipment Guide p.69 lists the limitations every firearm is built
+with:
+
+    "Beam: Bullets can't be Spread, and only make relatively small
+     'punctures'..."
+
+THE BUILD DATA ALREADY SAID SO. The corral arsenal carries `BEAM` on
+every pistol, revolver and rifle. `hero_view` parsed `REDUCEDEND`,
+`NORANGEMODIFIER` and `CHARGES` and never read this one, `AttackPower`
+had no field for it, and enumeration offered Spreading to anything
+ranged. The dominant defect class again: a modifier the build declares,
+carried nowhere, read by nothing.
+
+Fixed: `AttackPower.beam`, parsed in `hero_view` beside the modifiers it
+already read, gating the `spread` offer.
+
+### What the arsenal turns out to know
+
+| weapon | BEAM | may Spread |
+|---|---|---|
+| Pistol, Revolver, Rifle, Derringer | True | no |
+| **Shotgun** | **False** | **yes** |
+
+After the fix the street offers `spread` **zero** times, and the corral
+offers it 43 times to exactly one weapon: Doc Holliday's **coach gun**.
+A shotgun is the one firearm that genuinely does widen, and the imported
+data had drawn that line correctly all along --- nothing in the engine
+was reading it.
+
+### The rest of the western list, unresolved
+
+Offered and never chosen, still unexamined: `block` (1388 --- suspicious
+in a gunfight, Block is an HTH maneuver), `coordinate` (1355),
+`set` (520), `haymaker` (502 --- suspicious with a revolver),
+`move_by` (360), `stabilize` (94), `climb`/`climb_fast` (58),
+`grab`/`trip` (7), `reposition_vantage` (6).
+
+Never offered at all and plausible in a western: `pickup`,
+`throw_object`, `escape_str`, `escape_attack`, `release_held`, `sweep`,
+`reposition`, `reposition_push`.
