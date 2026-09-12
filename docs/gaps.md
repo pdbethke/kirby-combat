@@ -918,3 +918,54 @@ is close to 3d6-against-8-.
 Rule paths moved 20 -> 21, and the extra one is `loc:Leg` --- incidental
 to the fights diverging once Phases go on first aid, NOT a new
 subsystem. Said plainly because it would read as one.
+
+---
+
+## 2026-09-12 — the rest of the western list: a NEGATIVE result
+
+Six kinds were offered and never chosen. Rather than hunt for a rule each
+might be breaking, every one was FORCED --- a chooser that takes that
+kind whenever it appears --- and run three seeds of the corral. The
+question is not "is the offer legal" but "does the path work at all",
+which is how `recover` (a TypeError on every call it had ever received)
+and `dodge`-while-Stunned (a ValueError past `on_unresolvable="skip"`)
+were both found earlier.
+
+| kind | forced picks | errors |
+|---|---|---|
+| `move_by` | 120 | 0 |
+| `move_through` | 120 | 0 |
+| `haymaker` | 141 | 0 |
+| `set` | 141 | 0 |
+| `climb` | 73 | 0 |
+| `climb_fast` | 73 | 0 |
+| `grab` / `trip` / `reposition_vantage` | 0 | — not offered in seeds 0-2 |
+
+**All clean.** These are DOCTRINE gaps, not defects: the offers are
+legal, the resolvers work, and no tactic recommends any of them.
+
+Two specifics checked rather than assumed:
+
+* `move_by` does read velocity --- `_velocity_mps` takes RUNNING off the
+  build --- so the `v/10` term is live, and the offer is only ever made
+  via running. 6E2 p.72 forbids a Move By "with Extra-Dimensional
+  Movement, FTL Travel, Teleportation, or any MegaScaled movement", and
+  the engine never offers one.
+* `climb` in a flat lot looked wrong at 73 picks. It is C.S. Fly's
+  boarding house west wall, a real building, offered 14 times in three
+  seeds. The 73 was the forcing chooser going up and down every Phase,
+  not the offer.
+
+### Where the western list now stands
+
+Defects found and fixed: `spread`, `block`, `coordinate`, `set`,
+`pickup`/`throw_object`, and doctrine's blindness to a dying ally.
+Checked and correct: `haymaker`, `move_by`, `move_through`, `climb`,
+`climb_fast`, `push` (revolvers use Charges, and a Charge cannot be
+Pushed).
+
+Still never offered and unexamined: `sweep`, `escape_str`,
+`escape_attack`, `release_held`, `reposition`, `reposition_push`. The
+escape family needs a Grab to exist first, and `grab` is offered 7 times
+in six fights and never taken --- so that whole branch is gated behind a
+doctrine gap rather than a rules one.
