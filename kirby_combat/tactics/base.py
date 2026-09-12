@@ -39,6 +39,20 @@ class Situation:
     actor: Any                    # The combatant whose turn it is
     allies: list[Any]             # Combatants on actor's team (may be empty)
     enemies: list[Any]            # Living enemies the actor knows about
+    #: Allies who are DOWN --- kept apart from `allies` on purpose.
+    #:
+    #: TWO DIFFERENT QUESTIONS. `allies` answers "who can help me fight",
+    #: and three tactics read it that way: `coordinated_focus_fire`
+    #: counts them, `shield_allies` picks the frailest to stand in front
+    #: of, `bait_enraged` treats them as alternative targets. Putting a
+    #: dying man in that list would have him counted as a partner,
+    #: shielded where he lies, and offered as bait.
+    #:
+    #: `stabilize_the_dying` asks the other question, and `run.py` says
+    #: why in its own words: `allies_of` excluding the down "is right for
+    #: 'who can help me fight' and exactly wrong for the man on the
+    #: ground who needs somebody to kneel beside him."
+    fallen_allies: list[Any] = field(default_factory=list)
     scene_features: list[Any] = field(default_factory=list)  # CoverFeature etc.
     current_segment: int = 0
     turn: int = 1

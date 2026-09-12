@@ -295,6 +295,13 @@ def run_phase(
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
         allies=roster.allies_of(actor),
+        # THE MAN ON THE GROUND, kept in his own list. The menu above
+        # already gets standing and fallen both; this object did not, so
+        # the tactic layer could not see the ally it was supposed to
+        # save and `stabilize` was offered 39 times and chosen never.
+        # A separate field rather than a widened `allies` because three
+        # tactics read that one as "who can help me fight".
+        fallen_allies=roster.fallen_allies_of(actor),
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
     )

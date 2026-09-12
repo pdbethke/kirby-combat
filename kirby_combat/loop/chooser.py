@@ -70,6 +70,9 @@ class PhaseSituation:
     menu: list[LegalAction]
     enemies: list[Any] = field(default_factory=list)
     allies: list[Any] = field(default_factory=list)
+    #: Allies who are DOWN. Separate from `allies` --- see
+    #: `kirby_combat.tactics.base.Situation.fallen_allies`.
+    fallen_allies: list[Any] = field(default_factory=list)
     session: "CombatSession | None" = None
     segment: int = 0
     turn: int = 1
@@ -166,6 +169,7 @@ class PhaseSituation:
         return Situation(
             actor=self.actor,
             allies=list(self.allies),
+            fallen_allies=list(self.fallen_allies),
             # NOT ``self.enemies`` --- see ``targetable_enemies``.
             enemies=list(targetable),
             current_segment=self.segment,

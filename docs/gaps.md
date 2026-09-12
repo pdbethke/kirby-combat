@@ -862,3 +862,59 @@ masonry. 6E2 p.173 gives DEF and BODY and says nothing about mass, so the
 50 is this engine's own invention; it makes a wooden crate 200 kg. Worth
 a look, but inventing a per-material mass model is a bigger job than this
 and is not something the book hands over.
+
+---
+
+## 2026-09-12 — doctrine let men bleed to death
+
+`stabilize` was offered 94 times across the western benchmarks and taken
+zero times. Measured on the corral, six fights: **31 offers, 29 bleeding
+ticks, not one attempt to help.** Doc Holliday stood there with
+PARAMEDICS 11 while men bled out.
+
+Everything had been built: the bleeding rules (6E2 p.109 and the p.115
+table), the Dying status, the Paramedics roll with its -1 per -2 BODY,
+and a `stabilize` offer keyed to the ALLY's condition rather than the
+actor's skill. Two things were missing, and the second is the
+interesting one.
+
+### 1. No tactic ever picked it
+
+A rung below this repo's usual defect: not computed-and-undelivered, but
+**delivered, offered, and never chosen**, which no unit test can catch.
+`stabilize_the_dying` (priority 57 --- above `take_cover_when_hurt` at 55
+and `withdraw_when_outmatched` at 54, because somebody else's life on a
+clock outranks the actor's own comfort).
+
+### 2. The tactic layer could not SEE the dying man
+
+Worse, and found only by probing a live fight. `run.py` hands
+`enumerate_actions` standing **and** fallen allies, with a comment saying
+exactly why: `allies_of` excluding the down "is right for 'who can help
+me fight' and exactly wrong for the man on the ground who needs somebody
+to kneel beside him." Twelve lines later it builds the `PhaseSituation`
+with **standing only** --- under a comment claiming the list was
+"Already computed just below". So `stabilize:frank_mclaury` sat on the
+menu while the tactics layer saw three allies at BODY 10 and no patient.
+
+Fixed with a SEPARATE `fallen_allies` field, not a widened `allies`:
+three tactics read that list as "who can help me fight" ---
+`coordinated_focus_fire` counts them, `shield_allies` picks the frailest
+to stand in front of, `bait_enraged` offers them as alternative targets.
+A dying man in that list would be counted as a partner, shielded where
+he lies, and used as bait.
+
+### The result
+
+| | before | after |
+|---|---|---|
+| `stabilize` chosen | **0** | **42 of 60 offered** |
+| attempts resolved | — | 34 |
+| successful | — | **11** |
+
+The rolls are right: 8- for Everyman Paramedics, 7- at -2 BODY. 11 of 34
+is close to 3d6-against-8-.
+
+Rule paths moved 20 -> 21, and the extra one is `loc:Leg` --- incidental
+to the fights diverging once Phases go on first aid, NOT a new
+subsystem. Said plainly because it would read as one.
