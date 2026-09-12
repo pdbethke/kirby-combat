@@ -41,6 +41,21 @@ class GrabResult:
     hit: bool = False
 
 
+def _body_of(roller, dice: int) -> int:
+    """Normal Damage BODY from `dice` d6 (6E2 p.66 counts BODY, not pips).
+
+    Delegates the per-die rule to the resolver's own
+    `_body_for_normal_die` rather than restating 1/2-5/6 here, so a
+    struggle and an attack cannot come to disagree about what a die is
+    worth.
+    """
+    from kirby_combat.resolution.damage import _body_for_normal_die
+
+    if dice <= 0:
+        return 0
+    return sum(_body_for_normal_die(v) for v in roller.roll_dice(dice))
+
+
 class Grab:
     name: str = "grab"
 
@@ -140,6 +155,41 @@ class Grab:
         return s, result
 
     # ------------------------------------------------------------------ escape
+    #: Breaking out hurts nobody. 6E2 p.66 and Western Hero p.104 both
+    #: say so in the same words: "This deals no damage to either
+    #: character." Named so a reader does not have to infer it from the
+    #: absence of a damage field.
+    escape_deals_damage = False
+
+    @staticmethod
+    def escape_dice(str_value: int) -> int:
+        """Dice in a break-out contest: 6E2 p.66, "1d6 for each 5 STR"."""
+        return max(0, int(str_value) // 5)
+
+    @staticmethod
+    def escape_outcome(*, escaper_body: int, grabber_body: int) -> str:
+        """Who wins the struggle, and what it cost.
+
+        THREE STATES, not two. Western Hero p.104: "If the victim rolls
+        more BODY damage than the grabber, then they break free but may
+        take no other actions. If the victim rolls double the damage of
+        the grabber, then the escape took no time and the victim has
+        their full phase to take advantage of."
+
+        6E2 p.66 gives ties to the grabber: "if the Grabber's total is
+        higher or the rolls tie, the victim remains Grabbed."
+
+        Returns "held" | "free_spent" | "free_acting".
+        """
+        if escaper_body <= grabber_body:
+            return "held"
+        # `>=` and not `>`: a grabber who rolls nothing at all has been
+        # beaten outright, and `0 >= 2*0` must read as a clean break
+        # rather than a narrow one.
+        if escaper_body >= 2 * grabber_body:
+            return "free_acting"
+        return "free_spent"
+
     @staticmethod
     def escape(
         session: CombatSession,
@@ -159,7 +209,24 @@ class Grab:
         if not is_g:
             raise ValueError(f"{escaper_id} is not grabbed; cannot escape")
 
-        success = escaper_str > grabber_str
+        # A CONTEST, NOT A COMPARISON. This read `escaper_str >
+        # grabber_str`, so a STR 20 man always escaped a STR 10 man and a
+        # STR 10 man never escaped a STR 11 one. 6E2 p.66: both roll 1d6
+        # per 5 STR and count BODY, which is why a weaker man can get
+        # lucky -- the whole reason the book rolls.
+        #
+        # The dice come from the session's roller so a seeded fight stays
+        # reproducible; when there is none, the STR comparison is kept as
+        # the degenerate fallback rather than inventing a roller here.
+        roller = getattr(session, "dice_roller", None)
+        if roller is not None:
+            escaper_body = _body_of(roller, Grab.escape_dice(escaper_str))
+            grabber_body = _body_of(roller, Grab.escape_dice(grabber_str))
+            outcome = Grab.escape_outcome(
+                escaper_body=escaper_body, grabber_body=grabber_body)
+        else:
+            outcome = ("free_spent" if escaper_str > grabber_str else "held")
+        success = outcome != "held"
         result = GrabResult(
             success=success,
             attacker_id=grabber_id or "",

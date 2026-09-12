@@ -1,4 +1,5 @@
 """Grab and Throw action tests."""
+import dataclasses
 import pytest
 
 from fixtures.synthetic_hero import synthetic_combatant
@@ -125,21 +126,43 @@ def test_is_grabbed_false_after_failed_grab():
 
 # ---- Escape (STR contest, per 6E2 p67) ----
 
-def test_escape_success_releases_grab():
+def _escape_session(dice):
+    """A grab in progress, with the escape contest's dice pre-loaded.
+
+    THESE TWO TESTS USED TO ASSERT A COMPARISON. `Grab.escape` decided
+    the struggle with `escaper_str > grabber_str`, so STR 40 always beat
+    STR 30 and STR 20 never did. 6E2 p.66 rolls it: "both characters roll
+    1d6 for each 5 STR they have and count the Normal Damage BODY",
+    grabber winning ties. The dice are fixed here so the outcome is the
+    RULE being asserted rather than the seed.
+    """
+    from kirby_dice import FakeRoller
+    from kirby_combat.session import CombatSession
+    from kirby_combat.template import CombatTemplate
+
     s = _session()
     s2, _ = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10,
                   attacker_str=30, target_str=15)
     assert Grab.is_grabbed(s2, "bob")[0] is True
-    s3, esc = Grab.escape(s2, escaper_id="bob", escaper_str=40, grabber_str=30)
+    return dataclasses.replace(s2, dice_roller=FakeRoller(dice))
+
+
+def test_the_escaper_who_rolls_more_BODY_breaks_free():
+    # escaper 40 STR -> 8 dice, grabber 30 -> 6 dice. All 6s for the
+    # escaper (2 BODY each), all 1s for the grabber (0 BODY each).
+    s3, esc = Grab.escape(
+        _escape_session([[6] * 8, [1] * 6]),
+        escaper_id="bob", escaper_str=40, grabber_str=30)
     assert esc.success is True
     assert Grab.is_grabbed(s3, "bob") == (False, None)
 
 
-def test_escape_failure_keeps_grab():
-    s = _session()
-    s2, _ = _grab(s, attacker_ocv=10, target_dcv=5, attack_roll=10,
-                  attacker_str=30, target_str=15)
-    s3, esc = Grab.escape(s2, escaper_id="bob", escaper_str=20, grabber_str=30)
+def test_the_escaper_who_rolls_less_stays_held():
+    # The WEAKER pool wins here, which a comparison could never express:
+    # escaper 40 STR rolling all 1s loses to grabber 30 STR rolling 6s.
+    s3, esc = Grab.escape(
+        _escape_session([[1] * 8, [6] * 6]),
+        escaper_id="bob", escaper_str=40, grabber_str=30)
     assert esc.success is False
     is_g, by = Grab.is_grabbed(s3, "bob")
     assert is_g is True

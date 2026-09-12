@@ -1151,3 +1151,72 @@ been called by anything but a unit test.
 grabbed man an attack-to-escape the way an Entangle does, so its absence
 may be correct rather than a gap, and saying which needs the page rather
 than a guess.
+
+---
+
+## 2026-09-12 — breaking a Grab is a contest; and two corrections
+
+### `escape_attack` is CORRECTLY ABSENT for a Grab
+
+Asked as a defect, answered by the page. 6E2 p.66:
+
+    "When a Grabbed character tries to escape from his captor, both
+     characters roll 1d6 for each 5 STR they have and count the Normal
+     Damage BODY... Trying to break out of a Grab does no damage to
+     either character."
+
+There is no attack-to-escape for a Grab. The attack-to-escape rules on
+6E2 p.126 are about an ENTANGLE, and the engine offers `escape_attack`
+only under `physical_entangle`, which is right. **No change made** ---
+recorded so the absence stops looking like an oversight.
+
+### `Grab.escape` decided a dice contest with a comparison
+
+Found while checking the above. It read `escaper_str > grabber_str`, so a
+STR 20 man ALWAYS escaped a STR 10 man and a STR 10 man NEVER escaped a
+STR 11 one. Two books disagree, and Western Hero p.104 --- the genre book
+for this benchmark --- adds a third outcome:
+
+    "If the victim rolls more BODY damage than the grabber, then they
+     break free but may take no other actions. If the victim rolls double
+     the damage of the grabber, then the escape took no time and the
+     victim has their full phase to take advantage of."
+
+So: `escape_dice` (1d6 per 5 STR), `escape_outcome` returning
+held / free_spent / free_acting, and `escape_deals_damage = False`
+because both books say the struggle hurts nobody. The BODY count
+delegates to the resolver's own `_body_for_normal_die` so a struggle and
+an attack cannot disagree about what a die is worth.
+
+Two PRE-EXISTING tests asserted the comparison and now assert the roll,
+including one where the WEAKER pool wins --- which a comparison could
+never express. `examples/status_stream.py` carried an empty `FakeRoller`
+that predated the escape rolling anything.
+
+### `release_held` was already built --- I nearly broke it
+
+Reported as never offered, and the cause was upstream: it means dropping
+a carried OBJECT (`holding.py`: `_RELEASES = {"throw_object",
+"release_held"}`), it is offered at two sites, its resolver exists, and
+`actor_holding` is wired in `run.py`. It was unreachable only because
+`pickup` was dead until this morning.
+
+I mistook it for "let go of a grabbed man", wrote a third offer and a
+duplicate resolver, and the registry refused the duplicate
+("resolver for 'release_held' already registered"). Removing my
+duplicate by slicing the file between two markers then deleted the
+ORIGINAL resolver and `darkness_zone` with it; the `F821` guard and the
+registered-kinds pin both caught it, and the file was restored from HEAD.
+
+Chain forced end to end after the restore: `pickup` 8, `throw_object` 6,
+`grab` 5, `escape_str` 4, `throw` 1, **0 errors**.
+
+### Genuinely still missing: letting go of a PERSON
+
+There is no action kind for it. A grabber can Squeeze, Slam or Throw
+(6E2 p.64) and Throw "obviously means you let go of them" --- so hurling
+a man is the only way to put him down, while Western Hero p.104 prices
+holding at half DCV against everyone else in the lot. Neither book prices
+the release itself, so the time cost would be a judgement; that is a new
+kind, and it is written down here rather than bolted onto `release_held`,
+which means something else.

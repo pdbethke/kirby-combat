@@ -141,7 +141,12 @@ def main() -> None:
         combatants=[WEAVER, VANGUARD],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
-        dice_roller=FakeRoller([]),
+        # BREAKING A GRAB NOW ROLLS. 6E2 p.66: both men roll 1d6 per 5
+        # STR and count BODY, so an empty pool exhausts on the escape
+        # below. Vanguard at STR 25 rolls 5 dice, Weaver at 15 rolls 3.
+        # Fixed values rather than a seed so this script always prints
+        # the same story.
+        dice_roller=FakeRoller([[6, 6, 6, 6, 6], [1, 1, 1]]),
     ).start()
 
     # ── 1. Entangle lands ─────────────────────────────────────────────────
