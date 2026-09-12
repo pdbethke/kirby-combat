@@ -1857,6 +1857,25 @@ def enumerate_actions(
     # class of defect survived its first fix.
     if alive_enemies and can_abort:
         for enemy in alive_enemies:
+            # YOU CANNOT BLOCK A BULLET. 6E2 p.59: "Blocks only affect
+            # Ranged attacks with the GM's permission, according to
+            # special rules", and the maneuver otherwise covers "any HTH
+            # Combat attack". `_melee_gate` already decides reach for
+            # melee attacks, Move By, Move Through, Coordinate and
+            # Spreading; this offer never asked it, so a man forty metres
+            # from a rifle was invited to block it -- 1,388 times across
+            # the western benchmarks, taken zero times.
+            #
+            # 'direct' only, not 'close': a Block is declared against an
+            # attack already coming, so a half-move to reach the attacker
+            # first is not available.
+            #
+            # THE SPECIAL RULES ARE MISSILE DEFLECTION and this engine has
+            # no concept of it -- nothing in the package names it, and no
+            # western character buys it. If Deflection is ever built, this
+            # is the gate that has to learn about it.
+            if _melee_gate(enemy.id) != "direct":
+                continue
             actions.append(LegalAction(
                 action_id=f"block:{enemy.id}",
                 kind="block",

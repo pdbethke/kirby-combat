@@ -639,3 +639,60 @@ in a gunfight, Block is an HTH maneuver), `coordinate` (1355),
 Never offered at all and plausible in a western: `pickup`,
 `throw_object`, `escape_str`, `escape_attack`, `release_held`, `sweep`,
 `reposition`, `reposition_push`.
+
+---
+
+## 2026-09-12 — Block wore the abort gate and never the reach gate
+
+Second defect from the same question. `block` was offered **1,388 times**
+across the two western benchmarks and taken zero times, because for most
+of those offers it was not a legal thing to do.
+
+6E2 p.59, twice over:
+
+    "Blocks only affect Ranged attacks with the GM's permission,
+     according to special rules (see below)."
+
+    "A character can normally Block any HTH Combat attack, including
+     Disarms, Chokes, Grabs/Grab Bys, Move Bys/Throughs, sword blows,
+     most No Range attacks..."
+
+`_melee_gate` already decides reach for melee attacks, Move By, Move
+Through, Coordinate and Spreading. The Block offer never asked it, so a
+man forty metres from a rifle was invited to block it.
+
+The comment directly above the offer site reads: "Block reaches
+`mark_aborting` too, so it wears the same gate. Gating one defence and
+not the others is how this class of defect survived its first fix." It
+wore the ABORT gate. It never wore the REACH one.
+
+Gated on `'direct'` --- not `'close'`, because a Block is declared
+against an attack already coming and there is no half-move to reach the
+attacker first.
+
+| | before | after |
+|---|---|---|
+| corral | ~1,340 | **4** |
+| street | ~48 | **0** |
+
+The four survivors are correct: the corral is fought at four metres and
+men do close.
+
+MISSILE DEFLECTION is the "special rules" the page defers to, and this
+engine has no concept of it --- nothing in the package names it and no
+western character buys it. The gate is reach alone, and that limit is
+recorded in the test rather than left to be rediscovered.
+
+## 2026-09-12 — Haymaker with a revolver: the engine was RIGHT
+
+Listed as suspicious in the western to-do: `haymaker` offered 502 times
+to men holding guns. The book settles it against me, 6E2 p.71:
+
+    "Firearms: A character can Haymaker a gunshot, unless the GM forbids
+     him to. This could represent carefully aiming to hit the most
+     vulnerable part of a target."
+
+No change made. Recorded because a suspicion that was checked and
+dismissed is worth as much to the next reader as one that was confirmed
+--- and because the offer count alone looked exactly like the two real
+defects beside it.
