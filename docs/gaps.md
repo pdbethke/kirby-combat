@@ -749,3 +749,64 @@ than a claim.
 | `haymaker` | 502 | **correct** — 6E2 p.71 permits it with a gun |
 
 Three of four suspicions were real, and the fourth was worth checking.
+
+---
+
+## 2026-09-12 — Set: a Phase spent aiming that bought nothing
+
+Fourth from the same question, and the worst of them. `set` was offered
+520 times across the western benchmarks and taken zero times. **Five
+things were wrong with it at once.**
+
+6E2 p.81:
+
+    "This Combat Maneuver represents the effects of taking extra time to
+     aim at a target with a Ranged attack, thereby improving one's
+     accuracy. Set does not work with HTH Combat attacks. An attacker who
+     wants to Set must spend a Full Phase aiming at the target (this is
+     known in some genres as 'drawing a bead')... A character who has Set
+     on a target receives a +1 OCV to all attacks against that target
+     until he loses his Set. A character must Set on a specific target
+     (either an individual or an object); he can't just Set until a
+     target presents itself."
+
+| # | defect |
+|---|---|
+| 1 | offered with `target_id=None` --- "he can't just Set until a target presents itself" |
+| 2 | offered unconditionally, including to an actor with only HTH attacks |
+| 3 | **`Set.ocv_bonus` was read by NOTHING but its own unit test** |
+| 4 | the bonus ignored the target, where the rule grants it only against the man aimed at |
+| 5 | the summary said "telegraphed strike" (melee flavour) and "+1 OCV next phase" (the rule says "until he loses his Set") |
+
+**(3) is this repo's dominant defect class in its purest form.** The
+resolver declared the Set; no attack resolution ever asked for the
+bonus. A man could spend a Full Phase drawing a bead and be no more
+accurate for it. The one test that touched `ocv_bonus` called it
+directly, so the suite was green throughout.
+
+Fixed: per-target offer gated on having a Ranged attack, a target-aware
+`ocv_bonus`, the bonus folded into `AttackInput.ocv_modifier` in the
+driver (a Set is a session fact and the resolver takes no session), and
+an honest summary.
+
+One PRE-EXISTING test asserted the defect --- "Even a healthy actor with
+no enemies still gets dodge / set" --- and has been corrected with the
+citation rather than worked around.
+
+### Still not chosen
+
+`set` is now offered 188 times on the corral and 472 on the street and
+taken zero times by doctrine. That is now a DOCTRINE gap, not an offer
+defect: no tactic in the catalogue recommends drawing a bead, and for a
+rifleman at 40m with a -6 range penalty it is sometimes the best thing
+available. Worth a tactic; not a rules bug.
+
+### Score on the western list
+
+| kind | offers | verdict |
+|---|---|---|
+| `spread` | 95 | **defect** — Beam ignored (Equip. Guide p.69) |
+| `block` | 1,388 | **defect** — reach gate never applied (6E2 p.59) |
+| `coordinate` | 1,355 | **defect** — no ally required (6E2 p.46) |
+| `set` | 520 | **defect x5** — no target, no ranged gate, bonus delivered nowhere (6E2 p.81) |
+| `haymaker` | 502 | **correct** — permitted with a gun (6E2 p.71) |

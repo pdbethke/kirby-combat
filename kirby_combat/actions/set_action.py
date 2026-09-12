@@ -54,11 +54,22 @@ class Set:
         return apply_event(session, evt), evt
 
     @staticmethod
-    def ocv_bonus(session: CombatSession, combatant_id: str) -> int:
-        """Return +1 if a Set is pending for this combatant, else 0.
+    def ocv_bonus(session: CombatSession, combatant_id: str,
+                  target_id: str | None = None) -> int:
+        """Return +1 if a Set against `target_id` is pending, else 0.
 
-        "Pending" means the most recent Set declaration has no corresponding
-        ActionResolved.
+        "Pending" means the most recent Set declaration has no
+        corresponding ActionResolved.
+
+        THE TARGET IS PART OF THE RULE. 6E2 p.81 grants the bonus "to all
+        attacks against that target until he loses his Set" --- not to
+        whatever the attacker swings at next. This ignored the target
+        entirely, so a man who drew a bead on Wyatt Earp shot Ike Clanton
+        more accurately for it.
+
+        `target_id=None` asks the old question -- "is a Set pending at
+        all" -- and is kept for callers that only want to know whether
+        the Set is still standing.
         """
         declaration_id: str | None = None
         for evt in reversed(session.event_log):
@@ -67,6 +78,17 @@ class Set:
                 and evt.combatant_id == combatant_id
                 and evt.action_type == "set"
             ):
+                # The event keeps its victim in `targets` (and in
+                # `parameters`), NOT as a `target_id` attribute --- a first
+                # draft read `getattr(evt, "target_id", None)`, got None
+                # for every Set ever declared, and so reported no bonus
+                # at all while the tests for the offer stayed green.
+                declared_on = list(evt.targets or [])
+                if target_id is not None and target_id not in declared_on:
+                    # The most recent Set names somebody else. A Set is
+                    # lost when a new one is declared, so an older Set on
+                    # this target is no longer standing either.
+                    return 0
                 declaration_id = evt.id
                 break
 

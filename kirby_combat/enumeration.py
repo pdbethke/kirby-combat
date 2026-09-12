@@ -1714,12 +1714,31 @@ def enumerate_actions(
                 "(full DCV bonus, but no attack)"
             ),
         ))
-    actions.append(LegalAction(
-        action_id="set",
-        kind="set",
-        target_id=None, power_xmlid=None, power_name=None,
-        summary="Set — +1 OCV next phase (telegraphed strike)",
-    ))
+    # DRAWING A BEAD, at a MAN, with a GUN. 6E2 p.81: "Set does not work
+    # with HTH Combat attacks... A character must Set on a specific target
+    # (either an individual or an object); he can't just Set until a
+    # target presents itself."
+    #
+    # This was one offer per Phase with `target_id=None` and a summary
+    # calling it a "telegraphed strike" -- melee flavour on a ranged-only
+    # maneuver, promising "+1 OCV next phase" where the rule grants it
+    # "to all attacks against that target until he loses his Set".
+    # Offered 520 times across the western benchmarks, taken zero.
+    # Computed here rather than reusing the `_has_ranged_attack` below it:
+    # that binding is established further down for the Haymaker offer, and
+    # reading it from up here is an UnboundLocalError, not a shortcut.
+    if any(not _is_melee(ap) for ap in attack_powers):
+        for enemy in alive_enemies:
+            actions.append(LegalAction(
+                action_id=f"set:{enemy.id}",
+                kind="set",
+                target_id=enemy.id, power_xmlid=None, power_name=None,
+                summary=(
+                    f"SET on {_friendly(enemy)}: spend the Phase aiming "
+                    f"(no moving, no firing). +1 OCV against them while "
+                    f"the Set holds (6E2 p81)"
+                ),
+            ))
     # Perception §4: Hide — a self-targeted action (mirrors Dodge) offered only
     # when the actor has cover/concealment available (a cover feature within
     # reach) AND isn't already hidden. Resolving it sets the actor's is_hidden

@@ -142,13 +142,22 @@ def test_enumerate_actions_strikes_attack_each_enemy() -> None:
     assert strike_targets == ["bob", "cathy"]
 
 
-def test_enumerate_actions_includes_dodge_and_set() -> None:
-    """Even a healthy actor with no enemies still gets dodge / set."""
+def test_enumerate_actions_includes_dodge_with_no_enemies() -> None:
+    """A healthy actor with no enemies still gets Dodge.
+
+    Dodge is self-targeted, so it needs nobody. This test also used to
+    assert `set`, and that was asserting a defect: 6E2 p.81 says "A
+    character must Set on a specific target (either an individual or an
+    object); he can't just Set until a target presents itself", and the
+    offer carried `target_id=None`. Set is now per-target and gated on
+    having a Ranged attack, so an actor alone in an empty fight is
+    correctly offered none.
+    """
     actor = _combatant(id="alice")
     actions = enumerate_actions(actor, [])
     kinds = {a.kind for a in actions}
     assert "dodge" in kinds
-    assert "set" in kinds
+    assert "set" not in kinds, "a Set with nobody to aim at is not legal"
 
 
 def test_enumerate_actions_includes_recover_when_wounded() -> None:

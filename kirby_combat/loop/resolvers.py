@@ -163,6 +163,19 @@ def _attack_dice(roller, dice_count: int) -> DiceValues:
 
 
 
+def _set_bonus(session, actor, target) -> int:
+    """+1 OCV when this actor has Set on THIS target (6E2 p.81).
+
+    Lives here rather than inside the attack resolver because a Set is a
+    session fact -- a declaration in the event log -- and the resolver
+    takes an `AttackInput`, not a session. This is the same seam the
+    other situational modifiers use.
+    """
+    from kirby_combat.actions.set_action import Set
+
+    return Set.ocv_bonus(session, actor.id, target_id=getattr(target, "id", None))
+
+
 @resolves("attack", "strike")
 def _resolve_attack(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -189,6 +202,13 @@ def _resolve_attack(
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice))),
         surprise=_surprise_for(session, actor, target),
+        # A SET THAT BOUGHT NOTHING. `Set.ocv_bonus` existed, was correct,
+        # and was read by nothing but its own unit test -- so a man could
+        # spend a Full Phase drawing a bead (6E2 p.81) and be no more
+        # accurate for it. Asked with the TARGET because the rule grants
+        # the bonus "to all attacks against that target", not to whatever
+        # he swings at next.
+        ocv_modifier=_set_bonus(session, actor, target),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",
