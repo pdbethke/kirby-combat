@@ -969,3 +969,62 @@ Still never offered and unexamined: `sweep`, `escape_str`,
 escape family needs a Grab to exist first, and `grab` is offered 7 times
 in six fights and never taken --- so that whole branch is gated behind a
 doctrine gap rather than a rules one.
+
+---
+
+## 2026-09-12 — disarm, and a prop that cost six action kinds
+
+The corral's Earps carry this as their stated `Side.objective`:
+
+    "Disarm the Cowboys and place them under arrest.
+     Shoot the men, not the buildings."
+
+and the Cowboys answer it: "Do not be disarmed." The Brief renders that
+to whoever is deciding, `disarm` is enumerated and resolvable, and a
+model that read the page chose it. **The catalogue held 26 tactics and
+not one took a man's weapon**, so the rule-based chooser was
+structurally incapable of pursuing its own side's goal.
+
+`disarm_the_armed` (priority 41) now drives **10 disarms in six fights,
+none of them a fallback**.
+
+### It names no victim, and that is a concession
+
+A Disarm is legal only against a man already in reach, and **the tactic
+layer cannot see reach** --- `Situation` carries actor, allies, enemies,
+complications and skills, and no distance of any kind. Naming the
+biggest gun on the field named a man across the lot, `TacticChooser`
+discards a plan whose target is not on the menu, and the tactic fired
+ZERO times. Target-less, the chooser takes the first Disarm offer, which
+is by construction against an adjacent armed man.
+
+The real fix is reach on `Situation`. That is a change to the tactic
+layer's contract and is recorded here rather than smuggled into one
+tactic.
+
+### THE PROP THAT COST SIX ACTION KINDS
+
+Adding the camp stool to reach `pickup` silently removed **every melee
+offer from the benchmark**. Bisected to `9727d0c2`:
+
+| | before | after the stool |
+|---|---|---|
+| `disarm` | 7 chosen, 10 offered | **0** |
+| `grab` / `trip` | 10 offered | **0** |
+| `block` | 9 offered | **0** |
+| `strike` | 10 offered | **0** |
+
+A `Furnishing` projects its footprint into `scene.walls`, and
+`blocks_movement` defaults True. The stool sat at (3.8-4.2, 2.9-3.3) ---
+directly between the Cowboys (y~1.0-2.4) and the Earps (y~3.6-4.5) ---
+so a half-metre camp stool was an impassable barrier across the lot and
+nobody could ever close to melee reach.
+
+Fixed by moving it behind the Earp line and setting
+`blocks_movement=False`, because you step over a camp stool.
+
+**The lesson is the measurement, not the stool.** One prop added to
+reach two action kinds cost six others, and nothing about the fight
+looked wrong --- it still ran, still produced a winner, still graded 0
+bad decisions. Only the offered-and-never-chosen column showed it, and
+only because the column is taken every time.

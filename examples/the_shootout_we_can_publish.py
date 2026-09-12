@@ -317,9 +317,23 @@ def the_lot_as_it_was():
             # photographer's lot would have anyway.
             Furnishing(
                 id="stool", name="Camp stool",
-                polygon_xy=[(3.8, 2.9), (4.2, 2.9), (4.2, 3.3), (3.8, 3.3)],
+                # AGAINST THE GALLERY WALL, not in the lane. Placed at
+                # (3.8-4.2, 2.9-3.3) it sat directly between the Cowboys
+                # (y~1.0-2.4) and the Earps (y~3.6-4.5), and a Furnishing
+                # projects its footprint into `scene.walls`. Measured: it
+                # removed EVERY melee offer from the benchmark -- disarm,
+                # grab, trip, block and strike all fell to zero, and
+                # `disarm` had been chosen 7 times. One prop added to
+                # reach two action kinds silently cost six others.
+                # BEHIND the Earp line (y 3.6-4.5), not beside the lot: at
+                # (0.4, 4.2) it was out of every man's reach and
+                # `pickup` fell to zero again. Within a metre of
+                # Virgil at (2.0, 3.6), and behind him.
+                polygon_xy=[(1.2, 4.0), (1.6, 4.0), (1.6, 4.4), (1.2, 4.4)],
                 height_m=0.5, material="wooden wall", body=1,
-                cover_level=0, portable=True),
+                # YOU STEP OVER A CAMP STOOL. `blocks_movement` defaults
+                # True, which is right for a wagon and wrong for this.
+                cover_level=0, blocks_movement=False, portable=True),
         ],
         constructs=[
             # The buildings themselves. The wall faces above front them;

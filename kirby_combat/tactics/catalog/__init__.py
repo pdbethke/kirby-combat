@@ -25,6 +25,8 @@ from kirby_combat.tactics.catalog import (
     shield_allies,
     stand_and_take_it,
     take_cover_when_hurt,
+    # Disarming --- the Earps' stated objective, which no tactic served
+    disarm_the_armed,
     # Saving --- doctrine let men bleed to death for want of this one
     stabilize_the_dying,
     # Leaving --- the doctrine the catalogue had no version of
@@ -34,6 +36,7 @@ from kirby_combat.tactics.catalog import (
 )
 
 __all__ = [
+    "disarm_the_armed",
     "stabilize_the_dying",
     "throw_something_heavy",
     "leave_when_the_side_has_broken",
