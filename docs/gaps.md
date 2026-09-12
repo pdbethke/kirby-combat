@@ -696,3 +696,56 @@ No change made. Recorded because a suspicion that was checked and
 dismissed is worth as much to the next reader as one that was confirmed
 --- and because the offer count alone looked exactly like the two real
 defects beside it.
+
+---
+
+## 2026-09-12 — a man on his own cannot Coordinate
+
+Third from the same question. `coordinate` was offered **1,355 times**
+across the western benchmarks and taken zero times.
+
+6E2 p.46:
+
+    "A character cannot 'Coordinate' with himself."
+
+    "To Coordinate attacks, the characters must attack on the same DEX
+     on the same Phase... Faster characters may have to Hold their
+     Actions to wait for comrades who have lower DEXs."
+
+The offer was gated on `alive_enemies and allow_coordinate`, and
+`allow_coordinate` is a parameter defaulting True that **nothing in this
+package ever sets**. So the only condition it ever really tested was
+that somebody was left to shoot at.
+
+Measured on the corral before the fix: **12 of 187 offers went to a man
+with no standing ally** --- the last Cowboy alive, invited to coordinate
+with the dead. `run.py` passes fallen allies deliberately so a chooser
+knows who it has lost; that list was reading as a partner.
+
+    corral, offered to a man with no standing ally:  12  ->  0
+
+The remaining 175 all have a living partner, so the fix is exact rather
+than a blanket reduction. (Total offers move 187 -> 175 rather than
+187 -> 165: removing offers changes what `FirstLegalChooser` takes when
+doctrine falls through, so the fights themselves diverge slightly. The
+count that matters is the zero.)
+
+### The other half is a KNOWN HOLE, not an assumption
+
+6E2 p.46 also requires the partners to "attack on the same DEX on the
+same Phase". `enumerate_actions` takes no `segment` argument and holds no
+phase table, so it cannot ask. That gate belongs to the driver --- which
+the offer's own comment already says "resolves roll + join + execution
+semantics". Written down here so the next reader finds a hole rather
+than a claim.
+
+### Score so far on the western list
+
+| kind | offers | verdict |
+|---|---|---|
+| `spread` | 95 | **defect** — Beam ignored (Equipment Guide p.69) |
+| `block` | 1,388 | **defect** — reach gate never applied (6E2 p.59) |
+| `coordinate` | 1,355 | **defect** — no ally required (6E2 p.46) |
+| `haymaker` | 502 | **correct** — 6E2 p.71 permits it with a gun |
+
+Three of four suspicions were real, and the fourth was worth checking.

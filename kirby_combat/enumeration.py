@@ -1951,7 +1951,23 @@ def enumerate_actions(
 
     # PR-48/RAW: Coordinate attacks with same-phase allies against one
     # target. The driver resolves roll + join + execution semantics.
-    if alive_enemies and allow_coordinate:
+    # A MAN ON HIS OWN CANNOT COORDINATE. 6E2 p.46: "A character cannot
+    # 'Coordinate' with himself." The offer was gated on
+    # `alive_enemies and allow_coordinate`, and `allow_coordinate` is a
+    # parameter defaulting True that nothing in this package ever sets --
+    # so the only condition ever really tested was that somebody was left
+    # to shoot at. Measured on the corral: 12 of 187 offers went to a man
+    # with no standing ally, the last Cowboy alive invited to coordinate
+    # with the dead. `run.py` passes fallen allies on purpose so a chooser
+    # knows who it has lost; that list must not read as a partner.
+    #
+    # STILL UNENFORCED, and not enforceable here: 6E2 p.46 also requires
+    # the partners to "attack on the same DEX on the same Phase". This
+    # function takes no `segment` and holds no phase table, so that half
+    # belongs to the driver, which already resolves roll, join and
+    # execution semantics.
+    _standing_allies = [a for a in (allies or []) if not is_down(a)]
+    if alive_enemies and allow_coordinate and _standing_allies:
         # A coordinate offer is power-agnostic (the attack is declared later),
         # so it is only worth offering against an enemy this actor could
         # actually contribute an attack to. Two conditions, and they are
