@@ -204,7 +204,6 @@ class Furnishing:
     line of sight, where a man may stand and what a bullet has to chew
     through all come from the polygon and the height.
     """
-
     id: str
     name: str
     #: Footprint on the ground, CCW, in metres. THE authoritative shape.
@@ -227,6 +226,19 @@ class Furnishing:
     blocks_los_override: bool | None = None
     #: A glTF/GLB for the renderer. Never read by any rule.
     model: str | None = None
+    #: Can somebody strong enough pick this up and throw it?
+    #:
+    #: `Construct.portable` has existed since `pickup` was first written
+    #: and carries the note that portability "is a PROPERTY OF THE
+    #: OBJECT, not a kind of object" -- the fix for a filter on a
+    #: `kind == "debris"` that nothing ever created. That fix left a
+    #: second break one layer down: nothing a SCENE can author was ever
+    #: portable, because this field did not exist. Every barrel, crate
+    #: and wagon took the Construct default of False, so `pickup` and
+    #: `throw_object` stayed two action kinds that could never fire.
+    #:
+    #: Defaults False: a building must not become liftable by omission.
+    portable: bool = False
 
     def __post_init__(self) -> None:
         if len(self.polygon_xy) < 3:

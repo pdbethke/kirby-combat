@@ -810,3 +810,55 @@ available. Worth a tactic; not a rules bug.
 | `coordinate` | 1,355 | **defect** — no ally required (6E2 p.46) |
 | `set` | 520 | **defect x5** — no target, no ranged gate, bonus delivered nowhere (6E2 p.81) |
 | `haymaker` | 502 | **correct** — permitted with a gun (6E2 p.71) |
+
+---
+
+## 2026-09-12 — pickup / throw_object: two dead kinds, three breaks in one chain
+
+`pickup` and `throw_object` had been offered **zero times in every
+benchmark ever run**. `Construct.portable` already carried the scar of
+the first repair:
+
+    "PORTABLE IS A PROPERTY OF THE OBJECT, not a kind of object.
+     `pickup` used to filter on `kind == "debris"` --- a kind that is not
+     in `ConstructKind` and that nothing in this engine has ever created,
+     so `pickup` and `throw_object` were two complete action kinds that
+     could never fire."
+
+That fix removed the wrong filter and the kinds still never fired,
+because the chain had **three** breaks and only one had been found:
+
+1. the filter on a `kind` nothing creates --- fixed earlier
+2. **nothing a SCENE can author was ever portable.** `Furnishing` had no
+   such field, `Wall` has none, and `constructs_in` projected a
+   furnishing without one, so every barrel, crate and wagon took the
+   `Construct` default of False. The only portable construct possible was
+   one hand-authored as a bare `Construct`, which no scene does.
+3. **weight, and here the engine was RIGHT.** Every man at the corral is
+   STR 10 and lifts exactly 100 kg (`25 x 2^(STR/5)`, the book's figure).
+   The barrels and crates are BODY 4, which is 200 kg at the engine's
+   `_DEBRIS_KG_PER_BODY = 50`. A full water barrel is not a one-man lift
+   and the gate correctly refused it.
+
+Fixed (2) with `Furnishing.portable`, carried through the projection. For
+(3) the lot gained a camp stool at BODY 1 --- scenery a photographer's
+lot would have anyway --- rather than lightening a barrel to suit the
+benchmark.
+
+### Proven end to end
+
+    pickup chosen        : 21
+    throw_object offered : 17
+    throw_object chosen  : 17
+
+Both kinds resolve, with no crash. `throw_object` is correctly gated
+behind holding something, which is why it stays at zero for doctrine: no
+tactic picks anything up.
+
+### An open modelling question, not touched
+
+`_DEBRIS_KG_PER_BODY = 50` treats a wooden packing crate exactly like
+masonry. 6E2 p.173 gives DEF and BODY and says nothing about mass, so the
+50 is this engine's own invention; it makes a wooden crate 200 kg. Worth
+a look, but inventing a per-material mass model is a bigger job than this
+and is not something the book hands over.

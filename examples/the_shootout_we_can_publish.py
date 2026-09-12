@@ -295,7 +295,7 @@ def the_lot_as_it_was():
             Furnishing(
                 id="barrels", name="Water barrels",
                 polygon_xy=[(4.7, 1.9), (5.5, 1.9), (5.5, 3.0), (4.7, 3.0)],
-                height_m=1.2, material="wooden wall", body=4, cover_level=2),
+                height_m=1.2, material="wooden wall", body=4, cover_level=2, portable=True),
             # Pulled west and south of where the line sat: the first
             # footprint drawn here had Billy Clanton standing inside the
             # crates at (1.6, 1.2), which the line it replaced could not
@@ -304,7 +304,22 @@ def the_lot_as_it_was():
             Furnishing(
                 id="crates", name="Packing crates",
                 polygon_xy=[(0.2, -0.4), (1.2, -0.4), (1.2, 0.6), (0.2, 0.6)],
-                height_m=1.4, material="wooden wall", body=4, cover_level=2),
+                height_m=1.4, material="wooden wall", body=4, cover_level=2, portable=True),
+            # SOMETHING A MAN CAN ACTUALLY LIFT. `pickup` and
+            # `throw_object` had never fired in any benchmark. Three
+            # breaks in one chain: a filter on a `kind` nothing created
+            # (fixed earlier), no way for a SCENE to declare portability
+            # (fixed now), and finally weight -- every man here is STR 10
+            # and lifts 100 kg, while the barrels and crates are BODY 4 =
+            # 200 kg at the engine's 50 kg/BODY. The engine was RIGHT to
+            # refuse those: a full water barrel is not a one-man lift.
+            # So the lot gets one small thing, which is scenery a
+            # photographer's lot would have anyway.
+            Furnishing(
+                id="stool", name="Camp stool",
+                polygon_xy=[(3.8, 2.9), (4.2, 2.9), (4.2, 3.3), (3.8, 3.3)],
+                height_m=0.5, material="wooden wall", body=1,
+                cover_level=0, portable=True),
         ],
         constructs=[
             # The buildings themselves. The wall faces above front them;

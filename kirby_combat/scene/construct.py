@@ -254,6 +254,9 @@ def constructs_in(scene, session=None) -> list[Construct]:
             ed_value=f.ed_value,
             blocks_los=f.blocks_los,
             blocks_movement=f.blocks_movement,
+            # A flag that stops at the projection is the same defect one
+            # layer down -- see `Furnishing.portable`.
+            portable=f.portable,
         ))
     for wall in (getattr(scene, "walls", None) or []):
         if getattr(wall, "def_value", None) is None:
