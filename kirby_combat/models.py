@@ -304,6 +304,9 @@ class AttackInput:
     #: and 0.0 only. 1.0 means "no Grab is affecting this roll".
     grab_ocv_factor: float = 1.0
     grab_dcv_factor: float = 1.0
+    #: 6E2 p.45: the OCV penalty for the other bodies in the target's
+    #: melee. 0 when the rule is off or nobody is in the way.
+    melee_cover_ocv: int = 0
 
 
 @dataclass

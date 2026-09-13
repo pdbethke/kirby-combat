@@ -84,6 +84,13 @@ class CombatTemplate:
     # be: it is a core rule, it applies only at or below 0 BODY, and it
     # takes BODY rather than STUN.
     use_bleeding_rules: bool = False
+    #: 6E2 p.45's optional "firing into melee" rule. OFF by default,
+    #: because the page offers it rather than imposing it --- "Gamemasters
+    #: may, if they wish, use the normal Behind Cover rules when a
+    #: character tries to make a Ranged Attack against a character in the
+    #: middle of a HTH Combat" -- and because it can hurt a combatant
+    #: nobody aimed at, which no campaign should acquire by default.
+    use_firing_into_melee: bool = False
 
     # Extension hooks
     custom_rules: dict = field(default_factory=dict)

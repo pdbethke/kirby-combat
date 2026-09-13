@@ -50,6 +50,10 @@ class HoldReader(Protocol):
 
     def grabbed_by(self, combatant_id: str) -> str | None: ...
     def is_grabbing(self, combatant_id: str) -> bool: ...
+    #: Everyone the reader can speak about. `melee_cover` needs it to ask
+    #: the REVERSE question -- who is this man holding -- which
+    #: `grabbed_by` alone cannot answer.
+    def combatant_ids(self) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,9 @@ class session_holds:                                  # noqa: N801
 
         return Grab.is_grabbed(self._session, combatant_id)[1]
 
+    def combatant_ids(self) -> tuple[str, ...]:
+        return tuple(getattr(self._session, "combatants", {}))
+
     def is_grabbing(self, combatant_id: str) -> bool:
         from kirby_combat.actions.grab import Grab
 
@@ -118,3 +125,89 @@ class session_holds:                                  # noqa: N801
             Grab.is_grabbed(self._session, other)[1] == combatant_id
             for other in getattr(self._session, "combatants", {})
         )
+
+#: 6E2 p.45 leaves the figure to the GM --- "based on the number of
+#: combatants, how quickly they're moving around, their relative sizes".
+#: Its own Behind Cover example on the same page prices a rock that
+#: "protects roughly half of Andarra" at -2 OCV, and one man held in
+#: front of another is the same shape of obstruction. A judgement, and a
+#: grounded one; a campaign that disagrees changes it.
+DEFAULT_MELEE_COVER_OCV = -2
+
+
+@dataclass(frozen=True)
+class MeleeCover:
+    """The bodies between a shooter and his target (6E2 p.45).
+
+    `other_body` is the man the GM nominates as the alternative target.
+    The page makes that a judgement ("The GM decides which combatant is
+    the potential target, either randomly, or based on his evaluation of
+    the fighters' positions"); with exactly two men in a hold there is
+    only one candidate, so the engine can name him without guessing.
+    """
+
+    other_body: str | None = None
+    ocv_penalty: int = 0
+
+    @property
+    def applies(self) -> bool:
+        return self.other_body is not None and self.ocv_penalty != 0
+
+    def strays(self, *, missed_by: int) -> bool:
+        """Whether this shot may have hit the other man instead.
+
+        "If the roll misses solely as a result of the Behind Cover OCV
+        penalty (i.e., it misses by less than or equal to the penalty)".
+
+        A CLOSED BAND, and both ends matter. `missed_by <= 0` is a hit and
+        strays nowhere. A miss by MORE than the penalty missed on its own
+        merits --- the bodies did not cause it, so they are not in danger.
+        """
+        if not self.applies:
+            return False
+        return 0 < missed_by <= abs(self.ocv_penalty)
+
+
+def melee_cover(holds: HoldReader, *, attacker: str, target: str,
+                ocv_penalty: int = DEFAULT_MELEE_COVER_OCV) -> MeleeCover:
+    """The other body in the target's melee, if the shooter is outside it.
+
+    NOT FOR THE MEN IN THE HOLD. A grabber shooting his own victim is not
+    firing past anybody --- he has hold of him --- and the same is true
+    of the victim shooting his grabber. The rule is about a THIRD party
+    whose line to one man runs through another.
+    """
+    partner = holds.grabbed_by(target)
+    if partner is None:
+        partner = next(
+            (other for other in _known(holds)
+             if holds.grabbed_by(other) == target), None)
+    if partner is None or attacker in (target, partner):
+        return MeleeCover()
+    return MeleeCover(other_body=partner, ocv_penalty=ocv_penalty)
+
+
+def _known(holds: HoldReader) -> tuple[str, ...]:
+    """Every combatant the reader can speak about.
+
+    Part of `HoldReader` because `melee_cover` cannot work without it:
+    `grabbed_by` answers "who holds this man" and the reverse question
+    --- "whom does this man hold" --- needs a roster to scan.
+    """
+    return tuple(getattr(holds, "combatant_ids", lambda: ())())
+
+
+def stray_ocv(*, base_ocv: int, effective_ocv: int) -> int:
+    """The OCV for the second roll (6E2 p.45).
+
+    "using only his base OCV (no bonuses from Combat Skill Levels,
+    Combat Maneuvers, or the like apply)" --- so the whole modified
+    figure is discarded, whether it was better than base or worse. A
+    marksman gets no help hitting the man he was trying NOT to hit, and
+    a man shooting uphill in the dark gets no extra excuse either.
+
+    `effective_ocv` is taken and ignored on purpose: a caller reading
+    this signature is told, in one line, that the modified value has no
+    say.
+    """
+    return int(base_ocv)

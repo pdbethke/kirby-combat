@@ -107,7 +107,18 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
 
         base_ocv = apply_cv_factor(base_ocv, attack.grab_ocv_factor)
         audit.append(f"Grab: OCV x{attack.grab_ocv_factor} -> {base_ocv}")
-    effective_ocv = base_ocv + ocv_mod + rng_penalty + csl_bonus + hl_penalty
+    # FIRING INTO MELEE (6E2 p.45): the other bodies are Behind Cover, so
+    # the shot takes their OCV penalty. A DELTA, not a factor -- the page
+    # treats it as an ordinary Behind Cover modifier, and the same
+    # paragraph's example prices half-cover at -2 OCV.
+    melee_cover_ocv = int(getattr(attack, "melee_cover_ocv", 0) or 0)
+    if melee_cover_ocv:
+        audit.append(
+            f"Firing into melee: {melee_cover_ocv:+d} OCV for the other "
+            f"bodies (6E2 p45)")
+
+    effective_ocv = (base_ocv + ocv_mod + rng_penalty + csl_bonus
+                     + hl_penalty + melee_cover_ocv)
     audit.append(
         f"Effective OCV: {base_ocv} {ocv_mod:+d} (mod) {rng_penalty:+d} (range)"
         f" +{csl_bonus} (CSL) {hl_penalty:+d} (location) = {effective_ocv}"

@@ -1280,3 +1280,59 @@ Asked directly, and the book has it:
 So a near-miss at a man in a hold can land on the man he is holding. The
 engine already has Behind Cover, hit locations and a `cover-penalty` rule
 path; what it has no notion of is bodies as cover. NOT BUILT YET.
+
+---
+
+## 2026-09-13 — firing into melee: the hostage can take the bullet
+
+Asked directly --- "if you attack someone who is holding someone, is
+there a rule on whether the held person has a chance of being hit" ---
+and 6E2 p.45 has it:
+
+    "Gamemasters may, if they wish, use the normal Behind Cover rules
+     when a character tries to make a Ranged Attack against a character
+     in the middle of a HTH Combat with one or more other persons
+     ('firing into melee')... If the roll misses solely as a result of
+     the Behind Cover OCV penalty (i.e., it misses by less than or equal
+     to the penalty), then the attacker may have actually hit the cover
+     - one of the other people in the melee... The attacker must make
+     another Attack Roll against that target, using only his base OCV
+     (no bonuses from Combat Skill Levels, Combat Maneuvers, or the like
+     apply)."
+
+Three things the page insists on, and each is a test:
+
+* **The near-miss band is CLOSED.** "misses by less than or equal to the
+  penalty". A shot that misses by MORE missed on its own merits and
+  endangers nobody.
+* **The second roll is BASE OCV ONLY.** No Combat Skill Levels, no
+  maneuver, no Set, no Grab factor, no cover, no Surprise. A marksman
+  gets no help hitting the man he was trying not to hit --- and a man
+  shooting uphill in the dark gets no extra excuse either.
+* **It is OPTIONAL.** "Gamemasters may, if they wish", so it is
+  template-gated like 6E2 p.115's Bleeding and OFF by default. A rule
+  that can hurt a combatant nobody aimed at is not one a campaign should
+  acquire without asking.
+
+-2 OCV is a judgement and a grounded one: the page leaves the figure to
+the GM, and its own Behind Cover example on the same page prices a rock
+that "protects roughly half of Andarra" at -2. One man held in front of
+another is the same shape of obstruction.
+
+THE STRAY IS A REAL ATTACK. It goes through `resolve_attack_in_session`
+like any other, so it takes the bystander's defenses, his hit location
+and his bleeding exactly as a deliberate shot would. Hand-resolving it
+would have been a second damage path.
+
+Live, seed 5:
+
+    Firing into melee: missed doc by 1, within the 2 cover penalty --
+    the shot strayed to frank (6E2 p45) and missed
+
+### What this completes
+
+A Grab is now a real tactical object: it costs both men half their DCV,
+it costs the victim -3 OCV against his captor, it can be escaped by a
+dice contest with three outcomes, it can be broken by letting go, the man
+held can be thrown --- and a third party shooting into it may hit the
+wrong man.

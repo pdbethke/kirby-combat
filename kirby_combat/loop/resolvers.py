@@ -163,6 +163,84 @@ def _attack_dice(roller, dice_count: int) -> DiceValues:
 
 
 
+def _maybe_stray(session, actor, action, result, *, template, roller):
+    """A near-miss into a melee may hit somebody else (6E2 p.45).
+
+    "If the roll misses solely as a result of the Behind Cover OCV
+    penalty (i.e., it misses by less than or equal to the penalty), then
+    the attacker may have actually hit the cover - one of the other
+    people in the melee... The attacker must make another Attack Roll
+    against that target, using only his base OCV."
+
+    The second shot is a whole new attack against a different man, so it
+    goes through `resolve_attack_in_session` like any other rather than
+    being hand-resolved here -- the stray must take his defenses, his hit
+    location and his bleeding exactly as a deliberate shot would.
+
+    Returns the ORIGINAL result when nothing strays, so the common path
+    is unchanged.
+    """
+    if result is None or getattr(result, "to_hit", None) is None:
+        return session, result
+    cover = _melee_cover(session, actor, session.combatants.get(
+        action.target_id), template)
+    if not cover.applies or cover.other_body not in session.combatants:
+        return session, result
+
+    to_hit = result.to_hit
+    if to_hit.hit:
+        return session, result
+    # `margin` is how much the roll beat the target number by, so a miss
+    # is a negative margin and the shortfall is its magnitude.
+    if not cover.strays(missed_by=abs(int(to_hit.margin))):
+        return session, result
+
+    from dataclasses import replace
+
+    from kirby_combat.grappling import stray_ocv
+    from kirby_combat.models import AttackInput
+
+    bystander = session.combatants[cover.other_body]
+    power = action._attack_view
+    stray = AttackInput(
+        attacker=actor, target=bystander, power=power,
+        distance_m=_range_to(session, actor, bystander), aim=None,
+        dice=_attack_dice(roller, max(1, int(power.damage_dice))),
+        # BASE OCV ONLY. No Set, no Grab factor, no cover, no surprise --
+        # the page strips "Combat Skill Levels, Combat Maneuvers, or the
+        # like", and this is the one attack in the engine built with none
+        # of them.
+        ocv_modifier=stray_ocv(base_ocv=actor.combat_stats().ocv,
+                               effective_ocv=to_hit.effective_ocv)
+        - actor.combat_stats().ocv,
+    )
+    session, stray_result = resolve_attack_in_session(
+        session, stray, template, action_type="attack",
+    )
+    note = (f"Firing into melee: missed {action.target_id} by "
+            f"{abs(int(to_hit.margin))}, within the "
+            f"{abs(cover.ocv_penalty)} cover penalty -- the shot strayed "
+            f"to {cover.other_body} (6E2 p45) and "
+            f"{'HIT' if stray_result.to_hit.hit else 'missed'}")
+    return session, replace(
+        result, to_hit=replace(to_hit, audit=list(to_hit.audit) + [note]))
+
+
+def _melee_cover(session, actor, target, template):
+    """The other bodies between this shooter and his target (6E2 p.45).
+
+    OPTIONAL, and so template-gated: "Gamemasters may, if they wish".
+    Returns an inert `MeleeCover` when the campaign has not asked for the
+    rule, so every call site can read `.ocv_penalty` without knowing.
+    """
+    from kirby_combat.grappling import MeleeCover, melee_cover, session_holds
+
+    if not getattr(template, "use_firing_into_melee", False):
+        return MeleeCover()
+    return melee_cover(session_holds(session), attacker=actor.id,
+                       target=getattr(target, "id", ""))
+
+
 def _grab_cv(session, actor, target):
     """The Grab's CV effects for this pair (Western Hero p.104).
 
@@ -228,9 +306,13 @@ def _resolve_attack(
         # man you could simply shoot. Western Hero p.104 prices it.
         grab_ocv_factor=_grab_cv(session, actor, target).ocv_factor,
         grab_dcv_factor=_grab_cv(session, actor, target).dcv_factor,
+        melee_cover_ocv=_melee_cover(session, actor, target, template).ocv_penalty,
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",
+    )
+    new_session, result = _maybe_stray(
+        new_session, actor, action, result, template=template, roller=roller,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
