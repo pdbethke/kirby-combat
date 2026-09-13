@@ -163,6 +163,19 @@ def _attack_dice(roller, dice_count: int) -> DiceValues:
 
 
 
+def _grab_cv(session, actor, target):
+    """The Grab's CV effects for this pair (Western Hero p.104).
+
+    `kirby_combat.grappling` owns the arithmetic; this only supplies the
+    reader over the live fight, the same way `_set_bonus` supplies the
+    session a Set declaration lives in.
+    """
+    from kirby_combat.grappling import grab_cv, session_holds
+
+    return grab_cv(session_holds(session),
+                   attacker=actor.id, target=getattr(target, "id", ""))
+
+
 def _set_bonus(session, actor, target) -> int:
     """+1 OCV when this actor has Set on THIS target (6E2 p.81).
 
@@ -208,7 +221,13 @@ def _resolve_attack(
         # accurate for it. Asked with the TARGET because the rule grants
         # the bonus "to all attacks against that target", not to whatever
         # he swings at next.
-        ocv_modifier=_set_bonus(session, actor, target),
+        ocv_modifier=(_set_bonus(session, actor, target)
+                      + _grab_cv(session, actor, target).ocv_delta),
+        # A GRAB CHANGED NOTHING ABOUT ANYONE'S COMBAT ABILITY until this
+        # -- so grappling was strictly free, and never worth doing to a
+        # man you could simply shoot. Western Hero p.104 prices it.
+        grab_ocv_factor=_grab_cv(session, actor, target).ocv_factor,
+        grab_dcv_factor=_grab_cv(session, actor, target).dcv_factor,
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",

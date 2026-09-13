@@ -96,6 +96,17 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     # ------------------------------------------------------------------
     # 6. Effective OCV
     # ------------------------------------------------------------------
+    # A GRAB IN PROGRESS (Western Hero p.104): both men are 1/2 DCV, both
+    # are 1/2 OCV against anybody else, and the victim is -3 OCV against
+    # his grabber (that part arrives as an `ocv_modifier` delta). Applied
+    # through `apply_cv_factor` -- 6E2 p.39's halving -- exactly as the
+    # Surprise DCV halving above is, so the two cannot come to disagree
+    # about what halving a CV means.
+    if attack.grab_ocv_factor != 1.0:
+        from kirby_combat.cv_modifiers import apply_cv_factor
+
+        base_ocv = apply_cv_factor(base_ocv, attack.grab_ocv_factor)
+        audit.append(f"Grab: OCV x{attack.grab_ocv_factor} -> {base_ocv}")
     effective_ocv = base_ocv + ocv_mod + rng_penalty + csl_bonus + hl_penalty
     audit.append(
         f"Effective OCV: {base_ocv} {ocv_mod:+d} (mod) {rng_penalty:+d} (range)"
@@ -107,6 +118,16 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     # ------------------------------------------------------------------
     base_dcv = attack.target.dcv
     effective_dcv = base_dcv + attack.dcv_modifier
+    # A GRAB IN PROGRESS halves the DCV of BOTH men (Western Hero p.104).
+    # Placed here and not with the OCV half above because `effective_dcv`
+    # is bound on this line -- the first draft halved it before it
+    # existed and raised UnboundLocalError on the first shot fired.
+    if attack.grab_dcv_factor != 1.0:
+        from kirby_combat.cv_modifiers import apply_cv_factor
+
+        effective_dcv = apply_cv_factor(effective_dcv, attack.grab_dcv_factor)
+        audit.append(f"Grab: DCV x{attack.grab_dcv_factor} -> {effective_dcv}")
+
     dcv_mod = attack.dcv_modifier
     if dcv_mod != 0:
         audit.append(

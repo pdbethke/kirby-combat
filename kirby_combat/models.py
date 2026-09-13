@@ -298,6 +298,12 @@ class AttackInput:
     #: means "nobody asked", which is what every caller in the engine did
     #: until this field existed, and is treated as not surprised.
     surprise: "Surprise | None" = None
+    #: CV factors from a Grab in progress (Western Hero p.104 / 6E2 p.64).
+    #: Factors rather than deltas because 6E2 p.39 halves a CV, and they
+    #: go through `cv_modifiers.apply_cv_factor`, which accepts 1.0, 0.5
+    #: and 0.0 only. 1.0 means "no Grab is affecting this roll".
+    grab_ocv_factor: float = 1.0
+    grab_dcv_factor: float = 1.0
 
 
 @dataclass

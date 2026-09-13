@@ -1220,3 +1220,63 @@ holding at half DCV against everyone else in the lot. Neither book prices
 the release itself, so the time cost would be a judgement; that is a new
 kind, and it is written down here rather than bolted onto `release_held`,
 which means something else.
+
+---
+
+## 2026-09-13 — a Grab now costs both men
+
+The engine could Grab, and a Grab changed **nothing** about anyone's
+combat ability afterwards. That makes grappling strictly free, and so
+never worth doing to a man you could simply shoot.
+
+Western Hero p.104 --- the genre book for these benchmarks --- prices it,
+and 6E2 p.64-66 agrees:
+
+    "Assuming the Grabber holds on, the Grabber and victim are now 1/2
+     DCV. The Grabber is full OCV against the victim and the victim is -3
+     OCV against the Grabber; both are 1/2 OCV against other targets.
+     These OCV and DCV modifiers for Grabbing and being Grabbed end
+     immediately when the victim breaks free or is released."
+
+`cv_modifiers_for` folds Stunned, multi-attack, sense penalties and
+Presence effects, and had no notion of a Grab.
+
+**Four effects, three shapes** --- two factors, one delta, one
+deliberate no-op:
+
+| effect | shape |
+|---|---|
+| ½ DCV, both men | factor, target-independent |
+| ½ OCV against others | factor, third parties only |
+| full OCV grabber → victim | stated, so no halving creeps in |
+| −3 OCV victim → grabber | delta |
+
+The factors go through `cv_modifiers.apply_cv_factor` --- 6E2 p.39's
+halving, which accepts 1.0/0.5/0.0 and nothing else --- the same seam the
+Surprise DCV halving already uses. A test asserts every factor this
+module can produce is one `apply_cv_factor` will take, which is what
+keeps a "reasonable" 0.75 out of the rules.
+
+Proven at the roll, not just in the arithmetic: a held man's DCV drops
+from 8 to 4 against a third party, the grabber's does too, and the victim
+shoots his grabber at exactly −3.
+
+`kirby_combat.grappling` holds no state --- it takes a reader answering
+`grabbed_by` / `is_grabbing`, so `Grab.is_grabbed` stays the single
+answer to "is this man held" that `held_target_ids` and the escape offers
+already use.
+
+### Next: firing into melee (6E2 p.45)
+
+Asked directly, and the book has it:
+
+    "If the roll misses solely as a result of the Behind Cover OCV
+     penalty (i.e., it misses by less than or equal to the penalty), then
+     the attacker may have actually hit the cover --- one of the other
+     people in the melee... The attacker must make another Attack Roll
+     against that target, using only his base OCV (no bonuses from
+     Combat Skill Levels, Combat Maneuvers, or the like apply)."
+
+So a near-miss at a man in a hold can land on the man he is holding. The
+engine already has Behind Cover, hit locations and a `cover-penalty` rule
+path; what it has no notion of is bodies as cover. NOT BUILT YET.
