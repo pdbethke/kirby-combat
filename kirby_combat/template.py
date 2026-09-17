@@ -104,6 +104,30 @@ class CombatTemplate:
         """
         return RAW_SUPERHEROIC
 
+    @classmethod
+    def by_name(cls, name: str) -> "CombatTemplate":
+        """The named template, or a KeyError listing the names there are.
+
+        A fight is run under ONE set of campaign switches, and a consumer
+        that stores a fight has to store which. A name is the smallest
+        thing it can store, and this is where a name becomes a template.
+
+        NO DEFAULT ARGUMENT, deliberately. A default would mean a
+        consumer that lost the name, or stored one this engine has never
+        heard of, silently ran the fight under Superheroic switches ---
+        hit locations off, END untracked, knockback on --- and reported
+        the result as though those had been the campaign's rules all
+        along. An unknown name is a question the engine cannot answer, so
+        it raises and names the ones it can.
+        """
+        try:
+            return TEMPLATES_BY_NAME[name]
+        except KeyError:
+            raise KeyError(
+                f"unknown combat template {name!r}; known templates: "
+                f"{', '.join(sorted(TEMPLATES_BY_NAME))}"
+            ) from None
+
 
 # ---------------------------------------------------------------------------
 # Pre-built templates
@@ -146,3 +170,17 @@ RAW_HEROIC = CombatTemplate(
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
 )
+
+
+# ---------------------------------------------------------------------------
+# The named registry
+# ---------------------------------------------------------------------------
+
+#: Name -> template, for `CombatTemplate.by_name`. The keys are what a
+#: consumer persists against a fight, so they are stable identifiers
+#: ("6e-superheroic"), not the display `name` field ("RAW Superheroic")
+#: which is prose and may be reworded.
+TEMPLATES_BY_NAME: dict[str, CombatTemplate] = {
+    "6e-superheroic": RAW_SUPERHEROIC,
+    "6e-heroic": RAW_HEROIC,
+}
