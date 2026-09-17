@@ -75,7 +75,8 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
             segment=event.segment,
             turn=event.turn,
             acting_order=restore_acting_order(
-                session.combatants, event.order, event.segment),
+                session.combatants, event.order, event.segment,
+                event.intents),
             current_slot_index=0,
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
@@ -95,6 +96,15 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
             if slot.combatant_id == event.combatant_id and not slot.has_acted:
                 new_order[index] = replace(slot, has_acted=True)
                 break
+        else:
+            # Nothing to spend. Silence here would be the same failure as
+            # an order naming a stranger: the replay carries on, one Phase
+            # richer than the fight that ran, and nothing says so.
+            raise ValueError(
+                f"{event.combatant_id!r} has no unspent slot in Segment "
+                f"{session.timeline.segment} to spend (order: "
+                f"{[(s.combatant_id, s.has_acted) for s in new_order]})"
+            )
         new_timeline = replace(session.timeline, acting_order=new_order)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
@@ -173,36 +183,26 @@ def _enforce_lightning_reflexes_phase_restriction(
     proves it by building its session with ``run_segment`` rather than by
     hand.
 
-    STILL INERT, precisely -- two cases, not one:
-
-    1. A session that has never been run through ``Encounter.run_segment``
-    (or any other future caller that populates ``acting_order``) still
-    starts with an empty ``acting_order``, so the loop below finds no
-    matching slot and this remains a silent no-op for it --
+    INERT IN EXACTLY ONE CASE, now. A session whose ``acting_order`` is
+    empty -- one that has never had an order resolved for it -- has no
+    slot to match, so this stays a silent no-op for it;
     ``test_lightning_reflexes_restriction_is_inert_without_the_driver``
-    proves that half too, with the identical scenario.
+    proves that half with the identical scenario. An order is empty before
+    the first resolution and again after ``SegmentAdvanced`` clears it,
+    which is not the guard sleeping: until an order is resolved for the
+    new Segment, nobody has a Phase in it to be restricted in.
 
-    2. THE ONE THAT MATTERS IN PRODUCTION: kirby-api's only clock path is
-    ``apply_event``'s own ``SegmentAdvanced`` branch (above), not
-    ``Encounter.advance_segment``. That branch moves
-    ``session.timeline.segment`` forward but leaves ``acting_order``
-    holding the PREVIOUS segment's slots (only ``Encounter.run_segment``
-    ever rebuilds ``acting_order``, and it is not called on a plain
-    segment advance). So once kirby-api advances the segment, every slot
-    in ``acting_order`` fails ``slot.segment != session.timeline.segment``
-    and the loop finds nothing, even though the guard fired correctly one
-    segment earlier. Measured:
-
-        run_segment @ seg 3                  -> tl.segment=3, order=[('a',3)]  guard FIRES
-        apply_event(SegmentAdvanced to 4)    -> tl.segment=4, order=[('a',3)]  guard SILENT
-
-    So in the live product the guard wakes for exactly one segment after
-    each ``run_segment`` call, then goes back to sleep on the very next
-    segment advance until ``run_segment`` runs again. The mechanism was
-    always real; what changed with ``run_segment`` is that a real call
-    path now feeds it -- but that path is not kept in step with kirby-api's
-    clock advance, so this guard is live in production for one segment at
-    a time, not continuously.
+    THE SECOND CASE IS GONE (2026-09-17). It used to be the one that
+    mattered: a consumer whose only clock was ``SegmentAdvanced`` above
+    left ``acting_order`` holding the PREVIOUS Segment's slots, every one
+    of them failing ``slot.segment != session.timeline.segment``, so the
+    guard woke for one Segment after each resolution and slept until the
+    next. ``ActingOrderResolved`` closes it at both ends: the order and
+    its Segment arrive together and ``SegmentAdvanced`` clears the old
+    one, so a consumer that replays the log has the same order, the same
+    Segment and the same declared intents as the fight that ran --- which
+    is what makes this guard refuse, in a replayed fight, exactly what it
+    refuses in a live one.
     """
     for slot in session.timeline.acting_order:
         if slot.combatant_id != event.combatant_id:

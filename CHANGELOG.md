@@ -6,9 +6,15 @@
 told nobody about now reach the record: `ActingOrderResolved` (who acts, in
 what order, in which Segment — emitted by `Encounter.run_segment`, the one
 place an order is resolved) and `PhaseSpent` (a slot consumed — emitted
-wherever the loop spends one). `apply_event` restores the acting order and the
-spent flags from them, so a fight rebuilt by replaying its log alone stands
-where the original stood and picks the same man to act. Before this, a
+wherever the loop spends one, including `next_actor_id`'s skip, which moved to
+`resolve_next_actor` — asking whose Phase it is no longer changes the fight). The order carries the
+declared intents that produced it (6E1 p.116(c)'s Lightning Reflexes election is
+enforced off them) and a spend carries a `reason` — `"acted"`, or `"down"` /
+`"left"` for a slot its owner was in no condition to use, which the loop used to
+consume in silence. `apply_event` restores the acting order, the intents and the
+spent flags from them, so a fight rebuilt by replaying its log alone stands where
+the original stood, picks the same man to act, and refuses the same
+declarations. Before this, a
 consumer that persisted only the events could rehydrate a fight and find
 nobody able to act.
 

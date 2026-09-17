@@ -68,8 +68,10 @@ another advance on the same Segments.
 
 **Outcomes are recorded, not just computed.** Attack and Block resolution, the
 passage of time, and the loop's own decisions — who acts in what order this
-Segment (`ActingOrderResolved`) and whose Phase has been spent (`PhaseSpent`)
-— all leave events in the log, so a fight replays from that log alone and conditions like Stunned and Dead derive from history rather than
+Segment and with what declared intent (`ActingOrderResolved`), and whose Phase
+has been spent, including one its owner was in no condition to use
+(`PhaseSpent`) — all leave events in the log, so a fight replays from that log
+alone and conditions like Stunned and Dead derive from history rather than
 being recalculated. The pure resolvers stay pure: recording entry points sit
 beside them and are opt-in.
 

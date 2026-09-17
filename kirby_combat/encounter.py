@@ -855,20 +855,25 @@ class Encounter:
                 order=[slot.combatant_id for slot in own_slots],
                 segment=self.segment,
                 turn=self.turn,
+                # The declared intents that produced this order, carried
+                # with it. They are not derivable from the ids: whether a
+                # man elected Lightning Reflexes for the Action he named
+                # (6E1 p.116(c)) decides what he may declare in the Phase
+                # that follows, and that rule is enforced off the slot.
+                intents={
+                    slot.combatant_id: slot.intent for slot in own_slots
+                    if slot.intent is not None
+                },
             ))
-            # The RESOLVED slots, laid over the ones `apply_event` rebuilt
-            # from the ids. They are the same combatants in the same order
-            # with the same stats; what only these carry is the declared
-            # `intent` (a mental action's EGO ordering, an elected
-            # Lightning Reflexes bonus -- 6E1 p.116), which is an input to
-            # THIS resolution and not something the order itself records.
-            # A replayed session therefore has the order and the spend
-            # exactly, and slots without intents; see
-            # `ActingOrderResolved`.
-            new_timeline = replace(
-                session.timeline, acting_order=own_slots,
-            )
-            new_sessions.append(replace(session, timeline=new_timeline))
+            # AND NOTHING IS WRITTEN OVER IT. `apply_event` is the only
+            # writer of the timeline here: the slots it rebuilds from this
+            # event are the same combatants, in the same order, with the
+            # same derived stats (one `slot_for`) and the same intents, so
+            # laying the resolved list back on top would be a second copy
+            # of a thing that already agrees -- and the moment it stopped
+            # agreeing, the fight that runs and the fight replayed would
+            # differ with nothing to say so.
+            new_sessions.append(session)
 
         return replace(
             self,

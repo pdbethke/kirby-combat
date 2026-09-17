@@ -172,6 +172,7 @@ def restore_acting_order(
     combatants: Mapping[str, StatBlockCombatant],
     order: Iterable[str],
     segment: int,
+    intents: Mapping[str, "ActionIntent"] | None = None,
 ) -> list[ActingSlot]:
     """The slots of an order the record already decided, in its order.
 
@@ -186,10 +187,18 @@ def restore_acting_order(
     order he is already standing in (6E2 p.20's "changes in SPD" do not
     retroactively unmake a Phase already resolved).
 
+    `intents` are NOT derived and must be supplied: a declared intent
+    changes what the slot MEANS, not just how it sorted --- 6E1 p.116(c)
+    forbids a man who elected Lightning Reflexes for one named Action from
+    doing anything else that Phase, and that rule is enforced off
+    `ActingSlot.intent`. A restored order without them is an order under
+    which a replayed fight would permit what the live fight refused.
+
     An id with no combatant raises rather than being dropped: a replayed
     order missing a man is a fight with the wrong person acting, which is
     worse than a stopped replay.
     """
+    intents = intents or {}
     slots: list[ActingSlot] = []
     for combatant_id in order:
         combatant = combatants.get(combatant_id)
@@ -198,7 +207,9 @@ def restore_acting_order(
                 f"acting order names {combatant_id!r}, who is not in this "
                 f"fight (combatants: {sorted(combatants)})"
             )
-        slots.append(slot_for(combatant, segment))
+        slot = slot_for(combatant, segment)
+        slot.intent = intents.get(combatant_id)
+        slots.append(slot)
     return slots
 
 

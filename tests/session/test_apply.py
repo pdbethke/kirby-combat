@@ -410,3 +410,84 @@ def test_apply_segment_advanced_still_clears_the_order():
 
     assert s2.timeline.acting_order == []
     assert s2.timeline.current_slot_index == 0
+
+
+def _replayed(session: CombatSession) -> CombatSession:
+    """The same fight, rebuilt from its log and nothing else.
+
+    A fresh combatant (the same build, undamaged) and an EMPTY log, then
+    every event applied in order -- so anything the rebuilt session knows,
+    it knows because the log said so.
+    """
+    c = synthetic_combatant(
+        id="alice", name="alice", ocv=8, dcv=8, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
+        pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+        max_stun=30, max_body=15, max_end=30,
+        current_stun=30, current_body=15, current_end=30,
+    )
+    c.hero.talents = list(_hero_with_single_scope_lightning_reflexes().talents)
+    rebuilt = CombatSession.create(
+        id="s1", combatants=[c], scene=None,
+        template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=FakeRoller([]),
+    )
+    assert rebuilt.event_log == []
+    for event in session.event_log:
+        rebuilt = apply_event(rebuilt, event)
+    return rebuilt
+
+
+def test_the_replayed_fight_refuses_the_declaration_the_live_one_refused():
+    """6E1 p.116(c), enforced at BOTH doors.
+
+    The election is not derivable from the acting order's ids: a man who
+    elected Lightning Reflexes for "strike" may not then dodge, and that
+    rule reads `ActingSlot.intent`. With the intents left out of
+    `ActingOrderResolved`, the replayed fight rebuilt every slot with
+    `intent=None` and ACCEPTED the dodge the live fight refused -- the
+    same rule live at one door and asleep at the other.
+    """
+    live = _driven_encounter_session()
+    replayed = _replayed(live)
+
+    assert [slot.intent for slot in replayed.timeline.acting_order] == \
+        [slot.intent for slot in live.timeline.acting_order]
+
+    with pytest.raises(ValueError, match="Lightning Reflexes"):
+        apply_event(live, _declare(live, "dodge"))
+    with pytest.raises(ValueError, match="Lightning Reflexes"):
+        apply_event(replayed, _declare(replayed, "dodge"))
+
+
+def test_the_replayed_fight_still_permits_the_elected_action():
+    """The other half: the restriction must not become a blanket refusal."""
+    replayed = _replayed(_driven_encounter_session())
+    assert apply_event(replayed, _declare(replayed, "strike")).event_log[-1].kind \
+        == "ActionDeclared"
+
+
+def test_apply_phase_spent_refuses_a_slot_that_is_not_there():
+    """A spend nothing can spend is a replay one Phase ahead of the fight."""
+    s = _two_fighter_session()
+    s = apply_event(s, _order_resolved(s, ["alice", "bob"]))
+
+    def _spent(who: str):
+        return PhaseSpent(
+            id=f"evt-spent-{who}", session_id=s.id,
+            sequence=len(s.event_log) + 1,
+            timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+            combatant_id=who, segment=12, turn=1,
+        )
+
+    with pytest.raises(ValueError, match="carol"):
+        apply_event(s, _spent("carol"))
+
+    spent_once = apply_event(s, _spent("alice"))
+    with pytest.raises(ValueError, match="alice"):
+        apply_event(spent_once, PhaseSpent(
+            id="evt-again", session_id=s.id,
+            sequence=len(spent_once.event_log) + 1,
+            timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+            combatant_id="alice", segment=12, turn=1,
+        ))

@@ -17,7 +17,10 @@ from __future__ import annotations
 from conftest import fighter  # tests/loop/conftest.py
 
 from kirby_combat.encounter import Encounter
-from kirby_combat.loop import FirstLegalChooser, next_actor_id, run_phase
+from kirby_combat.enumeration import is_down
+from kirby_combat.loop import (
+    FirstLegalChooser, next_actor_id, resolve_next_actor, run_phase,
+)
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
@@ -145,3 +148,77 @@ def test_a_spent_phase_is_spent_in_the_replay_too():
     rebuilt = _rebuilt_from(original)
 
     assert next_actor_id(rebuilt) not in acted
+
+
+# ---------------------------------------------------------------------------
+# The man who cannot use the Phase he has
+# ---------------------------------------------------------------------------
+
+def _knocked_out(session: CombatSession, combatant_id: str) -> CombatSession:
+    """Put a man on the ground the way a resolver's damage would.
+
+    STUN at 0 is 6E1 p.421's "knocked out", which is what `is_down` reads.
+    """
+    session.combatants[combatant_id].state.current_stun = 0
+    return session
+
+
+def test_the_replay_skips_the_downed_man_the_original_skipped():
+    """The skip is a spend, and it has to be in the log to survive.
+
+    `apply_event` folds no stun and no body ON PURPOSE --- conditions
+    derive from the log, they are not mirrored onto combatants. So a
+    rebuilt session's fighters are all standing, and the ONLY way it can
+    pass over the man the original passed over is if the original wrote
+    down that it did. Before `PhaseSpent(reason="down")` it did not, and
+    the two fights reached different men: the original `c`, the replay
+    `b`.
+    """
+    original = _ran_a_segment_and_a_phase()   # "a" has acted
+    original = _knocked_out(original, "b")
+
+    original, actor_id, skips = resolve_next_actor(original)
+
+    assert actor_id == "c"
+    assert [(e.kind, e.combatant_id, e.reason) for e in skips] == \
+        [("PhaseSpent", "b", "down")]
+    assert any(e.kind == "PhaseSpent" and e.reason == "down"
+               for e in original.event_log)
+
+    rebuilt = _rebuilt_from(original)
+
+    # The replay has no idea anyone is hurt -- which is the point.
+    assert not is_down(rebuilt.combatants["b"])
+    assert next_actor_id(rebuilt) == next_actor_id(original) == "c"
+
+
+def test_the_skip_rides_out_on_the_phase_result():
+    """A consumer persists what a `PhaseResult` hands it, and no more."""
+    original = _knocked_out(_ran_a_segment_and_a_phase(), "b")
+
+    phase = run_phase(
+        original, FirstLegalChooser(),
+        template=TEMPLATE, roller=RandomRoller(seed=NEXT_PHASE_SEED),
+    )
+
+    assert phase.actor_id == "c"
+    assert [(e.kind, e.combatant_id, e.reason) for e in phase.events
+            if e.kind == "PhaseSpent"] == \
+        [("PhaseSpent", "b", "down"), ("PhaseSpent", "c", "acted")]
+
+
+def test_asking_who_is_next_does_not_change_the_fight():
+    """`next_actor_id` is a question. It used to be a move.
+
+    It spent the slot of everyone it passed over, in place and off the
+    log, so a reader asking whose Phase it was altered the fight.
+    """
+    original = _knocked_out(_ran_a_segment_and_a_phase(), "b")
+    before = [(s.combatant_id, s.has_acted) for s in original.timeline.acting_order]
+    log_length = len(original.event_log)
+
+    assert next_actor_id(original) == "c"
+
+    assert [(s.combatant_id, s.has_acted)
+            for s in original.timeline.acting_order] == before
+    assert len(original.event_log) == log_length

@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from kirby_combat.session.timeline import ActionIntent
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +86,16 @@ class ActingOrderResolved(_BaseEvent):
     DERIVED from the combatants and the Segment, so ``apply_event``
     rebuilds them rather than recording them twice. This event carries the
     decision, not the arithmetic behind it.
+
+    ``intents`` IS part of the decision, not derived from anything. A
+    declared ``ActionIntent`` changes what the order MEANS as well as how
+    it sorted: a man who elected Lightning Reflexes for one named Action
+    may not then do something else in that Phase (6E1 p.116(c)), and
+    ``apply_event`` enforces exactly that off ``ActingSlot.intent``. Left
+    out of this event, a replayed fight would ACCEPT a declaration the
+    live fight refuses --- the rule enforced at one door and not the
+    other. Keyed by combatant id; a combatant who declared nothing is
+    simply absent.
     """
 
     kind: Literal["ActingOrderResolved"] = field(
@@ -90,6 +103,7 @@ class ActingOrderResolved(_BaseEvent):
     order: list[str] = field(default_factory=list)
     segment: int = 0
     turn: int = 0
+    intents: dict[str, "ActionIntent"] = field(default_factory=dict)
 
 
 @dataclass
@@ -102,12 +116,22 @@ class PhaseSpent(_BaseEvent):
     the Phases nobody would call an action: a man held by a Presence
     Attack, a man with no legal action, and a chosen kind the registry
     cannot yet resolve each spend a Phase just as surely as a punch does.
+
+    ``reason`` says WHICH of those it was. Two of them are not decisions
+    the loop made at all but consequences of the man's condition --- he is
+    down (6E1 p.421), or he has left the field --- and a consumer that
+    folds no stats at all must still land on the same next actor as the
+    fight that ran. That is only possible if the skip is in the log
+    saying why.
     """
 
     kind: Literal["PhaseSpent"] = field(default="PhaseSpent", init=False)
     combatant_id: str = ""
     segment: int = 0
     turn: int = 0
+    #: "acted" (he used it), "down" (unconscious or worse, 6E1 p.421) or
+    #: "left" (out of the scene's bounds, so no longer in the fight).
+    reason: str = "acted"
 
 
 @dataclass

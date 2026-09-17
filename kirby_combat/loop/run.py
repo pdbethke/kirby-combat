@@ -119,17 +119,16 @@ def distances_from(scene, actor, others) -> dict[str, float] | None:
     return out
 
 
-def next_actor_id(session: "CombatSession") -> str | None:
-    """The next combatant with an unspent slot in this Segment's order.
+def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
+    """Why this combatant cannot use the Phase he has --- or None.
 
-    Reads ``Timeline.acting_order`` --- which is why the stale-order repair
-    had to land first: an order left over from an earlier Segment would
-    carry its ``has_acted`` flags and skip combatants who had only acted
-    then. ``apply_event`` now clears the order on ``SegmentAdvanced``.
+    THE ONE READING of "he has a slot and cannot use it". `resolve_next_
+    actor` spends the slot and `next_actor_id` merely reports who is next,
+    and if each asked the question its own way they would eventually
+    answer differently about the same man.
 
-    Downed combatants are skipped rather than asked (6E1 p.421). A slot for
-    someone who has since been knocked out is consumed silently: they had a
-    Phase, and they are in no condition to use it.
+    Downed combatants are skipped rather than asked (6E1 p.421): they had
+    a Phase, and they are in no condition to use it.
 
     AND SO IS SOMEONE WHO HAS GONE. `Roster` already owns the definition
     of having left --- outside the scene's bounds --- and `standing`
@@ -139,21 +138,80 @@ def next_actor_id(session: "CombatSession") -> str | None:
     off the field at y=-11 and was still asked to decide two Segments
     later, running to y=-23. The scoreboard knew; the loop did not.
     """
-    roster = Roster(session)
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None or is_down(combatant):
+        return "down"
+    if Roster(session).has_left(combatant_id):
+        return "left"
+    return None
+
+
+def resolve_next_actor(
+    session: "CombatSession",
+) -> tuple["CombatSession", str | None, list[PhaseSpent]]:
+    """Whose Phase it is --- spending, IN THE LOG, the slots nobody can use.
+
+    THE SKIP IS A SPEND AND IT WAS INVISIBLE. `next_actor_id` used to flip
+    `has_acted` in place for a man who was down or gone, which is the
+    right rule and the wrong place: `apply_event` deliberately folds no
+    stun or body, so a consumer rebuilding the fight from its log alone
+    could not know he was down, did not skip him, and handed the Phase to
+    a different man than the fight that ran. Measured: the original
+    reached `c`, the replay reached `b`.
+
+    So the skip emits `PhaseSpent(reason="down"|"left")` like any other
+    spend, through the same `_mark_acted` door, and rides out on
+    `PhaseResult.events` with the rest. A consumer that folds no stats at
+    all now lands on the same actor, because the log says who was passed
+    over and why.
+
+    Returns the new session (slots spent), the actor, and the events.
+    """
+    events: list[PhaseSpent] = []
+    while True:
+        actor_id: str | None = None
+        skip: str | None = None
+        for slot in session.timeline.acting_order:
+            if slot.has_acted:
+                continue
+            reason = _skip_reason(session, slot.combatant_id)
+            if reason is None:
+                actor_id = slot.combatant_id
+            else:
+                actor_id, skip = slot.combatant_id, reason
+            break
+        if actor_id is None:
+            return session, None, events
+        if skip is None:
+            return session, actor_id, events
+        session, event = _mark_acted(session, actor_id, reason=skip)
+        events.append(event)
+
+
+def next_actor_id(session: "CombatSession") -> str | None:
+    """The next combatant who can use a slot in this Segment's order.
+
+    A QUESTION, NOT A MOVE. This used to spend the slot of anyone it
+    passed over, so asking whose Phase it was changed the fight ---
+    invisibly, and off stats a replayed session does not fold.
+    `resolve_next_actor` does the spending now, in the log; this reports
+    the same answer and writes nothing.
+
+    Reads ``Timeline.acting_order`` --- which is why the stale-order repair
+    had to land first: an order left over from an earlier Segment would
+    carry its ``has_acted`` flags and skip combatants who had only acted
+    then. ``apply_event`` clears the order on ``SegmentAdvanced``.
+    """
     for slot in session.timeline.acting_order:
         if slot.has_acted:
             continue
-        combatant = session.combatants.get(slot.combatant_id)
-        if (combatant is None or is_down(combatant)
-                or roster.has_left(slot.combatant_id)):
-            slot.has_acted = True
-            continue
-        return slot.combatant_id
+        if _skip_reason(session, slot.combatant_id) is None:
+            return slot.combatant_id
     return None
 
 
 def _mark_acted(
-    session: "CombatSession", combatant_id: str,
+    session: "CombatSession", combatant_id: str, *, reason: str = "acted",
 ) -> tuple["CombatSession", PhaseSpent]:
     """Spend this combatant's slot --- in the log, not just in memory.
 
@@ -164,6 +222,10 @@ def _mark_acted(
     `session/apply.py`), which is what makes the two paths --- the fight
     that ran and the fight replayed from its log --- produce the same
     timeline rather than two that agree by coincidence.
+
+    THE ONE DOOR every spend goes through, whoever is spending and for
+    whatever reason --- a Phase used, or one its owner was in no
+    condition to use (`reason`, see `PhaseSpent`).
 
     Returns the new session AND the event, because the event is part of
     this Phase's output: a networked consumer persists and broadcasts what
@@ -179,6 +241,7 @@ def _mark_acted(
         combatant_id=combatant_id,
         segment=session.timeline.segment,
         turn=session.timeline.turn,
+        reason=reason,
     )
     return apply_event(session, event), event
 
@@ -207,9 +270,14 @@ def run_phase(
     if on_unresolvable not in ("raise", "skip"):
         raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
 
-    actor_id = next_actor_id(session)
+    # Whose Phase it is --- and the spends for everyone passed over on the
+    # way, which go out with this Phase's events like any other.
+    session, actor_id, skipped_slots = resolve_next_actor(session)
     if actor_id is None:
-        return PhaseResult(session=session, notes=["no unspent slot in this Segment"])
+        return PhaseResult(
+            session=session, events=[*skipped_slots],
+            notes=["no unspent slot in this Segment"],
+        )
 
     actor = session.combatants[actor_id]
 
@@ -232,7 +300,8 @@ def run_phase(
         session = PresenceEffects.forfeit_phase(session, actor_id)
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id, events=[spent],
+            session=session, actor_id=actor_id,
+            events=[*skipped_slots, spent],
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
@@ -341,7 +410,7 @@ def run_phase(
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id, events=[spent],
+            session=session, actor_id=actor_id, events=[*skipped_slots, spent],
             notes=[f"{actor_id} had no legal action"],
         )
 
@@ -376,7 +445,8 @@ def run_phase(
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
             session=session, actor_id=actor_id, action_id=action.action_id,
-            kind=action.kind, skipped_kind=action.kind, events=[spent],
+            kind=action.kind, skipped_kind=action.kind,
+            events=[*skipped_slots, spent],
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
@@ -384,7 +454,8 @@ def run_phase(
     return PhaseResult(
         session=session, actor_id=actor_id,
         action_id=action.action_id, kind=action.kind,
-        result=resolved.result, events=[*resolved.events, spent],
+        result=resolved.result,
+        events=[*skipped_slots, *resolved.events, spent],
     )
 
 
