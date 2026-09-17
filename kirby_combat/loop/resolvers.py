@@ -280,6 +280,15 @@ def _resolve_attack(
     character can hold several powers of the same xmlid, and matching on
     ``xmlid + name`` is the bug that silently killed every AOE and TRIGGER
     modifier in the corpus.
+
+    6E2 p.127 IS PRICED HERE TOO, not only on the maneuvers. Sub-project B
+    wired "Inability To Sense An Opponent" into Trip, Disarm and Sweep, and
+    stopped -- so the action nine fights out of ten consist of was still
+    rolled at full OCV inside a Darkness field, and a Flashed gunman shot
+    as straight as a sighted one. Both questions are asked, of two
+    different men (see ``_blind_cv_delta``), and the row is chosen by the
+    power: p.9's Ranged row takes OCV to ZERO where its hand-to-hand row
+    only halves it.
     """
     from kirby_combat.models import AttackInput, DiceValues
 
@@ -288,11 +297,38 @@ def _resolve_attack(
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
+    # 6E2 p.9's two rows. `is_ranged` is the field `AttackPower` already
+    # derives from the power's range and that `_is_melee` already reads;
+    # asking it here keeps ONE answer to "is this a shot or a punch".
+    from kirby_combat.sense_penalties import HTH, RANGED
+
+    combat_type = RANGED if getattr(power, "is_ranged", False) else HTH
+
+    # THE DCV IS HALVED ONCE, not twice, and this is why.
+    #
+    # 6E2 p.52's Surprised and 6E2 p.9/p.127's inability to sense both
+    # halve the defender's DCV, and on this path they usually have the SAME
+    # cause: `_surprise_for` is fed by `perception.is_surprised`, which is
+    # the same question `_cannot_perceive` asks. A man in a Darkness field
+    # would otherwise be halved by p.52 and halved again by p.127 -- DCV 5
+    # down to 2 -- for one fact about the fight, stated on two pages.
+    #
+    # So p.127's DCV delta is asked for only when no Surprise is live.
+    # `Surprise.applies` is False for a target with Defense Maneuver (p.52
+    # exempts him from being Surprised, and says nothing about his being
+    # able to see), and `_surprise_for` returns None on a map-less fight --
+    # in both cases the man still cannot perceive his attacker and p.127
+    # still prices it. The OCV half is not conditioned on anything:
+    # Surprised does nothing to the ATTACKER's OCV.
+    surprise = _surprise_for(session, actor, target)
+    blind_dcv = (0 if surprise
+                 else _blind_cv_delta(session, target, actor, "dcv", combat_type))
+
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice))),
-        surprise=_surprise_for(session, actor, target),
+        surprise=surprise,
         # A SET THAT BOUGHT NOTHING. `Set.ocv_bonus` existed, was correct,
         # and was read by nothing but its own unit test -- so a man could
         # spend a Full Phase drawing a bead (6E2 p.81) and be no more
@@ -300,7 +336,15 @@ def _resolve_attack(
         # the bonus "to all attacks against that target", not to whatever
         # he swings at next.
         ocv_modifier=(_set_bonus(session, actor, target)
-                      + _grab_cv(session, actor, target).ocv_delta),
+                      + _grab_cv(session, actor, target).ocv_delta
+                      + _blind_cv_delta(
+                          session, actor, target, "ocv", combat_type)),
+        # THE TARGET'S half of 6E2 p.127, asked of the TARGET: his DCV
+        # against this attacker turns on whether HE can perceive the man
+        # swinging at him, which is a different question with a different
+        # answer all the time. See `blind_dcv` above for why it is not also
+        # asked when p.52's Surprised has already halved him.
+        dcv_modifier=blind_dcv,
         # A GRAB CHANGED NOTHING ABOUT ANYONE'S COMBAT ABILITY until this
         # -- so grappling was strictly free, and never worth doing to a
         # man you could simply shoot. Western Hero p.104 prices it.
@@ -2090,7 +2134,9 @@ def _cannot_perceive(session, observer, opponent) -> bool:
     return not perception.targetable_physical
 
 
-def _blind_cv_delta(session, observer, opponent, key: str) -> int:
+def _blind_cv_delta(
+    session, observer, opponent, key: str, combat_type: str = "hth",
+) -> int:
     """6E2 p.127's penalty to ``observer``'s ``key`` CV, as a delta.
 
     "Inability To Sense An Opponent" (6E2 p.127; the worked example and the
@@ -2106,52 +2152,29 @@ def _blind_cv_delta(session, observer, opponent, key: str) -> int:
     numbers come from `sense_penalties`' table, which is where 6E2 p.9's
     rows and the p.9 Nontargeting-PER mitigation already live.
 
-    **Hand-to-hand, and said so explicitly.** p.9 gives a harsher Ranged
-    row (OCV drops to ZERO), and the maneuvers on this path -- Trip (p.67),
-    Disarm (p.65) -- are hand-to-hand maneuvers. A blind Ranged attack is
-    the attack path's business, not this one's.
+    **WHICH ROW, said by the caller.** p.9 gives hand-to-hand and Ranged
+    separate rows and the Ranged one is harsher: OCV drops to ZERO rather
+    than to half. ``combat_type`` defaults to hand-to-hand because the
+    maneuvers this helper was written for -- Trip (p.67), Disarm (p.65) --
+    are hand-to-hand maneuvers and have no other row to pick. The attack
+    path fires both a revolver and a fist through ONE resolver, so it
+    passes the row its power belongs to; hard-coding HTH there would have
+    been wrong by five OCV on every blind shot.
+
+    ``sense_penalty_row`` is what holds the table, so neither row is
+    written down twice -- and the p.9 Nontargeting-PER mitigation that
+    changes BOTH rows is read once, by it.
     """
     from kirby_combat.cv_modifiers import apply_cv_delta, apply_cv_factor
-    from kirby_combat.sense_penalties import HTH, sense_penalty_row
+    from kirby_combat.sense_penalties import sense_penalty_row
 
     if not _cannot_perceive(session, observer, opponent):
         return 0
-    row = sense_penalty_row(session, observer.id, opponent.id, HTH)
+    row = sense_penalty_row(session, observer.id, opponent.id, combat_type)
     base = int(getattr(observer, key))
     value = apply_cv_factor(base, row.get(f"{key}_factor", 1.0))
     value = apply_cv_delta(value, int(row.get(f"{key}_delta", 0)))
     return value - base
-
-
-def _report_cvs(session, result):
-    """Re-stamp the resolution event with what the roll was actually made
-    against: `effective_ocv`, `target_dcv` and `margin`.
-
-    All three are read off the engine's own `ToHitResult` rather than
-    recomputed -- `margin` is `target_number - roll` and the resolver has
-    already worked it out. Without them a maneuver's log says only whether
-    it hit: a Trip halved for blindness and a Trip that simply rolled badly
-    are the same event to any reader, which is precisely the information a
-    blind penalty exists to make visible.
-
-    Finds the resolution event by its payload rather than assuming it is
-    the last one on the log: the recording path may append further events
-    after it (a Presence Attack from a violent blow, say).
-    """
-    from dataclasses import replace as _replace
-
-    log = list(session.event_log)
-    for index in range(len(log) - 1, -1, -1):
-        payload = getattr(log[index], "result_payload", None)
-        if isinstance(payload, dict) and "hit" in payload:
-            log[index] = _replace(log[index], result_payload={
-                **payload,
-                "effective_ocv": result.to_hit.effective_ocv,
-                "target_dcv": result.to_hit.effective_dcv,
-                "margin": result.to_hit.margin,
-            })
-            return _replace(session, event_log=log)
-    return session
 
 
 def _maneuver_attack(
@@ -2189,7 +2212,11 @@ def _maneuver_attack(
     )
     new_session, result = resolve_attack_in_session(
         session, attack, session.template, action_type=action_type)
-    return _report_cvs(new_session, result), result
+    # `effective_ocv`, `target_dcv` and `margin` are stamped by
+    # `resolve_attack_in_session` itself now -- the one path an attack and a
+    # maneuver both take -- so the re-stamping helper that used to run here
+    # (and only here) is gone.
+    return new_session, result
 
 
 #: The house-rule save's skill (kirby-api Spec C §3). Named once so

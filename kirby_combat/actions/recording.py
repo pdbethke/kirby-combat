@@ -368,6 +368,22 @@ def resolve_attack_in_session(
         # against CON (6E2 p.46), and without this the pool cannot tell an
         # attack in THIS Segment from one three Segments ago.
         "segment": s.timeline.segment,
+        # WHAT THE ROLL WAS ACTUALLY MADE AGAINST. Read off the engine's own
+        # `ToHitResult` rather than recomputed -- `margin` is
+        # `target_number - roll` and the resolver has already worked it out.
+        #
+        # STAMPED HERE, ONCE, because this is the one place every attack
+        # goes through. A2 stamped these three keys from a helper
+        # (`resolvers._report_cvs`) that ran only on the three maneuvers it
+        # had just written, and found the event by scanning the log
+        # backwards for a payload with a "hit" key -- so a plain attack, the
+        # action most fights consist of, reported only whether it landed. A
+        # blow halved for blindness and one that simply rolled badly were
+        # the same row. The rule this engine keeps paying for is a rule at
+        # one door and not the others; these are written at the door.
+        "effective_ocv": result.to_hit.effective_ocv,
+        "target_dcv": result.to_hit.effective_dcv,
+        "margin": result.to_hit.margin,
     }
 
     resolved = ActionResolved(
