@@ -121,6 +121,62 @@ def _surprise_for(session, actor, target):
     return surprise_for(target=target, perceives_attacker=not blind)
 
 
+def _activation(session, actor, action, power, *, roller):
+    """6E1 p.375's Activation Roll for this attack, or None if it has none.
+
+    Returns ``{"activated": bool, "roll": int, "target": int, "resolved":
+    ResolvedAction | None}``; the caller short-circuits on a failure and
+    otherwise folds the numbers into the payload. None --- not a dict
+    saying "activated" --- when the power was not bought with an Activation
+    Roll at all, so a caller can tell "made it" from "never had to make
+    one" and the log can say which.
+
+    NOTHING IS ROLLED WHEN THERE IS NO ROLL TO MAKE. A power with no
+    Activation Roll draws no dice, which keeps ONE dice sequence per seed:
+    charging every attack in the engine a 3d6 it does not need would have
+    moved every seeded fight this suite and the benchmarks depend on.
+
+    A FAILURE IS RECORDED, NOT SWALLOWED. The resolution goes on the log
+    with `hit` False, no damage, and the roll it failed --- an attack that
+    vanished silently is indistinguishable from one never declared, to a
+    reader, to a narrator, and to anything learning from the fight. It
+    keeps `kind="attack"`, because that is what every downstream filter and
+    narrator reads.
+
+    JUDGEMENT, labelled: a failed Activation costs no END here. No power
+    was used, and `endurance.py` prices a power's END for using it. The
+    books' treatment of END on a failed Activation is not settled in front
+    of this function, so the cheap reading is taken and named rather than
+    asserted as RAW. See the A3 report.
+    """
+    target = getattr(power, "activation_roll", None)
+    if target is None:
+        return None
+    rolled = sum(roller.roll_dice(3))
+    activated = rolled <= int(target)
+    if activated:
+        return {"activated": True, "roll": rolled, "target": int(target),
+                "resolved": None}
+    return {
+        "activated": False, "roll": rolled, "target": int(target),
+        "resolved": _recorded(session, actor, action, None, {
+            "kind": "attack",
+            "hit": False,
+            "stun_dealt": 0,
+            "body_dealt": 0,
+            "status_changes": [],
+            "target_id": action.target_id,
+            "power_xmlid": getattr(power, "xmlid", None),
+            "power_name": getattr(power, "name", None),
+            "power_source_id": getattr(power, "source_id", None),
+            "segment": session.timeline.segment,
+            "activated": False,
+            "activation_roll": rolled,
+            "activation_target": int(target),
+        }),
+    }
+
+
 def _adjustment_cv_delta(session, combatant, key: str) -> int:
     """A live Aid or Drain on this combatant's ``key`` CV, as a delta.
 
@@ -354,6 +410,12 @@ def _resolve_attack(
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
+    # 6E1 p.375: does the power go off at all? Asked BEFORE anything else
+    # is rolled, because a power that does not fire is never rolled to hit.
+    activation = _activation(session, actor, action, power, roller=roller)
+    if activation is not None and not activation["activated"]:
+        return activation["resolved"]
+
     # 6E2 p.9's two rows. `is_ranged` is the field `AttackPower` already
     # derives from the power's range and that `_is_melee` already reads;
     # asking it here keeps ONE answer to "is this a shot or a punch".
@@ -424,6 +486,15 @@ def _resolve_attack(
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack",
+        # The Activation Roll it MADE, carried into the same payload the
+        # failure would have written. Both answers on the log means a
+        # reader can tell "made it" from "never had to make one" -- which
+        # is the whole reason `activation_roll` is None rather than 0.
+        extra_payload=(None if activation is None else {
+            "activated": True,
+            "activation_roll": activation["roll"],
+            "activation_target": activation["target"],
+        }),
     )
     new_session, result = _maybe_stray(
         new_session, actor, action, result, template=template, roller=roller,

@@ -53,6 +53,17 @@ class AttackPower:
     #: Reduced Endurance (0 END). `hero_view` has parsed this modifier for
     #: a long time and discarded it, with the comment "(END calc TBD)".
     reduced_end: bool = False
+    #: 6E1 p.375's Activation Roll: the 3d6 number this power must make to
+    #: go off at all, or None when it was not bought with one. HD's options
+    #: ARE the numbers -- 8-, 9-, ... 15- -- so the field carries the target
+    #: itself rather than a level.
+    #:
+    #: NONE IS NOT ZERO, and the distinction is the whole field. "Never
+    #: fails" and "fails on anything above zero" must never be the same
+    #: answer; a default of 0 would make every attack in the engine
+    #: impossible to activate. It is the same reading `charges` already
+    #: takes of "unlimited" versus "has a clip".
+    activation_roll: int | None = None
     #: No Range Modifier (+1/2). 6E1 p.346: a power bought with it
     #: "ignores the Range Modifier when making Attack Rolls", so it hits
     #: as well at maximum range as at point blank. NOT a reduction -- the

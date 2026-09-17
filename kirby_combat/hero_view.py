@@ -62,7 +62,9 @@ from kirby_cost.model.activation import (
     ActivationContext, CharacteristicState, Contribution,
 )
 
-from kirby_cost.model.modifiers import has_modifier, modifier_levels
+from kirby_cost.model.modifiers import (
+    find_modifier, has_modifier, modifier_levels,
+)
 
 from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
 from kirby_combat.side import Side
@@ -1364,6 +1366,35 @@ def _modifier_levels(power, mod_xmlid: str) -> int:
     return modifier_levels(power, mod_xmlid)
 
 
+def _activation_roll(power) -> int | None:
+    """6E1 p.375's Activation Roll for this power, or None if it has none.
+
+    HD's ACTIVATIONROLL options ARE the numbers -- OPTION XMLIDs "8"
+    through "15", the 8- at -2 and the 15- at -1/4 -- so the target is read
+    straight off the chosen option rather than mapped from a level.
+
+    Through `find_modifier`, which is `_has_modifier`'s own resolver: it
+    recurses into containers and reads an enclosing purchase's modifiers,
+    so a Multipower slot inherits an Activation Roll its POOL was bought
+    with. A flat loop over `assigned_modifiers` would have missed exactly
+    the builds where a whole framework is unreliable.
+
+    None on anything unreadable, never 0: see `AttackPower.activation_roll`
+    for why those two answers must never be the same one.
+    """
+    mod = find_modifier(power, "ACTIVATIONROLL")
+    if mod is None:
+        return None
+    option = getattr(mod, "_selected_option", None)
+    for candidate in (getattr(option, "xmlid", None),
+                      getattr(mod, "option_id", None)):
+        try:
+            return int(str(candidate).strip())
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 # NAKEDMODIFIER INPUT-field parsing.
 #
 # HD lets you buy a "naked advantage" (xmlid=NAKEDMODIFIER) that
@@ -2021,6 +2052,11 @@ def _build_attack_power(
     # limitation the build declares and the view drops is unenforceable
     # everywhere downstream.
     beam = _has_modifier(power, "BEAM")
+    # 6E1 p.375. The commonest Limitation in any bestiary, and this view
+    # carried no field for it -- so every character who had taken points
+    # off a power for an Activation Roll fired it at will and kept the
+    # discount.
+    activation_roll = _activation_roll(power)
     from kirby_combat.charges import charges_on
 
     charges = charges_on(power)
@@ -2070,6 +2106,7 @@ def _build_attack_power(
         avad_does_body=avad_does_body,
         charges=charges,
         reduced_end=reduced_end,
+        activation_roll=activation_roll,
         no_range_modifier=no_range_modifier,
         beam=beam,
         active_points=active_points,

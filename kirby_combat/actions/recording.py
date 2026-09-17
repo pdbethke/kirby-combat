@@ -202,6 +202,7 @@ def resolve_attack_in_session(
     *,
     declaration_event_id: str | None = None,
     action_type: ActionKind = "attack",
+    extra_payload: dict[str, Any] | None = None,
 ) -> tuple[CombatSession, AttackResult]:
     """Resolve an attack and record the outcome on the session's event log.
 
@@ -216,6 +217,15 @@ def resolve_attack_in_session(
     first (mirroring ``Flash.apply`` / ``Grab.declare_and_resolve``) and its
     id is used as the resolution's ``declaration_event_id``. Pass an existing
     id when the caller already declared the action itself.
+
+    ``extra_payload`` is merged into the resolution payload: keys a CALLER
+    knows and this function cannot, such as the Activation Roll (6E1 p.375)
+    a resolver made before the attack was built. It is a parameter rather
+    than a re-stamping pass over the log afterwards, because a second pass
+    that hunts for the event it just wrote is the shape that had three
+    keys reaching maneuvers and no other attack. It cannot overwrite a key
+    this function computes; a caller that tries gets a ValueError rather
+    than a payload whose `hit` disagrees with the result beside it.
 
     Returns ``(new_session, result)`` — ``result`` is exactly what
     ``resolve_attack`` returned; nothing about the pure result is altered.
@@ -385,6 +395,15 @@ def resolve_attack_in_session(
         "target_dcv": result.to_hit.effective_dcv,
         "margin": result.to_hit.margin,
     }
+
+    if extra_payload:
+        clash = sorted(set(extra_payload) & set(result_payload))
+        if clash:
+            raise ValueError(
+                f"extra_payload would overwrite keys this resolver computes: "
+                f"{clash}"
+            )
+        result_payload.update(extra_payload)
 
     resolved = ActionResolved(
         id=str(uuid.uuid4()),
