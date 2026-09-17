@@ -43,14 +43,19 @@ out -- see `statuses_for`'s docstring for exactly what each reads and why
 `STUNNED` additionally needs `SegmentAdvanced` to answer its clear edge.
 
 Follow-up coherence fix (same task): that payload also names "Knocked
-Out" whenever STUN falls to 0 or below, but `resolve_attack_in_session`
-deliberately never mutates a combatant's live vitals (`session/apply.py`'s
-log-only design), so `KNOCKED_OUT`'s pre-existing `is_ko` source (reading
-live `current_stun`) never saw it -- a session could report `dead` and
-`stunned` for a combatant with NO `knockedOut`, which is self-contradictory
-to any consumer. `_is_knocked_out_from_payload` below adds the same
-payload fold as a second, additive source for `KNOCKED_OUT`, unioned with
-`is_ko` -- see that function's docstring for its clear edge.
+Out" whenever STUN falls to 0 or below, and at the time
+`resolve_attack_in_session` never moved a combatant's live vitals at all
+(`apply_event` folded none), so `KNOCKED_OUT`'s `is_ko` source -- which
+reads live `current_stun` -- never saw it, and a session could report
+`dead` and `stunned` for a combatant with NO `knockedOut`.
+`_is_knocked_out_from_payload` below adds the same payload fold as a
+second, additive source, unioned with `is_ko`.
+
+`apply_event` DOES fold vitals now (2026-09-17), so `is_ko` sees a real
+knockout again and the payload fold is no longer the only source. It is
+kept because it is additive and because a session whose conditions were
+set by a consumer's own rows rather than by this engine's resolvers still
+needs it -- see that function's docstring for its clear edge.
 
 This module is a vocabulary module (constants and a frozenset) PLUS,
 below, `statuses_for` -- the one fold over every condition source. It does
@@ -101,10 +106,10 @@ KNOCKED_OUT = "knockedOut"
 # `ActionResolved.result_payload["status_changes"]` fold used for STUNNED/
 # DEAD (`_is_knocked_out_from_payload` below), and `_is_dead` itself (DEAD
 # implies KNOCKED_OUT, unconditionally -- see `statuses_for`). The second
-# source exists because `resolve_attack_in_session` deliberately never
-# mutates vitals (`session/apply.py`'s log-only design) -- a payload naming
-# "Stunned"/"Knocked Out"/"Dead" together, with vitals never touched,
-# previously surfaced `dead`+`stunned` WITHOUT `knockedOut`, which is
+# source exists because, until `apply_event` began folding vitals
+# (2026-09-17), `resolve_attack_in_session` moved nobody's STUN -- a
+# payload naming "Stunned"/"Knocked Out"/"Dead" together, with vitals
+# never touched, surfaced `dead`+`stunned` WITHOUT `knockedOut`, which is
 # self-contradictory to any consumer (a dead combatant who was never
 # knocked out). See `_is_knocked_out_from_payload`'s docstring for why its
 # clear edge is deliberately conservative rather than latching. The third
@@ -792,10 +797,11 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       ``_is_knocked_out_from_payload(session, combatant_id)`` (this
       module), which folds ``ActionResolved.result_payload["status_changes"]``
       the same way STUNNED/DEAD do. Additive, not a replacement: a session
-      whose driver DOES mutate vitals keeps working exactly as before via
-      ``is_ko``; the payload fold exists for the log-only case
-      ``resolve_attack_in_session`` produces, where nothing else would
-      ever set KNOCKED_OUT even though the payload plainly says so. See
+      whose vitals have moved answers through ``is_ko`` -- which is every
+      session this engine runs, now that ``apply_event`` folds the
+      change. The payload fold predates that and is kept for a session
+      whose rows came from somewhere else, where nothing would set
+      KNOCKED_OUT even though the payload plainly says so. See
       ``_is_knocked_out_from_payload``'s docstring for its clear edge.
       A THIRD condition also forces KNOCKED_OUT regardless of the two
       above: ``_is_dead(session, combatant_id)`` -- DEAD implies

@@ -6,13 +6,15 @@ consumer therefore subtracted damage by hand — the parked kirby-api driver
 did it at 15 separate sites, none of which handled both combatant shapes.
 A fight could not run more than one exchange out of the engine alone.
 
-HOW IT IS APPLIED, AND WHY NOT IN ``apply_event``. Mutate the combatant,
-then log — the same two-step ``_apply_post_12_recovery`` and
-``MovementAction.resolve`` already use, the latter commented "apply_event
-won't do it for us". ``session/apply.py`` explicitly rejects folding stat
-changes into the dispatcher: "combatant stat mutations in apply would force
-log replay to mirror combatant state, which is more brittle." These tests
-pin the two-step, not an apply-time fold.
+HOW IT IS APPLIED — IN ``apply_event``, as of 2026-09-17. It used to be a
+two-step: mutate the combatant, then log, the arrangement every resolver
+copied and which ``session/apply.py`` defended in a comment ("combatant
+stat mutations in apply would force log replay to mirror combatant state,
+which is more brittle"). The opposite turned out to be true — a consumer
+that rebuilt a fight from its rows rebuilt one in which nobody had been
+hit — so the attack emits a typed ``VitalsChanged`` and the dispatcher
+does the writing. These tests pin the OUTCOME, which is unchanged: the
+damage lands on ``session.combatants``.
 """
 from __future__ import annotations
 

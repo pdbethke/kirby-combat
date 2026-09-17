@@ -578,8 +578,8 @@ def resolve_attack_in_session(
     # power on Charges or with Reduced Endurance (0 END) comes back 0, so
     # a gunfight full of charged revolvers still costs nobody anything.
     #
-    # Folded here beside the damage for the same reason: `apply_event`
-    # deliberately treats `ActionResolved` as log-only.
+    # Recorded here beside the damage, and through the same door: an END
+    # spend is a `VitalsChanged` row and `apply_event` applies it.
     s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure

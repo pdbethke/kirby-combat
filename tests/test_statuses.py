@@ -602,8 +602,8 @@ def test_statuses_for_dead_does_not_also_read_as_recovering_from_stunned():
 # ---------------------------------------------------------------------------
 # Knocked Out coherence (Task 4 follow-up) -- surfaced by Task 5's example:
 # a payload naming "Stunned"/"Knocked Out"/"Dead" together, on a session
-# whose driver never mutates vitals (`resolve_attack_in_session` is
-# deliberately log-only, `session/apply.py`), previously produced `dead`
+# whose vitals had not moved (`apply_event` folded none until 2026-09-17)
+# previously produced `dead`
 # and `stunned` with NO `knockedOut` at all -- self-contradictory to any
 # consumer. `KNOCKED_OUT` now unions the live `is_ko` source with
 # `_is_knocked_out_from_payload`, the same payload fold STUNNED/DEAD use.
@@ -659,8 +659,8 @@ def test_statuses_for_lethal_hit_yields_both_dead_and_knocked_out():
     """The coherence property, pinned directly: a hit whose status_changes
     names Stunned + Knocked Out + Dead together must surface ALL THREE
     from statuses_for -- not dead+stunned with knockedOut silently
-    missing, even though `is_ko` (live current_stun) never moves, because
-    resolve_attack_in_session is deliberately log-only."""
+    missing, which is what happened while `is_ko` (live current_stun)
+    could not move because nothing folded a vital."""
     attacker = _attacker_for_stun()
     target = _target_for_stun(current_body=-10)  # same fixture as the Dead test
     session = _session(attacker, target)

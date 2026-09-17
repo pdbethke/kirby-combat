@@ -134,7 +134,7 @@ from kirby_combat.session.timeline import (  # noqa: E402
 )
 from kirby_combat.session.events import (  # noqa: E402
     AbortDeclared, ActingOrderResolved, ActionDeclared, ActionResolved,
-    CombatEvent, PhaseSpent,
+    BleedingSuffered, CombatEvent, PhaseSpent, RecoveryTaken, VitalsChanged,
     EnvironmentalTriggered, GMOverride, HeldActionDeclared, HeldActionReleased,
     MovementResolved, SegmentAdvanced, StatusChanged,
     make_author_combatant, make_author_engine, make_author_gm,
@@ -228,7 +228,8 @@ __all__ = [
     # The session and its log
     "CombatSession", "Timeline", "apply_event", "build_acting_order_for_segment",
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
-    "CombatEvent", "PhaseSpent",
+    "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
+    "VitalsChanged",
     "EnvironmentalTriggered", "GMOverride", "HeldActionDeclared",
     "HeldActionReleased", "MovementResolved", "SegmentAdvanced",
     "StatusChanged",

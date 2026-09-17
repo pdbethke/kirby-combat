@@ -37,17 +37,18 @@ number, replay every event through ``apply_event`` from scratch) and shows
 ``statuses_for`` agrees, at each point, with what was observed live as the
 fight happened.
 
-HONEST LIMIT, stated rather than papered over: **this does NOT show state
-equality on STUN/BODY.** ``apply_event`` deliberately treats
-``ActionResolved``, ``RecoveryTaken``, ``MovementResolved``, the ``Status*``
-events, ``Entangle*`` and ``Flash*`` as log-only — see ``session/apply.py``,
-directly above the set of kinds handled that way: "Rewind correctness
-depends on this — combatant stat mutations in apply would force log replay
-to mirror combatant state, which is more brittle." So a rebuilt session's
-combatants keep whatever STUN/BODY they started with; only the DERIVED
-conditions (``statuses_for``'s output) are what replay is claimed to
-reconstruct, and that is exactly what a client publishing a combat needs,
-since it toggles status effects rather than recomputing damage itself.
+THE LIMIT THAT USED TO STAND HERE IS GONE (2026-09-17). This file said,
+truthfully at the time, that it did **not** show state equality on
+STUN/BODY: ``apply_event`` folded no vitals, every resolver changed the
+combatant beside the event, and a rebuilt session's fighters kept whatever
+STUN they started with. Only the DERIVED conditions were claimed.
+
+``apply_event`` is now the only writer of STUN, BODY and END, so the
+stronger claim holds and section 5 below asserts it: the rebuilt session's
+vitals equal the live session's at the same sequence, not merely its
+conditions. A client that toggles status effects still only needs the
+conditions; a client that rebuilds a fight from its rows before every step
+needs the vitals, and that is what this now demonstrates.
 
 A second limit, also real: a **mental** Stunned is not recorded here.
 ``mental/mental_blast.py``'s own ``target_stunned`` computation has no
@@ -247,9 +248,8 @@ def main() -> None:
     print("  a FRESH session, and replays every kept event through apply_event")
     print("  from scratch. What is asserted below is that statuses_for reads")
     print("  the SAME condition set off that rebuilt session as was observed")
-    print("  live at the same point — not that STUN/BODY match (they don't")
-    print("  have to: apply_event treats ActionResolved/RecoveryTaken as")
-    print("  log-only, by design — see this file's module docstring).")
+    print("  live at the same point — AND that STUN/BODY/END match, which")
+    print("  they now must: apply_event is the only writer of a vital.")
 
     reconstructed_at_hit = rewind_to_sequence(final_session, sequence_at_hit)
     at_hit = statuses_for(reconstructed_at_hit, VILLAIN.id)
@@ -267,6 +267,24 @@ def main() -> None:
     print("  stunned is gone — reconstructed from a log that ends one Segment")
     print("  before the final one printed above, and still agrees with what")
     print("  was observed live at that same sequence number.")
+
+    # ── 6. The vitals, not just the conditions ────────────────────────────
+    rule("6. The vitals match too — apply_event is the only writer")
+    at_end = rewind_to_sequence(final_session, len(final_session.event_log))
+    for cid, live in final_session.combatants.items():
+        rebuilt = at_end.combatants[cid]
+        print(f"  {cid:<10} live STUN/BODY/END "
+              f"{live.state.current_stun}/{live.state.current_body}/"
+              f"{live.state.current_end}   rebuilt "
+              f"{rebuilt.state.current_stun}/{rebuilt.state.current_body}/"
+              f"{rebuilt.state.current_end}")
+        assert (live.state.current_stun, live.state.current_body,
+                live.state.current_end) == (
+            rebuilt.state.current_stun, rebuilt.state.current_body,
+            rebuilt.state.current_end)
+    print("  Rebuilt from the rows alone, into the men as the fight FOUND")
+    print("  them (CombatSession.initial_combatants) — replaying into the men")
+    print("  as it left them would apply the fight's damage twice.")
 
     rule("END")
 

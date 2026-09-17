@@ -16,12 +16,10 @@ charged.
 Found by sweeping every dataclass field for reads: `push_end` was set and
 read by nobody.
 
-WHERE IT IS SPENT, and why not at apply time. `session/apply.py`
-deliberately treats `ActionResolved` as log-only --- "combatant stat
-mutations in apply would force log replay to mirror combatant state, which
-is more brittle" --- so this folds the END beside the resolution, exactly
-as `_apply_damage` folds damage and `MovementAction.resolve` already
-applies its own END spend.
+WHERE IT IS SPENT: in the log. `_spend_end` emits a `VitalsChanged` and
+`apply_event` applies it --- the one door every vital change goes through
+since 2026-09-17. It used to fold the END onto the combatant beside the
+resolution and record nothing at all, so a replayed Push was free.
 
 THE DISTANCE WAS NEVER THE BUG. Enumeration computes the destination
 inside the pushed radius and puts it on `reposition_dest`, so the actor

@@ -149,13 +149,11 @@ def main() -> None:
     print('  6E2 p.131: "...all characters (even Stunned ones) get a free')
     print('  Post-Segment 12 Recovery."')
 
-    # `resolve_attack_in_session` never mutates vitals itself (log-only --
-    # see its own docstring: the event log carries `stun_dealt`, but no
-    # combatant's `current_stun` changes because of it). So bob's live
-    # STUN is still 30/30 here even though the hit above dealt 20 -- to
-    # give the free Recovery below visible room to raise it, set his
-    # current STUN directly, the same way `test_stunned_enforcement.py`'s
-    # own Recovery test does.
+    # Bob's STUN HAS moved: `apply_event` folds the `VitalsChanged` the
+    # attack emitted, so the hit above really took its 20 off him. His
+    # STUN is pinned lower still here, by hand, so the free Recovery below
+    # has visible room to raise it against a fixed starting number rather
+    # than against whatever the dice happened to do.
     from dataclasses import replace as _replace
     session = _replace(
         session,
