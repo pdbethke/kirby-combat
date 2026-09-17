@@ -419,5 +419,30 @@ def sense_penalty_modifiers(
     """
     if not _targeting_senses_blocked(session, combatant_id, opponent_id):
         return {}
+    return sense_penalty_row(session, combatant_id, opponent_id, combat_type)
+
+
+def sense_penalty_row(
+    session: "CombatSession",
+    combatant_id: str,
+    opponent_id: str,
+    combat_type: str = HTH,
+) -> dict[str, float]:
+    """6E2 p.9's row for a combatant ALREADY ESTABLISHED to be unable to
+    perceive ``opponent_id`` with a Targeting Sense.
+
+    The table half of ``sense_penalty_modifiers``, without its predicate.
+    It exists because ``_targeting_senses_blocked`` is deliberately NOT
+    the only way a combatant can end up unable to perceive an opponent:
+    this module's own docstring records that line-of-sight occlusion is
+    left out of that predicate on purpose, and ``perception.perceive``
+    answers the same question WITH occlusion folded in. A caller holding
+    a ``perceive`` answer has already decided the predicate and needs
+    only the numbers.
+
+    Splitting it out rather than letting that caller write its own halving
+    keeps 6E2 p.9's table, and the p.9 mitigation that reads it, in ONE
+    place. Two copies of a rule drift; this engine has paid for that.
+    """
     mitigated = NontargetingPerception.holds(session, combatant_id, opponent_id)
     return dict(_SENSE_PENALTY_TABLE[(_normalise_combat_type(combat_type), mitigated)])

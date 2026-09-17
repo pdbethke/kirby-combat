@@ -2034,6 +2034,105 @@ def _resolve_pickup(
 # ---------------------------------------------------------------------------
 
 
+def _cannot_perceive(session, observer, opponent) -> bool:
+    """True when NO Targeting Sense of ``observer`` reaches ``opponent``.
+
+    The engine has one resolver for that question -- `perception.perceive`
+    -- and this asks it rather than growing a second answer. `perceive`
+    folds every way a sense can be lost at once: a Flash on the observer's
+    Sense Group, a Darkness field on the ray, Invisibility, a Hidden
+    target, and the walls (`_sight_los`) that `sense_penalties`'
+    `_targeting_senses_blocked` deliberately leaves out.
+
+    **A session with no Scene is not blind.** `perceive` takes the scene
+    and treats a scene-less call as no occlusion gate -- there is no
+    geometry, so nothing can stand between two men -- and this passes
+    `session.scene` straight through rather than second-guessing it. A
+    Flash still blinds in a scene-less fight, because a Flash is carried on
+    the log and needs no geometry at all.
+
+    Fail-open on any error, matching enumeration's own per-enemy `perceive`
+    gate: a combatant shape with no `senses()` must not make every maneuver
+    in the fight unresolvable.
+    """
+    from kirby_combat.actions.flash import Flash
+    from kirby_combat.perception import perceive
+
+    try:
+        _, flashed = Flash.is_flashed(session, observer.id)
+        perception = perceive(
+            observer, opponent, getattr(session, "scene", None),
+            observer_flashed_groups=frozenset(flashed),
+        )
+    except Exception:
+        return False
+    return not perception.targetable_physical
+
+
+def _blind_cv_delta(session, observer, opponent, key: str) -> int:
+    """6E2 p.127's penalty to ``observer``'s ``key`` CV, as a delta.
+
+    "Inability To Sense An Opponent" (6E2 p.127; the worked example and the
+    same table are on 6E2 p.9): hand-to-hand, a character who cannot
+    perceive his opponent with a Targeting Sense is at half OCV, and so is
+    his DCV against that opponent. Zero when he can perceive him.
+
+    A DELTA because `resolution/to_hit.py` takes `ocv_modifier` /
+    `dcv_modifier` and adds them to the base CV; returning the difference
+    lets the halving ride in on the channel that already exists instead of
+    a new field. The halving itself is `cv_modifiers.apply_cv_factor` --
+    6E2 p.39's sign-aware rounding, the engine's only halving -- and the
+    numbers come from `sense_penalties`' table, which is where 6E2 p.9's
+    rows and the p.9 Nontargeting-PER mitigation already live.
+
+    **Hand-to-hand, and said so explicitly.** p.9 gives a harsher Ranged
+    row (OCV drops to ZERO), and the maneuvers on this path -- Trip (p.67),
+    Disarm (p.65) -- are hand-to-hand maneuvers. A blind Ranged attack is
+    the attack path's business, not this one's.
+    """
+    from kirby_combat.cv_modifiers import apply_cv_delta, apply_cv_factor
+    from kirby_combat.sense_penalties import HTH, sense_penalty_row
+
+    if not _cannot_perceive(session, observer, opponent):
+        return 0
+    row = sense_penalty_row(session, observer.id, opponent.id, HTH)
+    base = int(getattr(observer, key))
+    value = apply_cv_factor(base, row.get(f"{key}_factor", 1.0))
+    value = apply_cv_delta(value, int(row.get(f"{key}_delta", 0)))
+    return value - base
+
+
+def _report_cvs(session, result):
+    """Re-stamp the resolution event with what the roll was actually made
+    against: `effective_ocv`, `target_dcv` and `margin`.
+
+    All three are read off the engine's own `ToHitResult` rather than
+    recomputed -- `margin` is `target_number - roll` and the resolver has
+    already worked it out. Without them a maneuver's log says only whether
+    it hit: a Trip halved for blindness and a Trip that simply rolled badly
+    are the same event to any reader, which is precisely the information a
+    blind penalty exists to make visible.
+
+    Finds the resolution event by its payload rather than assuming it is
+    the last one on the log: the recording path may append further events
+    after it (a Presence Attack from a violent blow, say).
+    """
+    from dataclasses import replace as _replace
+
+    log = list(session.event_log)
+    for index in range(len(log) - 1, -1, -1):
+        payload = getattr(log[index], "result_payload", None)
+        if isinstance(payload, dict) and "hit" in payload:
+            log[index] = _replace(log[index], result_payload={
+                **payload,
+                "effective_ocv": result.to_hit.effective_ocv,
+                "target_dcv": result.to_hit.effective_dcv,
+                "margin": result.to_hit.margin,
+            })
+            return _replace(session, event_log=log)
+    return session
+
+
 def _maneuver_attack(
     session, actor, action: LegalAction, *, roller, ocv_modifier: int,
     damage_dice: int | None = None, action_type: str = "strike",
@@ -2044,6 +2143,13 @@ def _maneuver_attack(
     hand, so a maneuver gets every rule a normal attack gets -- CV
     modifiers, the hit determination, damage application -- instead of a
     second, thinner copy of the resolution path.
+
+    Two questions of perception are asked here, not one (6E2 p.127): the
+    attacker's OCV turns on whether HE can perceive the target, and the
+    target's DCV on whether the TARGET can perceive the attacker. They have
+    different answers all the time -- a Flashed man swinging at someone who
+    can see him perfectly well -- and a single "blind" flag cannot carry
+    both. See `_blind_cv_delta`.
     """
     from kirby_combat.models import AttackInput, DiceValues
 
@@ -2057,10 +2163,12 @@ def _maneuver_attack(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(0, dice)),
-        ocv_modifier=ocv_modifier,
+        ocv_modifier=ocv_modifier + _blind_cv_delta(session, actor, target, "ocv"),
+        dcv_modifier=_blind_cv_delta(session, target, actor, "dcv"),
     )
-    return resolve_attack_in_session(session, attack, session.template,
-                                     action_type=action_type)
+    new_session, result = resolve_attack_in_session(
+        session, attack, session.template, action_type=action_type)
+    return _report_cvs(new_session, result), result
 
 
 #: The house-rule save's skill (kirby-api Spec C §3). Named once so
