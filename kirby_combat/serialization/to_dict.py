@@ -48,9 +48,17 @@ def to_dict(obj: Any) -> Any:
     # See spec §7 — combatant snapshots are point-in-time, not the
     # canonical character. JSONB blob in combat_session.combatants_jsonb
     # only needs enough to rehydrate combat state.
-    from kirby_combat.hero_view import HeroCombatant
+    from kirby_combat.hero_view import CombatantSnapshot, HeroCombatant
     if isinstance(obj, HeroCombatant):
         s = obj.combat_stats()
+        # EVERY DERIVED VIEW, read off the live combatant in one place.
+        # The stat keys below are not enough to fight with: `attacks`,
+        # `defenses`, `csls`, `senses`, `movement_view`, `maneuver_view`,
+        # `framework_view` and the rest are all computed from `hero.powers`
+        # / `.skills` / `.equipment` / `.martial_arts`, and `from_dict`
+        # rebuilds around a stub hero that has none of them. See
+        # `CombatantSnapshot`.
+        view = CombatantSnapshot.of(obj)
         snapshot = {
             "__type__": "HeroCombatant",
             "id": obj.id,
@@ -75,11 +83,30 @@ def to_dict(obj: Any) -> Any:
             "aborted": obj.state.aborted,
             "in_hero_id": obj.state.in_hero_id,
             "knockback_resistance": obj.knockback_resistance,
-            # Public-view projection of attacks/defenses (the lossy
-            # fields that round-trip through synthetic_combatant on
-            # the from_dict side).
-            "attacks": [to_dict(a) for a in obj.attacks],
-            "defenses": [to_dict(d) for d in obj.defenses],
+            # Which part of the fight this man is on. A `Side` is an
+            # object with an identity, not a label, and it was dropped on
+            # the wire entirely: a rebuilt roster was an N-way free-for-all
+            # in which the two men who had been allies now had to kill each
+            # other, and `last_side_standing` named a different winner.
+            "side": to_dict(obj.side),
+            # THE DERIVED VIEWS. Everything the resolution and enumeration
+            # layers read off a combatant that the flat stat keys above
+            # cannot answer.
+            "attacks": [to_dict(a) for a in view.attacks],
+            "defenses": [to_dict(d) for d in view.defenses],
+            "csls": [to_dict(c) for c in view.csls],
+            "senses": [to_dict(x) for x in view.senses],
+            "movement": [to_dict(m) for m in view.movement],
+            "maneuvers": [to_dict(m) for m in view.maneuvers],
+            "frameworks": [to_dict(f) for f in view.frameworks],
+            "str_source_id": view.str_source_id,
+            "reach_m": view.reach_m,
+            "swimming_m": view.swimming_m,
+            "is_npc": view.is_npc,
+            "is_mentalist": view.is_mentalist,
+            "has_combat_sense": view.has_combat_sense,
+            "has_self_contained_breathing": view.has_self_contained_breathing,
+            "skill_rolls": dict(view.skill_rolls),
         }
         # The stat keys above are CURRENT — drains and aids already in them.
         # The drains/aids dicts are recorded too, and combat_stats() applies

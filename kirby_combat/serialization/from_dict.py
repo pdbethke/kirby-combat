@@ -26,7 +26,12 @@ def _ensure_registry() -> None:
         StatBlockCombatant, AttackPower, DefenseItem, CombatSkillLevel,
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
+        MovementCapability, FrameworkView, SlotView,
     )
+    # The rest of a combatant's derived views (see hero_view.CombatantSnapshot).
+    from kirby_combat.hero_view import MartialManeuverView
+    from kirby_combat.perception import SenseCapability
+    from kirby_combat.side import Side
     from kirby_combat.vehicles import Vehicle, Passenger
     from kirby_combat.masscombat import Unit, UnitMorale
     from kirby_combat.breakables.object_combatant import ObjectCombatant
@@ -59,6 +64,8 @@ def _ensure_registry() -> None:
         Vehicle, Passenger, Unit, ObjectCombatant,
         Timeline, ActingSlot, ActionIntent, HeldAction, CombatSession,
         EventAuthor,
+        MovementCapability, FrameworkView, SlotView,
+        MartialManeuverView, SenseCapability, Side,
     ]:
         _register(cls)
     # Enums register too so we can rehydrate enum-valued fields if needed.
@@ -216,48 +223,66 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         hero=hero,  # type: ignore[arg-type]
         state=state,
         knockback_resistance=int(data.get("knockback_resistance", 0)),
-    )
-
-    # Power-derived defenses (rPD/rED/MD/POWD/FLASHD) aren't
-    # characteristics in 6E — they come from powers. The snapshot
-    # carries them as flat ints. The base combat_stats() walks
-    # hero.powers (empty in our snapshot stub) and returns 0 for
-    # all of these. Patch combat_stats() on this instance to inject
-    # the snapshotted values.
-    base_compute = hc.combat_stats
-    snap_rpd = int(data.get("rpd", 0))
-    snap_red = int(data.get("red", 0))
-    snap_md = int(data.get("md", 0))
-    snap_powd = int(data.get("power_defense", 0))
-    snap_flashd = int(data.get("flash_defense", 0))
-
-    def _patched_combat_stats():
-        s = base_compute()
-        s.rpd = snap_rpd
-        s.red = snap_red
-        s.md = snap_md
-        s.power_defense = snap_powd
-        s.flash_defense = snap_flashd
-        return s
-
-    hc.combat_stats = _patched_combat_stats  # type: ignore[method-assign]
-    # The base HeroCombatant computes attacks/defenses from
-    # hero.powers (empty here). Snapshot has them as flat lists —
-    # patch in via instance attrs that the property checks.
-    if "attacks" in data:
-        hc._snapshot_attacks = [from_dict(a) for a in data["attacks"]]  # type: ignore[attr-defined]
-    if "defenses" in data:
-        hc._snapshot_defenses = [from_dict(d) for d in data["defenses"]]  # type: ignore[attr-defined]
-    # Override the property-based attacks/defenses so rehydrated rows
-    # see the snapshot. The base property looks at hero.powers (empty
-    # for snapshots) and returns [].
-    object.__setattr__(
-        hc, "_snapshot_override_attacks", hc.__dict__.get("_snapshot_attacks", []),
-    )
-    object.__setattr__(
-        hc, "_snapshot_override_defenses", hc.__dict__.get("_snapshot_defenses", []),
+        side=from_dict(data["side"]),
+        snapshot=_snapshot_from_dict(data),
     )
     return hc
+
+
+#: The keys a snapshot must carry to describe a combatant that can fight.
+#: NOT defaulted, and deliberately: the shape they replace defaulted every
+#: one of them to empty, and an empty `attacks` list is a legal combatant --
+#: so a rebuilt fighter with no attacks, no maneuvers, no frameworks and no
+#: Combat Skill Levels resolved perfectly well and did nothing. A recording
+#: written before this release cannot answer these questions at all, and
+#: says so here rather than at the end of a fight that did no damage.
+_REQUIRED_SNAPSHOT_KEYS = (
+    "rpd", "red", "md", "power_defense", "flash_defense",
+    "reach_m", "swimming_m", "str_source_id", "side",
+    "attacks", "defenses", "csls", "senses", "movement", "maneuvers",
+    "frameworks", "is_npc", "is_mentalist", "has_combat_sense",
+    "has_self_contained_breathing", "skill_rolls",
+)
+
+
+def _snapshot_from_dict(data: dict) -> Any:
+    """Rebuild the recorded views. See `hero_view.CombatantSnapshot`."""
+    from kirby_combat.hero_view import CombatantSnapshot
+
+    missing = [k for k in _REQUIRED_SNAPSHOT_KEYS if k not in data]
+    if missing:
+        raise ValueError(
+            f"combatant snapshot {data.get('id')!r} is missing "
+            f"{missing} -- it was recorded before kirby-combat 0.18.1, when "
+            f"a rebuilt combatant carried no attacks, defenses, skills, "
+            f"senses, movement, maneuvers, frameworks or Combat Skill "
+            f"Levels and so could not fight. Re-record it from the "
+            f"canonical character with HeroCombatant.from_build(...)."
+        )
+    return CombatantSnapshot(
+        rpd=int(data["rpd"]),
+        red=int(data["red"]),
+        md=int(data["md"]),
+        power_defense=int(data["power_defense"]),
+        flash_defense=int(data["flash_defense"]),
+        reach_m=float(data["reach_m"]),
+        str_source_id=data["str_source_id"],
+        swimming_m=float(data["swimming_m"]),
+        attacks=[from_dict(a) for a in data["attacks"]],
+        defenses=[from_dict(d) for d in data["defenses"]],
+        csls=[from_dict(c) for c in data["csls"]],
+        senses=[from_dict(x) for x in data["senses"]],
+        movement=[from_dict(m) for m in data["movement"]],
+        maneuvers=[from_dict(m) for m in data["maneuvers"]],
+        frameworks=[from_dict(f) for f in data["frameworks"]],
+        is_npc=bool(data["is_npc"]),
+        is_mentalist=bool(data["is_mentalist"]),
+        has_combat_sense=bool(data["has_combat_sense"]),
+        has_self_contained_breathing=bool(
+            data["has_self_contained_breathing"]),
+        skill_rolls={str(k): int(v) for k, v in data["skill_rolls"].items()},
+    )
+
 
 
 def from_dict(data: Any) -> Any:

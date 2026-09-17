@@ -173,8 +173,15 @@ class _SyntheticCombatant(HeroCombatant):
     def attacks(self) -> list[AttackPower]:
         return self._explicit_attacks
 
-    @property
-    def defenses(self) -> list[DefenseItem]:
+    def defense_view(self) -> list[DefenseItem]:
+        """The caller's explicit list.
+
+        Overriding `defense_view` rather than the `defenses` property, which
+        is what this used to do: the base `defenses` IS `defense_view()`, so
+        shadowing only the property left a synthetic combatant answering
+        `[Vest]` through one door and `[]` through the other. Found by the
+        rebuilt-combatant gate, which reads both.
+        """
         return self._explicit_defenses
 
     @property

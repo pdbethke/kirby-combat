@@ -284,6 +284,125 @@ class MartialManeuverView:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CombatantSnapshot — every derived view, recorded once
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class CombatantSnapshot:
+    """What a live ``HeroCombatant`` reports, recorded so a rebuilt one
+    reports the same.
+
+    THE DEFECT THIS CLOSES. ``serialization/to_dict`` projects a
+    HeroCombatant to a flat snapshot and ``from_dict`` rebuilds it around a
+    stub hero with no powers, no skills, no martial arts and no equipment.
+    EVERY view on this class is derived from exactly those: ``attacks``
+    walks ``hero.powers`` and ``hero.equipment``, ``csls`` walks
+    ``hero.skills``, and ``defense_view``, ``senses``, ``movement_view``,
+    ``maneuver_view``, ``framework_view``, ``has_combat_sense``,
+    ``has_self_contained_breathing``, ``is_mentalist`` and
+    ``skill_roll_value`` each walk one of them. So a round-tripped
+    combatant reported NOTHING through any of them --- Drago's three RKAs
+    went in and none came back, and a rebuilt fight did no damage, had no
+    maneuvers to declare, no framework reserve to spend, no Combat Skill
+    Levels on any roll and no senses to see with.
+
+    The previous attempt assigned two instance attributes,
+    ``_snapshot_override_attacks`` and ``_snapshot_override_defenses``,
+    which NOTHING in this engine ever read --- and which would not have
+    reached the other seven views even if something had. It also
+    monkeypatched ``combat_stats`` onto the instance, which
+    ``dataclasses.replace`` drops (the same defect ``_SyntheticCombatant``
+    was fixed for on 2026-09-06), so a rebuilt combatant lost its resistant
+    defenses the first time it spent a point of END.
+
+    ONE DOOR. ``CombatantSnapshot.of(live)`` reads every recorded view off a
+    live combatant, and each view below returns the recorded value when a
+    snapshot is present. The resolvers are untouched and unaware: they go on
+    reading ``c.attacks``, ``c.csls``, ``c.senses()`` and get the same
+    values either way. There is no second path through resolution, and
+    nothing outside this class asks whether a combatant is a rebuilt one.
+
+    FROZEN, NOT LIVE --- deliberately, and the same stance the stub hero
+    already takes for characteristics: a snapshot is a point in time (spec
+    §7), not the canonical character. What still moves after a rebuild is
+    everything that hangs off ``state``: STUN, BODY, END, statuses, and
+    Drains and Aids on characteristics, which ``combat_stats`` goes on
+    applying. What does not move is anything only the build could answer ---
+    a Multipower reallocated on the canonical character, a weapon picked up
+    after the recording. To resume against the canonical character, call
+    ``HeroCombatant.from_build(...)`` instead of rebuilding a snapshot.
+    """
+
+    #: The power-derived defenses. In 6E these are bought as Powers, not
+    #: characteristics (6E1's Defense Powers), so unlike PD and ED they
+    #: cannot be recomputed from the snapshot's characteristic values.
+    rpd: int
+    red: int
+    md: int
+    power_defense: int
+    flash_defense: int
+    #: Melee reach in metres --- 1m base plus Stretching, which is a power.
+    reach_m: float
+    #: Metres of Swimming. Recorded as the CAPABILITY, not as ``can_swim``'s
+    #: verdict: that verdict also reads a session status which can be set or
+    #: cleared after the rebuild, and freezing the answer would have made
+    #: the status a no-op in one direction.
+    str_source_id: Optional[str]
+    swimming_m: float
+    attacks: list[AttackPower]
+    defenses: list[DefenseItem]
+    csls: list
+    senses: list
+    movement: list[MovementCapability]
+    maneuvers: list
+    frameworks: list
+    is_npc: bool
+    is_mentalist: bool
+    has_combat_sense: bool
+    has_self_contained_breathing: bool
+    #: Skill xmlid -> its 3d6 roll target, for every skill the character has
+    #: a numeric roll for. ``skill_roll_value`` answers ``None`` for anything
+    #: absent from here --- which is exactly what it answers live for a skill
+    #: the character does not have.
+    skill_rolls: dict[str, int]
+
+    @classmethod
+    def of(cls, combatant: "HeroCombatant") -> "CombatantSnapshot":
+        """Read every recorded view off a LIVE combatant.
+
+        The only constructor ``to_dict`` uses, and it takes no arguments
+        beyond the combatant, so a snapshot cannot be recorded half. A view
+        added to ``HeroCombatant`` and not added here is caught by
+        ``tests/serialization/test_a_rebuilt_combatant_is_the_same_combatant.py``,
+        which derives the list of views to compare from the class's own
+        public surface rather than from a list anybody keeps.
+        """
+        stats = combatant.combat_stats()
+        return cls(
+            rpd=stats.rpd, red=stats.red, md=stats.md,
+            power_defense=stats.power_defense,
+            flash_defense=stats.flash_defense,
+            reach_m=stats.reach_m,
+            str_source_id=combatant._str_characteristic_id(),
+            swimming_m=combatant.swimming_m(),
+            attacks=list(combatant.attacks),
+            defenses=list(combatant.defenses),
+            csls=list(combatant.csls),
+            senses=list(combatant.senses()),
+            movement=list(combatant.movement_view()),
+            maneuvers=list(combatant.maneuver_view()),
+            frameworks=list(combatant.framework_view()),
+            is_npc=combatant.is_npc,
+            is_mentalist=combatant.is_mentalist,
+            has_combat_sense=combatant.has_combat_sense(),
+            has_self_contained_breathing=(
+                combatant.has_self_contained_breathing()),
+            skill_rolls=combatant.skill_rolls(),
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # HeroCombatant — the participant that wraps a LoadedHero
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -329,6 +448,18 @@ class HeroCombatant(Stunnable, CombatParticipant):
     #: rather than one team that has already won. Resolve it through
     #: ``kirby_combat.loop.sides.side_of``, which applies that default.
     side: "Side | None" = None
+
+    #: Every derived view, recorded off a live combatant --- or ``None`` on
+    #: a combatant that still has its build to read. See
+    #: :class:`CombatantSnapshot`: when it is present, each view below
+    #: returns what was recorded rather than walking a stub hero that has
+    #: nothing on it.
+    #:
+    #: A FIELD, not an instance attribute, and that is load-bearing:
+    #: ``dataclasses.replace`` carries fields only, and the engine replaces a
+    #: combatant on every vitals change. The instance-attribute version of
+    #: this lost a rebuilt combatant's defenses the first time it spent END.
+    snapshot: "CombatantSnapshot | None" = None
 
     # ─────────────────────────────────────────────────────────────────────
     # Stat-block-shaped read API
@@ -466,6 +597,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 sub = getattr(p, "sub_powers", None)
                 if sub:
                     _walk(sub)
+        if self.snapshot is not None:
+            return self.snapshot.attacks
+
         _walk(self.hero.powers)
         # Carried weapons. Second, so an innate power keeps its position in
         # the list -- `attack_view` returns the first match for an xmlid,
@@ -484,6 +618,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """Default False — combatant-redesign doesn't yet thread the
         is_npc flag through HeroCombatState. Override per-callsite if
         the legacy path was reading this."""
+        if self.snapshot is not None:
+            return self.snapshot.is_npc
         return False
 
     @property
@@ -514,6 +650,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     return True
             return False
 
+        if self.snapshot is not None:
+            return self.snapshot.is_mentalist
         return _any_mental(getattr(self.hero, "powers", None))
 
     @property
@@ -552,6 +690,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
         feeds the physical Attack Roll.
         """
         from kirby_combat.models import CombatSkillLevel
+
+        if self.snapshot is not None:
+            return self.snapshot.csls
 
         out: list[CombatSkillLevel] = []
         for skill in _csl_skills(self.hero):
@@ -731,7 +872,24 @@ class HeroCombatant(Stunnable, CombatParticipant):
             stats.rpd = min(stats.rpd, stats.pd)
         if "red" not in self.state.aids:
             stats.red = min(stats.red, stats.ed)
-        stats.reach_m = _base_reach_m(self.hero)
+
+        # The power-derived half. rPD/rED, Mental, Power and Flash Defense
+        # are Powers rather than characteristics, and reach is 1m plus
+        # Stretching --- all of which a rebuilt combatant's stub hero has
+        # nothing to derive from, so they come off the snapshot. Last, after
+        # the Drain/Aid pass and the rPD cap, which is where the instance
+        # monkeypatch this replaces also sat: the recorded values ARE the
+        # post-cap ones, and applying the cap to them again would shrink a
+        # rebuilt man's armour on every read.
+        if self.snapshot is not None:
+            stats.rpd = self.snapshot.rpd
+            stats.red = self.snapshot.red
+            stats.md = self.snapshot.md
+            stats.power_defense = self.snapshot.power_defense
+            stats.flash_defense = self.snapshot.flash_defense
+            stats.reach_m = self.snapshot.reach_m
+        else:
+            stats.reach_m = _base_reach_m(self.hero)
         return stats
 
     def attack_view(
@@ -758,6 +916,26 @@ class HeroCombatant(Stunnable, CombatParticipant):
         match in walk order (top-level before sub_powers). Raises
         ``ValueError`` if no power matches.
         """
+        if self.snapshot is not None:
+            # A rebuilt combatant has the ATTACKS but not the powers they
+            # were built from, so the search runs over the recorded list.
+            # A framework slot is an attack in its own right there, so
+            # ``slot_xmlid`` names the one to find and the framework's own
+            # xmlid is only how it was reached.
+            want = (slot_xmlid or power_xmlid).upper()
+            want_name = None if name is None else name.strip().lower()
+            for recorded in self.snapshot.attacks:
+                if (recorded.xmlid or "").upper() != want:
+                    continue
+                if (want_name is not None
+                        and (recorded.name or "").strip().lower() != want_name):
+                    continue
+                return recorded
+            raise ValueError(
+                f"power xmlid={power_xmlid!r} name={name!r} not found "
+                f"on {self.id!r}"
+            )
+
         if name is not None:
             target_name = name.strip().lower()
             target_xmlid = power_xmlid.upper()
@@ -822,13 +1000,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # characteristic's object id. This was the one view carrying no id at
         # all, and a single identity-less view is enough to force every
         # consumer to keep a string fallback beside the id path.
-        str_obj = next(
-            (c for c in (getattr(self.hero, "characteristics", None) or [])
-             if (getattr(c, "xmlid", "") or "").upper() == "STR"),
-            None,
-        )
         return AttackPower(
-            source_id=getattr(str_obj, "id", None),
+            source_id=self._str_characteristic_id(),
             xmlid="STR",
             name="Strike",
             damage_dice=full_dice,
@@ -846,6 +1019,24 @@ class HeroCombatant(Stunnable, CombatParticipant):
             reach_m=stats.reach_m,
         )
 
+    def _str_characteristic_id(self) -> Optional[str]:
+        """The id of the STR characteristic object --- the identity the bare
+        Strike is named by.
+
+        The only part of ``str_strike_view`` a rebuilt combatant cannot
+        compute: the dice come from ``combat_stats().str_``, which is live
+        (a Drain on STR still shrinks a rebuilt man's punch), and the reach
+        from ``combat_stats().reach_m``. Only the id has to be carried.
+        """
+        if self.snapshot is not None:
+            return self.snapshot.str_source_id
+        str_obj = next(
+            (c for c in (getattr(self.hero, "characteristics", None) or [])
+             if (getattr(c, "xmlid", "") or "").upper() == "STR"),
+            None,
+        )
+        return getattr(str_obj, "id", None)
+
     def defense_view(self) -> list[DefenseItem]:
         """Build the active defense set from HD powers.
 
@@ -862,6 +1053,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Physical + Energy) need to surface every leaf defense, not
         just the parent.
         """
+        if self.snapshot is not None:
+            return self.snapshot.defenses
+
         items: list[DefenseItem] = []
         seen: set[int] = set()
 
@@ -891,12 +1085,16 @@ class HeroCombatant(Stunnable, CombatParticipant):
         TELEPORTATION, SWIMMING, TUNNELING) come from ``hero.powers``
         levels → metres. Zero-distance entries are suppressed.
         """
+        if self.snapshot is not None:
+            return self.snapshot.movement
         return _movement_capabilities(self.hero)
 
     def senses(self) -> list["SenseCapability"]:
         """The character's Targeting Senses (spec §1a). Normal Sight always
         present; bought sense powers (IR, Radar, Mind Scan, …) added from
         hero.powers. Mirrors movement_view()."""
+        if self.snapshot is not None:
+            return self.snapshot.senses
         from kirby_combat.perception import _sense_capabilities
         return _sense_capabilities(self.hero)
 
@@ -904,6 +1102,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """True if this combatant has the Combat Sense Talent (spec §1a).
         The seam Plan 2 reads to negate the HtH-blind penalty; mirrors
         ``senses()``. The HtH negation lives in Plan 2."""
+        if self.snapshot is not None:
+            return self.snapshot.has_combat_sense
         from kirby_combat.perception import has_combat_sense
         return has_combat_sense(self.hero)
 
@@ -920,17 +1120,41 @@ class HeroCombatant(Stunnable, CombatParticipant):
         unbound method rather than a computed value — guard against non-numeric
         so those never crash a perception contest.
         """
-        want = (xmlid or "").upper()
+        return self.skill_rolls().get((xmlid or "").upper())
+
+    def skill_rolls(self) -> dict[str, int]:
+        """Every skill this character has a numeric 3d6 roll for, by xmlid.
+
+        THE ONE DOOR ``skill_roll_value`` goes through, so a rebuilt
+        combatant answers from the recorded rolls without a second lookup
+        path in the resolvers --- ``perception`` asks for STEALTH, the
+        Paramedics and Acrobatics resolvers ask for theirs, and all three go
+        on calling ``skill_roll_value``.
+
+        First occurrence of an xmlid wins, including when that first
+        occurrence has no numeric roll: the search this replaced returned on
+        the first xmlid match and answered ``None`` if that one's
+        ``roll_value`` was an unbound method, and a later duplicate must not
+        quietly start answering for it.
+        """
+        if self.snapshot is not None:
+            return dict(self.snapshot.skill_rolls)
+
+        rolls: dict[str, int] = {}
+        seen: set[str] = set()
         for sk in getattr(self.hero, "skills", None) or []:
-            if (getattr(sk, "xmlid", None) or "").upper() == want:
-                rv = getattr(sk, "roll_value", None)
-                if rv is None:
-                    return None
-                try:
-                    return int(rv)
-                except (TypeError, ValueError):
-                    return None
-        return None
+            xmlid = (getattr(sk, "xmlid", None) or "").upper()
+            if not xmlid or xmlid in seen:
+                continue
+            seen.add(xmlid)
+            rv = getattr(sk, "roll_value", None)
+            if rv is None:
+                continue
+            try:
+                rolls[xmlid] = int(rv)
+            except (TypeError, ValueError):
+                continue
+        return rolls
 
     def maneuver_view(self) -> list["MartialManeuverView"]:
         """Build a MartialManeuverView per bought martial maneuver on this
@@ -953,6 +1177,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
             Escape (escapes a Grab, no offensive roll: "[STRDC] vs. Grabs").
         """
         from kirby_combat.actions.cv_parser import parse_cv
+
+        if self.snapshot is not None:
+            return self.snapshot.maneuvers
 
         out: list[MartialManeuverView] = []
         reach = _base_reach_m(self.hero)
@@ -1019,6 +1246,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
         )
         from kirby_combat.models import FrameworkView, SlotView
 
+        if self.snapshot is not None:
+            return self.snapshot.frameworks
+
         attack_by_slot: dict[str, "AttackPower"] = {
             a.slot_id: a for a in self.attacks if a.slot_id
         }
@@ -1067,6 +1297,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # TODO: does not recurse into sub_powers — a LIFESUPPORT inside a
         # Multipower/Framework slot is missed (matches attack_view's first-pass
         # behavior; revisit if a framework-housed Life Support character appears).
+        if self.snapshot is not None:
+            return self.snapshot.has_self_contained_breathing
         for p in getattr(self.hero, "powers", []) or []:
             if (getattr(p, "xmlid", "") or "").upper() != "LIFESUPPORT":
                 continue
@@ -1086,11 +1318,22 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Everyone has base Swimming in 6E, so the marker is the decisive signal."""
         if "cannot_swim" in self.state.statuses:
             return False
+        return self.swimming_m() > 0.0
+
+    def swimming_m(self) -> float:
+        """Metres of Swimming this character has.
+
+        Split out of ``can_swim`` so the CAPABILITY is what a snapshot
+        records and the session status stays live: freezing ``can_swim``'s
+        verdict would have made setting or clearing ``cannot_swim`` on a
+        rebuilt combatant a no-op in one direction.
+        """
+        if self.snapshot is not None:
+            return self.snapshot.swimming_m
         try:
-            swim = float(self.hero.characteristic_value("SWIMMING")) or 4.0  # 6E base swimming
+            return float(self.hero.characteristic_value("SWIMMING")) or 4.0  # 6E base swimming
         except Exception:
-            swim = 4.0  # 6E base swimming
-        return swim > 0.0
+            return 4.0  # 6E base swimming
 
 
 # ─────────────────────────────────────────────────────────────────────────────
