@@ -121,6 +121,27 @@ def _surprise_for(session, actor, target):
     return surprise_for(target=target, perceives_attacker=not blind)
 
 
+def _dodge_bonus(session, defender) -> int:
+    """6E2 p.55's +3 DCV for a defender who aborted to a Dodge, or 0.
+
+    A one-line wrapper on `Dodge.dcv_bonus` and deliberately nothing more:
+    the rule, the number and the "is he still dodging this Phase" question
+    all live in `actions/reactive/dodge.py`, which is where an Abort's
+    other consumers already read them. This exists so the attack path has
+    ONE name to call rather than each resolver importing `Dodge` and
+    remembering to ask -- the shape that left `dcv_bonus` with no caller at
+    all for as long as it has existed.
+
+    NOT A CONSULT. Nothing here asks the defender whether he WANTS to
+    abort; 6E2 p.62's reactive question needs a chooser and the engine has
+    no seat to ask it from. This reads a Dodge the defender already
+    declared, on his own Phase, through `mark_aborting`.
+    """
+    from kirby_combat.actions.reactive.dodge import Dodge
+
+    return Dodge.dcv_bonus(session, getattr(defender, "id", ""))
+
+
 def _attack_dice(roller, dice_count: int) -> DiceValues:
     """Every die one attack on a PERSON needs, rolled in one place.
 
@@ -344,7 +365,15 @@ def _resolve_attack(
         # swinging at him, which is a different question with a different
         # answer all the time. See `blind_dcv` above for why it is not also
         # asked when p.52's Surprised has already halved him.
-        dcv_modifier=blind_dcv,
+        #
+        # AND THE DODGE HE ABORTED TO. 6E2 p.55: a Dodge is +3 DCV against
+        # all attacks this Phase. `Dodge.dcv_bonus` has computed that
+        # correctly since the reactive line shipped and had no production
+        # caller anywhere -- so a fighter gave up his next Phase for a
+        # bonus nothing read, and `tactics/catalog/dodge_under_fire.py`
+        # recommended a move that bought nothing. Asked of the SESSION, not
+        # the combatant, because the declaration lives on the log.
+        dcv_modifier=blind_dcv + _dodge_bonus(session, target),
         # A GRAB CHANGED NOTHING ABOUT ANYONE'S COMBAT ABILITY until this
         # -- so grappling was strictly free, and never worth doing to a
         # man you could simply shoot. Western Hero p.104 prices it.
@@ -2208,7 +2237,13 @@ def _maneuver_attack(
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(0, dice)),
         ocv_modifier=ocv_modifier + _blind_cv_delta(session, actor, target, "ocv"),
-        dcv_modifier=_blind_cv_delta(session, target, actor, "dcv"),
+        # The Dodge is read here too, and through the same `_dodge_bonus`
+        # the attack path uses. A Trip aimed at a man who aborted to a
+        # Dodge is exactly the case 6E2 p.55's "all attacks" covers, and
+        # wiring it at the attack door only would rebuild the defect this
+        # engine keeps finding: one rule, one door, several doors.
+        dcv_modifier=(_blind_cv_delta(session, target, actor, "dcv")
+                      + _dodge_bonus(session, target)),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, session.template, action_type=action_type)
