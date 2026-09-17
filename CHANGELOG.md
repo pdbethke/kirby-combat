@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.18.1 — 2026-09-17
+
+**A round-tripped combatant can fight.** `serialization/to_dict` projects a
+`HeroCombatant` to a flat snapshot and `from_dict` rebuilds it around a stub
+hero with no powers, no skills, no martial arts and no equipment — and every
+view on `HeroCombatant` is derived from exactly those. `attacks` walks
+`hero.powers` and `hero.equipment`; `csls` walks `hero.skills`;
+`defense_view`, `senses`, `movement_view`, `maneuver_view`, `framework_view`,
+`is_mentalist`, `has_combat_sense`, `has_self_contained_breathing` and
+`skill_roll_value` each walk one of them. So a rebuilt combatant reported
+NOTHING through any of them: measured on the kirby-api harness, Drago's three
+RKAs went in and none came back, and a rebuilt fight did no damage. It also
+came back on no side — `side` was never written to the wire at all, so a
+rebuilt roster was a free-for-all in which the two men who had been allies now
+had to kill each other.
+
+The code meant to prevent this assigned `_snapshot_override_attacks` and
+`_snapshot_override_defenses`, which nothing in the engine ever read, and
+monkeypatched `combat_stats` onto the instance, which `dataclasses.replace`
+drops — so a rebuilt combatant also lost its resistant defenses the first time
+it spent a point of END.
+
+Replaced with ONE door: `hero_view.CombatantSnapshot` holds every derived
+view, `CombatantSnapshot.of(live)` records them off a live combatant, and each
+view returns the recorded value when a snapshot is present. The resolvers are
+untouched and unaware — they go on reading `c.attacks`, `c.csls`, `c.senses()`
+and see the same values either way. Everything hanging off `state` stays live:
+STUN, BODY, END, statuses, and Drains and Aids on characteristics, which
+`combat_stats` goes on applying. `skill_roll_value` now reads a new
+`skill_rolls()`; `can_swim` now reads a new `swimming_m()`, so the
+`cannot_swim` status stays live on a rebuilt man rather than being frozen into
+the verdict.
+
+**BREAKING (wire format).** A combatant snapshot must now carry its views.
+`from_dict` raises `ValueError` naming the missing keys on a snapshot recorded
+by 0.18.0 or earlier, rather than rebuilding a man who does nothing — an empty
+`attacks` list is a legal combatant, which is why nothing complained. Re-record
+such a combatant from the canonical character with `HeroCombatant.from_build`.
+
+**`PresenceActionLost` can be read back off the wire.** It is a `_BaseEvent`
+subclass that `pre_attacks/presence_effects.py` emits and `apply_event` folds,
+and it was absent from the `CombatEvent` union — so the registry `from_dict`
+derives from the union never knew the name, and a fight in which a Presence
+Attack cost a man his Phase could be written and never read back
+(`unknown type 'PresenceActionLost'`). Same shape as the six `VitalsChanged`
+was in, one level up: `EVENT_CLASSES` guards the registry against the union
+and could not guard the union against the classes. The round-trip gate now
+DERIVES its set as every `_BaseEvent` subclass the events module declares, so
+the union, the registry and the folder cannot disagree again.
+
+Fixture fix, found by the new gate: `_SyntheticCombatant` shadowed the
+`defenses` property while the base `defenses` *is* `defense_view()`, so a
+synthetic combatant answered `[Vest]` through one door and `[]` through the
+other. It overrides `defense_view` now.
+
+Known, and left as a strict xfail rather than papered over:
+`enumeration.enumerate_actions` reaches past the combatant's public surface
+into `actor.hero` at 21 sites (it says so in its own comment), so a rebuilt
+corpus character's menu loses the actions read straight off HEALING and AID
+powers — for which no view on `HeroCombatant` exists. The combatant itself
+round-trips; this is a second door in the enumerator.
+
 ## 0.18.0 — 2026-09-17
 
 **Mental Defense applies to mental attacks.** `resolution/defense.py`'s
