@@ -107,6 +107,32 @@ def _fight(scene) -> CombatSession:
     ).start()
 
 
+def _stat_block(id: str, *, side):
+    """The same man as `_man`, described by a flat stat block -- no build,
+    and so no `senses()` for `perceive` to read."""
+    from kirby_combat.models import StatBlockCombatant
+
+    return StatBlockCombatant(
+        id=id, name=id, ocv=OCV, dcv=DCV, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=15, con=18, pre=15, rec=6,
+        pd=4, ed=4, rpd=2, red=2, md=3,
+        power_defense=0, flash_defense=0,
+        max_stun=40, max_body=12, max_end=40,
+        current_stun=40, current_body=12, current_end=40,
+        attacks=[_blast(f"{id}-eb")], defenses=[], side=side,
+    )
+
+
+def _statblock_fight() -> CombatSession:
+    return CombatSession.create(
+        id="s", scene=None, template=TEMPLATE, dice_roller=FakeRoller([]),
+        combatants=[
+            _stat_block("brute", side=Side.named("villains")),
+            _stat_block("mark", side=Side.named("heroes")),
+        ],
+    ).start()
+
+
 def _trip() -> LegalAction:
     return LegalAction(
         action_id="trip:mark", kind="trip", target_id="mark",
@@ -177,6 +203,42 @@ def test_a_flashed_target_defends_at_half_dcv_against_a_man_who_sees_him():
 
     assert payload["effective_ocv"] == OCV + TRIP_OCV_MODIFIER
     assert payload["target_dcv"] == _half(DCV)
+
+
+def test_a_flashed_stat_block_is_halved_too():
+    """Only a build-backed combatant answers `senses()`. Treating the
+    absence as "he can see" made the rule a silent no-op for every flat
+    stat block -- which is most of the drivers that will ever use it, and
+    which no test in this suite would have caught, because they all build
+    heroes. 6E2 p.9's normal human (Sight, and only Sight, aims) is the
+    fallback, shared with `sense_penalties`.
+    """
+    session = _statblock_fight()
+    session, _ = Flash.apply(
+        session, attacker_id="mark", target_id="brute",
+        sense_group="sight", body_dealt=4, flash_defense=0,
+    )
+    resolved = _resolve(session, [4, 4, 4])
+    payload = resolved.session.event_log[-1].result_payload
+
+    assert payload["effective_ocv"] == _half(OCV) + TRIP_OCV_MODIFIER
+    assert payload["target_dcv"] == DCV
+
+
+def test_a_stat_block_flashed_in_a_nontargeting_group_still_aims():
+    """The fallback has to be the whole rule, not just its punishing half:
+    Hearing is Nontargeting for a normal human, so a Hearing Flash costs
+    him no CV at all (6E2 p.9)."""
+    session = _statblock_fight()
+    session, _ = Flash.apply(
+        session, attacker_id="mark", target_id="brute",
+        sense_group="hearing", body_dealt=4, flash_defense=0,
+    )
+    resolved = _resolve(session, [4, 4, 4])
+    payload = resolved.session.event_log[-1].result_payload
+
+    assert payload["effective_ocv"] == OCV + TRIP_OCV_MODIFIER
+    assert payload["target_dcv"] == DCV
 
 
 # ---------------------------------------------------------------------------

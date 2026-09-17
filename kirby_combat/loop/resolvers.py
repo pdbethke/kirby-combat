@@ -2044,6 +2044,14 @@ def _cannot_perceive(session, observer, opponent) -> bool:
     target, and the walls (`_sight_los`) that `sense_penalties`'
     `_targeting_senses_blocked` deliberately leaves out.
 
+    **This is THE predicate for 6E2 p.127 on every path that prices a blow
+    rather than refusing one.** It is deliberately the only one: a second
+    copy would drift from this one within weeks, and this engine's dominant
+    defect has been a rule enforced at one door and not the next. Anything
+    that needs "can he perceive him" for a CV calls this, and shares
+    `sense_penalties`' normal-human fallback below rather than growing its
+    own.
+
     **A session with no Scene is not blind.** `perceive` takes the scene
     and treats a scene-less call as no occlusion gate -- there is no
     geometry, so nothing can stand between two men -- and this passes
@@ -2051,21 +2059,34 @@ def _cannot_perceive(session, observer, opponent) -> bool:
     Flash still blinds in a scene-less fight, because a Flash is carried on
     the log and needs no geometry at all.
 
-    Fail-open on any error, matching enumeration's own per-enemy `perceive`
-    gate: a combatant shape with no `senses()` must not make every maneuver
-    in the fight unresolvable.
+    **IT DOES NOT FAIL OPEN, and the reason is the whole point of the
+    rule.** `perceive` asks the observer for `senses()`, which only a
+    build-backed combatant has; a flat stat block does not. An earlier
+    draft of this function wrapped the call in a bare `except Exception:
+    return False`, which turned "I could not tell" into "he can see
+    perfectly well" -- so a blind Trip by a stat-block combatant took NO
+    penalty, silently, and every test in the suite stayed green because
+    they all use builds. `sense_penalties` had already met and solved that
+    exact shape; `as_sensing_observer` is its answer, shared rather than
+    copied: the observer is handed 6E2 p.9's normal human (Sight, and only
+    Sight, aims) when it has no senses of its own. So the fallback is
+    grounded, one stat block Flashed in the Sight Group is blind, and one
+    Flashed in the Hearing Group still aims.
+
+    Nothing else is caught. There is no error left that means "he can
+    see", and a swallowed one would be another silent no-op of the kind
+    this function was just fixed for.
     """
     from kirby_combat.actions.flash import Flash
     from kirby_combat.perception import perceive
+    from kirby_combat.sense_penalties import as_sensing_observer
 
-    try:
-        _, flashed = Flash.is_flashed(session, observer.id)
-        perception = perceive(
-            observer, opponent, getattr(session, "scene", None),
-            observer_flashed_groups=frozenset(flashed),
-        )
-    except Exception:
-        return False
+    _, flashed = Flash.is_flashed(session, observer.id)
+    perception = perceive(
+        as_sensing_observer(observer), opponent,
+        getattr(session, "scene", None),
+        observer_flashed_groups=frozenset(flashed),
+    )
     return not perception.targetable_physical
 
 
@@ -2190,7 +2211,15 @@ def _acrobatics_save(session, target_id: str | None, result, *, roller):
     """
     if not result.hit or not target_id or target_id not in session.combatants:
         return None
-    skill_roll = session.combatants[target_id].skill_roll_value(ACROBATICS)
+    tripped = session.combatants[target_id]
+    # A flat stat block owns no skills at all -- it has no `skill_roll_value`
+    # to ask -- which is the same fact as "this man has no ACROBATICS", and
+    # is recorded the same way. Asked for rather than assumed: until this
+    # line, a landed Trip against a stat-block combatant raised
+    # AttributeError and took the whole Phase down with it.
+    if not hasattr(tripped, "skill_roll_value"):
+        return None
+    skill_roll = tripped.skill_roll_value(ACROBATICS)
     if skill_roll is None:
         return None
     # `-max(0, margin)`: never a bonus for having been hit by a hair.

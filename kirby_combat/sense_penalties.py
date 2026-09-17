@@ -133,6 +133,66 @@ def _normalise_combat_type(combat_type: str) -> str:
 # Is this combatant blind to that opponent?
 # ---------------------------------------------------------------------------
 
+def senses_of(combatant) -> list:
+    """``combatant``'s senses, or 6E2 p.9's normal human when it has none.
+
+    **The one home for that fallback.** Only a build-backed combatant
+    exposes ``senses()``; a flat stat block -- every example script, much
+    of this suite, and any driver working from one -- does not, and
+    treating its absence as "nothing blocks him" makes the whole
+    inability-to-sense rule a no-op for exactly those combatants. That
+    defect shipped once already (caught by ``examples/raw_orion.py``: a
+    Flashed Orion reporting a full 8 DCV), so the fallback is written down
+    once and shared rather than re-derived by each caller that needs it.
+
+    Grounded, not invented: 6E2 p.9 names Sight as the only Targeting
+    Sense a normal human has. So a stat block Flashed in the Sight Group
+    is blind and one Flashed in the Hearing Group is not, matching what
+    the same character would do as a build with no bought senses.
+    """
+    from kirby_combat.perception import SIGHT, SenseCapability
+
+    senses = combatant.senses() if hasattr(combatant, "senses") else None
+    if senses is None:
+        return [SenseCapability(xmlid="NORMALSIGHT", name="Normal Sight",
+                                group=SIGHT)]
+    return list(senses)
+
+
+class _NormalHumanObserver:
+    """``combatant``, wearing 6E2 p.9's normal human's senses.
+
+    ``perception.perceive`` asks the observer itself for ``senses()``, so a
+    caller cannot hand it the fallback list the way ``senses_of``'s other
+    caller can. Rather than widen ``perceive``'s signature -- every caller
+    in the engine would gain a parameter for one shape of combatant -- the
+    observer is wrapped. Everything but ``senses()`` delegates, so
+    ``perceive`` reads the real combatant's id, position and hero.
+    """
+
+    __slots__ = ("_combatant",)
+
+    def __init__(self, combatant):
+        self._combatant = combatant
+
+    def senses(self) -> list:
+        return senses_of(self._combatant)
+
+    def __getattr__(self, name):
+        return getattr(self._combatant, name)
+
+
+def as_sensing_observer(combatant):
+    """``combatant``, guaranteed to answer ``senses()``.
+
+    Returned unchanged when it already does, so a build-backed combatant
+    is never wrapped and every identity the engine relies on holds.
+    """
+    if hasattr(combatant, "senses"):
+        return combatant
+    return _NormalHumanObserver(combatant)
+
+
 def _targeting_senses_blocked(
     session: "CombatSession", observer_id: str, opponent_id: str,
 ) -> bool:
@@ -162,9 +222,7 @@ def _targeting_senses_blocked(
     there is nothing to reason about.
     """
     from kirby_combat.actions.flash import Flash
-    from kirby_combat.perception import (
-        SIGHT, SenseCapability, _darkness_blocks,
-    )
+    from kirby_combat.perception import _darkness_blocks
 
     combatant = session.combatants.get(observer_id)
     opponent = session.combatants.get(opponent_id)
@@ -174,11 +232,9 @@ def _targeting_senses_blocked(
     _, flashed = Flash.is_flashed(session, observer_id)
     blocked_groups = set(flashed)
 
-    senses = combatant.senses() if hasattr(combatant, "senses") else None
-    if senses is None:
-        # 6E2 p.9's normal human: Sight, and only Sight, aims.
-        senses = [SenseCapability(xmlid="NORMALSIGHT", name="Normal Sight",
-                                  group=SIGHT)]
+    # 6E2 p.9's normal human when the combatant has no senses() -- shared
+    # with the maneuver path's `perceive` predicate through `senses_of`.
+    senses = senses_of(combatant)
 
     scene = getattr(session, "scene", None)
     for sense in senses:
