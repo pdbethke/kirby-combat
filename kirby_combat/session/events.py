@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 if TYPE_CHECKING:
     from kirby_combat.session.timeline import ActionIntent
@@ -473,3 +473,23 @@ CombatEvent = (
     | GMOverride
     | SessionEnded
 )
+
+#: EVERY concrete event class, derived from the union above rather than
+#: written out again. Two consumers need the list -- `serialization/
+#: from_dict.py`'s type registry and the round-trip gate that guards it --
+#: and both of them used to keep a hand-written copy. `VitalsChanged` was
+#: added to the union, to `apply_event` and to the package's `__all__`,
+#: and was still unreadable off the wire, because the copy in the registry
+#: was not updated and the copy in the test could not notice: it listed
+#: the same classes the registry did. Six of the 28 were missing.
+#:
+#: A list of where a property holds is not a guard on the property. This
+#: is the derivation both of them now read.
+EVENT_CLASSES: tuple[type, ...] = get_args(CombatEvent)
+
+#: `kind` -> the class that carries it. The `kind` field is a Literal with
+#: an `init=False` default on every event, so it can be read off the class
+#: without building one.
+EVENT_KINDS: dict[str, type] = {
+    cls.__dataclass_fields__["kind"].default: cls for cls in EVENT_CLASSES
+}

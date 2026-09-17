@@ -34,16 +34,22 @@ def _ensure_registry() -> None:
         Timeline, ActingSlot, ActionIntent, HeldAction,
     )
     from kirby_combat.session.combat_session import CombatSession
-    from kirby_combat.session.events import (
-        EventAuthor, SessionStarted, SegmentAdvanced, ActingOrderResolved,
-        PhaseSpent, ActionDeclared,
-        ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
-        StatusEffectsChanged,
-        AbortDeclared, HeldActionDeclared, HeldActionReleased,
-        AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
-        FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
-        SessionEnded,
-    )
+    # EVERY EVENT CLASS, DERIVED. This was a hand-written list beside the
+    # import above, and it went stale silently: `VitalsChanged` -- the row
+    # that now carries every point of STUN, BODY and END -- was in the
+    # union, in `apply_event` and in the package's `__all__`, and
+    # `from_dict` raised `unknown type 'VitalsChanged'` on it, so a
+    # consumer persisting rows as JSON could not replay one point of
+    # damage. Five more were missing with it (`BleedingSuffered`,
+    # `PresenceApplied`, `PresenceFaded`, `ConstructDamaged`,
+    # `ConstructSpawned`): six of twenty-eight.
+    #
+    # `EVENT_CLASSES` is `get_args(CombatEvent)` -- the union itself. An
+    # event that exists is an event that deserialises, and there is no
+    # second list to forget.
+    from kirby_combat.session.events import EVENT_CLASSES, EventAuthor
+    for cls in EVENT_CLASSES:
+        _register(cls)
     for cls in [
         Scene, SceneBounds, Position, AmbientConditions,
         Surface, Wall, Hazard, HazardEffect,
@@ -52,14 +58,7 @@ def _ensure_registry() -> None:
         DefenseProfile, KnockbackResult, AttackResult,
         Vehicle, Passenger, Unit, ObjectCombatant,
         Timeline, ActingSlot, ActionIntent, HeldAction, CombatSession,
-        EventAuthor, SessionStarted, SegmentAdvanced, ActingOrderResolved,
-        PhaseSpent, ActionDeclared,
-        ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
-        StatusEffectsChanged,
-        AbortDeclared, HeldActionDeclared, HeldActionReleased,
-        AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
-        FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
-        SessionEnded,
+        EventAuthor,
     ]:
         _register(cls)
     # Enums register too so we can rehydrate enum-valued fields if needed.
@@ -107,6 +106,13 @@ def _coerce_field(field_type: Any, value: Any) -> Any:
     # the original.
     if isinstance(field_type, str) and field_type.startswith("frozenset[") and isinstance(value, list):
         return frozenset(value)
+    # tuple-typed fields go over the wire as a list for the same reason
+    # (JSON has no tuple), and came back as one -- so
+    # `BleedingSuffered.dice` (the rolled dice, 6E2 p.115) round-tripped to
+    # a value that was not `==` to what went out. Found by the round-trip
+    # gate once it walked the union instead of a hand-written list.
+    if isinstance(field_type, str) and field_type.startswith("tuple[") and isinstance(value, list):
+        return tuple(value)
     return value
 
 

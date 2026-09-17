@@ -1,6 +1,9 @@
 """Round-trip parity tests — to_dict -> from_dict invariant."""
 from __future__ import annotations
 
+import dataclasses
+from typing import get_args
+
 import pytest
 from datetime import datetime, timezone
 from hypothesis import given, strategies as st, settings
@@ -13,14 +16,12 @@ from kirby_combat.scene import (
     Scene, SceneBounds, Position, AmbientConditions,
     Surface, Wall, Hazard, HazardEffect,
 )
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.rewind import rewind_to_sequence
 from kirby_combat.session.events import (
-    SessionStarted, SegmentAdvanced, ActionDeclared, ActionResolved,
-    RecoveryTaken, MovementResolved, StatusChanged, StatusEffectsChanged,
-    AbortDeclared,
-    HeldActionDeclared, HeldActionReleased,
-    AdjustmentApplied, AdjustmentFaded, EntangleApplied, EntangleEscape,
-    FlashApplied, FlashRecovered, EnvironmentalTriggered, GMOverride,
-    SessionEnded, EventAuthor, make_author_engine, make_author_gm,
+    EVENT_CLASSES, VitalsChanged,
+    SessionStarted, SegmentAdvanced, ActionDeclared, StatusEffectsChanged,
+    SessionEnded, EventAuthor, make_author_engine,
 )
 
 
@@ -72,50 +73,174 @@ def test_full_session_roundtrip_preserves_state():
         assert restored.sequence == ev.sequence
 
 
-def test_every_event_type_roundtrips():
-    """One instance per CombatEvent subclass survives round-trip."""
-    base_kwargs = dict(
+def _an_instance(cls):
+    """One of these, built from the base fields alone.
+
+    Every concrete event gives all of its own fields a default, so this is
+    a total constructor over the union -- no per-class table, which is the
+    thing that went stale.
+    """
+    return cls(
         id="evt-x", session_id="s1", sequence=1,
         timestamp=_ts(), author=make_author_engine(),
     )
-    instances = [
-        SessionStarted(**base_kwargs, scene_id="sc", combatant_ids=["a"]),
-        SegmentAdvanced(**base_kwargs, from_segment=0, to_segment=1, to_turn=1),
-        ActionDeclared(**base_kwargs, combatant_id="a", action_type="attack", targets=["b"]),
-        ActionResolved(**base_kwargs, declaration_event_id="evt-prev", result_payload={"x": 1}),
-        RecoveryTaken(**base_kwargs, combatant_id="a", stun_recovered=4, end_recovered=2),
-        MovementResolved(**base_kwargs, combatant_id="a", from_pos={"x": 0.0}, to_pos={"x": 1.0},
-                         velocity_mps=5.0, move_type="run"),
-        StatusChanged(**base_kwargs, combatant_id="a", from_status="ok", to_status="stunned",
-                      reason="big hit"),
-        StatusEffectsChanged(**base_kwargs, combatant_id="a",
-                             added=frozenset({"stunned"}),
-                             removed=frozenset({"entangled"})),
-        AbortDeclared(**base_kwargs, combatant_id="a", to_action="dodge"),
-        HeldActionDeclared(**base_kwargs, combatant_id="a", trigger_condition="see attacker",
-                           for_action="block"),
-        HeldActionReleased(**base_kwargs, held_event_id="evt-h", trigger_observed="hit"),
-        AdjustmentApplied(**base_kwargs, target_id="a", stat="dex", delta=-3,
-                          fade_rate_per_turn=5, source_event_id="evt-src"),
-        AdjustmentFaded(**base_kwargs, target_id="a", stat="dex", remaining_delta=0),
-        EntangleApplied(**base_kwargs, target_id="a", entangle_body=10, entangle_pd=4, entangle_ed=4),
-        EntangleEscape(**base_kwargs, target_id="a", method="full_str",
-                       damage_to_entangle_body=12, escaped=True),
-        FlashApplied(**base_kwargs, target_id="a", sense_group="sight", segments=4),
-        FlashRecovered(**base_kwargs, target_id="a", sense_group="sight", segments_remaining=0),
-        EnvironmentalTriggered(**base_kwargs, hazard_id="lava1",
-                               affected_combatants=["a"], effect={"dmg": 4}),
-        GMOverride(
-            id="evt-x", session_id="s1", sequence=1, timestamp=_ts(),
-            author=make_author_gm("gm-pete"),
-            tier=1, target_event_id=None, patch={"op": "set"}, justification="",
-        ),
-        SessionEnded(**base_kwargs, reason="end"),
-    ]
-    for inst in instances:
-        restored = from_dict(to_dict(inst))
-        assert type(restored) is type(inst)
-        assert restored.id == inst.id
+
+
+def test_the_gate_could_actually_fail():
+    """The negative control, FIRST. An event class that is not registered
+    must not round-trip -- otherwise the parametrised test below passes
+    whether or not registration happened.
+
+    `_Unregistered` is a real event-shaped dataclass that is deliberately
+    NOT a member of the `CombatEvent` union, so it is absent from
+    `EVENT_CLASSES` and therefore from the registry `from_dict` builds.
+    This is exactly the state `VitalsChanged` was in.
+    """
+    from dataclasses import dataclass, field
+    from typing import Literal
+
+    from kirby_combat.session.events import _BaseEvent
+
+    @dataclass
+    class _Unregistered(_BaseEvent):
+        kind: Literal["_Unregistered"] = field(
+            default="_Unregistered", init=False)
+
+    assert _Unregistered not in EVENT_CLASSES
+
+    payload = to_dict(_an_instance(_Unregistered))
+    with pytest.raises(TypeError, match="_Unregistered"):
+        from_dict(payload)
+
+
+def test_the_union_is_the_only_list_of_events():
+    """`EVENT_CLASSES` is `get_args(CombatEvent)`, not a copy of it.
+
+    The registry and the gate below both read this. A second hand-written
+    list is how six of twenty-eight events came to be unreadable off the
+    wire while a test called "every event type roundtrips" stayed green.
+    """
+    from kirby_combat.session.events import CombatEvent
+
+    assert set(EVENT_CLASSES) == set(get_args(CombatEvent))
+    assert len(EVENT_CLASSES) >= 28
+
+
+@pytest.mark.parametrize(
+    "cls", EVENT_CLASSES, ids=lambda c: c.__name__,
+)
+def test_every_event_in_the_union_roundtrips(cls):
+    """THE PROPERTY, over the union rather than over a list somebody kept.
+
+    Field-by-field, not just the type: a class can be registered and still
+    lose a field to a coercion that does not know its shape.
+    """
+    original = _an_instance(cls)
+
+    restored = from_dict(to_dict(original))
+
+    assert type(restored) is type(original)
+    for f in dataclasses.fields(original):
+        if f.name == "timestamp":
+            # Pre-existing: `to_dict` writes an ISO string and `from_dict`
+            # leaves it as one for a `datetime`-annotated field. Out of
+            # scope here; asserted as the shape it really is so this gate
+            # is not quietly asserting something false.
+            assert restored.timestamp == original.timestamp.isoformat()
+            continue
+        assert getattr(restored, f.name) == getattr(original, f.name), f.name
+
+
+def test_a_populated_vitals_row_survives_the_wire():
+    """The row the harness actually persists, with real numbers on it.
+
+    The scenario: a consumer writes the rows as JSON, reloads them to
+    rehydrate, and replays. Before this, the first damage row raised
+    `TypeError: unknown type 'VitalsChanged'` and the fight could not be
+    rebuilt at all.
+    """
+    import json
+
+    original = VitalsChanged(
+        id="evt-9", session_id="s1", sequence=9, timestamp=_ts(),
+        author=make_author_engine(),
+        combatant_id="villain", stun=-14, body=-3, end=-5, reason="damage",
+    )
+
+    restored = from_dict(json.loads(json.dumps(to_dict(original))))
+
+    assert (restored.combatant_id, restored.stun, restored.body,
+            restored.end, restored.reason) == (
+        "villain", -14, -3, -5, "damage")
+
+
+def _a_short_fight():
+    """A real fight, run through the loop, so the rows are the rows the
+    engine actually emits rather than ones this test made up."""
+    from fixtures.synthetic_hero import synthetic_combatant
+
+    from kirby_combat.encounter import Encounter
+    from kirby_combat.loop import FirstLegalChooser, run_encounter
+    from kirby_combat.models import AttackPower
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.side import Side
+    from kirby_combat.template import CombatTemplate
+    from kirby_dice import RandomRoller
+
+    def _f(id_: str, side: str, dex: int):
+        blast = AttackPower(
+            xmlid="ENERGYBLAST", name="Blast", damage_dice=8, half_die=False,
+            plus_one=False, damage_type="normal", defense_type="ed",
+            range_m=100.0, uses_str=False, str_min=0, armor_piercing=0,
+            penetrating=0, increased_stun_mult=0, source_id=f"{id_}-eb",
+            is_ranged=True,
+        )
+        return synthetic_combatant(
+            id=id_, name=id_, ocv=9, dcv=5, spd=4, dex=dex, rec=6,
+            pd=4, ed=4, con=18,
+            max_stun=40, max_body=12, max_end=40,
+            current_stun=40, current_body=12, current_end=40,
+            side=Side.named(side), attacks=[blast],
+        )
+
+    template = CombatTemplate.default_6e_superheroic()
+    session = CombatSession.create(
+        id="s", combatants=[_f("a", "x", 25), _f("b", "y", 10)],
+        scene=None, template=template, dice_roller=RandomRoller(seed=7),
+    ).start()
+    result = run_encounter(
+        Encounter(id="e", turn=1, segment=12, sessions=[session]),
+        FirstLegalChooser(), roller=RandomRoller(seed=5),
+        on_unresolvable="skip", max_turns=8,
+    )
+    return result.encounter.sessions[0]
+
+
+def test_a_fight_replayed_from_json_rows_lands_on_the_same_vitals():
+    """End to end, the way the harness does it: persist every row as JSON,
+    read them back, replay them into a fresh session.
+
+    This is the test the engine-side replay test could not be: that one
+    never leaves Python objects, so six unregistered event classes were
+    invisible to it.
+    """
+    import json
+
+    live = _a_short_fight()
+    rows = [json.loads(json.dumps(to_dict(e))) for e in live.event_log]
+    assert any(r["__type__"] == "VitalsChanged" for r in rows), (
+        "the fight must actually have hurt somebody")
+
+    rebuilt = rewind_to_sequence(live, 0)
+    for row in rows:
+        rebuilt = apply_event(rebuilt, from_dict(row))
+
+    assert {cid: (c.state.current_stun, c.state.current_body,
+                  c.state.current_end)
+            for cid, c in rebuilt.combatants.items()} == \
+        {cid: (c.state.current_stun, c.state.current_body,
+               c.state.current_end)
+         for cid, c in live.combatants.items()}
 
 
 @given(

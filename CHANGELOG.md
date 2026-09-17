@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Every event deserialises, because the union says so.** `from_dict`'s type
+registry and `tests/serialization/test_roundtrip.py`'s coverage gate each kept a
+hand-written list of event classes, and both went stale together: six of the
+twenty-eight — `VitalsChanged`, `BleedingSuffered`, `PresenceApplied`,
+`PresenceFaded`, `ConstructDamaged`, `ConstructSpawned` — were unregistered, so
+`from_dict(to_dict(e))` raised `TypeError: unknown type` on the row that now
+carries every point of STUN, BODY and END. A consumer persisting rows as JSON
+could not replay one point of damage. Both now read
+`kirby_combat.session.events.EVENT_CLASSES`, which is `get_args(CombatEvent)`;
+the gate is parametrised over it and compares field by field, with a negative
+control that a class outside the union does not round-trip.
+`EVENT_KINDS` maps a `kind` string to its class. One real bug fell out of the
+derived gate: a `tuple[int, ...]` field (`BleedingSuffered.dice`, 6E2 p.115)
+came back as a list.
+
 **One door steps a fight.** `run_phase` now takes the `Encounter` and owns the
 clock as well as the Phase:
 
