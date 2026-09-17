@@ -121,6 +121,42 @@ def _surprise_for(session, actor, target):
     return surprise_for(target=target, perceives_attacker=not blind)
 
 
+def _adjustment_cv_delta(session, combatant, key: str) -> int:
+    """A live Aid or Drain on this combatant's ``key`` CV, as a delta.
+
+    6E1 p.133 / p.139. `adjustments.py` closed the Adjustment chain for two
+    consumers and named them in its own docstring -- "The CV path
+    (`effective_ocv_for` and friends) and the Stunning check are wired
+    below because they are what decides a fight" -- and only the Stunning
+    check ever acquired a caller. `effective_ocv_for` and
+    `effective_dcv_for` have none in the package, so a Drain that took four
+    points off a man's OCV changed his Stunning threshold and nothing else,
+    and he shot as straight as he ever had.
+
+    This is `recording.py`'s existing seam for CON, applied to the CVs: the
+    base comes from the build, the session supplies the modifier, and the
+    two are composed at the point of use rather than by writing a fight's
+    condition into a build's shape.
+
+    THE FLOOR IS 6E1 p.139's, and is not re-implemented here.
+    `effective_characteristic` clamps the adjusted value at zero -- a
+    Drained CV of -3 is not a thing the rules describe -- and the delta is
+    read back off that clamp, so two stacked Drains cannot drive an OCV
+    negative through the modifier channel.
+
+    DEX IS NOT A CV. 6E made OCV and DCV characteristics in their own
+    right, which `adjustments.CV_STATS` says in as many words, so a DEX
+    Drain is felt in the order of Phases and not here.
+    """
+    from kirby_combat.adjustments import CV_STATS, effective_characteristic
+
+    base = int(getattr(combatant, key))
+    stat = CV_STATS[key]
+    return effective_characteristic(
+        session, getattr(combatant, "id", ""), stat, base,
+    ) - base
+
+
 def _dodge_bonus(session, defender) -> int:
     """6E2 p.55's +3 DCV for a defender who aborted to a Dodge, or 0.
 
@@ -359,7 +395,8 @@ def _resolve_attack(
         ocv_modifier=(_set_bonus(session, actor, target)
                       + _grab_cv(session, actor, target).ocv_delta
                       + _blind_cv_delta(
-                          session, actor, target, "ocv", combat_type)),
+                          session, actor, target, "ocv", combat_type)
+                      + _adjustment_cv_delta(session, actor, "ocv")),
         # THE TARGET'S half of 6E2 p.127, asked of the TARGET: his DCV
         # against this attacker turns on whether HE can perceive the man
         # swinging at him, which is a different question with a different
@@ -373,7 +410,11 @@ def _resolve_attack(
         # bonus nothing read, and `tactics/catalog/dodge_under_fire.py`
         # recommended a move that bought nothing. Asked of the SESSION, not
         # the combatant, because the declaration lives on the log.
-        dcv_modifier=blind_dcv + _dodge_bonus(session, target),
+        # AND WHATEVER HAS BEEN DRAINED OFF HIM (6E1 p.139). See
+        # `_adjustment_cv_delta`: the CV half of the Adjustment chain was
+        # wired and never read by a fight.
+        dcv_modifier=(blind_dcv + _dodge_bonus(session, target)
+                      + _adjustment_cv_delta(session, target, "dcv")),
         # A GRAB CHANGED NOTHING ABOUT ANYONE'S COMBAT ABILITY until this
         # -- so grappling was strictly free, and never worth doing to a
         # man you could simply shoot. Western Hero p.104 prices it.
@@ -2236,14 +2277,17 @@ def _maneuver_attack(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(0, dice)),
-        ocv_modifier=ocv_modifier + _blind_cv_delta(session, actor, target, "ocv"),
+        ocv_modifier=(ocv_modifier
+                      + _blind_cv_delta(session, actor, target, "ocv")
+                      + _adjustment_cv_delta(session, actor, "ocv")),
         # The Dodge is read here too, and through the same `_dodge_bonus`
         # the attack path uses. A Trip aimed at a man who aborted to a
         # Dodge is exactly the case 6E2 p.55's "all attacks" covers, and
         # wiring it at the attack door only would rebuild the defect this
         # engine keeps finding: one rule, one door, several doors.
         dcv_modifier=(_blind_cv_delta(session, target, actor, "dcv")
-                      + _dodge_bonus(session, target)),
+                      + _dodge_bonus(session, target)
+                      + _adjustment_cv_delta(session, target, "dcv")),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, session.template, action_type=action_type)
