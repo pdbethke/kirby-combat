@@ -2015,6 +2015,7 @@ def _resolve_pickup(
 def _maneuver_attack(
     session, actor, action: LegalAction, *, roller, ocv_modifier: int,
     damage_dice: int | None = None, action_type: str = "strike",
+    payload_extras=None,
 ):
     """An Attack Roll at a maneuver's CV penalty.
 
@@ -2054,7 +2055,11 @@ def _maneuver_attack(
         # would put them on p.9's Ranged row -- OCV to ZERO rather than
         # halved. A2's helper hard-coded the HTH row for exactly this
         # reason; the door takes the same fact as a parameter.
-        combat_type=HTH)
+        combat_type=HTH,
+        # A maneuver's own payload keys, folded in BEFORE the row is
+        # applied. See `resolve_attack_in_session`: a row is never edited
+        # after `apply_event` has committed it.
+        payload_extras=payload_extras)
     # `effective_ocv`, `target_dcv` and `margin` are stamped by
     # `resolve_attack_in_session` itself now -- the one path an attack and a
     # maneuver both take -- so the re-stamping helper that used to run here
@@ -2134,28 +2139,48 @@ def _resolve_trip(
     to roll" and "the roll was lost" are different facts, and a reader of
     the log should be able to tell them apart.
     """
-    from dataclasses import replace as _replace
+    def _trip_payload(result) -> dict:
+        """The Trip's own keys, built BEFORE the row is applied.
+
+        THIS USED TO EDIT A COMMITTED ROW. The resolver ran the attack
+        through `apply_event`, then rebuilt the log list and
+        `dataclasses.replace`d `event_log[-1]`'s payload to stamp
+        `kind="trip"` and the save onto it. A consumer that persists rows
+        as they are emitted -- which is what an append-only record means
+        -- stored the row BEFORE the edit, `statuses._is_prone` folded
+        that, and the replayed fight had a man standing whom the live
+        fight had prone: different DCV, different legal actions, a
+        different next actor.
+
+        `kind` is re-labelled here because the attack wrapper calls it a
+        "strike", which is what it mechanically is; the fold needs to know
+        it was a Trip.
+
+        The save is read off the session as it stands BEFORE the attack.
+        It asks for ACROBATICS, which is a build fact -- being hit does
+        not take a man's skills away -- so the answer is the same either
+        way, and asking here is what lets the row be finished before it is
+        written.
+        """
+        save = _acrobatics_save(
+            session, action.target_id, result, roller=roller,
+        )
+        return {
+            "kind": "trip", "target_id": action.target_id,
+            "acrobatics_save": save,
+            # The single fact `statuses._is_prone` folds. Prone is applied
+            # when the Trip landed AND the save is absent or lost --
+            # computed once, here, rather than re-derived by every reader
+            # out of `hit` and the save together.
+            "is_prone_after": bool(
+                result.hit and (save is None or not save["kept_feet"])
+            ),
+        }
 
     new_session, result = _maneuver_attack(
         session, actor, action, roller=roller, ocv_modifier=-1, damage_dice=0,
+        payload_extras=_trip_payload,
     )
-    save = _acrobatics_save(new_session, action.target_id, result, roller=roller)
-    # Re-stamp the payload so the fold can see `kind="trip"` -- the attack
-    # wrapper labels it "strike", which is what it mechanically is.
-    log = list(new_session.event_log)
-    last = log[-1]
-    log[-1] = _replace(last, result_payload={
-        **last.result_payload, "kind": "trip", "target_id": action.target_id,
-        "acrobatics_save": save,
-        # The single fact `statuses._is_prone` folds. Prone is applied when
-        # the Trip landed AND the save is absent or lost -- computed once,
-        # here, rather than re-derived by every reader out of `hit` and the
-        # save together.
-        "is_prone_after": bool(
-            result.hit and (save is None or not save["kept_feet"])
-        ),
-    })
-    new_session = _replace(new_session, event_log=log)
 
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

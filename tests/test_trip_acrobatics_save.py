@@ -130,3 +130,167 @@ def test_a_missed_trip_rolls_no_save_at_all():
     assert payload["acrobatics_save"] is None
     assert payload["is_prone_after"] is False
     assert PRONE not in statuses_for(resolved.session, "mark")
+
+
+# ---------------------------------------------------------------------------
+# The row a consumer persists is the finished row
+# ---------------------------------------------------------------------------
+
+def _replayed(session: CombatSession) -> CombatSession:
+    """A fresh session rebuilt from the rows AS THEY WERE EMITTED.
+
+    This is the whole point: a consumer persists each event when it comes
+    out of the resolver, not by re-reading the session's log afterwards.
+    Replaying `session.event_log` would hide an edit made to a committed
+    row, because the edit is in the log the test just read.
+    """
+    from kirby_combat.session.apply import apply_event
+
+    rebuilt = CombatSession.create(
+        id=session.id,
+        combatants=list((session.initial_combatants or {}).values()),
+        scene=session.scene, template=session.template,
+        dice_roller=session.dice_roller,
+    )
+    for event in session.event_log:
+        rebuilt = apply_event(rebuilt, event)
+    return rebuilt
+
+
+def test_the_trip_row_is_finished_before_it_is_applied():
+    """THE DEFECT. The resolver used to run the attack through
+    `apply_event` and THEN `dataclasses.replace` the payload on
+    `event_log[-1]`, so a consumer that persisted the row when it was
+    emitted stored a payload with no `kind="trip"`, no save and no
+    `is_prone_after` at all --- and `statuses._is_prone` folds exactly
+    those.
+
+    Asserted against the event OBJECT the resolver handed out on its
+    `ResolvedAction`, which is what a consumer holds, rather than against
+    the session's log, which is where the edit landed.
+    """
+    session = _fight(target_skills={"ACROBATICS": 15})
+    resolved = _resolve(session, _roller([4, 4, 4], [6, 6, 6]))
+
+    emitted = [e for e in resolved.events if e.kind == "ActionResolved"]
+    assert len(emitted) == 1
+    payload = emitted[0].result_payload
+
+    assert payload["kind"] == "trip"
+    assert payload["is_prone_after"] is True
+    assert payload["acrobatics_save"]["kept_feet"] is False
+    # And it IS the same object the session holds -- one row, not two
+    # versions of one row.
+    assert emitted[0] is resolved.session.event_log[-1]
+
+
+def test_a_replayed_trip_leaves_the_same_man_prone():
+    """The consequence, end to end."""
+    session = _fight(target_skills={"ACROBATICS": 15})
+    resolved = _resolve(session, _roller([4, 4, 4], [6, 6, 6]))
+
+    assert PRONE in statuses_for(resolved.session, "mark")
+    assert PRONE in statuses_for(_replayed(resolved.session), "mark")
+
+
+def test_a_replayed_trip_leaves_the_man_who_kept_his_feet_standing():
+    """The other side of it, so the test above cannot pass by PRONE being
+    true for everybody."""
+    session = _fight(target_skills={"ACROBATICS": 15})
+    resolved = _resolve(session, _roller([4, 4, 4], [1, 1, 1]))
+
+    assert PRONE not in statuses_for(resolved.session, "mark")
+    assert PRONE not in statuses_for(_replayed(resolved.session), "mark")
+
+
+def _edits_the_log(path) -> bool:
+    """Does this module write into an event log after the fact?
+
+    Two shapes: an index assignment onto a list that is the log
+    (`log[-1] = ...`), and handing a replacement log to
+    `dataclasses.replace` (`replace(session, event_log=...)`). The trip
+    resolver did both.
+    """
+    import ast
+
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (isinstance(target, ast.Subscript)
+                        and _names_the_log(target.value)):
+                    return True
+        if isinstance(node, ast.Call):
+            name = (getattr(node.func, "id", None)
+                    or getattr(node.func, "attr", None))
+            if name in {"replace", "_replace"} and any(
+                    kw.arg == "event_log" for kw in node.keywords):
+                return True
+    return False
+
+
+def _names_the_log(node) -> bool:
+    import ast
+
+    if isinstance(node, ast.Attribute):
+        return node.attr == "event_log"
+    if isinstance(node, ast.Name):
+        return "log" in node.id
+    return False
+
+
+def test_the_committed_row_gate_could_actually_fail(tmp_path):
+    """The negative control, both ways --- and against the real old code.
+
+    The third case is the resolver as it stood at `4df17c30`, copied
+    verbatim: if the detector does not flag that, it is guarding nothing.
+    """
+    indexed = tmp_path / "indexed.py"
+    indexed.write_text(
+        "def f(session):\n"
+        "    log = list(session.event_log)\n"
+        "    log[-1] = 1\n"
+    )
+    assert _edits_the_log(indexed) is True
+
+    swapped = tmp_path / "swapped.py"
+    swapped.write_text(
+        "from dataclasses import replace\n"
+        "def f(session, log):\n"
+        "    return replace(session, event_log=log)\n"
+    )
+    assert _edits_the_log(swapped) is True
+
+    innocent = tmp_path / "innocent.py"
+    innocent.write_text(
+        '"""Never assign to event_log[-1]."""\n'
+        "def f(session):\n"
+        "    return len(session.event_log) + 1\n"
+    )
+    assert _edits_the_log(innocent) is False
+
+
+def test_no_resolver_edits_a_committed_row():
+    """DERIVED, not enumerated: this walks the engine by AST.
+
+    Writing to `event_log[...]` or passing `event_log=` to a
+    `dataclasses.replace` is how a row gets edited after `apply_event` has
+    committed it, and a consumer that persisted the row already holds the
+    version before the edit. `apply_event` itself builds the new log, and
+    `rewind.py` truncates one; everything else must let the row stand.
+    """
+    import pathlib
+
+    engine = pathlib.Path(__file__).resolve().parent.parent / "kirby_combat"
+    allowed = {engine / "session" / "apply.py", engine / "session" / "rewind.py"}
+
+    offenders = sorted(
+        str(p.relative_to(engine.parent))
+        for p in engine.rglob("*.py")
+        if p not in allowed and _edits_the_log(p)
+    )
+
+    assert offenders == [], (
+        "these edit an event log a consumer may already have persisted -- "
+        f"build the finished row before applying it: {offenders}"
+    )

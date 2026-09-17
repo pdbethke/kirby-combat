@@ -79,8 +79,16 @@ def _vitals(session: CombatSession) -> dict[str, tuple[int, int, int]]:
 
 def _shape(event) -> tuple:
     """An event without its identity --- ids and timestamps are fresh on
-    every run and say nothing about whether the two fights agree."""
+    every run and say nothing about whether the two fights agree.
+
+    `ActionResolved` is compared by its WHOLE payload, not just its kind.
+    That is where a maneuver's own facts live --- a Trip's
+    `is_prone_after`, an activation roll, the CVs the blow was really made
+    against --- and comparing kinds alone is what let a resolver edit a
+    committed row with both of these tests green.
+    """
     fields = {
+        "ActionResolved": ("result_payload",),
         "PhaseSpent": ("combatant_id", "segment", "turn", "reason"),
         "ActingOrderResolved": ("order", "segment", "turn"),
         "SegmentAdvanced": ("from_segment", "to_segment", "to_turn"),
@@ -197,4 +205,6 @@ def test_stepping_by_replay_reaches_the_same_winner_and_the_same_log():
     winner, stepped_rows = _stepped_one_phase_at_a_time()
 
     assert winner == result.winner
+    assert any(e.kind == "ActionResolved" for e in live_rows), (
+        "no resolution in the log, so the payload comparison proves nothing")
     assert [_shape(e) for e in stepped_rows] == [_shape(e) for e in live_rows]

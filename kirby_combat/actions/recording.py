@@ -45,7 +45,7 @@ import uuid
 from dataclasses import replace
 from dataclasses import replace as _replace
 from datetime import datetime, timezone
-from typing import Any, Literal, get_args
+from typing import Any, Callable, Literal, get_args
 
 from kirby_combat.actions import resolve_attack
 from kirby_combat.adjustments import adjusted_con, net_adjustment
@@ -490,6 +490,7 @@ def resolve_attack_in_session(
     action_type: ActionKind = "attack",
     roller=None,
     combat_type: str | None = None,
+    payload_extras: "Callable[[AttackResult], dict[str, Any]] | None" = None,
 ) -> tuple[CombatSession, AttackResult]:
     """Resolve an attack and record the outcome on the session's event log.
 
@@ -504,6 +505,17 @@ def resolve_attack_in_session(
     first (mirroring ``Flash.apply`` / ``Grab.declare_and_resolve``) and its
     id is used as the resolution's ``declaration_event_id``. Pass an existing
     id when the caller already declared the action itself.
+
+    ``payload_extras`` is how a MANEUVER labels the row it produces. It is
+    called with the finished ``AttackResult`` and its return value is
+    merged into ``result_payload`` BEFORE the ``ActionResolved`` is built
+    --- so the row that is applied is the finished row. The Trip resolver
+    used to reach into ``session.event_log[-1]`` after ``apply_event`` had
+    committed it and ``dataclasses.replace`` the payload there, which a
+    consumer persisting rows as they are emitted never sees: it stored the
+    pre-edit payload, ``statuses._is_prone`` folded that, and the replayed
+    fight had a man standing whom the live fight had prone. Nothing edits a
+    committed row.
 
     Returns ``(new_session, result)`` — ``result`` is exactly what
     ``resolve_attack`` returned; nothing about the pure result is altered.
@@ -705,6 +717,12 @@ def resolve_attack_in_session(
             "activation_roll": activated["roll"],
             "activation_target": activated["target"],
         })
+
+    # THE MANEUVER'S OWN KEYS, before the row is built. See
+    # `payload_extras` in the docstring: this is the seam that replaced an
+    # edit of an already-committed event.
+    if payload_extras is not None:
+        result_payload.update(payload_extras(result))
 
     resolved = ActionResolved(
         id=str(uuid.uuid4()),

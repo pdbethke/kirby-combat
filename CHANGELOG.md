@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**No row is edited after it is applied.** The Trip resolver (6E2 p.67) ran its
+attack through `apply_event` and then `dataclasses.replace`d the payload on
+`event_log[-1]` to stamp `kind="trip"`, the house-rule Acrobatics save and
+`is_prone_after`. A consumer that persists rows as they are emitted stored the
+row *before* that edit, `statuses._is_prone` folds exactly those keys, and the
+replayed fight had a man standing whom the live fight had prone.
+`resolve_attack_in_session` takes a `payload_extras` callback — called with the
+finished `AttackResult`, merged into the payload *before* the `ActionResolved`
+is built — so a maneuver labels its own row without ever reaching back into the
+log. A test walks the engine by AST and fails on any index-assignment into an
+event log or any `replace(..., event_log=...)` outside `session/apply.py` and
+`session/rewind.py`; it flags the old resolver verbatim.
+
 **Every event deserialises, because the union says so.** `from_dict`'s type
 registry and `tests/serialization/test_roundtrip.py`'s coverage gate each kept a
 hand-written list of event classes, and both went stale together: six of the

@@ -28,6 +28,19 @@ RUN_PY = pathlib.Path(__file__).resolve().parent.parent.parent / (
     "kirby_combat/loop/run.py")
 
 
+def _shape(event) -> tuple:
+    """Kind plus, for a resolution, its whole payload.
+
+    Comparing kinds alone would let two fights agree on the shape of the
+    log while disagreeing about everything in it --- which man was
+    knocked prone, what the blow was rolled against, whether a power went
+    off at all.
+    """
+    if event.kind == "ActionResolved":
+        return (event.kind, repr(event.result_payload))
+    return (event.kind,)
+
+
 def _pair(**kw):
     return encounter_of(
         fighter("a", side=Side.named("x"), dex=25, **kw),
@@ -209,5 +222,8 @@ def test_the_two_paths_reach_the_same_fight():
     else:                                   # pragma: no cover - guard
         raise AssertionError("the stepped fight never finished")
 
-    assert [e.kind for e in encounter.sessions[0].event_log] == \
-        [e.kind for e in driven.encounter.sessions[0].event_log]
+    live_rows = driven.encounter.sessions[0].event_log
+    assert any(e.kind == "ActionResolved" for e in live_rows), (
+        "no resolution in the log, so the payload comparison proves nothing")
+    assert [_shape(e) for e in encounter.sessions[0].event_log] == \
+        [_shape(e) for e in live_rows]
