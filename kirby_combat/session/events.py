@@ -272,6 +272,35 @@ class AbortDeclared(_BaseEvent):
 
 
 @dataclass
+class BlockPriorityGained(_BaseEvent):
+    """A successful Block earning its blocker the right to act first.
+
+    6E2 p.60, "ACTING FIRST": a character who Blocks an attack
+    successfully "acts before that attacker in the next Phase in which
+    they both act, even if [the attacker] does not attack again."
+
+    NOT IN THE RECORD UNTIL NOW, and the only piece of fight state that
+    was not. It was carried on `Encounter.acts_first` --- a field --- and
+    a consumer that persists the rows and rebuilds the Encounter from the
+    session's own timeline between steps held an empty mapping: the
+    blocker won his Block in the live fight and lost his priority in the
+    replayed one, so the two fights resolved the next shared Segment in
+    different orders with nothing saying why.
+
+    THE SPEND NEEDS NO EVENT OF ITS OWN. The rule spends the priority in
+    the next Segment where both men have a Phase, which is exactly what
+    `ActingOrderResolved` already records --- `apply_event` drops the
+    entry when it applies an order containing both ids. A second event
+    would be a second statement of one rule.
+    """
+
+    kind: Literal["BlockPriorityGained"] = field(
+        default="BlockPriorityGained", init=False)
+    blocker_id: str = ""
+    attacker_id: str = ""
+
+
+@dataclass
 class HeldActionDeclared(_BaseEvent):
     kind: Literal["HeldActionDeclared"] = field(default="HeldActionDeclared", init=False)
     combatant_id: str = ""
@@ -457,6 +486,7 @@ CombatEvent = (
     | StatusChanged
     | StatusEffectsChanged
     | AbortDeclared
+    | BlockPriorityGained
     | HeldActionDeclared
     | HeldActionReleased
     | AdjustmentApplied

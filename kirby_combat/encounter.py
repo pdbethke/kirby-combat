@@ -491,7 +491,32 @@ class Encounter:
     #: empty mapping -- this is a public shape kirby-api constructs
     #: directly, and a required field here would break every existing
     #: caller.
+    #:
+    #: NO LONGER THE CARRIER, and that is the point. A field on the
+    #: Encounter is invisible to a consumer that persists the rows and
+    #: rebuilds the Encounter from a session's own timeline between steps,
+    #: so the blocker won his Block in the live fight and lost his
+    #: priority in the replayed one. The priority a BLOCK earns now rides
+    #: on `Timeline.block_priority`, gained by `BlockPriorityGained` and
+    #: spent by `ActingOrderResolved` (see `session/apply.py`), and
+    #: `run_segment` reads that. This field remains as an EXPLICIT
+    #: override a caller may set by hand -- it is merged ON TOP of the
+    #: folded value, so a hand-set entry still wins.
     acts_first: "Mapping[str, str]" = field(default_factory=dict)
+
+    def carried_block_priority(self) -> dict[str, str]:
+        """The Block "acts first" priority this fight is carrying (6E2
+        p.60), folded off the sessions' own logs, with any hand-set
+        `self.acts_first` merged on top.
+
+        One reading, so a fight that ran and a fight rebuilt from its rows
+        resolve the same Segment the same way.
+        """
+        carried: dict[str, str] = {}
+        for session in self.sessions:
+            carried.update(session.timeline.block_priority)
+        carried.update(self.acts_first)
+        return carried
 
     def record_block_priority(self, priority: "Mapping[str, str]") -> "Encounter":
         """Merge a just-recorded Block's "acts first" entry into
@@ -526,6 +551,10 @@ class Encounter:
         either -- the returned Encounter's `acts_first` is a fresh dict.
         """
         return replace(self, acts_first={**self.acts_first, **priority})
+    # NOTE (2026-09-17): `resolve_block_in_session` now also emits a
+    # `BlockPriorityGained`, so a caller that resolves a Block through it
+    # does NOT have to call this for the priority to be carried --- the
+    # log carries it. This stays for a caller setting a priority by hand.
 
     def _resolve_template(self, campaign: "Campaign | None") -> "CombatTemplate":
         """Resolve the CombatTemplate this Encounter should use right now.
@@ -765,7 +794,15 @@ class Encounter:
                 all_combatants.append(combatant)
                 owner_of[combatant.id] = session_index
 
-        acts_first_used = acts_first if acts_first is not None else self.acts_first
+        # THE LOG IS THE CARRIER. `self.acts_first` is merged on top by
+        # `carried_block_priority` for a caller that set one by hand; the
+        # priority a real Block earned comes off
+        # `Timeline.block_priority`, which `apply_event` folds, so a
+        # rehydrated fight carries it too.
+        acts_first_used = (
+            acts_first if acts_first is not None
+            else self.carried_block_priority()
+        )
 
         provisional = build_provisional_order_for_segment(all_combatants, self.segment)
         resolved = resolve_acting_order(

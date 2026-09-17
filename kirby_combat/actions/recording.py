@@ -56,7 +56,8 @@ from kirby_combat.models import AttackInput, AttackResult, StatBlockCombatant
 from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
-    ActionDeclared, ActionResolved, make_author_combatant,
+    ActionDeclared, ActionResolved, BlockPriorityGained,
+    make_author_combatant,
 )
 from kirby_combat.template import CombatTemplate
 from kirby_combat.vitals import record_vitals_change
@@ -931,20 +932,22 @@ def resolve_block_in_session(
     simply not recognizing it yet: extending kirby-api's filter to also
     accept "block" is kirby-api's call, out of scope here.
 
-    ``Block.acts_first_priority`` (6E2 p.60, "ACTING FIRST") had no live
-    caller anywhere in kirby_combat before this. This function is that
-    caller: it computes the priority mapping from the just-resolved
-    ``BlockResult`` and returns it as the third tuple element — `{}` on a
-    failed Block, `{blocker_id: attacker_id}` on a successful one — so a
-    caller that owns an ``Encounter`` can merge it into
-    ``Encounter.acts_first`` itself (via ``dataclasses.replace``, since
-    ``Encounter`` is immutable). This function does not reach into
-    ``Encounter.acts_first`` itself: doing so needs a driver that holds
-    both a ``CombatSession`` and its ``Encounter`` together, and no such
-    driver exists in kirby_combat today (nor does this task touch
-    ``encounter.py`` to add one) — leaving that merge to the returned
-    value is the honest state of the wiring, not a half-connected guard
-    that looks wired and isn't.
+    ``Block.acts_first_priority`` (6E2 p.60, "ACTING FIRST") is asked
+    here, and the answer GOES IN THE LOG: a successful Block emits a
+    ``BlockPriorityGained``, which ``apply_event`` folds onto
+    ``Timeline.block_priority``. It used to be returned to the caller and
+    nowhere else, on the reasoning that no driver held a
+    ``CombatSession`` and its ``Encounter`` together — and that was the
+    one piece of fight state carried by no event at all. A consumer that
+    persists the rows and rebuilds the Encounter from the session's own
+    timeline between steps held an empty mapping, so the blocker won his
+    Block in the live fight and lost his priority in the replayed one.
+
+    The mapping is still RETURNED, unchanged, for a caller that also
+    wants to set it on an ``Encounter`` by hand
+    (``Encounter.record_block_priority``); the return value is now a
+    convenience over a fact the log already carries rather than the only
+    copy of it.
 
     Returns ``(new_session, result, acts_first_priority)`` — ``result`` is
     exactly what ``Block.resolve`` returned; nothing about the pure result
@@ -988,6 +991,20 @@ def resolve_block_in_session(
     s = apply_event(s, resolved)
 
     priority = Block.acts_first_priority(result, blocker_id, attacker_id)
+
+    # 6E2 p.60, INTO THE RECORD. One event per entry (there is at most
+    # one), emitted only on a success -- a failed Block earns nothing and
+    # a row saying so would be a row saying nothing.
+    for blocker, attacker in priority.items():
+        s = apply_event(s, BlockPriorityGained(
+            id=str(uuid.uuid4()),
+            session_id=s.id,
+            sequence=len(s.event_log) + 1,
+            timestamp=now,
+            author=make_author_combatant(blocker),
+            blocker_id=blocker,
+            attacker_id=attacker,
+        ))
 
     return s, result, priority
 

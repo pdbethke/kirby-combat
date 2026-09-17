@@ -188,7 +188,14 @@ class TestDeclarationEventIdWiring:
             blocker_ocv=10, blocker_dice=[3, 3, 3], attacker_ocv=8,
         )
 
+        # This Block SUCCEEDS (3,3,3 against OCV 8), so a
+        # `BlockPriorityGained` follows the resolution -- 6E2 p.60's
+        # "acts first", which used to be returned to the caller and
+        # recorded nowhere. The declaration/resolution pair is asserted
+        # by position from the resolution rather than from the end of the
+        # log, so it stays about the wiring under test.
         kinds = [e.kind for e in new_session.event_log]
-        assert kinds[-2:] == ["AbortDeclared", "ActionResolved"]
-        declared, resolved = new_session.event_log[-2:]
+        assert kinds[-3:] == [
+            "AbortDeclared", "ActionResolved", "BlockPriorityGained"]
+        declared, resolved = new_session.event_log[-3:-1]
         assert resolved.declaration_event_id == declared.id

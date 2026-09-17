@@ -64,6 +64,19 @@ class Timeline:
     current_slot_index: int
     held_actions: list[HeldAction] = field(default_factory=list)
     aborted_this_phase: set[str] = field(default_factory=set)
+    #: Carried Block "acts first" priority (6E2 p.60): blocker_id ->
+    #: attacker_id. It lives HERE, on the timeline `apply_event` writes,
+    #: rather than only on `Encounter.acts_first`, because it is fight
+    #: state that has to survive a rehydration: the rule holds "even if
+    #: [the attacker] does not attack again", so it must last from the
+    #: successful Block until the blocker and that attacker next share a
+    #: Segment -- which can be several steps away, and a consumer that
+    #: rebuilds the Encounter from this timeline between steps held
+    #: nothing at all. Gained by `BlockPriorityGained`, spent by
+    #: `ActingOrderResolved` when both ids have a Phase in the resolved
+    #: order (see `consume_block_priority` for the same rule stated as a
+    #: pure function).
+    block_priority: dict[str, str] = field(default_factory=dict)
 
 
 def _tie_key(c: StatBlockCombatant) -> tuple[int, int]:

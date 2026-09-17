@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
-    ActingOrderResolved, ActionDeclared, BleedingSuffered, CombatEvent,
-    PhaseSpent, RecoveryTaken, SegmentAdvanced, VitalsChanged,
+    ActingOrderResolved, ActionDeclared, BleedingSuffered,
+    BlockPriorityGained, CombatEvent, PhaseSpent, RecoveryTaken,
+    SegmentAdvanced, VitalsChanged,
 )
 from kirby_combat.session.timeline import restore_acting_order
 from kirby_combat.talents.lightning_reflexes import restriction_for_slot
@@ -78,6 +79,20 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
                 session.combatants, event.order, event.segment,
                 event.intents),
             current_slot_index=0,
+            # AND THE BLOCK PRIORITY IS SPENT HERE. 6E2 p.60 gives the
+            # successful blocker priority "in the next Phase in which they
+            # both act", so an order containing both men IS the spend ---
+            # applied AFTER the order was built from it, which is the
+            # order `Encounter.run_segment` does these in. No second event
+            # for the spend: it would be a second statement of one rule,
+            # and the rule is already written down here.
+            block_priority={
+                blocker: attacker
+                for blocker, attacker
+                in session.timeline.block_priority.items()
+                if not (blocker in set(event.order)
+                        and attacker in set(event.order))
+            },
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
@@ -138,6 +153,20 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
             session, new_log, now, event.combatant_id,
             body=-event.body_lost, stun=-event.stun_lost,
         )
+
+    if kind == "BlockPriorityGained":
+        assert isinstance(event, BlockPriorityGained)
+        # 6E2 p.60. Onto the timeline, so a fight rebuilt from its rows
+        # carries the advantage the fight that ran earned --- see the
+        # event's own docstring for the divergence this closes.
+        new_timeline = replace(
+            session.timeline,
+            block_priority={
+                **session.timeline.block_priority,
+                event.blocker_id: event.attacker_id,
+            },
+        )
+        return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     if kind == "ActionDeclared":
         assert isinstance(event, ActionDeclared)

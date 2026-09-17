@@ -591,3 +591,117 @@ def test_record_block_priority_is_a_noop_for_a_failed_block():
     enc = Encounter(id="e1", acts_first={"blocker": "attacker"})
     out = enc.record_block_priority({})
     assert out.acts_first == {"blocker": "attacker"}
+
+
+# ---------------------------------------------------------------------------
+# 6E2 p.60's priority survives a rehydration
+# ---------------------------------------------------------------------------
+
+def _rebuilt_from_the_log(session):
+    """A fresh session carrying nothing but the rows --- what a consumer
+    that persists the log and rebuilds between steps actually holds."""
+    from kirby_combat.session.apply import apply_event
+
+    rebuilt = CombatSession.create(
+        id=session.id,
+        combatants=list((session.initial_combatants or {}).values()),
+        scene=session.scene, template=session.template,
+        dice_roller=session.dice_roller,
+    )
+    for event in session.event_log:
+        rebuilt = apply_event(rebuilt, event)
+    return rebuilt
+
+
+def _blocked(session):
+    """A successful Block: blocker OCV 13, roll 9, against attacker OCV 10."""
+    session, result, priority = resolve_block_in_session(
+        session, blocker_id="blocker", attacker_id="attacker",
+        blocker_ocv=13, blocker_dice=[3, 3, 3], attacker_ocv=10,
+    )
+    assert result.success
+    assert priority == {"blocker": "attacker"}
+    return session
+
+
+def test_a_successful_block_puts_its_priority_in_the_log():
+    """THE DEFECT. `Encounter.acts_first` was a field and nothing else, so
+    the one piece of fight state 6E2 p.60 creates was carried by no event.
+    A consumer that rebuilds the Encounter from a session's own timeline
+    between steps held an empty mapping."""
+    session = _blocked(_session("s", [("blocker", 10), ("attacker", 25)]))
+
+    assert session.timeline.block_priority == {"blocker": "attacker"}
+    assert [e.kind for e in session.event_log][-1] == "BlockPriorityGained"
+
+
+def test_a_failed_block_earns_nothing_and_says_nothing():
+    """The negative control: a row for a Block that earned no priority
+    would be a row saying nothing, and would also make the test above
+    pass for the wrong reason."""
+    session, result, priority = resolve_block_in_session(
+        _session("s", [("blocker", 10), ("attacker", 25)]),
+        blocker_id="blocker", attacker_id="attacker",
+        blocker_ocv=3, blocker_dice=[6, 6, 6], attacker_ocv=18,
+    )
+
+    assert result.success is False
+    assert priority == {}
+    assert session.timeline.block_priority == {}
+    assert not any(e.kind == "BlockPriorityGained" for e in session.event_log)
+
+
+def test_a_fight_rebuilt_from_its_log_resolves_the_same_order():
+    """The claim that matters. The blocker is DEX 10 against the
+    attacker's DEX 25 and acts first anyway (6E2 p.60) --- in the fight
+    that ran AND in the fight rebuilt from nothing but its rows.
+
+    The rebuilt Encounter is constructed the way a consumer constructs
+    one: from the session's own timeline, carrying no `acts_first` field
+    at all.
+    """
+    live_session = _blocked(_session("s", [("blocker", 10), ("attacker", 25)]))
+
+    live = Encounter(id="e1", segment=3, sessions=[live_session])
+    rebuilt = Encounter(
+        id="e1", segment=3, sessions=[_rebuilt_from_the_log(live_session)],
+    )
+    assert rebuilt.acts_first == {}, "no field is carried across; only rows"
+
+    live_out = live.run_segment(roller=_scripted_roller())
+    rebuilt_out = rebuilt.run_segment(roller=_scripted_roller())
+
+    assert _scene_order_ids(live_out)[0] == "blocker"
+    assert _scene_order_ids(rebuilt_out) == _scene_order_ids(live_out)
+
+
+def test_the_priority_is_spent_by_the_shared_segment_in_the_replay_too():
+    """6E2 p.60 gives ONE shared Segment, not a standing advantage --- and
+    the spend has to be in the replay as well, or the rebuilt fight keeps
+    an advantage the live one used up. `ActingOrderResolved` IS the
+    spend: no second event states the same rule."""
+    live_session = _blocked(_session("s", [("blocker", 10), ("attacker", 25)]))
+
+    live = Encounter(id="e1", segment=3, sessions=[live_session])
+    live = live.run_segment(roller=_scripted_roller())
+    assert _scene_order_ids(live)[0] == "blocker"
+    assert live.sessions[0].timeline.block_priority == {}, "spent"
+
+    rebuilt = Encounter(
+        id="e1", segment=6,
+        sessions=[_rebuilt_from_the_log(live.sessions[0])],
+    )
+    out = rebuilt.run_segment(roller=_scripted_roller())
+
+    assert _scene_order_ids(out)[0] == "attacker", "back to DEX order"
+
+
+def test_a_hand_set_priority_still_wins_over_the_folded_one():
+    """`Encounter.acts_first` stays an explicit override, merged on top."""
+    session = _session("s", [("blocker", 10), ("attacker", 25)])
+    enc = Encounter(
+        id="e1", segment=3, sessions=[session],
+        acts_first={"attacker": "blocker"},
+    )
+
+    assert enc.carried_block_priority() == {"attacker": "blocker"}

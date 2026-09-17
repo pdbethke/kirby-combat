@@ -80,25 +80,23 @@ class Block:
         `build_acting_order_for_segment`, and spent via
         `consume_block_priority`), or `{}` if the Block failed.
 
-        LIVE CALLER, PARTIAL WIRING: `Block.resolve` now has a live
-        caller -- `kirby_combat.actions.recording.resolve_block_in_session`
-        runs it and emits an `ActionResolved` for every Block resolution,
-        then calls this method unconditionally and returns whatever it
-        produces (`{}` on failure, `{blocker_id: attacker_id}` on success)
-        as part of its own return value. `Encounter.run_segment` is still
-        able to consume such a mapping correctly once it has one --
-        forwarding it into `resolve_acting_order` (so the blocker really
-        does act first, 6E2 p.60) and spending it via
-        `consume_block_priority` once the blocker and the named attacker
-        have shared a Segment (see `Encounter.acts_first`'s field
-        docstring). What remains unwired is the link between those two:
-        no driver in kirby_combat holds both a `CombatSession` and its
-        owning `Encounter` together at the point a Block resolves, so
-        nothing merges `resolve_block_in_session`'s returned priority into
-        `Encounter.acts_first` today. A real fight is not yet acting on a
-        successful Block's 6E2 p.60 priority end-to-end -- the recording
-        half of that pipeline now runs on every resolution; the merge into
-        `Encounter.acts_first` is the piece still waiting on a caller.
+        WIRED END TO END, AND THROUGH THE LOG (2026-09-17). This used to
+        say the chain was half-connected: `resolve_block_in_session`
+        computed the mapping and handed it back, `Encounter.run_segment`
+        could consume one, and nothing joined the two because no driver
+        held a `CombatSession` and its `Encounter` together at the moment
+        a Block resolved.
+
+        The join is not a driver, it is the record.
+        `resolve_block_in_session` emits a `BlockPriorityGained` for a
+        successful Block, `apply_event` folds it onto
+        `Timeline.block_priority`, and `run_segment` reads it from there
+        (merging any hand-set `Encounter.acts_first` on top). The spend is
+        `ActingOrderResolved`: an order containing both men is the shared
+        Segment the rule names. So the advantage survives a rehydration,
+        which a field on the Encounter did not --- a consumer rebuilding
+        the Encounter from a session's timeline held nothing, and the
+        blocker lost in the replay what he had won in the fight.
         """
         if not result.success:
             return {}

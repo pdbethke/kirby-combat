@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**A Block's "acts first" is in the record.** 6E2 p.60's priority — a successful
+blocker acts before that attacker in the next Segment they share, "even if [the
+attacker] does not attack again" — was carried on `Encounter.acts_first`, a
+field, and by no event at all. It was the last piece of fight state a consumer
+could not rebuild: rehydrating the Encounter from a session's own timeline
+between steps left the mapping empty, so the blocker won his Block in the live
+fight and lost his priority in the replayed one. `BlockPriorityGained` now
+carries it, `apply_event` folds it onto `Timeline.block_priority`, and
+`Encounter.run_segment` reads it from there (`Encounter.acts_first` remains an
+explicit override, merged on top; `carried_block_priority()` is the one
+reading). The SPEND needs no event: an `ActingOrderResolved` containing both men
+*is* the shared Segment the rule names, so `apply_event` drops the entry when it
+applies that order.
+
 **No row is edited after it is applied.** The Trip resolver (6E2 p.67) ran its
 attack through `apply_event` and then `dataclasses.replace`d the payload on
 `event_log[-1]` to stamp `kind="trip"`, the house-rule Acrobatics save and
