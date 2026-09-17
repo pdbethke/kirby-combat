@@ -29,7 +29,7 @@ from kirby_combat.resolution.bleeding import (
     EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
     stabilize_target as _stabilize_target,
 )
-from kirby_combat.health import classify_health
+from kirby_combat.health import STUN_WOUNDED_PCT, stun_percent
 from kirby_combat.endurance import costs_end
 from kirby_combat.actions.throw import resolve_object_throw
 from kirby_combat.hero_view import HeroCombatant
@@ -672,9 +672,12 @@ def enumerate_actions(
         HANDTOHANDATTACK / HA via ``actor.attacks``.
       * one Dodge action.
       * one Set action.
-      * one Recover action when the actor is wounded or worse --- the
-        rung `kirby_combat.health.classify_health` owns (<½ STUN) ---
-        or low on END (<⅓ END).
+      * one Recover action when the actor is below half STUN --- the
+        same rung `kirby_combat.health.classify_health` calls "wounded",
+        read through `health.stun_percent` so there is one expression of
+        the number --- or low on END (<⅓ END). Deliberately the STUN rung
+        and not the whole ladder: the ladder also calls a man at 0 BODY
+        critical, and 6E2 p.130 prices a Recovery in STUN and END.
       * (PR-9) one ``move`` action per alive enemy when
         ``has_scene=True`` — the driver will read positions and
         step toward the chosen target.
@@ -2689,16 +2692,24 @@ def enumerate_actions(
     # division against a rounded percentage -- so the menu and the tactic
     # layer could disagree about the same fighter: at max_stun 45, `//2`
     # is 22, half is 22.5, and a man at 22 STUN was offered a Recover by
-    # the menu while `classify_health` called him healthy. `health.py`
-    # says out loud that this offer is the same rung as "wounded"; now it
-    # asks rather than restating it.
+    # the menu while `classify_health` called him healthy. It asks
+    # `stun_percent` now: one expression of the number, one reading of it.
     #
-    # The END half stays here. It is not a health rung at all -- a fresh
-    # fighter low on END is offered a Recovery and is not "wounded" by
-    # any reading -- and `classify_health` deliberately knows nothing
-    # about END.
+    # THE STUN RUNG, NOT THE LADDER. `classify_health` would be the
+    # tidier-looking call and it is the WRONG one here: it answers
+    # "critical" for BODY at or below zero whatever the STUN is, so it
+    # would offer a Recovery to a man at full STUN and 0 BODY who was
+    # never offered one before. 6E2 p.130 prices a Recovery in STUN and
+    # END; no page was found that makes a Recovery the answer to a BODY
+    # wound, and a rule change with no citation is a rule invented. The
+    # offer stays where it was, said through the one door.
+    #
+    # The END half likewise stays here. It is not a health rung at all --
+    # a fresh fighter low on END is offered a Recovery and is not
+    # "wounded" by any reading -- and the ladder deliberately knows
+    # nothing about END.
     if (
-        classify_health(actor) != "healthy"
+        stun_percent(actor) < STUN_WOUNDED_PCT
         or actor.state.current_end < s.max_end // 3
     ):
         actions.append(LegalAction(

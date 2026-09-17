@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+`CombatSession` built with events already on it and no `initial_combatants`
+raises. The combatants such a session holds are the men the fight *left*, and
+`rewind_to_sequence` replays into the men it *found* — inferring one from the
+other is a guess that silently makes every later rewind return a session more
+hurt than the fight ever got. A session with an empty log still infers: it has
+not been in a fight.
+
 **`PhaseResult.events` is every event the call wrote.** It was assembled from
 the sub-calls — the skips, the resolver's events, the spend — and the clock's
 events were not among them: `ActingOrderResolved` (from `Encounter.run_segment`),
@@ -139,7 +146,10 @@ copies and their constants are gone. Three more have followed them:
 `enumerate_actions`' Recover offer (which alone was written as
 `current_stun < max_stun // 2`, so at an odd STUN total it really did disagree
 with the percentage the tactics read — 22 of 45 was "wounded" to one and
-"healthy" to the other), `stand_and_take_it`'s `_STUN_HEALTHY_PCT`, and the
+"healthy" to the other; it asks `health.stun_percent` now and stays on the STUN
+rung specifically, because the full ladder also calls a man at 0 BODY critical
+and 6E2 p.130 prices a Recovery in STUN and END),
+`stand_and_take_it`'s `_STUN_HEALTHY_PCT`, and the
 percentage the two hurt-tactics printed in their rationale, which is now
 `health.stun_percent` — the number the ladder itself is cut from.
 

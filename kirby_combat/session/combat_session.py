@@ -58,9 +58,19 @@ class CombatSession:
     #: not injective.
     #:
     #: Filled in by `__post_init__` from `combatants` when it is not
-    #: given, which is right for any session built at setup (every one in
-    #: this engine) and is carried forward untouched by the
-    #: `dataclasses.replace` every state change here goes through.
+    #: given AND the log is empty --- a session with no events has not
+    #: been in a fight, so its combatants ARE the men it started with.
+    #: Carried forward untouched by the `dataclasses.replace` every state
+    #: change here goes through.
+    #:
+    #: A session constructed with events already on it and no
+    #: `initial_combatants` RAISES. The men it holds are the men the
+    #: fight left, inferring the start from them is a guess, and the
+    #: guess is silent: every later `rewind_to_sequence` would replay the
+    #: fight's damage on top of itself and return a session more hurt
+    #: than the fight ever got, with nothing saying so. A consumer
+    #: rebuilding a session from a snapshot has the starting combatants
+    #: and must pass them.
     initial_combatants: dict[str, CombatantLike] | None = None
     status: str = "setup"
     dice_roller: Optional["DiceRoller"] = None
@@ -68,8 +78,17 @@ class CombatSession:
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
-        if self.initial_combatants is None:
-            self.initial_combatants = dict(self.combatants)
+        if self.initial_combatants is not None:
+            return
+        if self.event_log:
+            raise ValueError(
+                f"session {self.id!r} was built with "
+                f"{len(self.event_log)} events already on it and no "
+                f"`initial_combatants`: the combatants it holds are the "
+                f"men the fight LEFT, and `rewind_to_sequence` replays "
+                f"into the men it FOUND. Pass the starting combatants."
+            )
+        self.initial_combatants = dict(self.combatants)
 
     @classmethod
     def create(

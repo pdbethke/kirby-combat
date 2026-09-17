@@ -143,9 +143,69 @@ def test_the_recover_offer_stands_on_the_same_rung_as_the_ladder(stun, max_stun)
     percentage, which is why it could differ for a real fighter rather
     than only in principle.
     """
+    from kirby_combat.health import STUN_WOUNDED_PCT, stun_percent
+
     actor = _fighter(stun=stun, max_stun=max_stun)
 
+    assert _recover_offered(actor) is (
+        stun_percent(actor) < STUN_WOUNDED_PCT)
+    # These fixtures are all at full BODY, so the STUN rung and the whole
+    # ladder agree; the test below is where they part.
     assert _recover_offered(actor) is (classify_health(actor) != "healthy")
+
+
+def test_a_man_at_full_stun_and_no_body_is_not_offered_a_recovery():
+    """THE STUN RUNG, NOT THE WHOLE LADDER.
+
+    `classify_health` answers "critical" for BODY at or below zero
+    whatever the STUN is --- rightly, for a tactic deciding whether to
+    break off. Gating the Recover offer on it would offer a Recovery to a
+    man at full STUN and 0 BODY who was never offered one before, and
+    6E2 p.130 prices a Recovery in STUN and END. A rule change with no
+    page behind it is a rule invented, so the offer stays on the rung it
+    was always on.
+    """
+    from kirby_combat.enumeration import enumerate_actions, is_down
+    from kirby_combat.health import STUN_WOUNDED_PCT, stun_percent
+
+    dying = synthetic_combatant(
+        id="a", name="a", spd=4, dex=20, rec=6,
+        max_stun=40, max_body=12, max_end=40,
+        current_stun=40, current_body=0, current_end=40,
+    )
+
+    assert classify_health(dying) == "critical"
+    assert stun_percent(dying) >= STUN_WOUNDED_PCT, "his STUN is untouched"
+    assert _recover_offered(dying) is False
+
+    # SAID HONESTLY: the widened gate could not actually have been
+    # OBSERVED through this door. `classify_health` only reaches
+    # "critical" on BODY at or below zero, and `enumerate_actions` returns
+    # an empty menu for such a man anyway (`is_down`, 6E1 p.421) --- so
+    # the extra arm changed the predicate and could change no menu. It is
+    # reverted because a rule with no citation should not be in the code,
+    # not because a fight was observed going wrong.
+    assert is_down(dying) is True
+    assert enumerate_actions(dying, [], has_scene=False) == []
+
+
+def test_the_gate_is_the_stun_rung_where_the_menu_can_still_be_seen():
+    """The predicate itself, at the one place the two readings differ and
+    the man is still enumerable: they cannot, so this pins the predicate
+    directly rather than through a menu that would be empty either way."""
+    from kirby_combat.health import STUN_WOUNDED_PCT, stun_percent
+
+    dying = synthetic_combatant(
+        id="a", name="a", spd=4, dex=20, rec=6,
+        max_stun=40, max_body=12, max_end=40,
+        current_stun=40, current_body=0, current_end=40,
+    )
+
+    offered_by_the_stun_rung = stun_percent(dying) < STUN_WOUNDED_PCT
+    offered_by_the_whole_ladder = classify_health(dying) != "healthy"
+
+    assert offered_by_the_stun_rung is False
+    assert offered_by_the_whole_ladder is True
 
 
 def test_a_healthy_man_low_on_end_is_still_offered_a_recovery():

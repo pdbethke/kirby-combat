@@ -20,7 +20,6 @@ rebuilding it from the rows alone. Same winner, same log.
 """
 from __future__ import annotations
 
-from dataclasses import replace
 
 from conftest import fighter  # tests/loop/conftest.py
 
@@ -127,7 +126,78 @@ def test_the_fight_hurts_somebody():
     assert _vitals(live) != start
 
 
+def _ran_it_and_wrote_down_what_it_saw():
+    """The live fight, stepped by `run_phase`, RECORDING the state after
+    every Phase as it happens.
+
+    THE ANCHOR. Comparing a replay against `rewind_to_sequence` compares
+    two replays: `rewind_to_sequence` is itself a fresh session with the
+    log played through `apply_event`, so a fold error that affects both
+    sides identically is invisible at every intermediate point. These
+    recordings are taken from the LIVE session, mid-fight, before any
+    replay exists --- so the comparison has something outside the fold to
+    be right about.
+
+    Keyed by sequence number: after each Phase, the state at the sequence
+    that Phase's last event carries.
+    """
+    roller = RandomRoller(seed=FIGHT_SEED)
+    encounter = _encounter()
+    stop = LastSideStanding()
+    observed: dict[int, tuple] = {}
+
+    for _ in range(MAX_TURNS * 12 * 12):
+        phase = run_phase(encounter, FirstLegalChooser(), roller=roller,
+                          on_unresolvable="skip")
+        if phase.actor_id is None:
+            break
+        encounter = phase.encounter
+        live = phase.session
+        observed[len(live.event_log)] = (_vitals(live), next_actor_id(live))
+        if Roster(live).decide(stop):
+            break
+    else:                                   # pragma: no cover - guard
+        raise AssertionError("the live fight never finished")
+
+    return encounter.sessions[0], observed
+
+
+def test_replaying_the_log_reproduces_what_the_live_fight_showed():
+    """Anchored to the live session, not to another replay."""
+    live, observed = _ran_it_and_wrote_down_what_it_saw()
+    assert len(observed) >= 4, "too few observations to mean anything"
+    seen = [v for v, _ in observed.values()]
+    assert seen[0] != seen[-1], (
+        "nobody's vitals moved across the observations, so the comparison "
+        "below would hold for two fights in which nothing happened")
+
+    replayed = _fresh_session()
+    for event in live.event_log:
+        replayed = apply_event(replayed, event)
+        if event.sequence not in observed:
+            continue
+        seen_vitals, seen_actor = observed[event.sequence]
+
+        assert _vitals(replayed) == seen_vitals, (
+            f"vitals diverge at sequence {event.sequence} ({event.kind}) "
+            f"from what the live fight showed"
+        )
+        assert next_actor_id(replayed) == seen_actor, (
+            f"next actor diverges at sequence {event.sequence} "
+            f"({event.kind}) from what the live fight showed"
+        )
+
+
 def test_replaying_the_log_reproduces_every_vital_at_every_sequence():
+    """The same claim at EVERY sequence, including the ones no Phase ended
+    on --- the Recovery rows, the Segment advances, each row of a Turn
+    wrap.
+
+    Against `rewind_to_sequence`, which is itself a replay: this is the
+    finer-grained half and it is anchored by the test above rather than
+    standing on its own. Both are needed. This one alone would compare two
+    replays; that one alone would skip every sequence inside a Phase.
+    """
     live = _ran_the_whole_fight().encounter.sessions[0]
 
     replayed = _fresh_session()
