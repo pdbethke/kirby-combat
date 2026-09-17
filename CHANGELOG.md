@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.17.0 — 2026-09-17
+
+131 commits since 0.16.0 (2026-09-07 to 2026-09-13): 59 features, 62 fixes.
+Highlights, from the commit subjects:
+
+- feat: firing into melee — the held man can take the bullet
+- feat: a Grab costs both men their DCV
+- feat: a grabbed man can struggle — the grapple chain closes
+- feat: tactics can measure reach; grappling; a Grab that led nowhere
+- feat: doctrine can disarm — and a prop that cost six action kinds
+- feat: doctrine stops letting men bleed to death
+- feat: a scene can say what may be picked up
+- feat: futility grades an attack on TERRAIN too
+- feat: grade the decision, not just count it
+- feat: the doctrine hint is the caller's call, not a global
+- feat: a baseline records WHICH PAGE it measured
+- feat: the Brief says what SHAPE the enemy is in
+
+**Breaking:** `refactor!: the engine takes a build, never a file`.
+
+`Brief.render(*, doctrine=...)`: the doctrine-hint section is the caller's call
+(kirby-ai 0.2.x depends on this).
+
 ## 0.16.0 — 2026-09-07
 
 **The engine can execute what it offers.** Resolvable action kinds go from
