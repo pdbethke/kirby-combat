@@ -1,10 +1,14 @@
-"""apply_vitals_delta — the one place a STUN/BODY/END change lands on a combatant.
+"""The one place a STUN/BODY/END change lands on a combatant, and the one
+door a caller goes through to make one.
 
 WHY THIS EXISTS. Two private copies of this fold already lived in the
 engine, and they had drifted apart:
 
   - ``encounter.py::_apply_stun_end_recovery`` — STUN and END, no BODY.
-  - ``actions/movement/base.py::_decrement_end`` — END only.
+    (Gone 2026-09-17: `apply_event` folds `RecoveryTaken` itself, so the
+    wrapper had no caller left.)
+  - ``actions/movement/base.py::_decrement_end`` — END only. (Gone the
+    same day, for the same reason.)
 
 Each carried its own paragraph explaining the same shape dispatch, and
 neither could apply BODY, which is what an attack mostly deals. Both now
@@ -34,10 +38,18 @@ past ``max_stun``) computes the bounded delta itself and passes it —
 ``min(rec, max_stun - current_stun)``.
 
 The returned combatant is always new; the input is never mutated.
+
+AND IT IS NOT CALLED DIRECTLY ANY MORE, except by `apply_event`. A
+resolver that wants to hurt somebody calls `record_vitals_change` below,
+which builds the event and lets the dispatcher do the writing --- see
+that function, and `session/events.py`'s `VitalsChanged`, for why the
+old mutate-then-log arrangement could not be replayed.
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import replace
+from datetime import datetime, timezone
 
 
 def apply_vitals_delta(combatant, *, stun: int = 0, body: int = 0, end: int = 0):
@@ -63,3 +75,43 @@ def apply_vitals_delta(combatant, *, stun: int = 0, body: int = 0, end: int = 0)
         current_body=combatant.current_body + body,
         current_end=combatant.current_end + end,
     )
+
+
+def record_vitals_change(
+    session, combatant_id: str, *,
+    stun: int = 0, body: int = 0, end: int = 0, reason: str,
+):
+    """Record a STUN/BODY/END change and let `apply_event` apply it.
+
+    THE EMITTER, so that there is exactly one. Nine places in this engine
+    used to fold a vital onto `session.combatants` themselves and then
+    (sometimes) log something near it; every one of them calls this
+    instead, so the change and the row that describes it can no longer
+    come apart. Returns `(new_session, event)` --- the event, because a
+    resolver hands its events out on its result and a change a consumer
+    never sees is a change it cannot replay.
+
+    Deltas are SIGNED: damage and spends are negative. `reason` is
+    required rather than defaulted, because "something happened to his
+    STUN" is not a record; the reader has to be able to tell a Push from
+    a punch.
+
+    A zero change emits nothing. It is not a decision, and a log full of
+    `stun=0, body=0` rows for every miss would bury the hits.
+    """
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import VitalsChanged, make_author_engine
+
+    if stun == 0 and body == 0 and end == 0:
+        return session, None
+    event = VitalsChanged(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        combatant_id=combatant_id,
+        stun=stun, body=body, end=end,
+        reason=reason,
+    )
+    return apply_event(session, event), event

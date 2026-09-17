@@ -151,6 +151,50 @@ class ActionResolved(_BaseEvent):
 
 
 @dataclass
+class VitalsChanged(_BaseEvent):
+    """STUN, BODY or END moving on one combatant --- the whole of it.
+
+    THE CHANGE WAS NEVER IN THE RECORD. Every resolver in this engine
+    changed a combatant BESIDE the event that described what happened:
+    `actions/recording.py` folded an attack's damage onto
+    `session.combatants` and then logged an `ActionResolved` whose
+    `result_payload` was a free-form dict; the END an attack, a move or a
+    Push cost was taken off the fighter and logged nowhere at all. A
+    consumer that persists the rows and rebuilds the fight by replaying
+    them --- which is what "the log is the record" has to mean ---
+    therefore rebuilt a fight in which nobody had ever been hit.
+    Measured: two Phases in, a fighter stood at 27 STUN in the fight that
+    ran and 50 in the fight replayed from its log.
+
+    So the change itself is an event, and `apply_event` is the only thing
+    that writes a vital. The deltas are SIGNED and they are DELTAS, not
+    resulting values: `stun=-14` is fourteen STUN taken off him,
+    `end=-5` is a Push paid for (6E2 p.133). That is the opposite
+    discipline from `AdjustmentFaded.remaining_delta` and
+    `PresenceFaded.segments_remaining`, which carry absolutes, and
+    deliberately so --- those fold a running effect forward and this
+    records a transaction. `apply_vitals_delta` clamps nothing in either
+    direction, which is what keeps how far below zero a man fell
+    readable (6E1 p.421), so a caller that owes a bounded amount bounds
+    it before emitting and the number in the log is the number that
+    happened.
+
+    `reason` is for the reader, not the fold: "damage", "end_spent",
+    "collapse". The rules-bearing losses have their own typed events and
+    keep them --- `RecoveryTaken` (6E2 p.130/p.131) and
+    `BleedingSuffered` (6E2 p.109/p.115) both already carried their
+    numbers in typed fields and both now fold through the same one door.
+    """
+
+    kind: Literal["VitalsChanged"] = field(default="VitalsChanged", init=False)
+    combatant_id: str = ""
+    stun: int = 0
+    body: int = 0
+    end: int = 0
+    reason: str = ""
+
+
+@dataclass
 class RecoveryTaken(_BaseEvent):
     kind: Literal["RecoveryTaken"] = field(default="RecoveryTaken", init=False)
     combatant_id: str = ""
@@ -406,6 +450,7 @@ CombatEvent = (
     | PhaseSpent
     | ActionDeclared
     | ActionResolved
+    | VitalsChanged
     | RecoveryTaken
     | BleedingSuffered
     | MovementResolved

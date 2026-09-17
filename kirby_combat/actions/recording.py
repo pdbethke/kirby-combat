@@ -59,7 +59,7 @@ from kirby_combat.session.events import (
     ActionDeclared, ActionResolved, make_author_combatant,
 )
 from kirby_combat.template import CombatTemplate
-from kirby_combat.vitals import apply_vitals_delta
+from kirby_combat.vitals import record_vitals_change
 
 #: The only ``action_type``/payload ``"kind"`` values kirby-api's own filter
 #: accepts (``situation_builder.py:687-688``: ``kind not in ("attack",
@@ -78,14 +78,16 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
     """Fold an attack's damage onto the session's own combatant for
     ``target_id``, returning a new session.
 
-    MUTATE-THEN-LOG, NOT APPLY-TIME. ``session/apply.py`` deliberately
-    treats ``ActionResolved`` as log-only: "combatant stat mutations in
-    apply would force log replay to mirror combatant state, which is more
-    brittle." So damage is applied here, beside the resolution, exactly as
-    ``encounter.py``'s ``_apply_post_12_recovery`` applies Recovery and
-    ``actions/movement/base.py``'s ``MovementAction.resolve`` applies an END
-    spend ("apply_event won't do it for us"). Rewind and log replay are
-    untouched by this.
+    THROUGH THE LOG, NOT BESIDE IT. This used to fold the damage onto
+    ``session.combatants`` and leave the recording to an
+    ``ActionResolved`` whose ``result_payload`` is a free-form dict ---
+    "mutate-then-log", the arrangement every resolver in the engine
+    copied. Nothing in the rows made anybody's STUN move, so a consumer
+    that rebuilt the fight by replaying them rebuilt a fight in which
+    nobody had been hit. It emits a typed ``VitalsChanged`` now and
+    ``apply_event`` does the writing; ``ActionResolved`` still carries
+    the outcome (what was rolled, what got through, who was Stunned) and
+    no fold has to parse it.
 
     THE SESSION'S COMBATANT, NOT THE CALLER'S. The caller passes an
     ``AttackInput`` holding a combatant object that may be a stale copy
@@ -103,13 +105,10 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
             f"target {target_id!r} is not a combatant in session {session.id!r}; "
             f"known combatants: {sorted(session.combatants)}"
         )
-    if stun == 0 and body == 0:
-        return session
-    new_combatants = dict(session.combatants)
-    new_combatants[target_id] = apply_vitals_delta(
-        session.combatants[target_id], stun=-stun, body=-body,
+    session, _ = record_vitals_change(
+        session, target_id, stun=-stun, body=-body, reason="damage",
     )
-    return replace(session, combatants=new_combatants)
+    return session
 
 
 def _tracks_endurance(template, attacker) -> bool:
@@ -140,12 +139,20 @@ def _spend_attack_end(session: CombatSession, attacker, cost: int,
 
     Clamped at zero. HERO's rule for acting without the END to pay (take
     STUN instead) is NOT implemented and is not claimed to be; this only
-    refuses to record a negative pool.
+    refuses to record a negative pool. The clamp happens BEFORE the
+    event, deliberately: `apply_vitals_delta` clamps nothing, so the
+    number in the log has to be the number that was really taken, or a
+    replay and the fight that ran would differ by whatever the clamp ate.
+    (That is the END-clamp lesson from the earlier replay work, stated
+    the other way round.)
 
     An attacker the session does not know is not an error here the way a
     missing TARGET is: pure resolution is routinely handed a combatant
     object rather than a session member, and charging nobody is the safe
     reading.
+
+    THE SPEND IS IN THE LOG. It was folded onto the combatant and
+    recorded nowhere at all, so a replayed fighter threw blasts for free.
     """
     if cost <= 0 or not _tracks_endurance(template, attacker):
         return session
@@ -156,9 +163,10 @@ def _spend_attack_end(session: CombatSession, attacker, cost: int,
     spend = min(cost, max(0, have))
     if spend <= 0:
         return session
-    new_combatants = dict(session.combatants)
-    new_combatants[combatant.id] = apply_vitals_delta(combatant, end=-spend)
-    return replace(session, combatants=new_combatants)
+    session, _ = record_vitals_change(
+        session, combatant.id, end=-spend, reason="end_spent",
+    )
+    return session
 
 
 def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
@@ -552,9 +560,10 @@ def resolve_attack_in_session(
     target_id = attack.target.id
     now = datetime.now(timezone.utc)
 
-    # Apply the damage to the session's combatants, THEN log it -- the
-    # two-step `_apply_post_12_recovery` and `MovementAction.resolve`
-    # already use. See `_apply_damage` for why not in `apply_event`.
+    # The damage, as its own typed row. See `_apply_damage`: this is the
+    # event `apply_event` folds, and it goes in BEFORE the
+    # `ActionResolved` that describes the exchange, because the STUN is
+    # gone the moment the shot lands.
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
     )
@@ -807,9 +816,10 @@ def resolve_mental_blast_in_session(
     target_id = target.id
     now = datetime.now(timezone.utc)
 
-    # Apply the damage to the session's combatants, THEN log it -- the
-    # two-step `_apply_post_12_recovery` and `MovementAction.resolve`
-    # already use. See `_apply_damage` for why not in `apply_event`.
+    # The damage, as its own typed row. See `_apply_damage`: this is the
+    # event `apply_event` folds, and it goes in BEFORE the
+    # `ActionResolved` that describes the exchange, because the STUN is
+    # gone the moment the shot lands.
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
     )

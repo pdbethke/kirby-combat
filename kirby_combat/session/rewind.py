@@ -20,9 +20,15 @@ def rewind_to_sequence(session: CombatSession, target_sequence: int) -> CombatSe
 
     kept = [e for e in session.event_log if e.sequence <= target_sequence]
 
+    # THE MEN AS THE FIGHT FOUND THEM, not as it left them. This seeded
+    # the replay with `session.combatants`, which was harmless only while
+    # `apply_event` folded no vitals: now that it does, seeding with the
+    # current combatants would replay every point of damage on top of the
+    # damage already done -- a rewind to sequence 1 would return a
+    # session more hurt than the fight ever got.
     fresh = CombatSession.create(
         id=session.id,
-        combatants=list(session.combatants.values()),
+        combatants=list((session.initial_combatants or session.combatants).values()),
         scene=session.scene,
         template=session.template,
         dice_roller=session.dice_roller,

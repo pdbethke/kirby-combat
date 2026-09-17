@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
-    ActingOrderResolved, ActionDeclared, CombatEvent, PhaseSpent,
-    SegmentAdvanced,
+    ActingOrderResolved, ActionDeclared, BleedingSuffered, CombatEvent,
+    PhaseSpent, RecoveryTaken, SegmentAdvanced, VitalsChanged,
 )
 from kirby_combat.session.timeline import restore_acting_order
 from kirby_combat.talents.lightning_reflexes import restriction_for_slot
@@ -108,6 +108,37 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         new_timeline = replace(session.timeline, acting_order=new_order)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
+    if kind == "VitalsChanged":
+        assert isinstance(event, VitalsChanged)
+        return _fold_vitals(
+            session, new_log, now, event.combatant_id,
+            stun=event.stun, body=event.body, end=event.end,
+        )
+
+    if kind == "RecoveryTaken":
+        assert isinstance(event, RecoveryTaken)
+        # 6E2 p.130's Recovery and p.131's free Post-Segment 12 Recovery,
+        # both of them. The event has carried the two numbers in typed
+        # fields since it was written and the STUN and END were put back
+        # on the combatant BESIDE it, by `Encounter.advance_segment` and
+        # by the `recover` resolver -- so a replayed fight never got its
+        # wind back. Signs are the event's own: a Recovery GIVES.
+        return _fold_vitals(
+            session, new_log, now, event.combatant_id,
+            stun=event.stun_recovered, end=event.end_recovered,
+        )
+
+    if kind == "BleedingSuffered":
+        assert isinstance(event, BleedingSuffered)
+        # 6E2 p.109 (bleeding to death) and p.115 (the optional wound
+        # Bleeding), which is why the event says which rule fired. Both
+        # fields are stated as LOSSES, so the fold negates them; the
+        # event stays readable as "he lost 1 BODY" rather than "-1".
+        return _fold_vitals(
+            session, new_log, now, event.combatant_id,
+            body=-event.body_lost, stun=-event.stun_lost,
+        )
+
     if kind == "ActionDeclared":
         assert isinstance(event, ActionDeclared)
         _enforce_lightning_reflexes_phase_restriction(session, event)
@@ -125,21 +156,26 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         new_timeline = replace(session.timeline, aborted_this_phase=new_aborted)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
-    # These events persist to the log; per-event semantics live in derivation
-    # helpers rather than mutating Combatant fields:
-    #   - Adjustment / Entangle / Flash:  kirby_combat/session/effects.py
-    #   - Recovery / status / movement:   resolved at action time, not on apply
+    # These events persist to the log and change no combatant stat --- not
+    # because stat changes are forbidden here (they are this dispatcher's
+    # job now, see `VitalsChanged` above), but because each of these
+    # genuinely describes something else:
+    #   - Adjustment / Entangle / Flash / Presence: a running effect, folded
+    #     forward by kirby_combat/session/effects.py rather than stored
+    #   - ActionResolved: the OUTCOME of an action -- what was rolled, what
+    #     got through, who was Stunned by it. The STUN and BODY it cost now
+    #     ride on their own `VitalsChanged`, emitted beside it, so no fold
+    #     has to parse a free-form `result_payload`
+    #   - MovementResolved: where a man went. Its END is a `VitalsChanged`
+    #     for the same reason
     #   - StatusEffectsChanged: audit-only delta view; the status set itself
     #     is derived from the log by kirby_combat.statuses.statuses_for, so
     #     applying this event must never be what makes a status true
     #   - GMOverride / EnvironmentalTriggered: structural log entries only
     #   - ConstructDamaged / ConstructSpawned: audit-only; construct state
     #     lives in the driver, not the engine session (Plan 2)
-    # Rewind correctness depends on this — combatant stat mutations in apply
-    # would force log replay to mirror combatant state, which is more brittle.
     if kind in {
-        "ActionResolved", "RecoveryTaken", "MovementResolved",
-        "BleedingSuffered",
+        "ActionResolved", "MovementResolved",
         "StatusChanged", "StatusEffectsChanged", "HeldActionReleased",
         "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
@@ -151,6 +187,42 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         return replace(session, event_log=new_log, updated_at=now)
 
     raise TypeError(f"unhandled event kind: {kind!r}")
+
+
+def _fold_vitals(
+    session: CombatSession, new_log, now, combatant_id: str,
+    *, stun: int = 0, body: int = 0, end: int = 0,
+) -> CombatSession:
+    """THE ONE WRITER of a combatant's STUN, BODY and END.
+
+    Every event that moves a vital lands here, and nothing outside
+    `apply_event` writes one --- which is the whole of what makes a fight
+    rebuilt from its rows the same fight. The arithmetic itself, and the
+    two combatant shapes it has to dispatch between, stay in
+    `kirby_combat.vitals.apply_vitals_delta`; this is the seam between
+    the log and that fold, not a second copy of it.
+
+    A combatant the session does not know RAISES. Silence here is the
+    failure this whole line of work exists to remove: a replay one man's
+    damage lighter than the fight that ran, with nothing saying so. It is
+    the same refusal `PhaseSpent` makes for a stranger in the acting
+    order.
+    """
+    from kirby_combat.vitals import apply_vitals_delta
+
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None:
+        raise ValueError(
+            f"{combatant_id!r} is not a combatant in session {session.id!r}: "
+            f"known combatants are {sorted(session.combatants)}"
+        )
+    new_combatants = dict(session.combatants)
+    new_combatants[combatant_id] = apply_vitals_delta(
+        combatant, stun=stun, body=body, end=end,
+    )
+    return replace(
+        session, event_log=new_log, combatants=new_combatants, updated_at=now,
+    )
 
 
 def _enforce_lightning_reflexes_phase_restriction(

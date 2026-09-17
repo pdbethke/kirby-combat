@@ -553,29 +553,27 @@ def _resolve_recover(
     combatant, so no clamping is applied on top of it here.
     """
     import uuid
-    from dataclasses import replace
     from datetime import datetime, timezone
 
     from kirby_combat.resolution.recovery import compute_recovery
     from kirby_combat.session.apply import apply_event
     from kirby_combat.session.events import RecoveryTaken, make_author_engine
-    from kirby_combat.vitals import apply_vitals_delta
 
-    stun_delta, end_delta = compute_recovery(actor, template, "phase_12")
-    recovered = apply_vitals_delta(actor, stun=stun_delta, end=end_delta)
+    # THE SESSION'S MAN, not the caller's handle. `compute_recovery`
+    # bounds the gain by `max_stun - current_stun`, so asking it about a
+    # stale copy would hand back a Recovery computed against STUN he no
+    # longer has.
+    recovering = session.combatants.get(actor.id, actor)
+    stun_delta, end_delta = compute_recovery(recovering, template, "phase_12")
 
-    # Mutate-then-log, the same two-step `_apply_post_12_recovery` uses:
-    # `apply_event` records a RecoveryTaken but does not itself move anyone's
-    # STUN (see `session/apply.py`).
-    before = replace(
-        session, combatants={**session.combatants, actor.id: recovered},
-    )
-    # `apply_event(session, event)` takes TWO arguments. This passed
-    # three --- `(before, session, RecoveryTaken(...))` --- so the resolver
-    # raised `TypeError` on every call it ever received, and `recover`
-    # has been registered, enumerated and unrunnable.
+    # APPLIED BY THE EVENT. This used to build the recovered combatant
+    # itself and lay it on the session before logging a `RecoveryTaken`
+    # that changed nothing --- so the man who spent his Phase getting his
+    # wind back had not got it back in any fight rebuilt from the rows.
+    # `apply_event` folds the event now; there is nothing to do beside
+    # it.
     new_session = apply_event(
-        before,
+        session,
         RecoveryTaken(
             id=str(uuid.uuid4()),
             session_id=session.id,
@@ -590,7 +588,7 @@ def _resolve_recover(
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=(stun_delta, end_delta),
-        events=_events_since(before, new_session),
+        events=_events_since(session, new_session),
     )
 
 
@@ -1584,7 +1582,6 @@ def _resolve_push(
     the book's, not a number invented here.
     """
     from kirby_combat.models import AttackInput, DiceValues
-    from kirby_combat.vitals import apply_vitals_delta
 
     power = action._attack_view
     if power is None:
@@ -1601,13 +1598,11 @@ def _resolve_push(
         session, attack, template, action_type="attack", roller=roller,
     )
     # 6E2 p.133's price. The engine applies no END for a Push anywhere else,
-    # so it is spent here rather than left owed.
-    pushed = apply_vitals_delta(new_session.combatants[actor.id], end=-5)
-    from dataclasses import replace as _replace
-
-    new_session = _replace(
-        new_session, combatants={**new_session.combatants, actor.id: pushed},
-    )
+    # so it is spent here rather than left owed -- and it goes through
+    # `_spend_end` like every other spend, which puts it in the log. It
+    # used to be folded straight onto the combatant and recorded nowhere,
+    # so a replayed Push was free.
+    new_session = _spend_end(new_session, actor.id, 5)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -1925,19 +1920,21 @@ def _resolve_reposition(
 
 
 def _spend_end(session, combatant_id: str, cost: int):
-    """Take END off a combatant, beside the resolution.
+    """Take END off a combatant --- THE one door for a spend in this module.
 
-    `session/apply.py` deliberately treats `ActionResolved` as log-only ---
-    "combatant stat mutations in apply would force log replay to mirror
-    combatant state, which is more brittle" --- so this folds the spend
-    here, exactly as `_apply_damage` folds damage and
-    `MovementAction.resolve` applies its own.
+    Every END cost the loop charges goes through here: the Pushed
+    reposition (6E2 p.135) and the Pushed attack (6E2 p.133). Both used
+    to fold the spend straight onto the combatant and record nothing, so
+    a fight rebuilt from its rows had everybody's wind back.
 
     Clamped at zero. HERO's rule for spending END you do not have (take
     STUN instead) is NOT implemented and is not claimed to be; this only
-    refuses to record a negative pool.
+    refuses to record a negative pool. The clamp is applied BEFORE the
+    event so the number in the log is the number really taken ---
+    `apply_vitals_delta` clamps nothing, and a clamp on one side of the
+    record and not the other is exactly how a replay drifts.
     """
-    from kirby_combat.vitals import apply_vitals_delta
+    from kirby_combat.vitals import record_vitals_change
 
     combatant = session.combatants.get(combatant_id)
     if combatant is None:
@@ -1946,9 +1943,10 @@ def _spend_end(session, combatant_id: str, cost: int):
     spend = min(cost, max(0, have))
     if spend <= 0:
         return session
-    new_combatants = dict(session.combatants)
-    new_combatants[combatant_id] = apply_vitals_delta(combatant, end=-spend)
-    return replace(session, combatants=new_combatants)
+    session, _ = record_vitals_change(
+        session, combatant_id, end=-spend, reason="end_spent",
+    )
+    return session
 
 
 @resolves("reposition_strike", "move_strike")

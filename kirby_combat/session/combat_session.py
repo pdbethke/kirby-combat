@@ -47,10 +47,29 @@ class CombatSession:
     template: "CombatTemplate"
     timeline: Timeline
     event_log: list[CombatEvent] = field(default_factory=list)
+    #: THE MEN AS THE FIGHT FOUND THEM --- what `combatants` was before
+    #: the first event. `rewind_to_sequence` rebuilds a session by
+    #: replaying the kept prefix of the log into a fresh one, and now that
+    #: `apply_event` folds vitals there is no fresh one to be had from
+    #: `combatants`: those are the men as the fight LEFT them, and a
+    #: rewind seeded with them would replay the fight's damage on top of
+    #: itself. There is no inverse to walk back to --- STUN is clamped
+    #: nowhere but a Recovery is bounded by the maximum, so the fold is
+    #: not injective.
+    #:
+    #: Filled in by `__post_init__` from `combatants` when it is not
+    #: given, which is right for any session built at setup (every one in
+    #: this engine) and is carried forward untouched by the
+    #: `dataclasses.replace` every state change here goes through.
+    initial_combatants: dict[str, CombatantLike] | None = None
     status: str = "setup"
     dice_roller: Optional["DiceRoller"] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def __post_init__(self) -> None:
+        if self.initial_combatants is None:
+            self.initial_combatants = dict(self.combatants)
 
     @classmethod
     def create(

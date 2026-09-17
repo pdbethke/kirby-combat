@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+**The log rebuilds the fight.** `apply_event` is now the ONLY writer of a
+combatant's STUN, BODY and END. Every resolver used to change the combatant
+beside the event that described the change — an attack folded its damage onto
+`session.combatants` and logged an `ActionResolved` whose payload was a
+free-form dict; the END an attack, a move or a Push cost was taken off the
+fighter and logged nowhere at all — so a consumer that persists the rows and
+rebuilds the fight by replaying them rebuilt a fight in which nobody had been
+hit. Measured: two Phases in, a fighter stood at 27 STUN in the fight that ran
+and 50 in the fight replayed from its log.
+
+`VitalsChanged(combatant_id, stun, body, end, reason)` is the new typed event
+for damage and for an END spend; the deltas are signed and are deltas, not
+resulting values. `RecoveryTaken` (6E2 p.130, p.131) and `BleedingSuffered`
+(6E2 p.109, p.115) keep their names and their typed fields and are folded by
+the same dispatcher — no fold parses a free-form dict. A change addressed to a
+combatant the session does not know raises rather than passing in silence, and
+an unknown event kind still raises. `vitals.record_vitals_change` is the one
+emitter; `vitals.apply_vitals_delta` is now called by `apply_event` alone, and
+a test walks the engine by AST to keep it that way.
+
+`CombatSession.initial_combatants` records the men as the fight found them.
+`rewind_to_sequence` replays into those rather than into the current
+combatants: with a real fold there is no inverse to walk back to, and seeding
+a rewind with the men as the fight LEFT them would replay its damage on top of
+itself.
+
 **The loop is in the log.** The two decisions the turn loop made in memory and
 told nobody about now reach the record: `ActingOrderResolved` (who acts, in
 what order, in which Segment — emitted by `Encounter.run_segment`, the one

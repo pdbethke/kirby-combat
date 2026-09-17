@@ -166,13 +166,15 @@ def _knocked_out(session: CombatSession, combatant_id: str) -> CombatSession:
 def test_the_replay_skips_the_downed_man_the_original_skipped():
     """The skip is a spend, and it has to be in the log to survive.
 
-    `apply_event` folds no stun and no body ON PURPOSE --- conditions
-    derive from the log, they are not mirrored onto combatants. So a
-    rebuilt session's fighters are all standing, and the ONLY way it can
-    pass over the man the original passed over is if the original wrote
-    down that it did. Before `PhaseSpent(reason="down")` it did not, and
-    the two fights reached different men: the original `c`, the replay
-    `b`.
+    THE MAN HERE IS KNOCKED OUT OFF THE RECORD, deliberately --- his STUN
+    is set by hand, with no event, which is how the original defect was
+    reproduced. `apply_event` folds vitals now (2026-09-17), so a fight
+    hurt the ordinary way IS hurt in the replay; this test keeps the
+    harder version of the claim, where the replay has no idea anyone is
+    down and must still pass over him. The ONLY thing that can carry that
+    is the spend the original wrote down. Before `PhaseSpent(reason=
+    "down")` nothing did, and the two fights reached different men: the
+    original `c`, the replay `b`.
     """
     original = _ran_a_segment_and_a_phase()   # "a" has acted
     original = _knocked_out(original, "b")
@@ -187,7 +189,8 @@ def test_the_replay_skips_the_downed_man_the_original_skipped():
 
     rebuilt = _rebuilt_from(original)
 
-    # The replay has no idea anyone is hurt -- which is the point.
+    # The replay has no idea THIS man is hurt -- he was put down off
+    # the record -- which is the point.
     assert not is_down(rebuilt.combatants["b"])
     assert next_actor_id(rebuilt) == next_actor_id(original) == "c"
 

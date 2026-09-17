@@ -110,9 +110,16 @@ def test_state_returns_the_same_object_not_a_copy():
         replace(c, state=object())
 
 
-def test_decrement_end_takes_the_flat_branch_for_a_stat_block():
-    """The discriminator, exercised end-to-end at its one real call site."""
-    from kirby_combat.actions.movement.base import _decrement_end
+def test_an_end_spend_takes_the_flat_branch_for_a_stat_block():
+    """The discriminator, exercised end-to-end at a real call site.
+
+    This used to ask `actions/movement/base.py::_decrement_end`, a named
+    wrapper over the same fold. The wrapper is gone: an END spend is a
+    `VitalsChanged` row now and `apply_event` is the only writer, so the
+    fold is asked here directly --- it is the same function the movement
+    spend reaches, one layer down.
+    """
+    from kirby_combat.vitals import apply_vitals_delta
 
     c = StatBlockCombatant(
         id="x", name="X", ocv=8, dcv=8, omcv=3, dmcv=3, spd=4, dex=18, ego=10, int_=10,
@@ -120,4 +127,4 @@ def test_decrement_end_takes_the_flat_branch_for_a_stat_block():
         power_defense=0, flash_defense=0, max_stun=40, max_body=12,
         max_end=40, current_stun=40, current_body=12, current_end=40,
     )
-    assert _decrement_end(c, 6).current_end == 34
+    assert apply_vitals_delta(c, end=-6).current_end == 34

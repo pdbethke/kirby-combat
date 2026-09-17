@@ -54,25 +54,6 @@ if TYPE_CHECKING:
 SEGMENTS_PER_TURN = 12
 
 
-def _apply_stun_end_recovery(combatant, stun_delta: int, end_delta: int):
-    """Return a NEW combatant with ``stun_delta``/``end_delta`` added to its
-    current STUN/END.
-
-    Thin wrapper over ``kirby_combat.vitals.apply_vitals_delta``, which owns
-    the StatBlockCombatant/HeroCombatant shape dispatch and documents why it
-    is an identity check. This function carried its own copy of that logic
-    until 2026-09-06, when a third caller (damage application in
-    ``actions/recording.py``) made the duplication untenable — and revealed
-    that neither copy could apply BODY.
-
-    The delta passed here is already bounded by ``compute_recovery``
-    (``min(rec, max_stun - current_stun)``), which is why the shared helper
-    deliberately does no clamping of its own.
-    """
-    from kirby_combat.vitals import apply_vitals_delta
-    return apply_vitals_delta(combatant, stun=stun_delta, end=end_delta)
-
-
 def _apply_post_12_recovery(
     session: "CombatSession", template: "CombatTemplate",
 ) -> "CombatSession":
@@ -101,25 +82,24 @@ def _apply_post_12_recovery(
     and "even Stunned ones" is exercised here via a KO'd/0-STUN
     combatant instead.)
 
-    Applied by mutating combatant state directly, THEN logging via
-    `apply_event` -- not by routing the stat change through `apply_event`
-    itself. `session/apply.py`'s dispatcher treats "RecoveryTaken" (along
-    with ActionResolved/MovementResolved/StatusChanged/...) as log-only by
-    design: see its comment "Recovery / status / movement: resolved at
-    action time, not on apply" -- calling `apply_event` alone would append
-    the event without changing anyone's STUN/END.
-    `actions/movement/base.py`'s `MovementAction.resolve` establishes the
-    identical two-step precedent for an END spend (mutate the combatant
-    first, `apply_event` second, with the comment "apply_event won't do it
-    for us").
+    APPLIED BY THE EVENT, not beside it. This used to fold the STUN and
+    END onto the combatants itself and then log a `RecoveryTaken` that
+    changed nothing, because `apply_event` treated the kind as log-only.
+    A consumer that rebuilt the fight from its rows therefore never gave
+    anyone their wind back. `apply_event` folds `RecoveryTaken` now, so
+    the numbers in the log ARE the numbers that happened.
+
+    `compute_recovery` is asked about the combatant as the session holds
+    him at the moment his Recovery is applied, which matters once the
+    fold is real: `min(rec, max_stun - current_stun)` for the second man
+    must be computed against a session the first man's Recovery has
+    already landed on, or a Recovery could push a man past his maximum.
     """
-    new_combatants = dict(session.combatants)
-    for combatant_id, combatant in session.combatants.items():
-        stun_delta, end_delta = compute_recovery(combatant, template, "post_12")
-        new_combatants[combatant_id] = _apply_stun_end_recovery(
-            combatant, stun_delta, end_delta,
+    for combatant_id in list(session.combatants):
+        stun_delta, end_delta = compute_recovery(
+            session.combatants[combatant_id], template, "post_12",
         )
-        evt = RecoveryTaken(
+        session = apply_event(session, RecoveryTaken(
             id=str(uuid.uuid4()),
             session_id=session.id,
             sequence=len(session.event_log) + 1,
@@ -128,14 +108,9 @@ def _apply_post_12_recovery(
             combatant_id=combatant_id,
             stun_recovered=stun_delta,
             end_recovered=end_delta,
-        )
-        # apply_event only appends to event_log/updated_at (see the
-        # log-only note above) -- it never touches `.combatants`, so
-        # accumulating `new_combatants` separately and writing them onto
-        # the final session below is safe and does not get overwritten.
-        session = apply_event(session, evt)
+        ))
 
-    return replace(session, combatants=new_combatants)
+    return session
 
 
 def _apply_bleeding(session: "CombatSession") -> "CombatSession":
@@ -155,10 +130,9 @@ def _apply_bleeding(session: "CombatSession") -> "CombatSession":
     is for (p.109), and this is the loss it stops.
     """
     from kirby_combat.resolution.bleeding import bleed_out_body
-    from kirby_combat.vitals import apply_vitals_delta
 
-    new_combatants = dict(session.combatants)
-    for combatant_id, combatant in session.combatants.items():
+    for combatant_id in list(session.combatants):
+        combatant = session.combatants[combatant_id]
         body = combatant.state.current_body
         max_body = max_body_of(combatant)
         if max_body is not None and body <= -max_body:
@@ -168,7 +142,10 @@ def _apply_bleeding(session: "CombatSession") -> "CombatSession":
         lost = bleed_out_body(current_body=body)
         if not lost:
             continue
-        new_combatants[combatant_id] = apply_vitals_delta(combatant, body=-lost)
+        # THE EVENT TAKES THE BODY. `apply_event` folds
+        # `BleedingSuffered` now; this used to subtract it here and log a
+        # row that did nothing, so a replayed fight's dying men never got
+        # any worse.
         session = apply_event(session, BleedingSuffered(
             id=str(uuid.uuid4()),
             session_id=session.id,
@@ -179,7 +156,7 @@ def _apply_bleeding(session: "CombatSession") -> "CombatSession":
             body_lost=lost,
             rule="bleed_out",
         ))
-    return replace(session, combatants=new_combatants)
+    return session
 
 
 def max_body_of(combatant) -> int | None:
@@ -266,7 +243,6 @@ def _apply_wound_bleeding(
     Turn, which is why the event says which one did.
     """
     from kirby_combat.resolution.bleeding import bleeding_dice, bleeding_result
-    from kirby_combat.vitals import apply_vitals_delta
 
     if not getattr(template, "use_bleeding_rules", False):
         return session
@@ -275,8 +251,8 @@ def _apply_wound_bleeding(
     if roller is None:
         return session
 
-    new_combatants = dict(session.combatants)
-    for combatant_id, combatant in session.combatants.items():
+    for combatant_id in list(session.combatants):
+        combatant = session.combatants[combatant_id]
         max_body = max_body_of(combatant)
         if max_body is None:
             continue
@@ -286,9 +262,6 @@ def _apply_wound_bleeding(
         if dice <= 0:
             continue
         loss = bleeding_result(roller.roll_dice(dice))
-        new_combatants[combatant_id] = apply_vitals_delta(
-            combatant, stun=-loss.stun_lost, body=-loss.body_lost,
-        )
         session = apply_event(session, BleedingSuffered(
             id=str(uuid.uuid4()),
             session_id=session.id,
@@ -301,7 +274,7 @@ def _apply_wound_bleeding(
             rule="wound",
             dice=loss.rolled,
         ))
-    return replace(session, combatants=new_combatants)
+    return session
 
 
 def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":

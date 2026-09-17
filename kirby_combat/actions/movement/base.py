@@ -28,22 +28,6 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import MovementResolved, make_author_combatant
 
 
-def _decrement_end(combatant, cost: int):
-    """Subtract ``cost`` from ``combatant.current_end`` and return the
-    updated combatant.
-
-    Thin wrapper over ``kirby_combat.vitals.apply_vitals_delta``, which
-    owns the two-shape dispatch (StatBlockCombatant's flat ``current_*``
-    fields vs. HeroCombatant's separate ``state`` dataclass) and explains
-    why that dispatch is an identity check. This function had its own copy
-    of that logic until 2026-09-06; it is kept as a named wrapper because
-    ``cost`` is a POSITIVE amount to spend here, while `apply_vitals_delta`
-    takes a signed delta.
-    """
-    from kirby_combat.vitals import apply_vitals_delta
-    return apply_vitals_delta(combatant, end=-cost)
-
-
 _VALID_MOVE_TYPES = frozenset({"half", "full", "noncombat"})
 
 
@@ -116,9 +100,15 @@ class MovementAction:
         session: CombatSession,
         combatant_id: str,
     ) -> tuple[CombatSession, MovementResolved]:
-        """Apply the movement: validate, emit MovementResolved, decrement END.
+        """Apply the movement: validate, spend the END, emit MovementResolved.
 
-        Returns (new_session, event). Raises ValueError on validation failure.
+        Returns (new_session, event) -- the MovementResolved. The END
+        spend is a `VitalsChanged` emitted just before it and is on the
+        session's log; a caller that needs both reads the log slice
+        rather than this return value, which is what every caller in the
+        engine already does.
+
+        Raises ValueError on validation failure.
         """
         from kirby_combat.session.apply import apply_event
         from dataclasses import replace
@@ -130,13 +120,21 @@ class MovementAction:
         if errors:
             raise ValueError(f"movement validation failed: {'; '.join(errors)}")
 
+        # THE END SPEND IS A ROW. It used to be taken off the combatant
+        # here with the comment "apply_event won't do it for us", and
+        # recorded nowhere: `MovementResolved` says where a man went and
+        # has never had a field for what it cost him, so a fight rebuilt
+        # from its rows had everybody moving for free. `VitalsChanged`
+        # carries it and `apply_event` applies it; the movement event
+        # keeps saying only what it is about.
+        #
+        # BEFORE the MovementResolved, because he pays to move.
+        from kirby_combat.vitals import record_vitals_change
+
         cost = self.end_cost()
-        # Decrement END on the combatant first (apply_event won't do it for us).
-        # Both legacy Combatant (flat field) and HeroCombatant (state.current_end
-        # property) need a different update path; helper handles both.
-        new_combatants = dict(session.combatants)
-        new_combatants[combatant_id] = _decrement_end(combatant, cost)
-        session = replace(session, combatants=new_combatants)
+        session, _ = record_vitals_change(
+            session, combatant_id, end=-cost, reason="movement",
+        )
 
         # WHERE THE MOVER STARTED, when the Scene knows. These two fields
         # were hardcoded to None until 2026-09-07 -- the event has carried
