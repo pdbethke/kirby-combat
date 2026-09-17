@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**`PhaseResult.events` is every event the call wrote.** It was assembled from
+the sub-calls — the skips, the resolver's events, the spend — and the clock's
+events were not among them: `ActingOrderResolved` (from `Encounter.run_segment`),
+`SegmentAdvanced` (from `advance_segment`) and the free Post-Segment 12
+`RecoveryTaken` all went into the log and none came back. A consumer persists
+what it is handed, so its own log had holes; measured over eight Phases, four
+steps lost events outright, one returned three of its nine, and replaying what
+had been persisted raised `event sequence mismatch: expected 2, got 3` on the
+second step. `run_phase` records the log length at entry and returns the tail at
+exit — one measurement, not a second account of the Phase that can disagree with
+the record.
+
 **A Block's "acts first" is in the record.** 6E2 p.60's priority — a successful
 blocker acts before that attacker in the next Segment they share, "even if [the
 attacker] does not attack again" — was carried on `Encounter.acts_first`, a

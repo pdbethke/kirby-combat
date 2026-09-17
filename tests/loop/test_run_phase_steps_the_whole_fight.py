@@ -227,3 +227,89 @@ def test_the_two_paths_reach_the_same_fight():
         "no resolution in the log, so the payload comparison proves nothing")
     assert [_shape(e) for e in encounter.sessions[0].event_log] == \
         [_shape(e) for e in live_rows]
+
+
+# ---------------------------------------------------------------------------
+# What a consumer is handed IS what was written down
+# ---------------------------------------------------------------------------
+
+def test_every_step_hands_back_exactly_what_it_wrote():
+    """THE DEFECT. `PhaseResult.events` was assembled from the sub-calls
+    -- the skips, the resolver's events, the spend -- and the CLOCK's
+    events were not among them: `ActingOrderResolved` from `run_segment`,
+    `SegmentAdvanced` from `advance_segment`, and the free Post-Segment 12
+    `RecoveryTaken`. All three go into the log; none came back.
+
+    A consumer persists what it is handed. Measured over eight Phases:
+    four steps lost events outright and one returned three of its nine, so
+    the consumer's own log had holes in it and replaying it raised
+    `event sequence mismatch: expected 2, got 3` on the second step.
+
+    Run across Segment 12 and a Turn boundary deliberately, because that
+    is where the events it dropped are emitted.
+    """
+    roller = RandomRoller(seed=17)
+    encounter = _pair()
+    steps = []
+
+    for _ in range(30):
+        before = len(encounter.sessions[0].event_log)
+        phase = run_phase(encounter, FirstLegalChooser(), roller=roller,
+                          on_unresolvable="skip")
+        if phase.actor_id is None:
+            break
+        assert phase.events == phase.session.event_log[before:], (
+            "a step handed back something other than what it wrote")
+        steps.append(phase.events)
+        encounter = phase.encounter
+    else:                                   # pragma: no cover - guard
+        raise AssertionError("the stepped fight never finished")
+
+    assert encounter.turn > 1, (
+        "the fight must cross a Turn boundary, or the events this test "
+        "exists for are never emitted")
+    kinds = {e.kind for step in steps for e in step}
+    for required in ("ActingOrderResolved", "SegmentAdvanced", "RecoveryTaken"):
+        assert required in kinds, f"{required} was written and not handed back"
+
+    # And the steps concatenate back into the log, exactly.
+    handed = [e for step in steps for e in step]
+    assert handed == encounter.sessions[0].event_log[
+        len(_pair().sessions[0].event_log):]
+    assert [e.sequence for e in handed] == list(
+        range(handed[0].sequence, handed[0].sequence + len(handed))), (
+        "the sequences a consumer is handed must have no holes in them")
+
+
+def test_a_consumer_can_replay_only_what_it_was_handed():
+    """The consequence, stated the way it bit: persist each step's events
+    and nothing else, then rebuild the fight from that alone."""
+    from kirby_combat.session import CombatSession, apply_event
+
+    roller = RandomRoller(seed=17)
+    encounter = _pair()
+    start = encounter.sessions[0]
+    persisted = list(start.event_log)
+
+    for _ in range(30):
+        phase = run_phase(encounter, FirstLegalChooser(), roller=roller,
+                          on_unresolvable="skip")
+        if phase.actor_id is None:
+            break
+        persisted.extend(phase.events)
+        encounter = phase.encounter
+
+    rebuilt = CombatSession.create(
+        id=start.id, combatants=list((start.initial_combatants or {}).values()),
+        scene=start.scene, template=start.template,
+        dice_roller=start.dice_roller,
+    )
+    for event in persisted:
+        rebuilt = apply_event(rebuilt, event)      # raises on a sequence hole
+
+    live = encounter.sessions[0]
+    assert {cid: (c.state.current_stun, c.state.current_body,
+                  c.state.current_end)
+            for cid, c in rebuilt.combatants.items()} == \
+        {cid: (c.state.current_stun, c.state.current_body, c.state.current_end)
+         for cid, c in live.combatants.items()}

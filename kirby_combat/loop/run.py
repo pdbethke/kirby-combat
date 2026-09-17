@@ -70,6 +70,14 @@ class PhaseResult:
     action_id: str | None = None
     kind: str | None = None
     result: Any = None
+    #: EVERY event this `run_phase` call appended to the session's log,
+    #: in order --- the clock's included. A consumer persists what it is
+    #: handed, so a list assembled from the sub-calls (which is what this
+    #: was) is a second account of the Phase that can disagree with the
+    #: record, and did: the acting order, the Segment advance and the
+    #: free Post-Segment 12 Recovery were written to the log and never
+    #: handed back, and a consumer replaying what it had persisted hit a
+    #: sequence gap on its second step.
     events: list[Any] = field(default_factory=list)
     #: Set when the chosen kind has no resolver and ``on_unresolvable="skip"``.
     skipped_kind: str | None = None
@@ -267,7 +275,7 @@ def _with(encounter: "Encounter", session: "CombatSession") -> "Encounter":
 
 def _advance_to_an_actor(
     encounter: "Encounter", *, campaign, tie_roller,
-) -> tuple["Encounter", str | None, list[PhaseSpent]]:
+) -> tuple["Encounter", str | None]:
     """Find a Segment somebody can act in, advancing the clock to reach it.
 
     THE ADVANCE, IN ONE PLACE. `run_encounter` held this --- resolve the
@@ -290,12 +298,13 @@ def _advance_to_an_actor(
     nobody can act at all. Returns `actor_id=None` in that case and lets
     the caller say so.
 
-    The `PhaseSpent` events for everyone passed over on the way come back
-    with it --- including the ones at the tail of a Segment, which the
-    old arrangement computed and then threw away with the session that
-    held them.
+    Everything this writes down --- the `PhaseSpent` for everyone passed
+    over, the `ActingOrderResolved` for each Segment resolved, the
+    `SegmentAdvanced` and the free Post-Segment 12 `RecoveryTaken` --- is
+    in the session's log when it returns, and `run_phase` hands the whole
+    tail of that log back. Nothing is collected here to be assembled into
+    a second account of the same Phase.
     """
-    spends: list[PhaseSpent] = []
     for _ in range(SEGMENTS_PER_TURN + 1):
         session = encounter.sessions[0]
         if not session.timeline.acting_order:
@@ -303,13 +312,12 @@ def _advance_to_an_actor(
                 campaign=campaign, roller=tie_roller,
             )
             session = encounter.sessions[0]
-        session, actor_id, passed_over = resolve_next_actor(session)
-        spends.extend(passed_over)
+        session, actor_id, _passed_over = resolve_next_actor(session)
         encounter = _with(encounter, session)
         if actor_id is not None:
-            return encounter, actor_id, spends
+            return encounter, actor_id
         encounter = encounter.advance_segment(campaign=campaign)
-    return encounter, None, spends
+    return encounter, None
 
 
 def run_phase(
@@ -373,6 +381,22 @@ def run_phase(
     stop: StopCondition = until or LastSideStanding()
     template = encounter._resolve_template(campaign)
 
+    # EVERYTHING THIS CALL WRITES DOWN, measured rather than assembled.
+    # `PhaseResult.events` used to be built piecewise from the sub-calls
+    # -- the skips, the resolver's own events, the spend -- and the
+    # clock's events were simply not among them: `run_segment`'s
+    # `ActingOrderResolved`, `advance_segment`'s `SegmentAdvanced` and the
+    # free Post-Segment 12 `RecoveryTaken` went into the log and were
+    # never handed back. Measured by a consumer over eight Phases: four
+    # steps lost events outright and one returned three of its nine, so a
+    # consumer persisting what it is handed raised `event sequence
+    # mismatch: expected 2, got 3` on its second step.
+    #
+    # A list assembled from the parts is a second statement of "what
+    # happened this Phase", and it disagreed with the log. The log is the
+    # record; this is the tail of it.
+    log_before = len(encounter.sessions[0].event_log)
+
     # TWO ROLLER CONTRACTS, RECONCILED HERE --- see the docstring. Passing
     # the dice object straight into the tie-break raises `'RandomRoller'
     # object is not callable`, which reads like a bad argument and is
@@ -388,7 +412,7 @@ def run_phase(
             encounter=encounter, notes=["the fight is already decided"],
         )
 
-    encounter, actor_id, skipped_slots = _advance_to_an_actor(
+    encounter, actor_id = _advance_to_an_actor(
         encounter, campaign=campaign, tie_roller=tie_roller,
     )
     session = encounter.sessions[0]
@@ -428,7 +452,7 @@ def run_phase(
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
             encounter=_with(encounter, session), actor_id=actor_id,
-            events=[*skipped_slots, spent],
+            events=session.event_log[log_before:],
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
@@ -537,7 +561,8 @@ def run_phase(
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            encounter=_with(encounter, session), actor_id=actor_id, events=[*skipped_slots, spent],
+            encounter=_with(encounter, session), actor_id=actor_id,
+            events=session.event_log[log_before:],
             notes=[f"{actor_id} had no legal action"],
         )
 
@@ -573,7 +598,7 @@ def run_phase(
         return PhaseResult(
             encounter=_with(encounter, session), actor_id=actor_id, action_id=action.action_id,
             kind=action.kind, skipped_kind=action.kind,
-            events=[*skipped_slots, spent],
+            events=session.event_log[log_before:],
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
@@ -582,7 +607,7 @@ def run_phase(
         encounter=_with(encounter, session), actor_id=actor_id,
         action_id=action.action_id, kind=action.kind,
         result=resolved.result,
-        events=[*skipped_slots, *resolved.events, spent],
+        events=session.event_log[log_before:],
     )
 
 
