@@ -417,7 +417,12 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
     """Fold Prone's SET/CLEAR edges out of the event log.
 
     SET: an ``ActionResolved`` whose payload names this combatant as the
-    ``target_id`` of a landed ``trip`` (6E2 p.67).
+    ``target_id`` of a landed ``trip`` (6E2 p.67) that the target did not
+    stay standing through. ``is_prone_after`` is the resolver's single
+    answer to that question -- it already accounts for the Acrobatics save
+    (a house rule; see ``loop/resolvers._resolve_trip``), so this fold does
+    not re-derive it. Entries written before that key existed fall back to
+    ``hit``, which is what the key means for a Trip with no save.
 
     CLEAR: a ``StatusChanged`` naming this combatant. There is no automatic
     clear, deliberately -- see the module NOTE beside ``PRONE``. Getting up
@@ -432,7 +437,7 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
             if (
                 payload.get("kind") == "trip"
                 and payload.get("target_id") == combatant_id
-                and payload.get("hit")
+                and payload.get("is_prone_after", payload.get("hit"))
             ):
                 prone = True
         elif kind == "StatusChanged" and getattr(evt, "combatant_id", None) == combatant_id:

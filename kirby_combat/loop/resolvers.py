@@ -2063,6 +2063,37 @@ def _maneuver_attack(
                                      action_type=action_type)
 
 
+#: The house-rule save's skill (kirby-api Spec C §3). Named once so
+#: the resolver and any future reader agree on the xmlid the cost engine
+#: writes for Acrobatics.
+ACROBATICS = "ACROBATICS"
+
+
+def _acrobatics_save(session, target_id: str | None, result, *, roller):
+    """The tripped man's roll to keep his feet, or None if he never rolls.
+
+    House rule (kirby-api Spec C §3, 2026-08), NOT
+    6E2 p.67, which states Trip with no save. See `_resolve_trip` for why it
+    is carried here and labelled rather than blended in.
+
+    Returns `{"rolled", "target", "roll", "kept_feet"}` on a hit against a
+    target that owns ACROBATICS, and None otherwise: a missed Trip and a man
+    with no skill both leave nothing to record.
+    """
+    if not result.hit or not target_id or target_id not in session.combatants:
+        return None
+    skill_roll = session.combatants[target_id].skill_roll_value(ACROBATICS)
+    if skill_roll is None:
+        return None
+    # `-max(0, margin)`: never a bonus for having been hit by a hair.
+    needed = int(skill_roll) - max(0, int(result.to_hit.margin))
+    rolled = sum(roller.roll_dice(3))
+    return {
+        "rolled": True, "target": needed, "roll": rolled,
+        "kept_feet": rolled <= needed,
+    }
+
+
 @resolves("trip")
 def _resolve_trip(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -2079,18 +2110,43 @@ def _resolve_trip(
 
     No damage: the Attack Roll decides whether they go down, and that is
     the whole effect.
+
+    House rule (kirby-api Spec C §3, 2026-08): a target with
+    ACROBATICS may roll to keep its feet, at a penalty equal to the margin
+    by which the Trip landed. THIS IS NOT IN 6E2 p.67 --- the book states
+    the maneuver above and no save, and none is invented here; the save
+    arrives from the consuming application, which has resolved Trip this
+    way, and it is labelled rather than blended in so that removing it is a
+    single deletion. The penalty is `-max(0, margin)`: a Trip that barely
+    landed is easier to recover from, and a margin can never become a
+    BONUS to the man being tripped.
+
+    The save is rolled only on a hit and only when the skill is there. No
+    ACROBATICS means no roll at all, recorded as `acrobatics_save: None`
+    rather than as a save that was made and failed --- "there was nothing
+    to roll" and "the roll was lost" are different facts, and a reader of
+    the log should be able to tell them apart.
     """
     from dataclasses import replace as _replace
 
     new_session, result = _maneuver_attack(
         session, actor, action, roller=roller, ocv_modifier=-1, damage_dice=0,
     )
+    save = _acrobatics_save(new_session, action.target_id, result, roller=roller)
     # Re-stamp the payload so the fold can see `kind="trip"` -- the attack
     # wrapper labels it "strike", which is what it mechanically is.
     log = list(new_session.event_log)
     last = log[-1]
     log[-1] = _replace(last, result_payload={
         **last.result_payload, "kind": "trip", "target_id": action.target_id,
+        "acrobatics_save": save,
+        # The single fact `statuses._is_prone` folds. Prone is applied when
+        # the Trip landed AND the save is absent or lost -- computed once,
+        # here, rather than re-derived by every reader out of `hit` and the
+        # save together.
+        "is_prone_after": bool(
+            result.hit and (save is None or not save["kept_feet"])
+        ),
     })
     new_session = _replace(new_session, event_log=log)
 
