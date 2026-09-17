@@ -29,7 +29,8 @@ from typing import TYPE_CHECKING, Callable, Iterable
 from kirby_combat.resolution.recovery import compute_recovery
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import (
-    BleedingSuffered, RecoveryTaken, SegmentAdvanced, make_author_engine,
+    ActingOrderResolved, BleedingSuffered, RecoveryTaken, SegmentAdvanced,
+    make_author_engine,
 )
 from kirby_combat.session.timeline import (
     ActionIntent,
@@ -835,9 +836,37 @@ class Encounter:
             # Encounter is the authoritative clock for the order it just
             # built, so a session's timeline must not be able to disagree
             # with it.
+            # THE ORDER GOES IN THE RECORD, and it goes in HERE, because
+            # this is the one place in the engine that resolves one. The
+            # event carries the decision (who acts, in what order, in
+            # which Segment of which Turn); `apply_event` is what writes
+            # it onto the timeline, including the Segment/Turn this
+            # Encounter is authoritative for -- so a session rebuilt by
+            # replaying its log stands exactly where this one does.
+            # Without it, a consumer that persists only the log (which is
+            # the whole premise of an append-only record) could rehydrate
+            # a fight and find nobody able to act.
+            session = apply_event(session, ActingOrderResolved(
+                id=str(uuid.uuid4()),
+                session_id=session.id,
+                sequence=len(session.event_log) + 1,
+                timestamp=datetime.now(timezone.utc),
+                author=make_author_engine(),
+                order=[slot.combatant_id for slot in own_slots],
+                segment=self.segment,
+                turn=self.turn,
+            ))
+            # The RESOLVED slots, laid over the ones `apply_event` rebuilt
+            # from the ids. They are the same combatants in the same order
+            # with the same stats; what only these carry is the declared
+            # `intent` (a mental action's EGO ordering, an elected
+            # Lightning Reflexes bonus -- 6E1 p.116), which is an input to
+            # THIS resolution and not something the order itself records.
+            # A replayed session therefore has the order and the spend
+            # exactly, and slots without intents; see
+            # `ActingOrderResolved`.
             new_timeline = replace(
-                session.timeline, acting_order=own_slots, current_slot_index=0,
-                segment=self.segment, turn=self.turn,
+                session.timeline, acting_order=own_slots,
             )
             new_sessions.append(replace(session, timeline=new_timeline))
 

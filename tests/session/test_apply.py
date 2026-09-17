@@ -11,7 +11,7 @@ from kirby_cost.objects.talents.lightning_reflexes_all import LightningReflexesA
 from kirby_combat.encounter import Encounter
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.events import (
-    SegmentAdvanced, make_author_engine,
+    ActingOrderResolved, PhaseSpent, SegmentAdvanced, make_author_engine,
     ActionDeclared, make_author_combatant,
     StatusEffectsChanged,
 )
@@ -305,3 +305,108 @@ def test_apply_unknown_event_raises():
 
     with pytest.raises(TypeError, match="unhandled event"):
         apply_event(s, WeirdEvent())  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# The loop's own decisions: the acting order, and a slot spent
+# ---------------------------------------------------------------------------
+
+def _two_fighter_session() -> CombatSession:
+    """Two combatants, both with a Phase in Segment 12 at SPD 4."""
+    def _c(id_: str, dex: int):
+        return synthetic_combatant(
+            id=id_, name=id_, ocv=8, dcv=8, omcv=5, dmcv=5,
+            spd=4, dex=dex, ego=15, str_=15, con=15, pre=15, rec=5,
+            pd=5, ed=5, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
+            max_stun=30, max_body=15, max_end=30,
+            current_stun=30, current_body=15, current_end=30,
+        )
+    return CombatSession.create(
+        id="s1", combatants=[_c("alice", 20), _c("bob", 15)], scene=None,
+        template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=FakeRoller([]),
+    ).start()
+
+
+def _order_resolved(session, order, segment=12, turn=1):
+    return ActingOrderResolved(
+        id="evt-order", session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        order=list(order), segment=segment, turn=turn,
+    )
+
+
+def test_apply_acting_order_resolved_puts_the_order_on_the_timeline():
+    """The event carries the ids; the slots are rebuilt from the fighters.
+
+    The stat values on each slot are DERIVED (that is why the event does
+    not carry them), so this checks them too -- a restored order whose DEX
+    values were wrong would sort a later resolution wrongly and nothing
+    else would say so.
+    """
+    s = _two_fighter_session()
+    s2 = apply_event(s, _order_resolved(s, ["alice", "bob"]))
+
+    assert [slot.combatant_id for slot in s2.timeline.acting_order] == ["alice", "bob"]
+    assert [slot.has_acted for slot in s2.timeline.acting_order] == [False, False]
+    assert [slot.dex_at_phase for slot in s2.timeline.acting_order] == [20, 15]
+    assert all(slot.segment == 12 for slot in s2.timeline.acting_order)
+    assert s2.timeline.current_slot_index == 0
+
+
+def test_apply_acting_order_resolved_brings_the_clock_with_it():
+    """The order describes ONE Segment, so it arrives with that Segment."""
+    s = _two_fighter_session()
+    assert (s.timeline.segment, s.timeline.turn) == (12, 1)
+
+    s2 = apply_event(s, _order_resolved(s, ["alice"], segment=3, turn=4))
+
+    assert (s2.timeline.segment, s2.timeline.turn) == (3, 4)
+    assert s2.timeline.acting_order[0].segment == 3
+
+
+def test_apply_acting_order_resolved_refuses_a_stranger():
+    """A man who is not in this fight cannot be in its order."""
+    s = _two_fighter_session()
+    with pytest.raises(ValueError, match="carol"):
+        apply_event(s, _order_resolved(s, ["alice", "carol"]))
+
+
+def test_apply_phase_spent_marks_the_slot():
+    s = _two_fighter_session()
+    s = apply_event(s, _order_resolved(s, ["alice", "bob"]))
+
+    spent = PhaseSpent(
+        id="evt-spent", session_id=s.id, sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id="alice", segment=12, turn=1,
+    )
+    s2 = apply_event(s, spent)
+
+    assert {slot.combatant_id: slot.has_acted
+            for slot in s2.timeline.acting_order} == {"alice": True, "bob": False}
+    # And the session the caller still holds is unchanged -- the flag is a
+    # new slot, not a mutation of a shared one.
+    assert [slot.has_acted for slot in s.timeline.acting_order] == [False, False]
+
+
+def test_apply_segment_advanced_still_clears_the_order():
+    """Leaving the Segment invalidates the order, as it always has.
+
+    Restoring an order on one event must not quietly stop another event
+    from throwing it away: a surviving order would carry its spent flags
+    into the next Segment and skip everyone who had only acted in the last.
+    """
+    s = _two_fighter_session()
+    s = apply_event(s, _order_resolved(s, ["alice", "bob"]))
+    assert s.timeline.acting_order != []
+
+    s2 = apply_event(s, SegmentAdvanced(
+        id="evt-adv", session_id=s.id, sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        from_segment=12, to_segment=1, to_turn=2,
+    ))
+
+    assert s2.timeline.acting_order == []
+    assert s2.timeline.current_slot_index == 0

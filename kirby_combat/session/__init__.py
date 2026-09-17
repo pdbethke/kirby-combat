@@ -2,6 +2,8 @@
 from kirby_combat.session.timeline import (
     Timeline,
     ActingSlot,
+    restore_acting_order,
+    slot_for,
     ActionIntent,
     HeldAction,
     build_acting_order_for_segment,
@@ -13,6 +15,8 @@ from kirby_combat.session.timeline import (
 __all__ = [
     "Timeline",
     "ActingSlot",
+    "restore_acting_order",
+    "slot_for",
     "ActionIntent",
     "HeldAction",
     "build_acting_order_for_segment",
@@ -23,7 +27,8 @@ __all__ = [
 
 from kirby_combat.session.events import (
     CombatEvent, EventAuthor,
-    SessionStarted, SegmentAdvanced, ActionDeclared, ActionResolved,
+    SessionStarted, SegmentAdvanced, ActingOrderResolved, PhaseSpent,
+    ActionDeclared, ActionResolved,
     RecoveryTaken, MovementResolved, StatusChanged, AbortDeclared,
     HeldActionDeclared, HeldActionReleased,
     AdjustmentApplied, AdjustmentFaded,
@@ -35,7 +40,8 @@ from kirby_combat.session.events import (
 
 __all__ += [
     "CombatEvent", "EventAuthor",
-    "SessionStarted", "SegmentAdvanced", "ActionDeclared", "ActionResolved",
+    "SessionStarted", "SegmentAdvanced", "ActingOrderResolved", "PhaseSpent",
+    "ActionDeclared", "ActionResolved",
     "RecoveryTaken", "MovementResolved", "StatusChanged", "AbortDeclared",
     "HeldActionDeclared", "HeldActionReleased",
     "AdjustmentApplied", "AdjustmentFaded",

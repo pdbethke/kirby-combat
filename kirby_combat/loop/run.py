@@ -24,7 +24,9 @@ outside this engine.
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 
 from kirby_combat.encounter import SEGMENTS_PER_TURN
@@ -41,6 +43,8 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.session.apply import apply_event
+from kirby_combat.session.events import PhaseSpent, make_author_engine
 from kirby_combat.scene.construct import constructs_in
 from kirby_combat.scene.geometry import distance_3d
 from kirby_combat.side import Side
@@ -148,11 +152,35 @@ def next_actor_id(session: "CombatSession") -> str | None:
     return None
 
 
-def _mark_acted(session: "CombatSession", combatant_id: str) -> None:
-    for slot in session.timeline.acting_order:
-        if slot.combatant_id == combatant_id and not slot.has_acted:
-            slot.has_acted = True
-            return
+def _mark_acted(
+    session: "CombatSession", combatant_id: str,
+) -> tuple["CombatSession", PhaseSpent]:
+    """Spend this combatant's slot --- in the log, not just in memory.
+
+    THE SPEND IS A DECISION AND BELONGS IN THE RECORD. This flipped
+    `slot.has_acted` in place and told nobody, so a fight rebuilt from its
+    log had every slot unspent and handed the same man the Segment's every
+    Phase forever. The flag is now the EFFECT of applying the event (see
+    `session/apply.py`), which is what makes the two paths --- the fight
+    that ran and the fight replayed from its log --- produce the same
+    timeline rather than two that agree by coincidence.
+
+    Returns the new session AND the event, because the event is part of
+    this Phase's output: a networked consumer persists and broadcasts what
+    a `PhaseResult` hands it, and a spend it never sees is a spend it
+    cannot replay.
+    """
+    event = PhaseSpent(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_engine(),
+        combatant_id=combatant_id,
+        segment=session.timeline.segment,
+        turn=session.timeline.turn,
+    )
+    return apply_event(session, event), event
 
 
 def run_phase(
@@ -202,9 +230,9 @@ def run_phase(
     # condition to use it.
     if not can_act(session, actor_id):
         session = PresenceEffects.forfeit_phase(session, actor_id)
-        _mark_acted(session, actor_id)
+        session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id,
+            session=session, actor_id=actor_id, events=[spent],
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
@@ -311,9 +339,9 @@ def run_phase(
         allies=roster.allies_of(actor) + roster.fallen_allies_of(actor),
     )
     if not menu:
-        _mark_acted(session, actor_id)
+        session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id,
+            session=session, actor_id=actor_id, events=[spent],
             notes=[f"{actor_id} had no legal action"],
         )
 
@@ -345,18 +373,18 @@ def run_phase(
     except UnresolvableAction:
         if on_unresolvable == "raise":
             raise
-        _mark_acted(session, actor_id)
+        session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
             session=session, actor_id=actor_id, action_id=action.action_id,
-            kind=action.kind, skipped_kind=action.kind,
+            kind=action.kind, skipped_kind=action.kind, events=[spent],
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
-    _mark_acted(resolved.session, actor_id)
+    session, spent = _mark_acted(resolved.session, actor_id)
     return PhaseResult(
-        session=resolved.session, actor_id=actor_id,
+        session=session, actor_id=actor_id,
         action_id=action.action_id, kind=action.kind,
-        result=resolved.result, events=resolved.events,
+        result=resolved.result, events=[*resolved.events, spent],
     )
 
 

@@ -65,6 +65,52 @@ class SegmentAdvanced(_BaseEvent):
 
 
 @dataclass
+class ActingOrderResolved(_BaseEvent):
+    """Who acts, in what order, in one Segment of one fight.
+
+    THE LOOP'S OWN DECISION, WHICH NEVER REACHED THE RECORD. The order is
+    resolved once per Segment --- 6E2 p.18-21: the characters who have a
+    Phase this Segment act in DEX order, ties broken by the campaign's tie
+    rule --- and until this event existed it was written straight onto
+    ``Timeline.acting_order`` and nowhere else. A consumer that persists
+    only the log (which is what "the log is the record" has to mean) could
+    replay every point of damage and still not know whose Phase it was, so
+    a fight rebuilt by replay carried an empty order and nobody to act.
+
+    ``order`` is the resolved sequence of combatant ids, first to last.
+    The per-slot values a resolved ``ActingSlot`` also carries --- DEX at
+    the Phase, the tie-break ladder, the Lightning Reflexes grants --- are
+    DERIVED from the combatants and the Segment, so ``apply_event``
+    rebuilds them rather than recording them twice. This event carries the
+    decision, not the arithmetic behind it.
+    """
+
+    kind: Literal["ActingOrderResolved"] = field(
+        default="ActingOrderResolved", init=False)
+    order: list[str] = field(default_factory=list)
+    segment: int = 0
+    turn: int = 0
+
+
+@dataclass
+class PhaseSpent(_BaseEvent):
+    """One combatant's slot in this Segment's order, used up.
+
+    The other half of the same gap: an order that replay can restore still
+    hands the same combatant every Phase forever if the SPEND is not in
+    the log too. Emitted wherever the loop consumes a slot --- including
+    the Phases nobody would call an action: a man held by a Presence
+    Attack, a man with no legal action, and a chosen kind the registry
+    cannot yet resolve each spend a Phase just as surely as a punch does.
+    """
+
+    kind: Literal["PhaseSpent"] = field(default="PhaseSpent", init=False)
+    combatant_id: str = ""
+    segment: int = 0
+    turn: int = 0
+
+
+@dataclass
 class ActionDeclared(_BaseEvent):
     kind: Literal["ActionDeclared"] = field(default="ActionDeclared", init=False)
     combatant_id: str = ""
@@ -332,6 +378,8 @@ class SessionEnded(_BaseEvent):
 CombatEvent = (
     SessionStarted
     | SegmentAdvanced
+    | ActingOrderResolved
+    | PhaseSpent
     | ActionDeclared
     | ActionResolved
     | RecoveryTaken

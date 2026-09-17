@@ -126,28 +126,79 @@ def build_provisional_order_for_segment(
         # participant too).
         stats = c.combat_stats()
         if segment in segments_for_spd(stats.spd):
-            int_tiebreak, pre_tiebreak = _tie_key(c)
-            # Lightning Reflexes (6E1 p.116) is BUILD data (levels, bought
-            # scope) -- read it now, while `c` is in hand, so `ordering_value`
-            # doesn't need a participant reference later (see ActingSlot's
-            # `lightning_reflexes_grants` docstring). `hero` is absent on a
-            # flat StatBlockCombatant, so this is a no-op there.
-            hero = getattr(c, "hero", None)
-            grants = lightning_reflexes_grants(hero) if hero is not None else ()
-            slots.append(
-                ActingSlot(
-                    combatant_id=c.id,
-                    segment=segment,
-                    dex_at_phase=stats.dex,
-                    int_tiebreak=int_tiebreak,
-                    pre_tiebreak=pre_tiebreak,
-                    ego=stats.ego,
-                    has_acted=False,
-                    lightning_reflexes_grants=grants,
-                )
-            )
+            slots.append(slot_for(c, segment))
 
     slots.sort(key=lambda s: -s.dex_at_phase)
+    return slots
+
+
+def slot_for(combatant: StatBlockCombatant, segment: int) -> ActingSlot:
+    """One combatant's slot in one Segment, built from that combatant.
+
+    THE ONE PLACE AN `ActingSlot` IS CONSTRUCTED. `build_provisional_
+    order_for_segment` (above) builds the order for a Segment from the SPD
+    chart; `restore_acting_order` (below) rebuilds the slots of an order
+    the log already recorded. Both need exactly these fields read from
+    exactly these stats, and a second copy of that reading is how two
+    paths come to disagree about a man's DEX at his own Phase.
+
+    Says nothing about whether this combatant HAS a Phase in `segment` --
+    that is the SPD chart's question and the callers ask it (or, for a
+    restored order, the log has already answered it).
+
+    Lightning Reflexes (6E1 p.116) is BUILD data (levels, bought scope) --
+    read here, while the combatant is in hand, so `ordering_value` doesn't
+    need a participant reference later (see `ActingSlot.
+    lightning_reflexes_grants`). `hero` is absent on a flat
+    StatBlockCombatant, so that read is a no-op there.
+    """
+    stats = combatant.combat_stats()
+    int_tiebreak, pre_tiebreak = _tie_key(combatant)
+    hero = getattr(combatant, "hero", None)
+    grants = lightning_reflexes_grants(hero) if hero is not None else ()
+    return ActingSlot(
+        combatant_id=combatant.id,
+        segment=segment,
+        dex_at_phase=stats.dex,
+        int_tiebreak=int_tiebreak,
+        pre_tiebreak=pre_tiebreak,
+        ego=stats.ego,
+        has_acted=False,
+        lightning_reflexes_grants=grants,
+    )
+
+
+def restore_acting_order(
+    combatants: Mapping[str, StatBlockCombatant],
+    order: Iterable[str],
+    segment: int,
+) -> list[ActingSlot]:
+    """The slots of an order the record already decided, in its order.
+
+    Replay's side of `ActingOrderResolved`. The ORDER is the decision and
+    comes from the event; the per-slot stat values are derived from the
+    combatants, so they are rebuilt here rather than recorded twice.
+
+    Deliberately does NOT re-check the SPD chart. The log says these
+    combatants had a Phase in this Segment; deciding that again would be a
+    second ruling on the same question, and a combatant whose SPD was
+    Drained after the order was resolved would silently vanish from an
+    order he is already standing in (6E2 p.20's "changes in SPD" do not
+    retroactively unmake a Phase already resolved).
+
+    An id with no combatant raises rather than being dropped: a replayed
+    order missing a man is a fight with the wrong person acting, which is
+    worse than a stopped replay.
+    """
+    slots: list[ActingSlot] = []
+    for combatant_id in order:
+        combatant = combatants.get(combatant_id)
+        if combatant is None:
+            raise ValueError(
+                f"acting order names {combatant_id!r}, who is not in this "
+                f"fight (combatants: {sorted(combatants)})"
+            )
+        slots.append(slot_for(combatant, segment))
     return slots
 
 

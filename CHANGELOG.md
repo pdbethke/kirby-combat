@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**The loop is in the log.** The two decisions the turn loop made in memory and
+told nobody about now reach the record: `ActingOrderResolved` (who acts, in
+what order, in which Segment — emitted by `Encounter.run_segment`, the one
+place an order is resolved) and `PhaseSpent` (a slot consumed — emitted
+wherever the loop spends one). `apply_event` restores the acting order and the
+spent flags from them, so a fight rebuilt by replaying its log alone stands
+where the original stood and picks the same man to act. Before this, a
+consumer that persisted only the events could rehydrate a fight and find
+nobody able to act.
+
+`CombatTemplate.by_name(name)` resolves a stored template name
+(`"6e-superheroic"`, `"6e-heroic"`) and raises `KeyError` naming the known
+ones. No default argument: a fight whose rules were lost must not quietly be
+run under someone else's.
+
 ## 0.17.0 — 2026-09-17
 
 131 commits since 0.16.0 (2026-09-07 to 2026-09-13): 59 features, 62 fixes.

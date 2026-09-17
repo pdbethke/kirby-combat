@@ -6,8 +6,10 @@ from datetime import datetime, timezone
 
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
-    ActionDeclared, CombatEvent, SegmentAdvanced,
+    ActingOrderResolved, ActionDeclared, CombatEvent, PhaseSpent,
+    SegmentAdvanced,
 )
+from kirby_combat.session.timeline import restore_acting_order
 from kirby_combat.talents.lightning_reflexes import restriction_for_slot
 
 
@@ -54,6 +56,46 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
             acting_order=[],
             current_slot_index=0,
         )
+        return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
+
+    if kind == "ActingOrderResolved":
+        assert isinstance(event, ActingOrderResolved)
+        # THE LOOP'S DECISION, APPLIED. Whoever resolved the order emitted
+        # this; applying it is what puts the order on the timeline, so a
+        # session rebuilt by replaying its log stands in the same Segment
+        # with the same people waiting to act as the session that ran.
+        #
+        # The clock moves with it: the order describes ONE Segment (every
+        # slot carries the Segment it was built for) and the Lightning
+        # Reflexes guard below matches a slot against
+        # `timeline.segment`, so an order arriving without its Segment
+        # would be an order nothing could match.
+        new_timeline = replace(
+            session.timeline,
+            segment=event.segment,
+            turn=event.turn,
+            acting_order=restore_acting_order(
+                session.combatants, event.order, event.segment),
+            current_slot_index=0,
+        )
+        return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
+
+    if kind == "PhaseSpent":
+        assert isinstance(event, PhaseSpent)
+        # The FIRST unspent slot for this combatant, which is exactly what
+        # the loop's own marking does -- a combatant with two Phases in
+        # one Segment (SPD changes mid-Turn, 6E2 p.20) spends them in
+        # order, and a spend event is not addressed to a particular one.
+        #
+        # A new slot rather than a flag flipped in place: this dispatcher
+        # returns a new session, and a slot mutated here would also be
+        # spent in the session the caller still holds.
+        new_order = list(session.timeline.acting_order)
+        for index, slot in enumerate(new_order):
+            if slot.combatant_id == event.combatant_id and not slot.has_acted:
+                new_order[index] = replace(slot, has_acted=True)
+                break
+        new_timeline = replace(session.timeline, acting_order=new_order)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     if kind == "ActionDeclared":

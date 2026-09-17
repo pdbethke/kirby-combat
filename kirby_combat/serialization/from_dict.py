@@ -33,7 +33,8 @@ def _ensure_registry() -> None:
     from kirby_combat.session.timeline import Timeline, ActingSlot, HeldAction
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.session.events import (
-        EventAuthor, SessionStarted, SegmentAdvanced, ActionDeclared,
+        EventAuthor, SessionStarted, SegmentAdvanced, ActingOrderResolved,
+        PhaseSpent, ActionDeclared,
         ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
         StatusEffectsChanged,
         AbortDeclared, HeldActionDeclared, HeldActionReleased,
@@ -49,7 +50,8 @@ def _ensure_registry() -> None:
         DefenseProfile, KnockbackResult, AttackResult,
         Vehicle, Passenger, Unit, ObjectCombatant,
         Timeline, ActingSlot, HeldAction, CombatSession,
-        EventAuthor, SessionStarted, SegmentAdvanced, ActionDeclared,
+        EventAuthor, SessionStarted, SegmentAdvanced, ActingOrderResolved,
+        PhaseSpent, ActionDeclared,
         ActionResolved, RecoveryTaken, MovementResolved, StatusChanged,
         StatusEffectsChanged,
         AbortDeclared, HeldActionDeclared, HeldActionReleased,
