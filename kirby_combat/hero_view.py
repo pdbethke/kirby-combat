@@ -554,9 +554,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from kirby_combat.models import CombatSkillLevel
 
         out: list[CombatSkillLevel] = []
-        for skill in getattr(self.hero, "skills", None) or []:
-            if (getattr(skill, "xmlid", None) or "").upper() != "COMBAT_LEVELS":
-                continue
+        for skill in _csl_skills(self.hero):
             try:
                 levels = int(getattr(skill, "levels", 0) or 0)
             except (TypeError, ValueError):
@@ -567,7 +565,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 levels=levels,
                 applies_to="ocv",           # the JUDGEMENT, see above
                 breadth=_csl_breadth(skill),
-                named_attacks=(getattr(skill, "input", "") or ""),
+                named_attacks=_csl_named_attacks(skill),
             ))
         return out
 
@@ -1320,6 +1318,83 @@ _DEFENSE_XMLIDS = {
 _CSL_BREADTHS = frozenset({"single", "tight", "broad", "hth", "ranged", "all"})
 
 
+#: The six OPTION DISPLAY strings Main6E.hdt ships for COMBAT_LEVELS. HD
+#: copies the chosen option's DISPLAY into OPTION_ALIAS by default and the
+#: builder overwrites it only when naming something, so these exact
+#: sentences are BOILERPLATE: they say which breadth was bought (which
+#: `_csl_breadth` already read from the OPTIONID) and name no attack at
+#: all. Treating them as a list of attacks would make every narrow level
+#: match nothing or everything depending on the power's name -- PowerLad's
+#: TIGHT level carries "with a small group of attacks" verbatim.
+_CSL_GENERIC_ALIASES = frozenset({
+    "with any single attack",
+    "with a small group of attacks",
+    "with a large group of attacks",
+    "with hth combat",
+    "with ranged combat",
+    "with all attacks",
+})
+
+
+def _csl_named_attacks(skill) -> str:
+    """The free text saying WHICH attacks a narrow level was bought for.
+
+    THERE IS NO INPUT FIELD ON A REAL BUILD. This read `skill.input` for a
+    day, and not one COMBAT_LEVELS in the corpus has one: HD puts the words
+    in OPTION_ALIAS ("with Power Over Light And Heat Multipower", HELIOS-CV1)
+    or in NAME ("+1 With Punch, Haymaker, and Throw", PowerLad), and leaves
+    INPUT empty. So every SINGLE / TIGHT / BROAD level in every real
+    character reached nothing, silently, while the synthetic fixture -- which
+    was handed an INPUT because the code asked for one -- passed.
+
+    Both fields are read, and the generic option aliases above are dropped:
+    a level whose only text is the template's own "with a small group of
+    attacks" has named nothing, and matching a power against that sentence
+    is not a rule, it is a coincidence waiting to happen.
+
+    NARROW END ON DOUBT, as everywhere else in this file: the return is ""
+    when neither field says anything, and "" reaches no attack.
+    """
+    parts: list[str] = []
+    option = getattr(skill, "_selected_option", None)
+    for value in (getattr(skill, "name", None),
+                  getattr(option, "alias", None),
+                  getattr(skill, "input", None)):
+        text = (value or "").strip()
+        if text and text.lower() not in _CSL_GENERIC_ALIASES:
+            parts.append(text)
+    return " | ".join(dict.fromkeys(parts))
+
+
+def _csl_skills(hero) -> list:
+    """Every COMBAT_LEVELS purchase on this build, wherever it was bought.
+
+    SKILLS **AND** POWERS. This walked `hero.skills` alone for a day, and
+    PowerLad -- one of the three authored corpus characters -- buys his
+    Combat Skill Levels in the POWERS section, which HERO Designer permits
+    and which `hero.skills` therefore never shows. His levels were not
+    merely unmatched; they were never found. Containers are recursed for
+    the same reason `_has_modifier` recurses: a purchase inside a List or a
+    Compound Power is still a purchase.
+    """
+    found: list = []
+    seen: set[int] = set()
+
+    def walk(objects) -> None:
+        for obj in objects or ():
+            if id(obj) in seen:
+                return
+            seen.add(id(obj))
+            if (getattr(obj, "xmlid", None) or "").upper() == "COMBAT_LEVELS":
+                found.append(obj)
+            for attr in ("objects", "powers", "sub_powers"):
+                walk(getattr(obj, attr, None))
+
+    for section in ("skills", "powers", "talents", "perks"):
+        walk(getattr(hero, section, None))
+    return found
+
+
 def _csl_breadth(skill) -> str:
     """Which of 6E1 p.72's six breadths this level was bought at.
 
@@ -2008,6 +2083,7 @@ def _build_attack_power(
         fw_kind = None
     framework_xmlid = (getattr(parent, "xmlid", "") or "") if fw_kind else ""
     framework_id = (str(getattr(parent, "id", "") or "") if fw_kind else "")
+    framework_name = ((getattr(parent, "name", "") or "") if fw_kind else "")
     if fw_kind:
         raw_id = str(getattr(power, "id", "") or "")
         slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
@@ -2112,5 +2188,6 @@ def _build_attack_power(
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,
+        framework_name=framework_name,
         slot_id=slot_id,
     )

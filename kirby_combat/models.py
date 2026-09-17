@@ -92,6 +92,12 @@ class AttackPower:
     avad_defense: str = ""          # the named alternate defense (free text); "" when avad is False
     avad_does_body: bool = False    # AVAD does STUN only (6E1 p328) unless it bought Does BODY (+1)
     framework_xmlid: str = ""       # owning framework's TYPE (display / rules only)
+    #: The owning framework's NAME ("Power Over Light And Heat"), or "".
+    #: A Combat Skill Level bought BROAD names its group in words -- HD
+    #: writes "with Power Over Light And Heat Multipower" -- and the xmlid
+    #: (a TYPE, "MULTIPOWER") and the id (an opaque number) can neither of
+    #: them be matched against that sentence. See `to_hit._csl_reaches`.
+    framework_name: str = ""
     # The owning framework's object id — what consumers key on. The xmlid above
     # is a type and is ambiguous for the 113 corpus characters carrying two or
     # more frameworks. "" for a top-level power.

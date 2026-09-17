@@ -23,14 +23,26 @@ def _csl_reaches(csl, power) -> bool:
     reach gate and the blind-penalty row already read; asking it here keeps
     ONE answer in the engine to "is this a shot or a punch".
 
-    A "single"/"tight"/"broad" level is matched against the build's INPUT
-    text, which is the only place a character says WHICH attacks those 2,
-    3 or 5 points bought. A level naming nothing reaches nothing: guessing
-    would hand out All Attacks at the single-attack price, and an
-    over-generous reading of a build is how a sim quietly makes everyone
-    better than they were paid for. Substring rather than equality because
-    HD writes free text there ("Blast, Pistol") and a builder is not
-    filling in a database field.
+    A "single"/"tight"/"broad" level is matched against the free text the
+    build names its attacks in (`hero_view._csl_named_attacks`: HD's NAME
+    and OPTION_ALIAS, with the template's own boilerplate dropped). A level
+    naming nothing reaches nothing: guessing would hand out All Attacks at
+    the single-attack price, and an over-generous reading of a build is how
+    a sim quietly makes everyone better than they were paid for.
+
+    THE POWER'S NAME **OR** ITS FRAMEWORK'S. A BROAD level is usually
+    bought across a whole framework and says so in those words -- HELIOS-CV1
+    carries "with Power Over Light And Heat Multipower" and every one of his
+    five attacks sits in the Multipower of that name, none of them called
+    anything like it. Matching the power name alone found nothing for him.
+    PowerLad's TIGHT level names the maneuvers instead ("+1 With Punch,
+    Haymaker, and Throw"), so both readings are needed and neither is
+    sufficient.
+
+    Substring, because a builder writes a sentence rather than filling in a
+    database field. Floored at three characters so a power called "X" -- or
+    an empty name arriving as "" -- cannot match every sentence in the
+    build.
     """
     breadth = (getattr(csl, "breadth", "all") or "all").lower()
     if breadth == "all":
@@ -41,8 +53,14 @@ def _csl_reaches(csl, power) -> bool:
     if breadth == "hth":
         return not is_ranged
     named = (getattr(csl, "named_attacks", "") or "").lower()
-    name = (getattr(power, "name", "") or "").lower()
-    return bool(named and name and name in named)
+    if not named:
+        return False
+    for label in (getattr(power, "name", None),
+                  getattr(power, "framework_name", None)):
+        text = (label or "").strip().lower()
+        if len(text) >= 3 and text in named:
+            return True
+    return False
 
 
 def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult:

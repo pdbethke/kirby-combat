@@ -161,3 +161,121 @@ def test_a_hand_built_level_still_reaches_every_attack():
     man = _man(csls=[CombatSkillLevel(levels=LEVELS, applies_to="ocv")])
     assert _roll(man, _fist()).effective_ocv == OCV + LEVELS
     assert _roll(man, _blast()).effective_ocv == OCV + LEVELS
+
+
+# ---------------------------------------------------------------------------
+# A REAL build, through the real loader
+# ---------------------------------------------------------------------------
+#
+# THE SYNTHETIC FIXTURE ALONE PROVED NOTHING, and this section exists
+# because it did not. The first cut of this wiring read the named attacks
+# from `skill.input` and walked `hero.skills`; the fixture was handed an
+# INPUT because the code asked for one, and lived in `skills` because the
+# code looked there, so eight tests passed over a reader that could not
+# have worked on any character anyone has built. Hero Designer writes the
+# words to NAME or OPTION_ALIAS and never to INPUT, and it lets a player
+# buy Combat Skill Levels in the POWERS section -- which PowerLad did.
+
+def test_a_real_build_has_its_combat_levels_found_at_all():
+    """PowerLad buys his Combat Skill Levels in the POWERS section, which
+    HERO Designer permits. A reader that walked `hero.skills` alone did not
+    merely fail to match them -- it never found them, and reported `[]`."""
+    from kirby_combat.hero_view import HeroCombatant
+    from corpus import require_authored, require_template
+
+    require_template()
+
+    lad = HeroCombatant.from_build(require_authored("PowerLad"), id="lad")
+    levels = lad.csls
+    assert levels, "PowerLad's Combat Skill Levels were not found on the build"
+    assert [c.levels for c in levels] == [1]
+    # THE BREADTH IS NOT IN THE BUILD DOC, and the narrow end is what holds.
+    # PowerLad's .hdc says OPTIONID="TIGHT"; the canonical build document
+    # `kirby_cost.io.build_json` writes -- which is what this engine reads,
+    # and what the product rests on -- carries only `xmlid`, `name` and
+    # `levels` for this purchase. `_csl_breadth` cannot classify it and
+    # falls back to "single", which reaches only an attack the level names.
+    # That is the safe direction (a level does too little rather than too
+    # much) and it is asserted here so the day OPTIONID starts surviving
+    # the round-trip, this line fails and says so.
+    assert [c.breadth for c in levels] == ["single"]
+
+
+def test_a_real_build_names_its_attacks_where_hd_actually_writes_them():
+    """PowerLad's level carries NAME="+1 With Punch, Haymaker, and Throw"
+    and an empty INPUT. The named text has to come off NAME; the
+    OPTION_ALIAS beside it is the template's own "with a small group of
+    attacks" boilerplate and names nothing."""
+    from kirby_combat.hero_view import HeroCombatant
+    from corpus import require_authored, require_template
+
+    require_template()
+
+    lad = HeroCombatant.from_build(require_authored("PowerLad"), id="lad")
+    named = lad.csls[0].named_attacks.lower()
+    assert "punch" in named and "haymaker" in named and "throw" in named
+    assert "small group of attacks" not in named
+
+
+def test_a_real_builds_level_reaches_only_what_it_names():
+    """THE HONEST BEHAVIOUR, asserted rather than wished away. PowerLad's
+    level names Punch, Haymaker and Throw -- MANEUVERS -- and his only
+    listed attack power is an HKA called "Rending and Tearing". So the
+    level does not reach that power, and should not.
+
+    JUDGEMENT, and a known limit: a level that names a MANEUVER cannot
+    reach one today. The engine resolves a Haymaker or a Throw through a
+    maneuver resolver that carries an attack POWER as its damage handle,
+    so there is no "Haymaker" name for `_csl_reaches` to match against. A
+    maneuver-aware match is a follow-on; inventing one here by matching the
+    level against whatever power the maneuver happened to hold would hand
+    out the levels on every attack he makes, which is the over-generous
+    reading this whole reader is built to refuse."""
+    from kirby_combat.hero_view import HeroCombatant
+    from kirby_combat.resolution.to_hit import _csl_reaches
+    from corpus import require_authored, require_template
+
+    require_template()
+
+    lad = HeroCombatant.from_build(require_authored("PowerLad"), id="lad")
+    level = lad.csls[0]
+    assert [ap.name for ap in lad.attacks] == ["Rending and Tearing"]
+    assert not _csl_reaches(level, lad.attacks[0])
+
+
+def test_a_broad_level_bought_across_a_framework_reaches_its_slots():
+    """The HELIOS-CV1 / ARTHON-CV1 shape, which is how BROAD levels are
+    actually written: HD puts the group's name in OPTION_ALIAS ("with
+    Power Over Light And Heat Multipower") and every slot in that
+    Multipower is called something else entirely ("Light Blast", "Laser
+    Blast"). Matching the power's own name found nothing for either
+    character; the FRAMEWORK's name is what the level names.
+
+    Stated synthetically because kirby-combat commits no character data --
+    verified against both real builds through the real loader on
+    2026-09-17, 4 levels reaching all five of HELIOS's slots and 2 reaching
+    all three of ARTHON's."""
+    power = _blast()
+    power.framework_name = "Power Over Light And Heat"
+    level = CombatSkillLevel(
+        levels=LEVELS, applies_to="ocv", breadth="broad",
+        named_attacks="with Power Over Light And Heat Multipower",
+    )
+    man = _man(csls=[level])
+    assert _roll(man, power).effective_ocv == OCV + LEVELS
+    # A slot in a DIFFERENT framework is not reached.
+    other = _blast()
+    other.framework_name = "Brick Tricks"
+    assert _roll(man, other).effective_ocv == OCV
+
+
+def test_the_templates_own_boilerplate_names_no_attack():
+    """PowerLad's OPTION_ALIAS is "with a small group of attacks" -- the
+    template's DISPLAY string for TIGHT, copied in by HD. Treating it as a
+    list of attacks would make a power called "Attack" match and everything
+    else miss, on a coincidence of wording."""
+    man = _man(csls=[CombatSkillLevel(
+        levels=LEVELS, applies_to="ocv", breadth="tight",
+        named_attacks="",          # what `_csl_named_attacks` returns for it
+    )])
+    assert _roll(man, _blast()).effective_ocv == OCV
