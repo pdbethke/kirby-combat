@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 — 2026-09-17
 
 **Mental Defense applies to mental attacks.** `resolution/defense.py`'s
 `_DEFENSE_MAP` had `"md"` and no `"mental"`, while `hero_view` returns
