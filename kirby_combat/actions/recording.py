@@ -195,6 +195,284 @@ def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, in
     return level, cover_ocv_modifier(level * 25)
 
 
+def _surprise_for(session: CombatSession, actor, target):
+    """6E2 p.52's Surprised for this attack, or None when it cannot apply.
+
+    Moved here from `loop/resolvers.py` with the rest of the per-fight CV
+    rules: it was asked by the plain-attack resolver and by none of the
+    other six callers that reach this module, so a move-and-strike or a
+    rapid-fire burst out of the dark surprised nobody.
+
+    `perception.is_surprised` has answered the perception half since the
+    perception line shipped and its docstring said the rest "is applied by
+    the driver, which knows the combat clock". The attacker's concealment
+    comes from `concealment`, which reads the fight's own log -- a
+    successful Hide recorded who lost track of whom.
+
+    NOT GEOMETRY. p.52 refuses the positional reading outright: moving
+    behind a man who can see you "does not per se earn an attacker a
+    Surprised bonus". So no angle is computed here, and none should be.
+    """
+    from kirby_combat.concealment import concealment_for
+    from kirby_combat.perception import is_surprised
+    from kirby_combat.resolution.surprise import surprise_for
+
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return None                     # no map, no senses to model
+    conceal = concealment_for(session, observer_id=getattr(target, "id", ""))
+    invisible, hidden = conceal.get(getattr(actor, "id", ""), (False, False))
+
+    # A RECORDED HIDE IS NOT RE-LITIGATED. `_resolve_hide` already ran the
+    # contest -- Stealth against this watcher's PER, this Phase -- and the
+    # log says he lost. `perceive` would run a SECOND contest with
+    # different terms, and asking twice means the hider must win twice.
+    if hidden:
+        return surprise_for(target=target, perceives_attacker=False)
+
+    try:
+        blind = is_surprised(
+            observer=target, attacker=actor, scene=scene,
+            attacker_invisible=invisible, attacker_hidden=hidden,
+        )
+    except Exception:
+        return None                     # fail OPEN: never invent a surprise
+    return surprise_for(target=target, perceives_attacker=not blind)
+
+
+def _activation_check(session: CombatSession, attack: AttackInput, roller):
+    """6E1 p.375's Activation Roll for this attack, or None if it has none.
+
+    Returns ``{"activated": bool, "roll": int, "target": int}``. None ---
+    not a dict saying "activated" --- when the power was not bought with an
+    Activation Roll at all, so a caller can tell "made it" from "never had
+    to make one" and the log can say which.
+
+    AT THIS DOOR, not in one resolver. It lived in `loop/resolvers.py`'s
+    plain-attack path for a day, which meant a Pushed blast, a thrown
+    wagon, a move-and-strike and every shot of a rapid-fire burst fired an
+    unreliable power with no roll at all.
+
+    NOTHING IS ROLLED WHEN THERE IS NO ROLL TO MAKE. A power with no
+    Activation Roll draws no dice, which keeps ONE dice sequence per seed:
+    charging every attack in the engine a 3d6 it does not need would have
+    moved every seeded fight this suite and the benchmarks depend on.
+
+    WHERE IT FALLS IN THE SEQUENCE: after the attack's own dice, not
+    before. Every caller builds its `DiceValues` while assembling the
+    `AttackInput`, so by the time the door is reached the to-hit, damage,
+    location and STUN-multiplier dice have been drawn. Those dice are drawn
+    unconditionally either way, so the sequence is the same for a given
+    seed whether the power activates or not -- which is the property that
+    matters. Rolling the Activation first would mean moving dice assembly
+    to this door, a larger change than the rule needs.
+
+    The roller is the CALLER's when it has one --- a resolver holding the
+    Phase's roller passes it, so a seeded fight stays seeded --- and
+    `session.dice_roller` otherwise, which is the roller this module
+    already uses for a Presence Attack.
+    """
+    target = getattr(attack.power, "activation_roll", None)
+    if target is None:
+        return None
+    rolled = sum((roller or session.dice_roller).roll_dice(3))
+    return {"activated": rolled <= int(target), "roll": rolled,
+            "target": int(target)}
+
+
+def _record_failed_activation(
+    session: CombatSession, attack: AttackInput, activation: dict, *,
+    declaration_event_id: str | None, action_type: str,
+) -> tuple[CombatSession, AttackResult]:
+    """Log an attack whose power never went off, and return a null result.
+
+    A FAILURE IS RECORDED, NOT SWALLOWED. An attack that vanished with no
+    row on the log is indistinguishable from one that was never declared
+    --- to a reader, to a narrator, and to anything learning from the
+    fight. It keeps ``kind`` from `action_type`, because that is what every
+    downstream filter and narrator reads.
+
+    ``to_hit`` is None on the returned result and the three CV keys are
+    stamped None on the payload, so every attack row has ONE shape: a
+    consumer reads `effective_ocv` on every resolution and gets a number or
+    an explicit "there was no roll", never a missing key. `_maybe_stray`
+    already guards on `to_hit is None` --- a shot that was never fired
+    cannot stray into the man behind.
+
+    JUDGEMENT, labelled: a failed Activation costs no END and spends no
+    Charge. No power was used; `endurance.py` prices a power's END for
+    using it and `charges.py` counts a firing off the log, which this
+    payload deliberately carries no `power_source_id` to be counted as.
+    The books' treatment of both on a failed Activation is not settled in
+    front of this function, so the cheap reading is taken and named rather
+    than asserted as RAW.
+    """
+    from kirby_combat.session.apply import apply_event
+
+    now = datetime.now(timezone.utc)
+    attacker_id = attack.attacker.id
+    target_id = attack.target.id
+    s = session
+    decl_id = declaration_event_id
+    if decl_id is None:
+        declared = ActionDeclared(
+            id=str(uuid.uuid4()), session_id=s.id,
+            sequence=len(s.event_log) + 1, timestamp=now,
+            author=make_author_combatant(attacker_id),
+            combatant_id=attacker_id, action_type=action_type,
+            targets=[target_id],
+            parameters={"power_xmlid": attack.power.xmlid},
+        )
+        s = apply_event(s, declared)
+        decl_id = declared.id
+
+    resolved = ActionResolved(
+        id=str(uuid.uuid4()), session_id=s.id,
+        sequence=len(s.event_log) + 1, timestamp=now,
+        author=make_author_combatant(attacker_id),
+        declaration_event_id=decl_id,
+        result_payload={
+            "kind": action_type,
+            "hit": False,
+            "stun_dealt": 0,
+            "body_dealt": 0,
+            "status_changes": [],
+            "target_id": target_id,
+            "power_xmlid": attack.power.xmlid,
+            "power_name": getattr(attack.power, "name", None),
+            "damage_type": getattr(attack.power, "damage_type", None),
+            "is_ranged": bool(getattr(attack.power, "is_ranged", False)),
+            "segment": s.timeline.segment,
+            # ONE SHAPE for every attack row. There was no roll, and the
+            # keys say so rather than going missing.
+            "effective_ocv": None,
+            "target_dcv": None,
+            "margin": None,
+            "activated": False,
+            "activation_roll": activation["roll"],
+            "activation_target": activation["target"],
+        },
+    )
+    s = apply_event(s, resolved)
+    return s, AttackResult(
+        hit=False, to_hit=None, damage=None, defense=None,
+        stun_dealt=0, body_dealt=0, end_spent=0, knockback=None,
+        status_changes=[], power_xmlid=attack.power.xmlid,
+        audit_trail=[
+            f"Activation Roll (6E1 p375): {activation['roll']} vs "
+            f"{activation['target']}- — the power does not go off"
+        ],
+    )
+
+
+def _fold_session_cvs(
+    session: CombatSession, attack: AttackInput, combat_type: str | None = None,
+) -> AttackInput:
+    """Fold every per-fight condition onto this attack's two CVs.
+
+    **THE ONE DOOR.** These rules -- 6E2 p.127's blind penalty, p.55's
+    Dodge, 6E1 p.139's Drained CV, p.52's Surprised, and through
+    `cv_modifiers` also p.106's Stunned and the multiple-attack penalty --
+    were applied by the plain-attack resolver and by NONE of the other six
+    callers that reach this module. `_reposition(then_attack=True)`,
+    `_resolve_shots` (rapid fire, multiple attack, sweep), `_resolve_throw`,
+    `_resolve_push` and `_maybe_stray` each assembled their own
+    `AttackInput` and got none of it, so a man in a Darkness field was
+    blind to a punch and sighted to a move-and-strike. That is this
+    engine's dominant defect shape -- a rule at one door and not the others
+    -- and the fix is not six more copies. It is this function, on the
+    path every one of them already takes.
+
+    **ONE FOLD FOR THE ADJUSTMENTS, and it is `cv_modifiers`'.**
+    `effective_ocv_for` / `effective_dcv_for` already compose the
+    Adjustment (applied to the BASE, before any factor, which is the
+    ordering 6E1 p.133/p.139 requires), Stunned, a landed Presence Attack,
+    the multiple-attack penalty and 6E2 p.9's per-opponent sense row -- and
+    had no caller in the package. A second fold lived here for a week;
+    it is deleted. The result comes back as a DELTA on the existing
+    `ocv_modifier` / `dcv_modifier` channel, so `resolution/to_hit.py` is
+    untouched and a caller that set its own modifier keeps it.
+
+    **JUDGEMENT: the DCV is halved ONCE.** 6E2 p.52's Surprised and 6E2
+    p.9's inability to sense both halve a defender, and on this path they
+    usually have the same cause -- `_surprise_for` and `cannot_perceive`
+    ask the same perception question. A man in the dark would otherwise go
+    DCV 5 -> 3 -> 2 for one fact stated on two pages. So when a Surprise is
+    live, the p.9 row's FACTOR is left out of his DCV and its flat delta is
+    not: p.9's mitigated hand-to-hand row is a -1 DCV rather than a
+    halving, it is a different penalty for a different reason (he made a
+    Nontargeting PER Roll), and dropping it with the halving would have
+    been a second, quieter error. This halve-once reading is a JUDGEMENT,
+    not a cited rule: no page says the two do not stack.
+
+    A combatant the session does not know is left alone entirely. Pure
+    resolution is routinely handed a combatant object rather than a session
+    member, and folding a fight's conditions onto a stranger is not
+    something this function can do honestly.
+    """
+    from kirby_combat.actions.reactive.dodge import Dodge
+    from kirby_combat.cv_modifiers import (
+        apply_cv_delta, effective_dcv_for, effective_ocv_for,
+    )
+    from kirby_combat.sense_penalties import HTH, RANGED, sense_penalty_modifiers
+
+    attacker_id = getattr(attack.attacker, "id", None)
+    target_id = getattr(attack.target, "id", None)
+    if attacker_id not in session.combatants or target_id not in session.combatants:
+        return attack
+
+    # 6E2 p.9's two rows. `is_ranged` is the field `AttackPower` already
+    # derives from the power's range and that `_is_melee` already reads;
+    # asking it here keeps ONE answer to "is this a shot or a punch".
+    # ``combat_type`` is derived from the power unless the CALLER knows
+    # better. A maneuver does: Trip (6E2 p.67) and Disarm (p.65) are
+    # hand-to-hand maneuvers whatever power the offer happened to carry as
+    # its damage handle, and reading `is_ranged` off that handle would put
+    # a man throwing a Trip on p.9's Ranged row -- OCV to ZERO instead of
+    # halved, which is wrong by five and in the punishing direction.
+    if combat_type is None:
+        combat_type = RANGED if getattr(attack.power, "is_ranged", False) else HTH
+
+    # A caller that decided the Surprise itself keeps it -- a GM override
+    # and `resolution/surprise.py`'s own tests both do -- and everyone else
+    # gets the answer the fight's log and senses give.
+    surprise = attack.surprise
+    if surprise is None:
+        surprise = _surprise_for(session, attack.attacker, attack.target)
+
+    base_ocv = int(session.combatants[attacker_id].combat_stats().ocv)
+    ocv_delta = effective_ocv_for(
+        session, attacker_id, against=target_id, combat_type=combat_type,
+    ) - base_ocv
+
+    base_dcv = int(session.combatants[target_id].combat_stats().dcv)
+    if surprise:
+        # The halve-once JUDGEMENT above: everything except p.9's
+        # per-opponent row, plus that row's flat delta.
+        effective = effective_dcv_for(session, target_id)
+        row = sense_penalty_modifiers(
+            session, target_id, attacker_id, combat_type,
+        )
+        effective = apply_cv_delta(effective, int(row.get("dcv_delta", 0)))
+    else:
+        effective = effective_dcv_for(
+            session, target_id, against=attacker_id, combat_type=combat_type,
+        )
+    # 6E2 p.55: a Dodge is +3 DCV against all attacks this Phase.
+    # `Dodge.dcv_bonus` had no production caller anywhere, so a fighter
+    # gave up his next Phase for a bonus nothing read. Added here rather
+    # than as a `cv_modifiers` source because it is a flat bonus a
+    # combatant DECLARED, not a condition he is under.
+    dcv_delta = (effective - base_dcv) + Dodge.dcv_bonus(session, target_id)
+
+    return replace(
+        attack,
+        surprise=surprise,
+        ocv_modifier=attack.ocv_modifier + ocv_delta,
+        dcv_modifier=attack.dcv_modifier + dcv_delta,
+    )
+
+
 def resolve_attack_in_session(
     session: CombatSession,
     attack: AttackInput,
@@ -203,6 +481,8 @@ def resolve_attack_in_session(
     declaration_event_id: str | None = None,
     action_type: ActionKind = "attack",
     extra_payload: dict[str, Any] | None = None,
+    roller=None,
+    combat_type: str | None = None,
 ) -> tuple[CombatSession, AttackResult]:
     """Resolve an attack and record the outcome on the session's event log.
 
@@ -245,6 +525,26 @@ def resolve_attack_in_session(
     # Before this, `compute_cover_level` had exactly one caller, `brief.py`,
     # which WRITES ABOUT the fight. Cover was scenery: a fighter who took
     # it gained nothing, and every tactic that valued cover valued zero.
+    # EVERY PER-FIGHT CONDITION ON THE TWO CVs, at this one door. See
+    # `_fold_session_cvs`: these rules reached the plain-attack resolver and
+    # none of the other six callers that arrive here.
+    # 6E1 p.375: does the power go off at all? Asked FIRST, because a power
+    # that does not fire is never rolled to hit -- and asked HERE, so that
+    # a thrown object, a Pushed blast and each shot of a rapid-fire burst
+    # must make the roll the plain attack makes.
+    activated = _activation_check(session, attack, roller)
+    if activated is not None and not activated["activated"]:
+        return _record_failed_activation(
+            session, attack, activated,
+            declaration_event_id=declaration_event_id,
+            action_type=action_type,
+        )
+
+    # EVERY PER-FIGHT CONDITION ON THE TWO CVs, at this one door. See
+    # `_fold_session_cvs`: these rules reached the plain-attack resolver and
+    # none of the other six callers that arrive here.
+    attack = _fold_session_cvs(session, attack, combat_type)
+
     cover_level, cover_ocv = _cover_against(session, attack)
     if cover_ocv:
         attack = replace(attack, ocv_modifier=attack.ocv_modifier + cover_ocv)
@@ -395,6 +695,17 @@ def resolve_attack_in_session(
         "target_dcv": result.to_hit.effective_dcv,
         "margin": result.to_hit.margin,
     }
+
+    if activated is not None:
+        # The Activation Roll it MADE, in the same keys the failure writes.
+        # Both answers on the log means a reader can tell "made it" from
+        # "never had to make one" -- the whole reason `activation_roll` is
+        # None rather than 0.
+        result_payload.update({
+            "activated": True,
+            "activation_roll": activated["roll"],
+            "activation_target": activated["target"],
+        })
 
     if extra_payload:
         clash = sorted(set(extra_payload) & set(result_payload))

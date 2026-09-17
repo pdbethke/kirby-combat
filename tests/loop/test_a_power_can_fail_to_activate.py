@@ -54,11 +54,11 @@ def _fight():
 
 
 def _fire(session, power, activation_dice, *, went_off=True):
-    """The Activation Roll is drawn FIRST -- before the attack's own dice --
-    because a power that does not go off is never rolled to hit."""
-    pool = [activation_dice]
-    if went_off:
-        pool += [[4, 4, 4], [1] * DICE, [3, 3, 3], [1]]
+    """The attack's own dice are drawn while the `AttackInput` is assembled,
+    so the Activation Roll falls after them in the sequence. They are drawn
+    either way -- activated or not -- which is the property that keeps one
+    dice sequence per seed."""
+    pool = [[4, 4, 4], [1] * DICE, [3, 3, 3], [1], activation_dice]
     action = LegalAction(
         action_id="attack:mark", kind="attack", target_id="mark",
         power_xmlid=power.xmlid, power_name=power.name, summary="attack",
@@ -139,3 +139,15 @@ def test_a_failed_activation_is_still_the_attack_kind():
     assert payload["kind"] == "attack"
     assert payload["target_id"] == "mark"
     assert payload["power_name"] == "Blast"
+
+
+def test_a_failed_activation_still_reports_the_cv_keys():
+    """ONE SHAPE for every attack row. There was no roll, so the three CV
+    keys are None rather than absent -- a consumer reads `effective_ocv` on
+    every resolution and gets a number or an explicit "there was no roll",
+    never a KeyError."""
+    payload = _payload(_fire(_fight(), _blast(ACTIVATION), [6, 6, 6],
+                             went_off=False))
+    assert payload["effective_ocv"] is None
+    assert payload["target_dcv"] is None
+    assert payload["margin"] is None

@@ -25,6 +25,7 @@ from kirby_combat.actions.recording import (
     resolve_attack_in_session, resolve_mental_blast_in_session,
 )
 from kirby_combat.enumeration import LegalAction, is_down
+from kirby_combat.sense_penalties import HTH
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, _events_since, resolves,
 )
@@ -68,170 +69,6 @@ def _range_to(session, actor, target) -> float | None:
     if here is None or there is None:
         return None
     return distance_3d(here, there)
-
-
-def _surprise_for(session, actor, target):
-    """6E2 p.52's Surprised for this attack, or None when it cannot apply.
-
-    THE LAST MILE. `perception.is_surprised` has answered the perception
-    half since the perception line shipped and its docstring said the
-    rest "is applied by the driver, which knows the combat clock". No
-    driver ever applied it: before this, `is_surprised` had ZERO
-    production callers and nothing outside `perception.py` mentioned
-    surprise at all, so neither the halved DCV nor the doubled STUN had
-    ever reached a roll.
-
-    The attacker's concealment comes from `concealment`, which reads the
-    fight's own log --- a successful Hide recorded who lost track of whom
-    and nothing had ever read it back.
-
-    NOT GEOMETRY. p.52 refuses the positional reading outright: moving
-    behind a man who can see you "does not per se earn an attacker a
-    Surprised bonus". So no angle is computed here, and none should be.
-    """
-    from kirby_combat.concealment import concealment_for
-    from kirby_combat.perception import is_surprised
-    from kirby_combat.resolution.surprise import surprise_for
-
-    scene = getattr(session, "scene", None)
-    if scene is None:
-        return None                     # no map, no senses to model
-    conceal = concealment_for(session, observer_id=getattr(target, "id", ""))
-    invisible, hidden = conceal.get(getattr(actor, "id", ""), (False, False))
-
-    # A RECORDED HIDE IS NOT RE-LITIGATED. `_resolve_hide` already ran the
-    # contest -- Stealth against this watcher's PER, this Phase -- and the
-    # log says he lost. `perceive` would run a SECOND contest with
-    # different terms: it demands a real STEALTH skill and, finding none,
-    # concludes "the target can't actually hide", while `_resolve_hide`
-    # falls back to 6E1 p.60's 9 + DEX/5 characteristic roll. Asking twice
-    # means the hider must win twice, and with the two using different
-    # numbers he can win the one that counted and lose the one that is
-    # checked. The resolved contest is the answer.
-    if hidden:
-        return surprise_for(target=target, perceives_attacker=False)
-
-    try:
-        blind = is_surprised(
-            observer=target, attacker=actor, scene=scene,
-            attacker_invisible=invisible, attacker_hidden=hidden,
-        )
-    except Exception:
-        return None                     # fail OPEN: never invent a surprise
-    return surprise_for(target=target, perceives_attacker=not blind)
-
-
-def _activation(session, actor, action, power, *, roller):
-    """6E1 p.375's Activation Roll for this attack, or None if it has none.
-
-    Returns ``{"activated": bool, "roll": int, "target": int, "resolved":
-    ResolvedAction | None}``; the caller short-circuits on a failure and
-    otherwise folds the numbers into the payload. None --- not a dict
-    saying "activated" --- when the power was not bought with an Activation
-    Roll at all, so a caller can tell "made it" from "never had to make
-    one" and the log can say which.
-
-    NOTHING IS ROLLED WHEN THERE IS NO ROLL TO MAKE. A power with no
-    Activation Roll draws no dice, which keeps ONE dice sequence per seed:
-    charging every attack in the engine a 3d6 it does not need would have
-    moved every seeded fight this suite and the benchmarks depend on.
-
-    A FAILURE IS RECORDED, NOT SWALLOWED. The resolution goes on the log
-    with `hit` False, no damage, and the roll it failed --- an attack that
-    vanished silently is indistinguishable from one never declared, to a
-    reader, to a narrator, and to anything learning from the fight. It
-    keeps `kind="attack"`, because that is what every downstream filter and
-    narrator reads.
-
-    JUDGEMENT, labelled: a failed Activation costs no END here. No power
-    was used, and `endurance.py` prices a power's END for using it. The
-    books' treatment of END on a failed Activation is not settled in front
-    of this function, so the cheap reading is taken and named rather than
-    asserted as RAW. See the A3 report.
-    """
-    target = getattr(power, "activation_roll", None)
-    if target is None:
-        return None
-    rolled = sum(roller.roll_dice(3))
-    activated = rolled <= int(target)
-    if activated:
-        return {"activated": True, "roll": rolled, "target": int(target),
-                "resolved": None}
-    return {
-        "activated": False, "roll": rolled, "target": int(target),
-        "resolved": _recorded(session, actor, action, None, {
-            "kind": "attack",
-            "hit": False,
-            "stun_dealt": 0,
-            "body_dealt": 0,
-            "status_changes": [],
-            "target_id": action.target_id,
-            "power_xmlid": getattr(power, "xmlid", None),
-            "power_name": getattr(power, "name", None),
-            "power_source_id": getattr(power, "source_id", None),
-            "segment": session.timeline.segment,
-            "activated": False,
-            "activation_roll": rolled,
-            "activation_target": int(target),
-        }),
-    }
-
-
-def _adjustment_cv_delta(session, combatant, key: str) -> int:
-    """A live Aid or Drain on this combatant's ``key`` CV, as a delta.
-
-    6E1 p.133 / p.139. `adjustments.py` closed the Adjustment chain for two
-    consumers and named them in its own docstring -- "The CV path
-    (`effective_ocv_for` and friends) and the Stunning check are wired
-    below because they are what decides a fight" -- and only the Stunning
-    check ever acquired a caller. `effective_ocv_for` and
-    `effective_dcv_for` have none in the package, so a Drain that took four
-    points off a man's OCV changed his Stunning threshold and nothing else,
-    and he shot as straight as he ever had.
-
-    This is `recording.py`'s existing seam for CON, applied to the CVs: the
-    base comes from the build, the session supplies the modifier, and the
-    two are composed at the point of use rather than by writing a fight's
-    condition into a build's shape.
-
-    THE FLOOR IS 6E1 p.139's, and is not re-implemented here.
-    `effective_characteristic` clamps the adjusted value at zero -- a
-    Drained CV of -3 is not a thing the rules describe -- and the delta is
-    read back off that clamp, so two stacked Drains cannot drive an OCV
-    negative through the modifier channel.
-
-    DEX IS NOT A CV. 6E made OCV and DCV characteristics in their own
-    right, which `adjustments.CV_STATS` says in as many words, so a DEX
-    Drain is felt in the order of Phases and not here.
-    """
-    from kirby_combat.adjustments import CV_STATS, effective_characteristic
-
-    base = int(getattr(combatant, key))
-    stat = CV_STATS[key]
-    return effective_characteristic(
-        session, getattr(combatant, "id", ""), stat, base,
-    ) - base
-
-
-def _dodge_bonus(session, defender) -> int:
-    """6E2 p.55's +3 DCV for a defender who aborted to a Dodge, or 0.
-
-    A one-line wrapper on `Dodge.dcv_bonus` and deliberately nothing more:
-    the rule, the number and the "is he still dodging this Phase" question
-    all live in `actions/reactive/dodge.py`, which is where an Abort's
-    other consumers already read them. This exists so the attack path has
-    ONE name to call rather than each resolver importing `Dodge` and
-    remembering to ask -- the shape that left `dcv_bonus` with no caller at
-    all for as long as it has existed.
-
-    NOT A CONSULT. Nothing here asks the defender whether he WANTS to
-    abort; 6E2 p.62's reactive question needs a chooser and the engine has
-    no seat to ask it from. This reads a Dodge the defender already
-    declared, on his own Phase, through `mark_aborting`.
-    """
-    from kirby_combat.actions.reactive.dodge import Dodge
-
-    return Dodge.dcv_bonus(session, getattr(defender, "id", ""))
 
 
 def _attack_dice(roller, dice_count: int) -> DiceValues:
@@ -394,14 +231,14 @@ def _resolve_attack(
     ``xmlid + name`` is the bug that silently killed every AOE and TRIGGER
     modifier in the corpus.
 
-    6E2 p.127 IS PRICED HERE TOO, not only on the maneuvers. Sub-project B
-    wired "Inability To Sense An Opponent" into Trip, Disarm and Sweep, and
-    stopped -- so the action nine fights out of ten consist of was still
-    rolled at full OCV inside a Darkness field, and a Flashed gunman shot
-    as straight as a sighted one. Both questions are asked, of two
-    different men (see ``_blind_cv_delta``), and the row is chosen by the
-    power: p.9's Ranged row takes OCV to ZERO where its hand-to-hand row
-    only halves it.
+    WHAT THIS RESOLVER NO LONGER DOES. 6E2 p.127's blind penalty, p.55's
+    Dodge, p.52's Surprised, 6E1 p.139's Drained CV and p.375's Activation
+    Roll were all applied HERE, and by none of the other six callers that
+    reach `resolve_attack_in_session` -- so a man in a Darkness field was
+    blind to a punch and sighted to a move-and-strike. They live at that
+    one door now (`actions/recording.py::_fold_session_cvs` and
+    `_activation_check`), and what is left here is what only this resolver
+    knows: the Set bonus and the Grab, both asked with THIS target.
     """
     from kirby_combat.models import AttackInput, DiceValues
 
@@ -410,44 +247,10 @@ def _resolve_attack(
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    # 6E1 p.375: does the power go off at all? Asked BEFORE anything else
-    # is rolled, because a power that does not fire is never rolled to hit.
-    activation = _activation(session, actor, action, power, roller=roller)
-    if activation is not None and not activation["activated"]:
-        return activation["resolved"]
-
-    # 6E2 p.9's two rows. `is_ranged` is the field `AttackPower` already
-    # derives from the power's range and that `_is_melee` already reads;
-    # asking it here keeps ONE answer to "is this a shot or a punch".
-    from kirby_combat.sense_penalties import HTH, RANGED
-
-    combat_type = RANGED if getattr(power, "is_ranged", False) else HTH
-
-    # THE DCV IS HALVED ONCE, not twice, and this is why.
-    #
-    # 6E2 p.52's Surprised and 6E2 p.9/p.127's inability to sense both
-    # halve the defender's DCV, and on this path they usually have the SAME
-    # cause: `_surprise_for` is fed by `perception.is_surprised`, which is
-    # the same question `_cannot_perceive` asks. A man in a Darkness field
-    # would otherwise be halved by p.52 and halved again by p.127 -- DCV 5
-    # down to 2 -- for one fact about the fight, stated on two pages.
-    #
-    # So p.127's DCV delta is asked for only when no Surprise is live.
-    # `Surprise.applies` is False for a target with Defense Maneuver (p.52
-    # exempts him from being Surprised, and says nothing about his being
-    # able to see), and `_surprise_for` returns None on a map-less fight --
-    # in both cases the man still cannot perceive his attacker and p.127
-    # still prices it. The OCV half is not conditioned on anything:
-    # Surprised does nothing to the ATTACKER's OCV.
-    surprise = _surprise_for(session, actor, target)
-    blind_dcv = (0 if surprise
-                 else _blind_cv_delta(session, target, actor, "dcv", combat_type))
-
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice))),
-        surprise=surprise,
         # A SET THAT BOUGHT NOTHING. `Set.ocv_bonus` existed, was correct,
         # and was read by nothing but its own unit test -- so a man could
         # spend a Full Phase drawing a bead (6E2 p.81) and be no more
@@ -455,28 +258,7 @@ def _resolve_attack(
         # the bonus "to all attacks against that target", not to whatever
         # he swings at next.
         ocv_modifier=(_set_bonus(session, actor, target)
-                      + _grab_cv(session, actor, target).ocv_delta
-                      + _blind_cv_delta(
-                          session, actor, target, "ocv", combat_type)
-                      + _adjustment_cv_delta(session, actor, "ocv")),
-        # THE TARGET'S half of 6E2 p.127, asked of the TARGET: his DCV
-        # against this attacker turns on whether HE can perceive the man
-        # swinging at him, which is a different question with a different
-        # answer all the time. See `blind_dcv` above for why it is not also
-        # asked when p.52's Surprised has already halved him.
-        #
-        # AND THE DODGE HE ABORTED TO. 6E2 p.55: a Dodge is +3 DCV against
-        # all attacks this Phase. `Dodge.dcv_bonus` has computed that
-        # correctly since the reactive line shipped and had no production
-        # caller anywhere -- so a fighter gave up his next Phase for a
-        # bonus nothing read, and `tactics/catalog/dodge_under_fire.py`
-        # recommended a move that bought nothing. Asked of the SESSION, not
-        # the combatant, because the declaration lives on the log.
-        # AND WHATEVER HAS BEEN DRAINED OFF HIM (6E1 p.139). See
-        # `_adjustment_cv_delta`: the CV half of the Adjustment chain was
-        # wired and never read by a fight.
-        dcv_modifier=(blind_dcv + _dodge_bonus(session, target)
-                      + _adjustment_cv_delta(session, target, "dcv")),
+                      + _grab_cv(session, actor, target).ocv_delta),
         # A GRAB CHANGED NOTHING ABOUT ANYONE'S COMBAT ABILITY until this
         # -- so grappling was strictly free, and never worth doing to a
         # man you could simply shoot. Western Hero p.104 prices it.
@@ -485,16 +267,7 @@ def _resolve_attack(
         melee_cover_ocv=_melee_cover(session, actor, target, template).ocv_penalty,
     )
     new_session, result = resolve_attack_in_session(
-        session, attack, template, action_type="attack",
-        # The Activation Roll it MADE, carried into the same payload the
-        # failure would have written. Both answers on the log means a
-        # reader can tell "made it" from "never had to make one" -- which
-        # is the whole reason `activation_roll` is None rather than 0.
-        extra_payload=(None if activation is None else {
-            "activated": True,
-            "activation_roll": activation["roll"],
-            "activation_target": activation["target"],
-        }),
+        session, attack, template, action_type="attack", roller=roller,
     )
     new_session, result = _maybe_stray(
         new_session, actor, action, result, template=template, roller=roller,
@@ -2219,105 +1992,6 @@ def _resolve_pickup(
 # ---------------------------------------------------------------------------
 
 
-def _cannot_perceive(session, observer, opponent) -> bool:
-    """True when NO Targeting Sense of ``observer`` reaches ``opponent``.
-
-    The engine has one resolver for that question -- `perception.perceive`
-    -- and this asks it rather than growing a second answer. `perceive`
-    folds every way a sense can be lost at once: a Flash on the observer's
-    Sense Group, a Darkness field on the ray, Invisibility, a Hidden
-    target, and the walls (`_sight_los`) that `sense_penalties`'
-    `_targeting_senses_blocked` deliberately leaves out.
-
-    **This is THE predicate for 6E2 p.127 on every path that prices a blow
-    rather than refusing one.** It is deliberately the only one: a second
-    copy would drift from this one within weeks, and this engine's dominant
-    defect has been a rule enforced at one door and not the next. Anything
-    that needs "can he perceive him" for a CV calls this, and shares
-    `sense_penalties`' normal-human fallback below rather than growing its
-    own.
-
-    **A session with no Scene is not blind.** `perceive` takes the scene
-    and treats a scene-less call as no occlusion gate -- there is no
-    geometry, so nothing can stand between two men -- and this passes
-    `session.scene` straight through rather than second-guessing it. A
-    Flash still blinds in a scene-less fight, because a Flash is carried on
-    the log and needs no geometry at all.
-
-    **IT DOES NOT FAIL OPEN, and the reason is the whole point of the
-    rule.** `perceive` asks the observer for `senses()`, which only a
-    build-backed combatant has; a flat stat block does not. An earlier
-    draft of this function wrapped the call in a bare `except Exception:
-    return False`, which turned "I could not tell" into "he can see
-    perfectly well" -- so a blind Trip by a stat-block combatant took NO
-    penalty, silently, and every test in the suite stayed green because
-    they all use builds. `sense_penalties` had already met and solved that
-    exact shape; `as_sensing_observer` is its answer, shared rather than
-    copied: the observer is handed 6E2 p.9's normal human (Sight, and only
-    Sight, aims) when it has no senses of its own. So the fallback is
-    grounded, one stat block Flashed in the Sight Group is blind, and one
-    Flashed in the Hearing Group still aims.
-
-    Nothing else is caught. There is no error left that means "he can
-    see", and a swallowed one would be another silent no-op of the kind
-    this function was just fixed for.
-    """
-    from kirby_combat.actions.flash import Flash
-    from kirby_combat.perception import perceive
-    from kirby_combat.sense_penalties import as_sensing_observer
-
-    _, flashed = Flash.is_flashed(session, observer.id)
-    perception = perceive(
-        as_sensing_observer(observer), opponent,
-        getattr(session, "scene", None),
-        observer_flashed_groups=frozenset(flashed),
-    )
-    return not perception.targetable_physical
-
-
-def _blind_cv_delta(
-    session, observer, opponent, key: str, combat_type: str = "hth",
-) -> int:
-    """6E2 p.127's penalty to ``observer``'s ``key`` CV, as a delta.
-
-    "Inability To Sense An Opponent" (6E2 p.127; the worked example and the
-    same table are on 6E2 p.9): hand-to-hand, a character who cannot
-    perceive his opponent with a Targeting Sense is at half OCV, and so is
-    his DCV against that opponent. Zero when he can perceive him.
-
-    A DELTA because `resolution/to_hit.py` takes `ocv_modifier` /
-    `dcv_modifier` and adds them to the base CV; returning the difference
-    lets the halving ride in on the channel that already exists instead of
-    a new field. The halving itself is `cv_modifiers.apply_cv_factor` --
-    6E2 p.39's sign-aware rounding, the engine's only halving -- and the
-    numbers come from `sense_penalties`' table, which is where 6E2 p.9's
-    rows and the p.9 Nontargeting-PER mitigation already live.
-
-    **WHICH ROW, said by the caller.** p.9 gives hand-to-hand and Ranged
-    separate rows and the Ranged one is harsher: OCV drops to ZERO rather
-    than to half. ``combat_type`` defaults to hand-to-hand because the
-    maneuvers this helper was written for -- Trip (p.67), Disarm (p.65) --
-    are hand-to-hand maneuvers and have no other row to pick. The attack
-    path fires both a revolver and a fist through ONE resolver, so it
-    passes the row its power belongs to; hard-coding HTH there would have
-    been wrong by five OCV on every blind shot.
-
-    ``sense_penalty_row`` is what holds the table, so neither row is
-    written down twice -- and the p.9 Nontargeting-PER mitigation that
-    changes BOTH rows is read once, by it.
-    """
-    from kirby_combat.cv_modifiers import apply_cv_delta, apply_cv_factor
-    from kirby_combat.sense_penalties import sense_penalty_row
-
-    if not _cannot_perceive(session, observer, opponent):
-        return 0
-    row = sense_penalty_row(session, observer.id, opponent.id, combat_type)
-    base = int(getattr(observer, key))
-    value = apply_cv_factor(base, row.get(f"{key}_factor", 1.0))
-    value = apply_cv_delta(value, int(row.get(f"{key}_delta", 0)))
-    return value - base
-
-
 def _maneuver_attack(
     session, actor, action: LegalAction, *, roller, ocv_modifier: int,
     damage_dice: int | None = None, action_type: str = "strike",
@@ -2329,12 +2003,13 @@ def _maneuver_attack(
     modifiers, the hit determination, damage application -- instead of a
     second, thinner copy of the resolution path.
 
-    Two questions of perception are asked here, not one (6E2 p.127): the
-    attacker's OCV turns on whether HE can perceive the target, and the
-    target's DCV on whether the TARGET can perceive the attacker. They have
-    different answers all the time -- a Flashed man swinging at someone who
-    can see him perfectly well -- and a single "blind" flag cannot carry
-    both. See `_blind_cv_delta`.
+    6E2 p.127's two questions of perception -- the attacker's OCV turns on
+    whether HE can perceive the target, the target's DCV on whether the
+    TARGET can perceive the attacker -- are asked by
+    `recording.py::_fold_session_cvs`, on the path this function already
+    takes, along with the Dodge, the Surprise and any Drained CV. They were
+    asked here for a week and at one other resolver, which is how a rule
+    ends up at two doors out of seven.
     """
     from kirby_combat.models import AttackInput, DiceValues
 
@@ -2348,20 +2023,18 @@ def _maneuver_attack(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
         dice=_attack_dice(roller, max(0, dice)),
-        ocv_modifier=(ocv_modifier
-                      + _blind_cv_delta(session, actor, target, "ocv")
-                      + _adjustment_cv_delta(session, actor, "ocv")),
-        # The Dodge is read here too, and through the same `_dodge_bonus`
-        # the attack path uses. A Trip aimed at a man who aborted to a
-        # Dodge is exactly the case 6E2 p.55's "all attacks" covers, and
-        # wiring it at the attack door only would rebuild the defect this
-        # engine keeps finding: one rule, one door, several doors.
-        dcv_modifier=(_blind_cv_delta(session, target, actor, "dcv")
-                      + _dodge_bonus(session, target)
-                      + _adjustment_cv_delta(session, target, "dcv")),
+        ocv_modifier=ocv_modifier,
     )
     new_session, result = resolve_attack_in_session(
-        session, attack, session.template, action_type=action_type)
+        session, attack, session.template, action_type=action_type,
+        roller=roller,
+        # HAND-TO-HAND, and said so rather than derived. Trip (6E2 p.67)
+        # and Disarm (p.65) are hand-to-hand maneuvers; the power on the
+        # offer is only a damage handle and may well be a ranged one, which
+        # would put them on p.9's Ranged row -- OCV to ZERO rather than
+        # halved. A2's helper hard-coded the HTH row for exactly this
+        # reason; the door takes the same fact as a parameter.
+        combat_type=HTH)
     # `effective_ocv`, `target_dcv` and `margin` are stamped by
     # `resolve_attack_in_session` itself now -- the one path an attack and a
     # maneuver both take -- so the re-stamping helper that used to run here

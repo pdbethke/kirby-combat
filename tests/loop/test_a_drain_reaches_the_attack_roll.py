@@ -128,3 +128,30 @@ def test_a_drain_cannot_take_a_cv_below_zero():
     session = _fight()
     session = _adjust(session, "brute", "OCV", -50)
     assert _shoot(session)["effective_ocv"] == 0
+
+
+def test_a_drain_is_applied_exactly_once():
+    """ONE FOLD. For a week there were two: `cv_modifiers.effective_ocv_for`
+    (which applies the Adjustment to the BASE, before any factor, per 6E1
+    p.133/p.139) and a second `resolvers._adjustment_cv_delta` added on top.
+    Only one of them was ever called, so the double never fired -- but two
+    folds for one rule is how it fires later. `_adjustment_cv_delta` is
+    deleted and the attack path reads `effective_*_for`.
+
+    Asserted as a NUMBER, not a direction: a -4 Drain that lands twice
+    still lowers the OCV, and a test asserting only "it went down" would
+    have passed either way."""
+    session = _fight()
+    base = int(session.combatants["brute"].ocv)
+    session = _adjust(session, "brute", "OCV", -4)
+    rolled = _shoot(session)["effective_ocv"]
+    assert rolled == base - 4
+    assert rolled != base - 8
+
+
+def test_the_second_fold_is_gone():
+    """Names the deleted helper, so re-adding one has to delete this line
+    too rather than quietly restoring a second home for the rule."""
+    from kirby_combat.loop import resolvers
+
+    assert not hasattr(resolvers, "_adjustment_cv_delta")

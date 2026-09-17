@@ -457,6 +457,66 @@ class NontargetingPerception:
 # The CV-seam source
 # ---------------------------------------------------------------------------
 
+def cannot_perceive(session: "CombatSession", observer, opponent) -> bool:
+    """True when NO Targeting Sense of ``observer`` reaches ``opponent``.
+
+    **THE ENGINE'S ONE PREDICATE for 6E2 p.127 / p.9 on every path that
+    prices a blow rather than refusing one.** It lived in
+    `loop/resolvers.py` while it served three maneuvers; it moved here when
+    the attack path needed it too, because two copies of a perception
+    answer is exactly the drift this engine keeps paying for. Everything
+    that asks "can he perceive him for a CV" calls THIS, and
+    `sense_penalty_modifiers` below is one of its callers, so the CV seam
+    and the resolvers cannot come to different answers.
+
+    `perception.perceive` is what it asks, and `perceive` folds every way a
+    sense can be lost at once: a Flash on the observer's Sense Group, a
+    Darkness field on the ray, Invisibility, a Hidden target, and the walls
+    (`_sight_los`) that `_targeting_senses_blocked` deliberately leaves
+    out. It is DETERMINISTIC as called here: `perceive` rolls only for an
+    Invisibility Fringe or a Hidden target's Stealth contest, and neither
+    flag is passed, so a CV read many times while an attack is built gets
+    the same answer every time -- the property `_targeting_senses_blocked`
+    was written to guarantee.
+
+    **A session with no Scene is not blind.** `perceive` takes the scene and
+    treats a scene-less call as no occlusion gate -- there is no geometry,
+    so nothing can stand between two men. A Flash still blinds in a
+    scene-less fight, because a Flash is carried on the log and needs no
+    geometry at all.
+
+    **IT DOES NOT FAIL OPEN, and the reason is the whole point of the
+    rule.** `perceive` asks the observer for `senses()`, which only a
+    build-backed combatant has; a flat stat block does not. An earlier
+    draft wrapped the call in a bare `except Exception: return False`, which
+    turned "I could not tell" into "he can see perfectly well" -- so a blind
+    Trip by a stat-block combatant took NO penalty, silently, and every test
+    in the suite stayed green because they all use builds.
+    `as_sensing_observer` is the grounded answer, shared rather than copied:
+    the observer is handed 6E2 p.9's normal human (Sight, and only Sight,
+    aims) when it has no senses of its own. So one stat block Flashed in the
+    Sight Group is blind, and one Flashed in the Hearing Group still aims.
+
+    A combatant the session does not know at all reads as unblocked --
+    there is nothing to reason about -- which is the same answer
+    ``_targeting_senses_blocked`` gives, and is NOT the fail-open the
+    paragraph above refuses: "I was handed nobody" is a different fact from
+    "I could not read his senses".
+    """
+    from kirby_combat.actions.flash import Flash
+    from kirby_combat.perception import perceive
+
+    if observer is None or opponent is None:
+        return False
+    _, flashed = Flash.is_flashed(session, getattr(observer, "id", ""))
+    perception = perceive(
+        as_sensing_observer(observer), opponent,
+        getattr(session, "scene", None),
+        observer_flashed_groups=frozenset(flashed),
+    )
+    return not perception.targetable_physical
+
+
 def sense_penalty_modifiers(
     session: "CombatSession",
     combatant_id: str,
@@ -472,8 +532,25 @@ def sense_penalty_modifiers(
     This is the function wired into ``cv_modifiers``'s per-opponent seam;
     it is not usually called directly. Prefer
     ``cv_modifiers.effective_dcv_for(session, id, against=..., combat_type=...)``.
+
+    **THE PREDICATE IS ``cannot_perceive``, not ``_targeting_senses_blocked``.**
+    The two answer the same question to different depths: the private one
+    reads Flash and Darkness and deliberately leaves line-of-sight out,
+    while `cannot_perceive` asks `perception.perceive`, which also folds
+    Invisibility, a Hidden target and the walls between two men. While the
+    CV seam used the shallower one and the maneuver path used the deeper
+    one, a man behind a wall was blind to a Trip and sighted to an Attack
+    Roll -- one rule with two answers, which is this engine's dominant
+    defect shape. The seam asks the deeper question now, and the resolvers
+    ask the seam.
+
+    ``_targeting_senses_blocked`` is unchanged and still serves its other
+    readers (``scene/visibility.py``, ``actions/darkness.py``), which want
+    the geometry-free question it was written for.
     """
-    if not _targeting_senses_blocked(session, combatant_id, opponent_id):
+    if not cannot_perceive(
+            session, session.combatants.get(combatant_id),
+            session.combatants.get(opponent_id)):
         return {}
     return sense_penalty_row(session, combatant_id, opponent_id, combat_type)
 
