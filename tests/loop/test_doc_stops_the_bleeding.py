@@ -136,9 +136,9 @@ def test_the_driver_tells_enumeration_who_is_on_his_side():
 
     session = _fight(wounded_body=-2)
     ties = RandomRoller(seed=11)
-    session = Encounter(id="e", turn=1, segment=12, sessions=[session],
-                        template=RAW_HEROIC).run_segment(
-        roller=lambda: ties.roll_dice(3)).sessions[0]
+    encounter = Encounter(id="e", turn=1, segment=12, sessions=[session],
+                          template=RAW_HEROIC).run_segment(
+        roller=lambda: ties.roll_dice(3))
 
     handed: list = []
     original = run.enumerate_actions
@@ -153,7 +153,7 @@ def test_the_driver_tells_enumeration_who_is_on_his_side():
 
     run.enumerate_actions = spy
     try:
-        run.run_phase(session, _First(), template=RAW_HEROIC,
+        run.run_phase(encounter, _First(),
                       roller=RandomRoller(seed=2), on_unresolvable="skip")
     finally:
         run.enumerate_actions = original

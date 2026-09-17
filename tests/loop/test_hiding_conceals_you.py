@@ -122,17 +122,18 @@ def test_the_driver_tells_enumeration_who_cannot_be_seen(hidden_session):
     encounter = Encounter(id="e", turn=1, segment=12, sessions=[session],
                           template=TEMPLATE).run_segment(
         roller=lambda: _ties.roll_dice(3))
-    session = encounter.sessions[0]
 
     run.enumerate_actions = spy
     try:
         # The watcher is not first in the order, so spend Phases until he
-        # comes up. `actor_id is None` means the Segment is exhausted.
+        # comes up. `run_phase` advances the Segment itself now, so the
+        # loop simply runs Phases until he has one; `actor_id is None`
+        # means the fight is decided.
         for _ in range(8):
-            result = run.run_phase(session, _First(), template=TEMPLATE,
+            result = run.run_phase(encounter, _First(),
                                    roller=RandomRoller(seed=5),
                                    on_unresolvable="skip")
-            session = result.session
+            encounter = result.encounter
             if result.actor_id in (None, blind_id):
                 break
     finally:

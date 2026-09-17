@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**One door steps a fight.** `run_phase` now takes the `Encounter` and owns the
+clock as well as the Phase:
+
+```python
+run_phase(encounter, chooser, *, roller,
+          on_unresolvable="raise", campaign=None, until=None) -> PhaseResult
+```
+
+It resolves the Segment's acting order when the fight is carrying none, and
+when the order is spent it advances the Segment (and the Turn, and with it 6E2
+p.131's free Post-Segment 12 Recovery, p.109's bleeding, the Adjustment fade
+and `SegmentAdvanced`) until it finds a Segment somebody can act in. The
+template is resolved from the Encounter and the campaign, so the `template=`
+argument is gone; `roller` serves both the resolvers and 6E2 p.21's
+zero-argument tie-break. `PhaseResult.encounter` carries the fight forward and
+`PhaseResult.session` is a view of it.
+
+`actor_id is None` now means ONE thing: the fight is decided by `until`
+(default: last side standing), and nothing further is emitted. It used to also
+mean "this Segment is spent, advance it yourself" — so a consumer stepping a
+fight one Phase at a time could not finish one, and `run_encounter` held a
+second copy of the advance. `run_encounter` is now a loop over `run_phase`
+plus the guards a driver owns (`max_turns`, the stalemate counter, the
+verdict); a test reads its body by AST to keep it that way. A whole Turn with
+no actor and no verdict raises rather than returning quietly.
+
+The stalemate counter now reads the AMOUNT on a `VitalsChanged` /
+`RecoveryTaken` / `BleedingSuffered` rather than the kind alone: a man at full
+STUN takes a free Recovery of nothing every Turn, and once the advance moved
+inside `run_phase` that was resetting the counter every twelve Segments.
+
 **The log rebuilds the fight.** `apply_event` is now the ONLY writer of a
 combatant's STUN, BODY and END. Every resolver used to change the combatant
 beside the event that described the change — an attack folded its damage onto

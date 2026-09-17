@@ -56,16 +56,29 @@ def _started(combatants) -> CombatSession:
     ).start()
 
 
+def _encounter_for(session: CombatSession) -> Encounter:
+    """The clock this session is standing on. `run_phase` takes an
+    `Encounter` --- it owns the Segment advance as well as the Phase ---
+    and a session's own Timeline says where it is."""
+    return Encounter(
+        id="e", turn=session.timeline.turn, segment=session.timeline.segment,
+        sessions=[session],
+    )
+
+
 def _ran_a_segment_and_a_phase() -> CombatSession:
     """One Segment's order resolved, one Phase run. The original fight."""
     encounter = Encounter(
         id="e", turn=1, segment=12, sessions=[_started(_combatants())],
     )
     tie_roller = RandomRoller(seed=TIE_SEED)
+    # Resolved explicitly, with its own seeded tie-roller, so this file's
+    # "same inputs" claim stays stateable. `run_phase` would resolve one
+    # itself if the session were carrying none; it leaves this one alone.
     encounter = encounter.run_segment(roller=lambda: tie_roller.roll_dice(3))
     phase = run_phase(
-        encounter.sessions[0], FirstLegalChooser(),
-        template=TEMPLATE, roller=RandomRoller(seed=PHASE_SEED),
+        encounter, FirstLegalChooser(),
+        roller=RandomRoller(seed=PHASE_SEED),
     )
     assert phase.actor_id is not None, "the fight must actually have acted"
     return phase.session
@@ -118,12 +131,12 @@ def test_the_next_phase_runs_the_same_on_both():
     rebuilt = _rebuilt_from(original)
 
     from_original = run_phase(
-        original, FirstLegalChooser(),
-        template=TEMPLATE, roller=RandomRoller(seed=NEXT_PHASE_SEED),
+        _encounter_for(original), FirstLegalChooser(),
+        roller=RandomRoller(seed=NEXT_PHASE_SEED),
     )
     from_rebuilt = run_phase(
-        rebuilt, FirstLegalChooser(),
-        template=TEMPLATE, roller=RandomRoller(seed=NEXT_PHASE_SEED),
+        _encounter_for(rebuilt), FirstLegalChooser(),
+        roller=RandomRoller(seed=NEXT_PHASE_SEED),
     )
 
     assert from_rebuilt.actor_id == from_original.actor_id
@@ -200,8 +213,8 @@ def test_the_skip_rides_out_on_the_phase_result():
     original = _knocked_out(_ran_a_segment_and_a_phase(), "b")
 
     phase = run_phase(
-        original, FirstLegalChooser(),
-        template=TEMPLATE, roller=RandomRoller(seed=NEXT_PHASE_SEED),
+        _encounter_for(original), FirstLegalChooser(),
+        roller=RandomRoller(seed=NEXT_PHASE_SEED),
     )
 
     assert phase.actor_id == "c"

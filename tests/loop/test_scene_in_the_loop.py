@@ -72,10 +72,7 @@ def _menu_kinds(scene: Scene | None, *, apart: float = 20.0) -> set[str]:
             seen.append({a.kind for a in situation.menu})
             return situation.menu[0].action_id
 
-    run_phase(
-        enc.sessions[0], Spy(), template=TEMPLATE, roller=roller,
-        on_unresolvable="skip",
-    )
+    run_phase(enc, Spy(), roller=roller, on_unresolvable="skip")
     return seen[0]
 
 
@@ -200,8 +197,7 @@ def test_a_phase_resolves_with_a_scene_present():
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     result = run_phase(
-        enc.sessions[0], FirstLegalChooser(), template=TEMPLATE,
-        roller=roller, on_unresolvable="skip",
+        enc, FirstLegalChooser(), roller=roller, on_unresolvable="skip",
     )
     assert result.actor_id == "aurora"
     assert result.action_id is not None

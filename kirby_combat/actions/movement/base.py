@@ -111,7 +111,6 @@ class MovementAction:
         Raises ValueError on validation failure.
         """
         from kirby_combat.session.apply import apply_event
-        from dataclasses import replace
 
         combatant = session.combatants.get(combatant_id)
         if combatant is None:

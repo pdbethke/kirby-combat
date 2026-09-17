@@ -4,7 +4,6 @@ from __future__ import annotations
 import pytest
 
 from conftest import encounter_of, fighter, session_of  # tests/loop/conftest.py
-from kirby_combat.encounter import Encounter
 from kirby_combat.loop import (
     FirstLegalChooser, InvalidChoice, PhaseSituation, Roster, TacticChooser,
     UnresolvableAction, Verdict, next_actor_id, registered_kinds,
@@ -57,26 +56,29 @@ def test_an_unregistered_kind_raises_and_names_itself():
 
 # ---- One Phase ----
 
-def test_run_phase_reports_no_actor_before_an_order_is_resolved():
-    """`run_segment` writes the acting order; without it there are no
-    slots and the loop's signal is `actor_id is None`."""
+def test_run_phase_resolves_the_order_itself_when_there_is_none():
+    """It used to return `actor_id is None` here --- "no order, no slots,
+    your move" --- and a caller had to know to call `run_segment`. That
+    signal is gone: `run_phase` resolves the Segment's order (6E2
+    p.18-21) when the fight is carrying none, so ONE door steps a fight
+    from any state it can be rehydrated in."""
     result = run_phase(
-        session_of(fighter("a", side=Side.named("x")), fighter("b", side=Side.named("y"))),
-        FirstLegalChooser(), template=TEMPLATE, roller=RandomRoller(seed=1),
+        encounter_of(fighter("a", side=Side.named("x"), dex=25),
+                     fighter("b", side=Side.named("y"), dex=10)),
+        FirstLegalChooser(), roller=RandomRoller(seed=1),
+        on_unresolvable="skip",
     )
-    assert result.actor_id is None
-    assert result.acted is False
+    assert result.actor_id == "a"
+    assert [e.kind for e in result.session.event_log].count(
+        "ActingOrderResolved") == 1
 
 
 def test_run_phase_spends_one_slot_and_deals_damage():
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y"), dex=10))
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     before = enc.sessions[0].combatants["b"].state.current_stun
-    result = run_phase(
-        enc.sessions[0], FirstLegalChooser(), template=TEMPLATE, roller=roller,
-    )
+    result = run_phase(enc, FirstLegalChooser(), roller=roller)
 
     assert result.actor_id == "a", "highest DEX acts first (6E2 p.19)"
     assert result.acted
@@ -88,34 +90,45 @@ def test_run_phase_spends_one_slot_and_deals_damage():
 def test_a_spent_slot_is_not_offered_again():
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y"), dex=10))
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
-    first = run_phase(enc.sessions[0], FirstLegalChooser(), template=TEMPLATE, roller=roller)
-    second = run_phase(first.session, FirstLegalChooser(), template=TEMPLATE, roller=roller)
+    first = run_phase(enc, FirstLegalChooser(), roller=roller)
+    second = run_phase(first.encounter, FirstLegalChooser(), roller=roller)
     assert (first.actor_id, second.actor_id) == ("a", "b")
 
-    third = run_phase(second.session, FirstLegalChooser(), template=TEMPLATE, roller=roller)
-    assert third.actor_id is None, "both slots are spent"
+    # AND THE FIGHT GOES ON. This used to assert `actor_id is None` ---
+    # "both slots are spent", the signal a caller had to act on by
+    # advancing the Segment itself. `run_phase` advances now, so the
+    # third call is a Phase in a LATER Segment rather than a refusal.
+    third = run_phase(second.encounter, FirstLegalChooser(), roller=roller)
+    assert third.actor_id is not None
+    assert third.encounter.segment != second.encounter.segment
 
 
 def test_a_downed_combatant_is_skipped_not_asked():
     """6E1 p.421. Their slot is consumed -- they had a Phase and are in no
     condition to use it -- but they are never enumerated for."""
+    # THREE, not two. With his only enemy down the fight is DECIDED, and
+    # `run_phase` refuses to step a decided fight at all now -- which is
+    # right, and would make this test about the verdict rather than about
+    # the skip. A second man on the downed man's side keeps the fight
+    # alive so the skip is the only thing under test.
     enc = encounter_of(
-        fighter("a", side=Side.named("x"), dex=25), fighter("down", side=Side.named("y"), dex=10, stun=0),
+        fighter("a", side=Side.named("x"), dex=25),
+        fighter("down", side=Side.named("y"), dex=10, stun=0),
+        fighter("c", side=Side.named("y"), dex=5),
     )
     roller = RandomRoller(seed=3)
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     assert next_actor_id(enc.sessions[0]) == "a"
-    # `on_unresolvable="skip"` because with its only enemy down, "a" has no
-    # attack to offer -- the menu opens with Dodge, which the engine cannot
-    # yet resolve. That is this test's incidental surface, not its subject.
-    first = run_phase(
-        enc.sessions[0], FirstLegalChooser(), template=TEMPLATE, roller=roller,
-        on_unresolvable="skip",
-    )
-    assert next_actor_id(first.session) is None
+    first = run_phase(enc, FirstLegalChooser(), roller=roller)
+    assert first.actor_id == "a"
+
+    second = run_phase(first.encounter, FirstLegalChooser(), roller=roller)
+
+    assert second.actor_id == "c", "the downed man was passed over"
+    assert [(e.combatant_id, e.reason) for e in second.events
+            if e.kind == "PhaseSpent"] == [("down", "down"), ("c", "acted")]
 
 
 # ---- The seat ----
@@ -126,11 +139,9 @@ def test_a_choice_outside_the_menu_raises_at_the_seat():
             return "attack:nobody:nothing"
 
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y")))
-    roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     with pytest.raises(InvalidChoice, match="not offered"):
-        run_phase(enc.sessions[0], Liar(), template=TEMPLATE, roller=roller)
+        run_phase(enc, Liar(), roller=RandomRoller(seed=3))
 
 
 def test_the_chooser_sees_enemies_by_side_not_by_id():
@@ -145,9 +156,7 @@ def test_the_chooser_sees_enemies_by_side_not_by_id():
         fighter("a1", side=Side.named("pack"), dex=25), fighter("a2", side=Side.named("pack"), dex=24),
         fighter("b", side=Side.named("loner"), dex=10),
     )
-    roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
-    run_phase(enc.sessions[0], Spy(), template=TEMPLATE, roller=roller)
+    run_phase(enc, Spy(), roller=RandomRoller(seed=3))
 
     situation = seen[0]
     assert [c.id for c in situation.enemies] == ["b"]
@@ -159,10 +168,8 @@ def test_the_tactic_chooser_picks_something_legal():
     enumeration has already ruled on legality, so the chooser must return
     something from the menu it was given, whatever the tactics said."""
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y")))
-    roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
-    result = run_phase(enc.sessions[0], TacticChooser(), template=TEMPLATE, roller=roller)
+    result = run_phase(enc, TacticChooser(), roller=RandomRoller(seed=3))
     assert result.acted
 
 
@@ -184,11 +191,9 @@ def test_skip_records_the_kind_rather_than_hiding_it():
             return chosen.action_id
 
     enc = encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y")))
-    roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     result = run_phase(
-        enc.sessions[0], InventsAKind(), template=TEMPLATE, roller=roller,
+        enc, InventsAKind(), roller=RandomRoller(seed=3),
         on_unresolvable="skip",
     )
     assert result.skipped_kind == "somersault"
@@ -199,9 +204,8 @@ def test_skip_records_the_kind_rather_than_hiding_it():
 def test_an_unknown_policy_is_rejected():
     with pytest.raises(ValueError, match="on_unresolvable"):
         run_phase(
-            session_of(fighter("a")), FirstLegalChooser(),
-            template=TEMPLATE, roller=RandomRoller(seed=1),
-            on_unresolvable="ignore",
+            encounter_of(fighter("a")), FirstLegalChooser(),
+            roller=RandomRoller(seed=1), on_unresolvable="ignore",
         )
 
 

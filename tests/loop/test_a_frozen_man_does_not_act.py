@@ -80,25 +80,27 @@ def test_the_rules_say_he_cannot_act():
 def test_the_loop_does_not_hand_him_a_phase():
     """The defect. He was asked to decide and he shot somebody.
 
-    `run_segment` writes the acting order and then runs every slot in it,
-    which is the real path -- `run_phase` alone finds no slots.
+    Driven through `run_phase`, which owns the Segment advance as well as
+    the Phase, so this is the real path a consumer takes.
     """
+    from kirby_combat.encounter import Encounter
     from kirby_combat.loop.chooser import FirstLegalChooser
-    from kirby_combat.template import CombatTemplate
     from kirby_dice import RandomRoller
 
-    session = _frozen(_started(), "tom")
+    encounter = Encounter(
+        id="e", turn=1, segment=12, sessions=[_frozen(_started(), "tom")],
+    )
     notes = []
     for _ in range(4):
         result = run_phase(
-            session, FirstLegalChooser(), on_unresolvable="skip",
-            template=CombatTemplate.default_6e_superheroic(),
+            encounter, FirstLegalChooser(), on_unresolvable="skip",
             roller=RandomRoller(seed=3),
         )
-        session = result.session
+        encounter = result.encounter
         notes += result.notes
         if result.actor_id is None:
             break
+    session = encounter.sessions[0]
 
     assert any("Presence Attack" in n for n in notes), notes
     tom_acted = [

@@ -240,21 +240,34 @@ def main() -> None:
          _soldier("Warden", Side.named("south"), 19)], seed=13,
     )
     stepper = RandomRoller(seed=13)
-    encounter = encounter.run_segment(roller=lambda: stepper.roll_dice(3))
-    template = CombatTemplate.default_6e_superheroic()
 
-    while (actor_id := next_actor_id(encounter.sessions[0])) is not None:
-        actor = encounter.sessions[0].combatants[actor_id]
+    # `run_phase` takes the Encounter, because it owns the clock as well
+    # as the Phase: it resolves the Segment's acting order when the fight
+    # is carrying none, and advances the Segment (and the Turn, and the
+    # free Post-Segment 12 Recovery with it) when the order is spent. So
+    # this loop never calls `run_segment` or `advance_segment` itself --
+    # and neither does a web service. `actor_id is None` means the fight
+    # is decided, and nothing more is emitted.
+    for _ in range(40):
         phase = run_phase(
-            encounter.sessions[0], FirstLegalChooser(),
-            template=template, roller=stepper, on_unresolvable="skip",
+            encounter, FirstLegalChooser(),
+            roller=stepper, on_unresolvable="skip",
         )
-        encounter = dataclasses.replace(encounter, sessions=[phase.session])
+        if phase.actor_id is None:
+            print("    (the fight is decided)")
+            break
+        actor = phase.session.combatants[phase.actor_id]
+        encounter = phase.encounter
+        # A QUESTION, NOT A MOVE: `next_actor_id` reports who is up next
+        # in this Segment's order and writes nothing. It answers None once
+        # the order is spent -- the next `run_phase` advances the clock.
+        up_next = next_actor_id(phase.session)
         dealt = getattr(phase.result, "stun_dealt", None)
         print(
             f"    {actor.hero.name} ({Side.of(actor)}) -> {phase.kind}"
             + (f", {dealt} STUN" if dealt else "")
             + f"   [{len(phase.events)} events to broadcast]"
+            + (f"   next: {up_next}" if up_next else "   (Segment spent)")
         )
 
     # ---- What a networked consumer extrudes ----

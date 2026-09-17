@@ -56,9 +56,16 @@ if TYPE_CHECKING:
 
 @dataclass
 class PhaseResult:
-    """One combatant's Phase."""
+    """One combatant's Phase, and the fight it left behind.
 
-    session: "CombatSession"
+    `encounter` rather than a bare session, because a Phase may now be
+    the one that ends a Segment: `run_phase` advances the clock itself
+    (see its docstring), and an `Encounter` is where the clock lives. The
+    `session` a consumer reads is a VIEW of it rather than a second
+    field, so the two cannot drift.
+    """
+
+    encounter: "Encounter"
     actor_id: str | None = None
     action_id: str | None = None
     kind: str | None = None
@@ -67,6 +74,11 @@ class PhaseResult:
     #: Set when the chosen kind has no resolver and ``on_unresolvable="skip"``.
     skipped_kind: str | None = None
     notes: list[str] = field(default_factory=list)
+
+    @property
+    def session(self) -> "CombatSession":
+        """The fight this Phase happened in."""
+        return self.encounter.sessions[0]
 
     @property
     def acted(self) -> bool:
@@ -246,19 +258,107 @@ def _mark_acted(
     return apply_event(session, event), event
 
 
+def _with(encounter: "Encounter", session: "CombatSession") -> "Encounter":
+    """The same Encounter carrying this session --- the one place the two
+    are put back together, so a Phase cannot return a session the clock
+    it came from has not seen."""
+    return replace(encounter, sessions=[session])
+
+
+def _advance_to_an_actor(
+    encounter: "Encounter", *, campaign, tie_roller,
+) -> tuple["Encounter", str | None, list[PhaseSpent]]:
+    """Find a Segment somebody can act in, advancing the clock to reach it.
+
+    THE ADVANCE, IN ONE PLACE. `run_encounter` held this --- resolve the
+    Segment's order, spend every slot in it, `advance_segment`, repeat ---
+    so `run_phase` could not finish a fight and any consumer stepping by
+    Phase had to copy it. Both now come through here.
+
+    An order is resolved (`Encounter.run_segment`, 6E2 p.18-21) only when
+    the session is carrying none: a rehydrated fight mid-Segment already
+    has the order its log recorded, and resolving a second one would
+    re-roll the tie-break and draw dice the fight that ran never drew.
+
+    Advancing is `Encounter.advance_segment`, which is what fires 6E2
+    p.131's free Post-Segment 12 Recovery, p.109's bleeding to death, the
+    Adjustment fade and `SegmentAdvanced` --- one door for those too.
+
+    BOUNDED BY A TURN, not by a number somebody picked: 6E2 p.18's Turn
+    is twelve Segments and every combatant with a SPD of at least 1 has a
+    Phase in one of them, so a whole Turn with nobody able to act means
+    nobody can act at all. Returns `actor_id=None` in that case and lets
+    the caller say so.
+
+    The `PhaseSpent` events for everyone passed over on the way come back
+    with it --- including the ones at the tail of a Segment, which the
+    old arrangement computed and then threw away with the session that
+    held them.
+    """
+    spends: list[PhaseSpent] = []
+    for _ in range(SEGMENTS_PER_TURN + 1):
+        session = encounter.sessions[0]
+        if not session.timeline.acting_order:
+            encounter = encounter.run_segment(
+                campaign=campaign, roller=tie_roller,
+            )
+            session = encounter.sessions[0]
+        session, actor_id, passed_over = resolve_next_actor(session)
+        spends.extend(passed_over)
+        encounter = _with(encounter, session)
+        if actor_id is not None:
+            return encounter, actor_id, spends
+        encounter = encounter.advance_segment(campaign=campaign)
+    return encounter, None, spends
+
+
 def run_phase(
-    session: "CombatSession",
+    encounter: "Encounter",
     chooser: Chooser,
     *,
-    template: "CombatTemplate",
     roller,
     on_unresolvable: str = "raise",
+    campaign: Any = None,
+    until: StopCondition | None = None,
 ) -> PhaseResult:
-    """Drive one Phase: enumerate, ask, resolve, mark the slot spent.
+    """Step the WHOLE fight by one Phase --- the clock included.
 
-    Returns a ``PhaseResult`` whose ``actor_id`` is ``None`` when no one in
-    the current acting order has a Phase left --- the loop's signal to
-    advance the Segment.
+    THE ONE STEP DOOR. This used to take a session and stop dead at the
+    end of a Segment: once the order was spent it returned
+    ``actor_id=None`` for ever, and only ``Encounter.run_segment`` /
+    ``advance_segment`` could move on. ``run_encounter`` knew that and
+    held the advance logic itself, so a consumer that steps a fight one
+    Phase at a time --- which is exactly what a networked consumer does
+    --- could not finish one, and the only alternative was a second copy
+    of the advance.
+
+    So the advance lives here, in the one place, and ``run_encounter`` is
+    a loop over this function plus its guards. When the current Segment's
+    order is spent (or none has been resolved yet) this resolves the next
+    one, advancing the Segment and the Turn through
+    ``Encounter.advance_segment`` --- which is what fires 6E2 p.131's
+    free Post-Segment 12 Recovery, p.109's bleeding, the Adjustment fade
+    and ``SegmentAdvanced`` --- until it finds a Segment somebody can act
+    in.
+
+    THE SIGNATURE, for a consumer: ``run_phase(encounter, chooser, *,
+    roller, on_unresolvable="raise", campaign=None, until=None)``. It
+    takes the ``Encounter`` because that is where the clock is; the
+    template is resolved from the Encounter and the campaign exactly as
+    ``advance_segment`` and ``run_segment`` resolve it, rather than being
+    passed in beside them where the two could disagree. The result
+    carries the new ``Encounter``; ``result.session`` is a view of it.
+
+    ``actor_id`` is ``None`` in exactly ONE case now: the fight is
+    already decided by ``until`` (default: last side standing). Nothing
+    is emitted in that case. Every other return has an actor.
+
+    ``roller`` serves both contracts. Resolvers want a dice object; 6E2
+    p.21's tie-break wants a zero-argument callable, because it is a
+    contested DEX Roll. The adaptation is here rather than in every
+    caller --- and here rather than in ``run_encounter``, so a fight
+    stepped one Phase at a time draws the same dice in the same order as
+    one driven by ``run_encounter``.
 
     ``on_unresolvable`` governs a chosen kind the registry cannot execute.
     ``"raise"`` (the default) surfaces ``UnresolvableAction`` naming the
@@ -270,13 +370,40 @@ def run_phase(
     if on_unresolvable not in ("raise", "skip"):
         raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
 
-    # Whose Phase it is --- and the spends for everyone passed over on the
-    # way, which go out with this Phase's events like any other.
-    session, actor_id, skipped_slots = resolve_next_actor(session)
-    if actor_id is None:
+    stop: StopCondition = until or LastSideStanding()
+    template = encounter._resolve_template(campaign)
+
+    # TWO ROLLER CONTRACTS, RECONCILED HERE --- see the docstring. Passing
+    # the dice object straight into the tie-break raises `'RandomRoller'
+    # object is not callable`, which reads like a bad argument and is
+    # really this mismatch.
+    def tie_roller() -> list[int]:
+        return roller.roll_dice(3)
+
+    # A FIGHT THAT IS OVER EMITS NOTHING FURTHER. Asked before the clock
+    # is touched, so a decided fight cannot be advanced a Segment by
+    # somebody asking it for one more Phase.
+    if Roster(encounter.sessions[0]).decide(stop):
         return PhaseResult(
-            session=session, events=[*skipped_slots],
-            notes=["no unspent slot in this Segment"],
+            encounter=encounter, notes=["the fight is already decided"],
+        )
+
+    encounter, actor_id, skipped_slots = _advance_to_an_actor(
+        encounter, campaign=campaign, tie_roller=tie_roller,
+    )
+    session = encounter.sessions[0]
+    if actor_id is None:
+        # `_advance_to_an_actor` exhausts a whole Turn before giving up,
+        # and every combatant with a SPD of at least 1 has a Phase
+        # somewhere in a Turn -- so this is not "wait for the next
+        # Segment", it is "nobody in this fight can ever act again", and
+        # the fight is not decided either (that was asked above). Saying
+        # so is the only honest answer; returning a quiet `actor_id=None`
+        # is what let a consumer spin.
+        raise ValueError(
+            f"no combatant in session {session.id!r} could act in a whole "
+            f"Turn (Segment {session.timeline.segment}, Turn "
+            f"{session.timeline.turn}) and the fight is not decided"
         )
 
     actor = session.combatants[actor_id]
@@ -300,7 +427,7 @@ def run_phase(
         session = PresenceEffects.forfeit_phase(session, actor_id)
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id,
+            encounter=_with(encounter, session), actor_id=actor_id,
             events=[*skipped_slots, spent],
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
@@ -410,7 +537,7 @@ def run_phase(
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id, events=[*skipped_slots, spent],
+            encounter=_with(encounter, session), actor_id=actor_id, events=[*skipped_slots, spent],
             notes=[f"{actor_id} had no legal action"],
         )
 
@@ -444,7 +571,7 @@ def run_phase(
             raise
         session, spent = _mark_acted(session, actor_id)
         return PhaseResult(
-            session=session, actor_id=actor_id, action_id=action.action_id,
+            encounter=_with(encounter, session), actor_id=actor_id, action_id=action.action_id,
             kind=action.kind, skipped_kind=action.kind,
             events=[*skipped_slots, spent],
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
@@ -452,7 +579,7 @@ def run_phase(
 
     session, spent = _mark_acted(resolved.session, actor_id)
     return PhaseResult(
-        session=session, actor_id=actor_id,
+        encounter=_with(encounter, session), actor_id=actor_id,
         action_id=action.action_id, kind=action.kind,
         result=resolved.result,
         events=[*skipped_slots, *resolved.events, spent],
@@ -494,18 +621,6 @@ def run_encounter(
     stop: StopCondition = until or LastSideStanding()
     skipped: dict[str, int] = {}
 
-    # TWO ROLLER CONTRACTS, RECONCILED HERE. `roller` is a dice object
-    # (`roller.roll_dice(n) -> list[int]`), which is what every resolver
-    # wants. `resolve_acting_order` instead takes a ZERO-ARGUMENT callable
-    # and sums whatever it returns, because 6E2 p.21's tie-break is a
-    # contested DEX Roll -- 3d6 against a target derived from DEX. Passing
-    # the dice object straight through raises `'RandomRoller' object is not
-    # callable` from inside the tie-break, which reads like a bad argument
-    # and is really this mismatch. The loop adapts rather than making every
-    # caller know about it.
-    def tie_roller() -> list[int]:
-        return roller.roll_dice(3)
-
     phases = 0
     turns = 0
 
@@ -516,56 +631,65 @@ def run_encounter(
             notes=["fight was already decided before the first Phase"],
         )
 
+    # NO SECOND COPY OF THE ADVANCE. This used to resolve the Segment's
+    # order, spend every slot in it, and call `advance_segment` itself,
+    # which is why `run_phase` stopped dead at the end of a Segment and a
+    # consumer stepping by Phase could not finish a fight. All of that
+    # lives in `run_phase` now; what is left here is what a DRIVER owns:
+    # how many Turns to allow, when to call a fight stalled, and who won.
     quiet = 0
     while turns < max_turns:
         start_turn = encounter.turn
 
-        # Resolve this Segment's acting order, then spend every slot in it.
-        encounter = encounter.run_segment(campaign=campaign, roller=tie_roller)
-        while True:
-            session = encounter.sessions[0]
-            phase = run_phase(
-                session, chooser,
-                template=encounter._resolve_template(campaign),
-                roller=roller, on_unresolvable=on_unresolvable,
+        phase = run_phase(
+            encounter, chooser, roller=roller,
+            on_unresolvable=on_unresolvable, campaign=campaign, until=stop,
+        )
+        before = encounter.sessions[0]
+        encounter = phase.encounter
+        turns += encounter.turn - start_turn
+
+        if phase.actor_id is None:
+            # The only `actor_id=None` there is: the fight is decided.
+            break
+
+        if phase.skipped_kind:
+            skipped[phase.skipped_kind] = skipped.get(phase.skipped_kind, 0) + 1
+        phases += 1
+
+        # NOTHING HAPPENING TO ANYBODY. `max_turns` guards LENGTH and
+        # was the only guard there was, so a fight that had stopped
+        # progressing still ran to the end of it --- the O.K. Corral
+        # did 289 Phases of silence three separate ways in one
+        # afternoon. Progress is damage, movement, a status landing or
+        # a Presence effect; it is NOT "an action resolved", because
+        # Setting your aim for the two hundredth time resolves
+        # perfectly well.
+        if _something_happened(before, phase.session):
+            quiet = 0
+        else:
+            quiet += 1
+        if quiet >= stalemate_after:
+            return EncounterResult(
+                encounter=encounter, turns=turns, phases=phases,
+                complete=False, winner=None, skipped_kinds=skipped,
+                notes=[f"stalemate: nothing happened to anybody for "
+                       f"{quiet} Phases"],
             )
-            if phase.actor_id is None:
-                break
-            if phase.skipped_kind:
-                skipped[phase.skipped_kind] = skipped.get(phase.skipped_kind, 0) + 1
-            phases += 1
-            # NOTHING HAPPENING TO ANYBODY. `max_turns` guards LENGTH and
-            # was the only guard there was, so a fight that had stopped
-            # progressing still ran to the end of it --- the O.K. Corral
-            # did 289 Phases of silence three separate ways in one
-            # afternoon. Progress is damage, movement, a status landing or
-            # a Presence effect; it is NOT "an action resolved", because
-            # Setting your aim for the two hundredth time resolves
-            # perfectly well.
-            if _something_happened(session, phase.session):
-                quiet = 0
-            else:
-                quiet += 1
-            encounter = replace(encounter, sessions=[phase.session])
-            if quiet >= stalemate_after:
-                return EncounterResult(
-                    encounter=encounter, turns=turns, phases=phases,
-                    complete=False, winner=None, skipped_kinds=skipped,
-                    notes=[f"stalemate: nothing happened to anybody for "
-                           f"{quiet} Phases"],
-                )
 
-            verdict = Roster(phase.session).decide(stop)
-            if verdict:
-                return EncounterResult(
-                    encounter=encounter, turns=turns, phases=phases,
-                    complete=True, winner=verdict.winner, skipped_kinds=skipped,
-                )
+        verdict = Roster(phase.session).decide(stop)
+        if verdict:
+            return EncounterResult(
+                encounter=encounter, turns=turns, phases=phases,
+                complete=True, winner=verdict.winner, skipped_kinds=skipped,
+            )
 
-        encounter = encounter.advance_segment(campaign=campaign)
-        if encounter.turn != start_turn:
-            turns += 1
-
+    verdict = Roster(encounter.sessions[0]).decide(stop)
+    if verdict:
+        return EncounterResult(
+            encounter=encounter, turns=turns, phases=phases,
+            complete=True, winner=verdict.winner, skipped_kinds=skipped,
+        )
     return EncounterResult(
         encounter=encounter, turns=turns, phases=phases,
         complete=False, winner=None, skipped_kinds=skipped,
@@ -573,14 +697,28 @@ def run_encounter(
     )
 
 
-#: Events that mean something happened TO SOMEBODY. Deliberately not
-#: `ActionResolved` on its own: aiming, holding and shuffling a Multipower
-#: all resolve cleanly and change nothing anybody would notice.
+#: Events that mean something happened TO SOMEBODY, whatever the numbers
+#: on them. Deliberately not `ActionResolved`: aiming, holding and
+#: shuffling a Multipower all resolve cleanly and change nothing anybody
+#: would notice.
 _PROGRESS_EVENTS = frozenset({
     "MovementResolved", "StatusChanged", "StatusEffectsChanged",
     "PresenceApplied", "EntangleApplied", "FlashApplied",
-    "AdjustmentApplied", "ConstructDamaged", "RecoveryTaken",
+    "AdjustmentApplied", "ConstructDamaged",
 })
+
+#: Events that mean something happened only when their numbers are not
+#: zero: kind -> the fields that have to move. A man at full STUN takes a
+#: free Post-Segment 12 Recovery of nothing every Turn (6E2 p.131), and
+#: counting that as progress is what let a fight of two men aiming at each
+#: other for forty Turns look busy -- the wrap reset the stalemate counter
+#: every twelve Segments. It only became visible when `run_phase` took
+#: over the advance and those rows started arriving inside a Phase.
+_PROGRESS_IF_NONZERO = {
+    "VitalsChanged": ("stun", "body", "end"),
+    "RecoveryTaken": ("stun_recovered", "end_recovered"),
+    "BleedingSuffered": ("body_lost", "stun_lost"),
+}
 
 
 def _something_happened(before: "CombatSession", after: "CombatSession") -> bool:
@@ -588,14 +726,17 @@ def _something_happened(before: "CombatSession", after: "CombatSession") -> bool
 
     Reads the events the Phase ADDED rather than comparing state, because
     a Phase that hurt somebody and healed them back still happened.
+
+    Damage used to be read out of `ActionResolved.result_payload`, a
+    free-form dict. It has its own typed row now (`VitalsChanged`), so
+    this asks the event that says a vital moved rather than parsing the
+    one that says what was rolled.
     """
     for event in after.event_log[len(before.event_log):]:
         kind = getattr(event, "kind", "")
         if kind in _PROGRESS_EVENTS:
             return True
-        if kind == "ActionResolved":
-            payload = getattr(event, "result_payload", None) or {}
-            if (float(payload.get("body_dealt", 0) or 0) > 0
-                    or float(payload.get("stun_dealt", 0) or 0) > 0):
-                return True
+        fields = _PROGRESS_IF_NONZERO.get(kind)
+        if fields and any(int(getattr(event, f, 0) or 0) for f in fields):
+            return True
     return False
