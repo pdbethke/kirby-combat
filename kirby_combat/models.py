@@ -160,10 +160,31 @@ class DefenseItem:
 
 @dataclass
 class CombatSkillLevel:
-    """A set of Combat Skill Levels and their allocation."""
+    """A set of Combat Skill Levels, their allocation and their breadth.
+
+    6E1 p.72 prices a level by how much of a character's fighting it
+    covers: 2 points with any single attack, 3 with a small group, 5 with a
+    large group, 8 with HTH Combat, 8 with Ranged Combat, 10 with All
+    Attacks. Carrying only ``levels`` would let a level bought for one
+    pistol sharpen a punch --- the cheapest breadth applied at the dearest
+    one's reach --- so the breadth travels with the level and the roll asks
+    whether it covers THIS attack (``to_hit._csl_reaches``).
+    """
 
     levels: int
     applies_to: str               # "ocv" | "dcv" | "dc" | "any"
+    #: 6E1 p.72's option, lower-cased: "single" | "tight" | "broad" |
+    #: "hth" | "ranged" | "all". Defaults to "all" so every
+    #: `CombatSkillLevel` built before breadth existed --- and every one a
+    #: caller hands in by hand, having already decided what it covers ---
+    #: behaves exactly as it did.
+    breadth: str = "all"
+    #: What a "single"/"tight"/"broad" level names, from the build's INPUT
+    #: field: the only thing that says WHICH attacks 2, 3 or 5 points
+    #: bought. Free text written by whoever made the character, matched by
+    #: name against the power being used. Empty for the breadths that need
+    #: no list.
+    named_attacks: str = ""
 
 
 @dataclass

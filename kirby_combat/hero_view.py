@@ -516,9 +516,58 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
     @property
     def csls(self) -> list:
-        """CombatSkillLevels — empty until the relational rows are
-        wired through hero_view (future step)."""
-        return []
+        """This character's Combat Skill Levels, read off the build.
+
+        6E1 p.72. THIS PROPERTY WAS A STUB: its body was `return []` under
+        the comment "empty until the relational rows are wired through
+        hero_view (future step)", and `resolution/to_hit.py` has summed
+        `attack.attacker.csls` since to-hit resolution was written. So for
+        every character this engine has ever resolved from a build, the sum
+        was over an empty list --- a gunfighter with +3 CSLs with Ranged
+        Combat shot exactly as well as one with none, and the only levels
+        that ever reached a roll were the ones a test handed in by hand.
+
+        The breadth travels with the level (see `CombatSkillLevel`): p.72
+        charges 2 points for one attack and 10 for all of them, and a model
+        that carried only the count would let the cheap one do the dear
+        one's work.
+
+        THE ALLOCATION IS A JUDGEMENT, and is labelled one here rather than
+        smuggled in as RAW. p.72: "a character can only use a CSL for one
+        thing at a time... he can change the assignment of his CSLs as a
+        Zero-Phase Action". Which of OCV, DCV or damage each level is
+        assigned to is therefore a choice made afresh each Phase, and this
+        engine has no seat to ask it from. Build-derived levels are
+        reported as OCV --- the one assignment the attack path can act on
+        today, and the one a fighter with no reason to do otherwise makes
+        --- and a caller that HAS made the choice passes its own list,
+        which still wins (`synthetic.py`'s `_explicit_csls`, and any driver
+        that grows a CSL-allocation seat later).
+
+        Mental Combat Skill Levels are a different Skill
+        (MENTAL_COMBAT_LEVELS) governing OMCV/DMCV, and are deliberately
+        not folded in here: the mental path has its own CVs and this list
+        feeds the physical Attack Roll.
+        """
+        from kirby_combat.models import CombatSkillLevel
+
+        out: list[CombatSkillLevel] = []
+        for skill in getattr(self.hero, "skills", None) or []:
+            if (getattr(skill, "xmlid", None) or "").upper() != "COMBAT_LEVELS":
+                continue
+            try:
+                levels = int(getattr(skill, "levels", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if levels <= 0:
+                continue
+            out.append(CombatSkillLevel(
+                levels=levels,
+                applies_to="ocv",           # the JUDGEMENT, see above
+                breadth=_csl_breadth(skill),
+                named_attacks=(getattr(skill, "input", "") or ""),
+            ))
+        return out
 
     # ─────────────────────────────────────────────────────────────────────
     # Factories
@@ -1262,6 +1311,34 @@ _DEFENSE_XMLIDS = {
     "KBRESISTANCE",
     "FORCEWALL",                      # treats as defensive in this iteration
 }
+
+
+#: 6E1 p.72's six options, as HD writes them (Main6E.hdt's COMBAT_LEVELS
+#: OPTION xmlids). Lower-cased for `CombatSkillLevel.breadth`.
+_CSL_BREADTHS = frozenset({"single", "tight", "broad", "hth", "ranged", "all"})
+
+
+def _csl_breadth(skill) -> str:
+    """Which of 6E1 p.72's six breadths this level was bought at.
+
+    HD records the chosen OPTION twice over --- as the resolved option
+    object and as the raw ``OPTIONID`` the loader kept --- and neither is
+    guaranteed present on every load shape, so both are asked before
+    falling back.
+
+    THE FALLBACK IS THE NARROW END, not the broad one. An unrecognised
+    option reads as "single", which reaches only an attack the level names
+    and so reaches nothing when it names none. Defaulting to "all" would
+    mean every level this function failed to classify quietly became the
+    ten-point breadth, which is the error a sim never notices: everybody
+    is simply a little better than they paid to be.
+    """
+    option = getattr(skill, "_selected_option", None)
+    for candidate in (getattr(option, "xmlid", None), getattr(skill, "option_id", None)):
+        value = (candidate or "").strip().lower()
+        if value in _CSL_BREADTHS:
+            return value
+    return "single"
 
 
 def _has_modifier(power, mod_xmlid: str) -> bool:

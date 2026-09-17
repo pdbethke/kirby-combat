@@ -11,6 +11,40 @@ from kirby_combat.template import CombatTemplate
 _DEFAULT_ROLL = 11
 
 
+def _csl_reaches(csl, power) -> bool:
+    """Whether this Combat Skill Level covers ``power`` (6E1 p.72).
+
+    The page prices a level by its breadth --- 2 points with any single
+    attack, 8 with HTH Combat, 8 with Ranged Combat, 10 with All Attacks
+    --- so the breadth is the rule, not decoration, and summing levels
+    without it spends the cheapest price at the dearest reach.
+
+    ``is_ranged`` is `AttackPower`'s own derived field, the same one the
+    reach gate and the blind-penalty row already read; asking it here keeps
+    ONE answer in the engine to "is this a shot or a punch".
+
+    A "single"/"tight"/"broad" level is matched against the build's INPUT
+    text, which is the only place a character says WHICH attacks those 2,
+    3 or 5 points bought. A level naming nothing reaches nothing: guessing
+    would hand out All Attacks at the single-attack price, and an
+    over-generous reading of a build is how a sim quietly makes everyone
+    better than they were paid for. Substring rather than equality because
+    HD writes free text there ("Blast, Pistol") and a builder is not
+    filling in a database field.
+    """
+    breadth = (getattr(csl, "breadth", "all") or "all").lower()
+    if breadth == "all":
+        return True
+    is_ranged = bool(getattr(power, "is_ranged", False))
+    if breadth == "ranged":
+        return is_ranged
+    if breadth == "hth":
+        return not is_ranged
+    named = (getattr(csl, "named_attacks", "") or "").lower()
+    name = (getattr(power, "name", "") or "").lower()
+    return bool(named and name and name in named)
+
+
 def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult:
     """Compute the to-hit result for a single attack.
 
@@ -68,7 +102,7 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     csl_bonus = sum(
         csl.levels
         for csl in attack.attacker.csls
-        if csl.applies_to in ("ocv", "any")
+        if csl.applies_to in ("ocv", "any") and _csl_reaches(csl, attack.power)
     )
     if csl_bonus != 0:
         audit.append(f"CSL bonus (ocv/any): +{csl_bonus}")

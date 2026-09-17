@@ -187,7 +187,20 @@ class _SyntheticCombatant(HeroCombatant):
 
     @property
     def csls(self) -> list:
-        return self._explicit_csls
+        """The caller's explicit allocation, or the build's levels.
+
+        Unlike `attacks` and `defenses`, this does NOT shadow the base
+        property unconditionally. `HeroCombatant.csls` reads COMBAT_LEVELS
+        off `hero.skills` (6E1 p.72), which a synthetic hero can now carry,
+        and returning `[]` over the top of it would have made this stub the
+        one combatant shape in the engine for which the build's levels
+        never reach a roll -- reproducing, inside the fixture, the exact
+        defect the build wiring was written to close.
+
+        An explicit list still wins, because a caller passing one has made
+        p.72's per-Phase assignment itself and the build cannot know it.
+        """
+        return self._explicit_csls or super().csls
 
     def combat_stats(self):
         """Base stats with the caller's requested defenses layered on.
@@ -216,8 +229,15 @@ class _SyntheticSkill:
     """
 
     xmlid: str
-    roll_value: int
+    roll_value: int = 0
     name: str = ""
+    #: COMBAT_LEVELS carries a count and an OPTIONID rather than a roll --
+    #: `hero_view.csls` reads these two, `skill_roll_value` reads the one
+    #: above, and a stub that can only express a roll cannot make a
+    #: character with Combat Skill Levels at all (6E1 p.72).
+    levels: int = 0
+    option_id: str = ""
+    input: str = ""
 
     def __post_init__(self) -> None:
         self.name = self.name or self.xmlid.replace("_", " ").title()
@@ -265,6 +285,7 @@ def synthetic_combatant(
     is_npc: bool = False,
     knockback_resistance: int = 0,
     skills: dict[str, int] | None = None,
+    combat_levels: list[tuple[int, str, str]] | None = None,
 ) -> _SyntheticCombatant:
     """Construct a HeroCombatant with the same flat kwargs that the
     pre-migration Combatant dataclass accepted.
@@ -299,6 +320,19 @@ def synthetic_combatant(
     # built to make shippable, not a test convenience.
     for xmlid, roll in (skills or {}).items():
         hero.skills.append(_SyntheticSkill(xmlid=xmlid, roll_value=int(roll)))
+
+    # COMBAT SKILL LEVELS, as ``(levels, option, named attacks)`` triples --
+    # 6E1 p.72's count, its breadth (SINGLE / TIGHT / BROAD / HTH / RANGED /
+    # ALL) and, for the three narrow breadths, the attacks it names. Written
+    # onto `hero.skills` rather than handed to `csls=` on purpose: this
+    # exercises the BUILD path `hero_view.csls` reads, where the levels of
+    # every real character come from, and `csls=` overrides that path
+    # entirely.
+    for levels, option, named in (combat_levels or []):
+        hero.skills.append(_SyntheticSkill(
+            xmlid="COMBAT_LEVELS", levels=int(levels),
+            option_id=str(option), input=str(named),
+        ))
 
     state = HeroCombatState(
         current_stun=current_stun if current_stun is not None else max_stun,
