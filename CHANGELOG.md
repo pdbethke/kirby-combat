@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Mental Defense applies to mental attacks.** `resolution/defense.py`'s
+`_DEFENSE_MAP` had `"md"` and no `"mental"`, while `hero_view` returns
+`"mental"` for any power whose build says `DEFENSE="MENTAL"` — so every mental
+attack fell through to the unknown-type branch, which returned a
+`DefenseProfile` of all zeroes, and a Mental Blast took full damage against any
+Mental Defense at all. Both spellings now resolve to the target's MD (6E2's
+Mental Combat; Mental Defense still does not apply against physical or energy
+attacks, which is why it is its own row). An unrecognised `defense_type` now
+RAISES instead of silently applying no defense: an all-zero profile with a line
+in the audit is how this defect survived with no test failing.
+
 `CombatSession` built with events already on it and no `initial_combatants`
 raises. The combatants such a session holds are the men the fight *left*, and
 `rewind_to_sequence` replays into the men it *found* — inferring one from the

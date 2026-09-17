@@ -6,6 +6,7 @@ Aggregation order:
   0. AVAD/NND short-circuit: if power.avad is True, apply all-or-nothing logic
      (6E1 p328) before the normal map lookup.
   1. Base (non-resistant) defense from target characteristics by defense_type.
+     An unrecognised defense_type RAISES -- see the map below.
   2. Resistant defense from target characteristics.
   3. Defense items: add applicable pd/ed/md/power_defense/flash_defense and
      their resistant counterparts.
@@ -26,6 +27,21 @@ _DEFENSE_MAP: dict[str, tuple[str, str, str, str]] = {
     "md":    ("md",             "md",           "md",             "md"),
     "power": ("power_defense",  "power_defense", "power_defense", "power_defense"),
     "flash": ("flash_defense",  "flash_defense", "flash_defense", "flash_defense"),
+    # MENTAL DEFENSE, against a mental attack. 6E2's Mental Combat: Mental
+    # Defense is what protects against mental attacks, and it does NOT
+    # apply against physical or energy attacks --- which is why it is its
+    # own row rather than being folded into pd/ed.
+    #
+    # THE KEY WAS MISSING AND THE CONSEQUENCE WAS TOTAL. `hero_view.
+    # _defense_type_for_power` returns the string "mental" for any power
+    # whose build says `DEFENSE="MENTAL"` (and for the EGOATTACK /
+    # MENTALBLAST stubs), and this map only ever had "md" --- the
+    # abbreviation nothing produces. So every mental attack fell through
+    # to the unknown-type branch below, which returned a DefenseProfile of
+    # ZERO, and a Mental Blast took full damage against any Mental
+    # Defense at all. Same target attribute as "md"; both spellings
+    # resolve here so an existing caller that says "md" is untouched.
+    "mental": ("md",            "md",           "md",             "md"),
 }
 
 
@@ -147,17 +163,22 @@ def compute_defense(target: StatBlockCombatant, power: AttackPower) -> DefensePr
     mapping = _DEFENSE_MAP.get(dtype)
 
     if mapping is None:
-        # Unknown defense type — no defense applies.
-        audit.append(f"Unknown defense_type '{dtype}'; no defense applied.")
-        return DefenseProfile(
-            total_defense=0,
-            resistant_defense=0,
-            non_resistant_defense=0,
-            damage_reduction_pct=0,
-            damage_negation=0,
-            knockback_resistance=target.knockback_resistance,
-            defense_tags=["no_applicable_defense"],
-            audit=audit,
+        # AN UNKNOWN DEFENCE TYPE IS AN ERROR, not a defence of zero.
+        #
+        # This used to return a DefenceProfile of all zeroes with a line
+        # in the audit, which is the most expensive kind of quiet
+        # failure: a typo, or a spelling this map has not heard of,
+        # silently strips a target of EVERY defence and every attack of
+        # that type goes straight through. It is exactly how the
+        # "mental" key going missing cost the engine Mental Defence
+        # entirely, with an audit line nobody read and no test failing.
+        #
+        # There is no honest default here. "I do not know what stops
+        # this" is not "nothing stops this".
+        raise ValueError(
+            f"unknown defense_type {dtype!r} on power "
+            f"{getattr(power, 'name', '?')!r} ({getattr(power, 'xmlid', '?')}): "
+            f"known types are {sorted(_DEFENSE_MAP)}"
         )
 
     char_base_attr, char_res_attr, item_base_attr, item_res_attr = mapping

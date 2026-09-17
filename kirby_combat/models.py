@@ -33,7 +33,11 @@ class AttackPower:
     half_die: bool
     plus_one: bool
     damage_type: str              # "normal" | "killing"
-    defense_type: str             # "pd" | "ed" | "md" | "power" | "flash"
+    defense_type: str             # "pd" | "ed" | "md" | "mental" | "power" | "flash"
+    #: "mental" and "md" name the same defence (6E2's Mental Combat);
+    #: `hero_view` produces "mental", older callers say "md". Anything
+    #: else raises in `resolution/defense.py` rather than quietly
+    #: applying no defence at all.
     range_m: float
     uses_str: bool
     str_min: int

@@ -183,3 +183,71 @@ class TestAuditTrail:
         power = _make_power(defense_type="pd")
         profile = compute_defense(target, power)
         assert len(profile.defense_tags) > 0
+
+
+# ---------------------------------------------------------------------------
+# Mental Defense, against a mental attack
+# ---------------------------------------------------------------------------
+
+def test_mental_defense_applies_to_a_mental_attack():
+    """THE DEFECT. `hero_view._defense_type_for_power` returns the string
+    `"mental"` for any power whose build says `DEFENSE="MENTAL"`, and the
+    defence map only ever had `"md"` --- an abbreviation nothing produces.
+    Every mental attack therefore fell through to the unknown-type branch,
+    which returned a DefenceProfile of ZERO, so a Mental Blast took full
+    damage against any Mental Defence at all.
+
+    6E2's Mental Combat: Mental Defence is what protects against mental
+    attacks.
+    """
+    profile = compute_defense(_make_combatant(md=10), _make_power("mental"))
+
+    assert profile.total_defense == 10
+    assert profile.resistant_defense == 10
+
+
+def test_the_abbreviation_and_the_word_name_the_same_defence():
+    """`"md"` was already mapped and existing callers use it; `"mental"` is
+    what the build path produces. One defence, both spellings."""
+    target = _make_combatant(md=7)
+
+    assert compute_defense(target, _make_power("mental")).total_defense == \
+        compute_defense(target, _make_power("md")).total_defense == 7
+
+
+def test_mental_defence_does_not_stop_a_physical_attack():
+    """The other half of the rule, or the test above would pass for a map
+    that simply added MD to everything. 6E2's Mental Combat: Mental
+    Defence does not apply against physical or energy attacks."""
+    target = _make_combatant(md=10, pd=2, ed=3)
+
+    assert compute_defense(target, _make_power("pd")).total_defense == 2
+    assert compute_defense(target, _make_power("ed")).total_defense == 3
+
+
+def test_an_unknown_defence_type_is_an_error():
+    """NOT A DEFENCE OF ZERO. Returning an all-zero profile with a line in
+    the audit is how the missing `"mental"` key cost the engine Mental
+    Defence entirely with no test failing: a spelling this map has not
+    heard of silently strips a target of every defence.
+
+    "I do not know what stops this" is not "nothing stops this".
+    """
+    with pytest.raises(ValueError, match="unknown defense_type"):
+        compute_defense(_make_combatant(pd=10), _make_power("psionic"))
+
+
+def test_the_engine_produces_the_spelling_the_map_knows():
+    """The two halves of the gap, joined: whatever `hero_view` emits for a
+    mental power must be a key `compute_defense` accepts. A test that only
+    checked the map would not have caught the original defect."""
+    from kirby_combat.hero_view import _defense_type_for_power
+    from kirby_combat.resolution.defense import _DEFENSE_MAP
+
+    class _MentalPower:
+        defense = "MENTAL"
+
+    produced = _defense_type_for_power(_MentalPower(), "EGOATTACK")
+
+    assert produced == "mental"
+    assert produced in _DEFENSE_MAP
