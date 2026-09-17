@@ -170,6 +170,13 @@ def apply_tier1_override(session: CombatSession, override: GMOverride) -> Combat
         if cid not in session.combatants:
             raise KeyError(f"Tier 1 override: unknown combatant {cid}")
         old = session.combatants[cid]
+        # THE ONE VITAL WRITE LEFT OUTSIDE `apply_event`, and it is on the
+        # allow-list of `tests/session/test_apply_is_the_only_writer_of_
+        # vitals.py` by name rather than by accident. `GMOverride` folds
+        # nothing, this function has no caller anywhere in the engine, and
+        # deciding which GM tiers may write what is a rule change that was
+        # ruled a separate task. Until it lands, a fight whose STUN was set
+        # this way cannot be rebuilt from its rows.
         new = replace(old, current_stun=value)
         new_combatants = dict(session.combatants)
         new_combatants[cid] = new
