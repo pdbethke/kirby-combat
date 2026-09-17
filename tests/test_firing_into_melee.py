@@ -221,3 +221,85 @@ def test_the_second_roll_uses_base_OCV_only():
 
     assert stray_ocv(base_ocv=8, effective_ocv=14) == 8
     assert stray_ocv(base_ocv=8, effective_ocv=2) == 8
+
+
+# ---- the stray shot that never went off ----
+
+def _activation_gun(activation: int):
+    """The Colt above, bought with 6E1 p.375's Activation Roll."""
+    from kirby_combat.models import AttackPower
+
+    return AttackPower(
+        xmlid="RKA", name="Colt", damage_dice=2, half_die=False,
+        plus_one=False, damage_type="killing", defense_type="pd",
+        range_m=100.0, uses_str=False, str_min=0, armor_piercing=0,
+        penetrating=0, increased_stun_mult=0, is_ranged=True, beam=True,
+        activation_roll=activation)
+
+
+def _scripted_stray(first_roll, *, stray_activation):
+    """One shot that misses inside the cover penalty, then the stray.
+
+    Dice per attack, in the order the engine draws them: to-hit 3d6, damage,
+    Hit Location 3d6, the STUN Multiplier 1d6, and then the Activation Roll
+    at the door. The first shot activates (9 against a 14-); the stray's
+    Activation is the scripted one.
+    """
+    import kirby_combat.loop.resolvers  # noqa: F401
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.loop.registry import resolve_chosen
+    from kirby_dice import FakeRoller
+
+    session, template = _fight(firing_into_melee=True)
+    pool = [
+        first_roll, [3, 3], [3, 3, 3], [1], [3, 3, 3],          # the shot
+        [3, 3, 3], [3, 3], [3, 3, 3], [1], stray_activation,    # the stray
+    ]
+    return resolve_chosen(
+        session, session.combatants["ike"],
+        LegalAction(action_id="attack:doc:src1", kind="attack",
+                    target_id="doc", power_xmlid="RKA", power_name="Colt",
+                    summary="Shoot doc", _attack_view=_activation_gun(14)),
+        template=template, roller=FakeRoller(pool))
+
+
+def test_a_stray_whose_weapon_does_not_go_off_does_not_crash():
+    """6E2 p.45's stray goes through `resolve_attack_in_session` like any
+    other shot -- which means it makes its own Activation Roll (6E1 p.375),
+    and a power that does not fire comes back with `to_hit=None`.
+
+    `_maybe_stray` guards `to_hit is None` on the INCOMING result and
+    nothing guarded the stray's, so `stray_result.to_hit.hit` raised
+    AttributeError out of the middle of the Phase -- past
+    `on_unresolvable="skip"` -- for any Activation-limited weapon fired
+    into a melee. 18 against a 14- is a failure.
+    """
+    out = _scripted_stray([5, 5, 4], stray_activation=[6, 6, 6])
+    audit = out.result.to_hit.audit or []
+    assert any("strayed to frank" in line for line in audit)
+    assert any("the weapon did not go off" in line for line in audit)
+
+
+def test_the_failed_stray_is_recorded_as_a_failed_activation():
+    """The bystander's row says the weapon jammed rather than that he was
+    missed -- a stray that vanished would read as a shot never taken."""
+    out = _scripted_stray([5, 5, 4], stray_activation=[6, 6, 6])
+    payloads = [e.result_payload for e in out.events
+                if getattr(e, "result_payload", None)
+                and "activated" in e.result_payload]
+    failed = [p for p in payloads if p["activated"] is False]
+    assert len(failed) == 1, "the stray's failed activation was not recorded"
+    assert failed[0]["target_id"] == "frank"
+    assert failed[0]["hit"] is False
+    assert failed[0]["activation_roll"] == 18
+
+
+def test_a_stray_whose_weapon_does_go_off_still_resolves():
+    """Guards the guard: the ordinary stray must keep working, and must
+    still say whether it hit."""
+    out = _scripted_stray([5, 5, 4], stray_activation=[3, 3, 3])
+    audit = out.result.to_hit.audit or []
+    assert any("strayed to frank" in line for line in audit)
+    assert not any("did not go off" in line for line in audit)
+    assert any(line.endswith("HIT") or line.endswith("missed")
+               for line in audit if "strayed" in line)

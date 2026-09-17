@@ -189,16 +189,12 @@ def test_a_real_build_has_its_combat_levels_found_at_all():
     levels = lad.csls
     assert levels, "PowerLad's Combat Skill Levels were not found on the build"
     assert [c.levels for c in levels] == [1]
-    # THE BREADTH IS NOT IN THE BUILD DOC, and the narrow end is what holds.
-    # PowerLad's .hdc says OPTIONID="TIGHT"; the canonical build document
-    # `kirby_cost.io.build_json` writes -- which is what this engine reads,
-    # and what the product rests on -- carries only `xmlid`, `name` and
-    # `levels` for this purchase. `_csl_breadth` cannot classify it and
-    # falls back to "single", which reaches only an attack the level names.
-    # That is the safe direction (a level does too little rather than too
-    # much) and it is asserted here so the day OPTIONID starts surviving
-    # the round-trip, this line fails and says so.
-    assert [c.breadth for c in levels] == ["single"]
+    # The BREADTH is deliberately not asserted here. `build_json` does carry
+    # OPTIONID, so a doc written today reads "tight" -- but the committed
+    # fixture this test loads predates that and reads "single". Pinning
+    # either would pin the fixture's age rather than the engine's
+    # behaviour. What the product path actually costs a narrow level is
+    # asserted in `test_the_build_doc_cannot_name_a_framework` below.
 
 
 def test_a_real_build_names_its_attacks_where_hd_actually_writes_them():
@@ -217,6 +213,60 @@ def test_a_real_build_names_its_attacks_where_hd_actually_writes_them():
     assert "small group of attacks" not in named
 
 
+def test_the_build_doc_cannot_name_a_framework():
+    """JUDGEMENT + the kirby-cost gap, named so it is greppable.
+
+    A narrow (single / tight / broad) Combat Skill Level says WHICH attacks
+    it covers in one of two places, and only one of them survives the
+    product path. HD writes NAME ("+1 With Punch, Haymaker, and Throw",
+    PowerLad) and OPTION_ALIAS ("with Power Over Light And Heat
+    Multipower", HELIOS-CV1). `kirby_cost.io.build_json` maps `alias` to
+    the skill's own ALIAS ("Combat Skill Levels") and has NO field for
+    OPTION_ALIAS at all.
+
+    So through `tests/corpus.py` -- build docs, which is what this engine
+    reads and what the product rests on -- a level can only ever name what
+    is in its NAME. A BROAD level bought across a framework names the
+    framework in OPTION_ALIAS and nothing else, so it arrives naming
+    nothing and reaches nothing. **No real build's single/tight/broad CSL
+    reaches a roll through the product path today.**
+
+    The engine's behaviour is correct and deliberately narrow: a level that
+    names nothing reaches nothing, so a build loses points rather than
+    gaining reach it did not pay for. Carrying OPTION_ALIAS through
+    `build_json` is a KIRBY-COST change, not an A3 one.
+
+    Asserted on the raw document so it fails the day kirby-cost carries the
+    field -- at which point `_csl_named_attacks` already reads it and this
+    test is the notice that the gap closed."""
+    from corpus import require_authored_doc
+
+    doc = require_authored_doc("PowerLad")
+
+    def find(node):
+        if isinstance(node, dict):
+            if str(node.get("xmlid", "")).upper() == "COMBAT_LEVELS":
+                return node
+            for value in node.values():
+                found = find(value)
+                if found is not None:
+                    return found
+        elif isinstance(node, list):
+            for value in node:
+                found = find(value)
+                if found is not None:
+                    return found
+        return None
+
+    csl = find(doc)
+    assert csl is not None, "PowerLad's COMBAT_LEVELS is not in the build doc"
+    assert "option_alias" not in csl, (
+        "build_json now carries OPTION_ALIAS — the product-path gap this "
+        "test records has closed; `_csl_named_attacks` already reads it, so "
+        "rewrite this test to assert the framework match instead."
+    )
+
+
 def test_a_real_builds_level_reaches_only_what_it_names():
     """THE HONEST BEHAVIOUR, asserted rather than wished away. PowerLad's
     level names Punch, Haymaker and Throw -- MANEUVERS -- and his only
@@ -224,7 +274,9 @@ def test_a_real_builds_level_reaches_only_what_it_names():
     level does not reach that power, and should not.
 
     JUDGEMENT, and a known limit: a level that names a MANEUVER cannot
-    reach one today. The engine resolves a Haymaker or a Throw through a
+    reach one today. (The other product-path limit -- a level that names a
+    FRAMEWORK, which is how BROAD levels are written -- is
+    `test_the_build_doc_cannot_name_a_framework` above.) The engine resolves a Haymaker or a Throw through a
     maneuver resolver that carries an attack POWER as its damage handle,
     so there is no "Haymaker" name for `_csl_reaches` to match against. A
     maneuver-aware match is a follow-on; inventing one here by matching the
@@ -279,3 +331,34 @@ def test_the_templates_own_boilerplate_names_no_attack():
         named_attacks="",          # what `_csl_named_attacks` returns for it
     )])
     assert _roll(man, _blast()).effective_ocv == OCV
+
+
+def test_a_level_after_an_already_seen_purchase_is_still_found():
+    """`_csl_skills` de-duplicates by object identity, because a framework
+    slot is reachable twice -- directly in `powers` and again through its
+    framework's own `powers`. It read `return` on the duplicate rather than
+    `continue`, which abandoned the whole remaining list: a hero whose
+    purchases ran [framework, slot, csl] yielded NO levels at all.
+
+    Latent, because the corpus characters happen to list their levels
+    before their frameworks. A test rather than a comment, because "the
+    order happens to be kind to us" is not a property."""
+    from kirby_combat.hero_view import _csl_skills
+
+    class _Obj:
+        def __init__(self, xmlid, powers=()):
+            self.xmlid = xmlid
+            self.powers = list(powers)
+            self.levels = 2
+            self.name = "+2 with the Flamethrower"
+            self.input = ""
+
+    slot = _Obj("ENERGYBLAST")
+    framework = _Obj("GENERIC_OBJECT", powers=[slot])
+    csl = _Obj("COMBAT_LEVELS")
+
+    class _Hero:
+        skills: list = []
+        powers = [framework, slot, csl]      # the slot arrives twice
+
+    assert [o.xmlid for o in _csl_skills(_Hero())] == ["COMBAT_LEVELS"]

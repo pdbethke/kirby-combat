@@ -156,22 +156,42 @@ def _maybe_stray(session, actor, action, result, *, template, roller):
         attacker=actor, target=bystander, power=power,
         distance_m=_range_to(session, actor, bystander), aim=None,
         dice=_attack_dice(roller, max(1, int(power.damage_dice))),
-        # BASE OCV ONLY. No Set, no Grab factor, no cover, no surprise --
-        # the page strips "Combat Skill Levels, Combat Maneuvers, or the
-        # like", and this is the one attack in the engine built with none
-        # of them.
+        # BASE OCV ONLY, as this resolver BUILDS it: no Set and no Grab
+        # factor, because the page strips "Combat Skill Levels, Combat
+        # Maneuvers, or the like".
+        #
+        # NOT "no surprise", and not "no cover", which this comment claimed
+        # while both were being applied a layer down. The stray goes
+        # through `resolve_attack_in_session` exactly as a deliberate shot
+        # does -- that is the whole point of routing it there -- so the
+        # door folds the bystander's own conditions onto it: whether HE can
+        # see the shooter (6E2 p.127), whether HE aborted to a Dodge, what
+        # has been Drained off him, and the cover HE is behind. Those are
+        # facts about the man taking the bullet, not the Combat Maneuvers
+        # p.45 strips off the shooter.
         ocv_modifier=stray_ocv(base_ocv=actor.combat_stats().ocv,
                                effective_ocv=to_hit.effective_ocv)
         - actor.combat_stats().ocv,
     )
     session, stray_result = resolve_attack_in_session(
-        session, stray, template, action_type="attack",
+        session, stray, template, action_type="attack", roller=roller,
     )
+    # THE STRAY CAN FAIL TO GO OFF. 6E1 p.375's Activation Roll is made at
+    # the door, so the second shot makes its own -- and a power that does
+    # not fire comes back with `to_hit=None`. Reading `.hit` off that
+    # raised AttributeError out of the middle of the Phase, past
+    # `on_unresolvable="skip"`, on any Activation-limited weapon fired into
+    # a melee. `_maybe_stray` guards `to_hit is None` on the INCOMING
+    # result and nothing guarded this one.
+    stray_to_hit = getattr(stray_result, "to_hit", None)
+    if stray_to_hit is None:
+        outcome = "the weapon did not go off (6E1 p375)"
+    else:
+        outcome = "HIT" if stray_to_hit.hit else "missed"
     note = (f"Firing into melee: missed {action.target_id} by "
             f"{abs(int(to_hit.margin))}, within the "
             f"{abs(cover.ocv_penalty)} cover penalty -- the shot strayed "
-            f"to {cover.other_body} (6E2 p45) and "
-            f"{'HIT' if stray_result.to_hit.hit else 'missed'}")
+            f"to {cover.other_body} (6E2 p45) and {outcome}")
     return session, replace(
         result, to_hit=replace(to_hit, audit=list(to_hit.audit) + [note]))
 
@@ -1156,6 +1176,7 @@ def _resolve_throw(
         )
         new_session, result = resolve_attack_in_session(
             session, attack, template, action_type="throw_object",
+            roller=roller,
         )
         return ResolvedAction(
             session=new_session, kind=action.kind,
@@ -1577,7 +1598,7 @@ def _resolve_push(
         dice=_attack_dice(roller, dice),
     )
     new_session, result = resolve_attack_in_session(
-        session, attack, template, action_type="attack",
+        session, attack, template, action_type="attack", roller=roller,
     )
     # 6E2 p.133's price. The engine applies no END for a Push anywhere else,
     # so it is spent here rather than left owed.
@@ -1866,6 +1887,7 @@ def _reposition(session, actor, action, *, roller, then_attack: bool):
     )
     after, result = resolve_attack_in_session(
         new_session, attack, session.template, action_type="attack",
+        roller=roller,
     )
     return ResolvedAction(
         session=after, kind=action.kind, action_id=action.action_id,
@@ -2415,6 +2437,7 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
         )
         session, result = resolve_attack_in_session(
             session, attack, session.template, action_type="attack",
+            roller=roller,
         )
         results.append((target.id, result))
         if stop_on_miss and not result.hit:

@@ -170,3 +170,48 @@ def test_every_door_halves_the_blind_targets_dcv_exactly_once(kind, make, captur
         assert result.to_hit.effective_dcv == apply_cv_factor(base, 0.5), (
             f"{kind}: DCV halved more than once"
         )
+
+
+def test_every_call_site_is_a_door_this_file_covers():
+    """THE GUARD ON THE GUARD. `DOORS` above is a hand list, and a hand
+    list is exactly the shape this engine keeps being bitten by: a seventh
+    caller of `resolve_attack_in_session` could be added tomorrow and every
+    test here would still pass while the new door went unexamined.
+
+    Deriving the parametrisation from the registry is not possible --- the
+    resolvers that build an `AttackInput` are not distinguishable from the
+    ones that do not by anything the registry records, and several need a
+    held object or a third body in the melee before they can be driven at
+    all. So the COUNT is pinned instead: the call sites in `resolvers.py`
+    against the doors named here, with the two that cannot be driven listed
+    by name rather than silently absent.
+
+    When this fails, the fix is to add the new caller to `DOORS` --- or, if
+    it cannot be driven, to `UNDRIVEN` with the reason. Editing the number
+    is not the fix.
+    """
+    import re
+    from pathlib import Path
+
+    import kirby_combat.loop.resolvers as resolvers_module
+
+    #: Callers that reach the same door but need a fixture this file does
+    #: not build. Named, so "not covered" is a decision on the record.
+    UNDRIVEN = {
+        "_maybe_stray": "needs a third body standing in the melee; covered "
+                        "by tests/test_firing_into_melee.py",
+        "_resolve_throw": "needs a held object; covered by "
+                          "tests/loop/test_a_brick_can_throw_the_furniture.py",
+    }
+
+    source = Path(resolvers_module.__file__).read_text(encoding="utf-8")
+    call_sites = len(re.findall(r"resolve_attack_in_session\(", source))
+    # The import at the top of the module is not a call site.
+    call_sites -= len(re.findall(
+        r"import\s+\(?[^\n]*resolve_attack_in_session", source))
+
+    assert call_sites == len(DOORS) + len(UNDRIVEN), (
+        f"{call_sites} callers of resolve_attack_in_session in resolvers.py, "
+        f"but this file covers {len(DOORS)} and excuses {len(UNDRIVEN)}. "
+        f"A new door must be added to DOORS, or to UNDRIVEN with a reason."
+    )

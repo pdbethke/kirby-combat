@@ -1382,8 +1382,14 @@ def _csl_skills(hero) -> list:
 
     def walk(objects) -> None:
         for obj in objects or ():
+            # CONTINUE, NOT RETURN. This read `return` for a day: the first
+            # object already seen abandoned the whole remaining list, so a
+            # hero whose `powers` ran [framework, slot, csl] -- the slot
+            # reached twice, once directly and once through its framework
+            # -- yielded nothing at all. Latent only because the corpus
+            # characters happened to order their purchases the other way.
             if id(obj) in seen:
-                return
+                continue
             seen.add(id(obj))
             if (getattr(obj, "xmlid", None) or "").upper() == "COMBAT_LEVELS":
                 found.append(obj)
