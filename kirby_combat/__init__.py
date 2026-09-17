@@ -121,6 +121,7 @@ from kirby_combat.breakables.object_combatant import ObjectCombatant  # noqa: E4
 from kirby_terrain import OBJECT_DURABILITY, ObjectDurability  # noqa: E402
 from kirby_combat.vehicles.vehicle import Vehicle  # noqa: E402
 from kirby_combat.enumeration import LegalAction, enumerate_actions
+from kirby_combat.health import classify_health
 from kirby_combat.roles import classify_role
 from kirby_combat.tactics.base import Basis, Tactic
 from kirby_combat.tactics.library import tactics_for
@@ -215,6 +216,7 @@ __all__ = [
     "Basis",
     "LegalAction",
     "Tactic",
+    "classify_health",
     "classify_role",
     "tactics_for",
     "enumerate_actions",

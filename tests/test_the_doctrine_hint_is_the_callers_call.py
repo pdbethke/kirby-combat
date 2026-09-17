@@ -106,3 +106,84 @@ def test_the_menu_still_follows(monkeypatch):
     """Removing the hint must not take the actions with it."""
     page = _brief().render(doctrine=False)
     assert "[dodge]" in page and "[recover]" in page
+
+
+# ---------------------------------------------------------------------------
+# The caller's own plan, on the same page and under the same gate
+# ---------------------------------------------------------------------------
+#
+# A caller with advice of its own -- a plan for this fight, written
+# outside the engine -- used to have two choices: render the page and
+# staple its lines on afterwards, or build a second page. Both make a
+# second renderer, and a second renderer agrees with this one only until
+# somebody edits one of them. `extra_doctrine` is the door: the lines go
+# in where the page is built, under the heading that is already there.
+#
+# And they are advice, so they are under the same gate. An arm that
+# removes the engine's doctrine and keeps somebody else's plan has not
+# removed the doctrine.
+
+PLAN = ["Fall back to the wagon and make them come to you  -> disengage"]
+
+
+class _BriefWithNoDoctrineOfItsOwn(_Brief):
+    @property
+    def doctrine(self):
+        return []
+
+
+def _lines_under_the_heading(page: str) -> list[str]:
+    body = page.split(HEADING + ", best first:")[1]
+    out = []
+    for line in body.splitlines()[1:]:
+        if not line.strip():
+            break
+        out.append(line)
+    return out
+
+
+def test_the_extra_lines_come_after_the_engines_own():
+    page = _brief().render(extra_doctrine=PLAN)
+    assert _lines_under_the_heading(page) == [
+        "  Get behind cover NOW  -> move_to_cover",
+        f"  {PLAN[0]}",
+    ]
+
+
+def test_extras_alone_open_the_section():
+    """No doctrine of its own is not a reason to drop the caller's."""
+    page = _BriefWithNoDoctrineOfItsOwn(
+        _brief()._situation).render(extra_doctrine=PLAN)
+    assert HEADING in page
+    assert _lines_under_the_heading(page) == [f"  {PLAN[0]}"]
+
+
+def test_no_extras_and_no_doctrine_is_still_silence():
+    page = _BriefWithNoDoctrineOfItsOwn(_brief()._situation).render()
+    assert HEADING not in page
+
+
+def test_a_caller_that_asked_for_no_doctrine_gets_no_extras_either():
+    assert HEADING not in _brief().render(doctrine=False, extra_doctrine=PLAN)
+    assert PLAN[0] not in _brief().render(doctrine=False, extra_doctrine=PLAN)
+
+
+def test_the_env_override_removes_the_extras_too(monkeypatch):
+    monkeypatch.setenv("KIRBY_BRIEF_NO_DOCTRINE", "1")
+    page = _brief().render(doctrine=True, extra_doctrine=PLAN)
+    assert HEADING not in page
+    assert PLAN[0] not in page
+
+
+def test_the_heading_appears_at_most_once():
+    page = _brief().render(extra_doctrine=PLAN)
+    assert page.count(HEADING) == 1
+    assert _BriefWithNoDoctrineOfItsOwn(
+        _brief()._situation).render(extra_doctrine=PLAN).count(HEADING) == 1
+
+
+def test_nothing_else_on_the_page_changes():
+    """The extras are the ONLY difference -- not a re-laid-out page."""
+    plain = _brief().render().splitlines()
+    with_plan = _brief().render(extra_doctrine=PLAN).splitlines()
+    assert [line for line in with_plan if line != f"  {PLAN[0]}"] == plain

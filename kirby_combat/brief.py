@@ -57,6 +57,8 @@ from kirby_combat.roles import classify_role
 from kirby_combat.side import Side
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from kirby_combat.enumeration import LegalAction
     from kirby_combat.loop.chooser import PhaseSituation
 
@@ -531,14 +533,31 @@ class Brief:
         against exactly this list."""
         return [a.action_id for a in self.menu]
 
-    def render(self, *, doctrine: bool | None = None) -> str:
+    def render(
+        self, *, doctrine: bool | None = None,
+        extra_doctrine: "Sequence[str]" = (),
+    ) -> str:
         """The page, as one string.
 
         `doctrine` decides whether the section of ranked advice is on it.
         `None` means the caller has no opinion and it is shown. This is a
         property of the READER --- measured, the hint narrows a capable
-        model and holds a local one together, so `kirby_ai.Seat` carries
-        the answer the way it carries `vision`.
+        model and holds a local one together, so a seat carries the
+        answer the way it carries `vision`.
+
+        `extra_doctrine` is advice from OUTSIDE the engine --- a caller's
+        plan for this fight --- appended after the engine's own lines,
+        under the same heading and at the same indent. It enters the page
+        HERE, through the one method that builds the page, so a caller
+        that wants a line on the brief does not have to assemble a second
+        brief of its own around this one; the moment it does, the two
+        pages differ in everything except the part that was copied.
+
+        It is advice, so it is governed by the same suppression as the
+        advice this engine wrote: a suppressed section is empty of
+        extras too (see below --- the override can only ever REMOVE, or
+        an A/B arm stops being an arm). With extras and no doctrine of
+        its own, the section opens with the extras alone.
         """
         situation = self._situation
         lines = [
@@ -582,8 +601,12 @@ class Brief:
         # put the section back would make every A/B arm depend on which
         # seat answered, which is the one thing an arm must not do.
         suppressed = bool(_os.environ.get("KIRBY_BRIEF_NO_DOCTRINE"))
+        # The caller's extra lines are advice too, and are suppressed by
+        # the same switch for the same reason: an arm that removes the
+        # engine's doctrine but keeps somebody else's plan has not
+        # removed the doctrine.
         lines_of_doctrine = ([] if suppressed or doctrine is False
-                             else self.doctrine)
+                             else [*self.doctrine, *extra_doctrine])
         if lines_of_doctrine:
             lines.append("")
             lines.append("What your doctrine says, best first:")

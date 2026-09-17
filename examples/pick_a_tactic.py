@@ -25,7 +25,7 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass, field
 
-from kirby_combat import Basis, classify_role, tactics_for
+from kirby_combat import Basis, classify_health, classify_role, tactics_for
 from kirby_combat.tactics.base import Situation
 
 _IDS = itertools.count(8_000_001)
@@ -135,6 +135,22 @@ def main() -> None:
           f"— {len(applicable)} of 20:\n")
     for t in applicable[:8]:
         print(f"  [{t.priority:>3}] {t.name:<26} {_describe(t.basis)}")
+
+    # How hurt he is decides which of those tactics are even offered, and
+    # `classify_health` is the ONE place that ladder is stated -- half STUN
+    # is "wounded" (the rung the Recover offer uses too), a quarter or any
+    # BODY at zero is "critical". It is the engine's judgement, not a book
+    # number, which is why it is said out loud instead of living inside
+    # whichever tactic needed it first.
+    print("\nThe same fighter, at four STUN totals:\n")
+    for stun in (40, 20, 19, 10):
+        hurt = _Fighter(actor.name, actor.attacks, actor.maneuver_view(),
+                        stun=stun, max_stun=40)
+        names = {t.name for t in tactics_for(
+            Situation(actor=hurt, allies=[], enemies=[enemy]))}
+        advises_cover = "take_cover_when_hurt" in names
+        print(f"  STUN {stun:>3}/40  {classify_health(hurt):<9} "
+              f"take cover: {'yes' if advises_cover else 'no'}")
 
 
 if __name__ == "__main__":

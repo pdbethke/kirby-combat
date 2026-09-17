@@ -7,9 +7,10 @@ new cover position before taking more fire — then continue shooting
 from the new location.
 
 Preconditions:
-  * Actor health is NOT at the "default" state (STUN < 50% of max
-    OR BODY ≤ 0). Mirrors ``take_cover_when_hurt``'s health check —
-    both use the same ``_classify_health``-equivalent thresholds.
+  * Actor health is not ``"healthy"`` (STUN < 50% of max OR BODY ≤ 0).
+    The ladder belongs to `kirby_combat.health.classify_health`, which
+    ``take_cover_when_hurt`` asks too — one reading of one number, not
+    two modules agreeing by inspection.
   * Actor has at least one ranged non-mental attack. A melee-only
     combatant who has taken damage should use ``take_cover_when_hurt``
     instead (no need for a new shooting position).
@@ -22,25 +23,10 @@ Terrain linkage:
 """
 from __future__ import annotations
 
+from kirby_combat.health import classify_health
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.catalog._filters import _best_ranged_attack
 from kirby_combat.tactics.library import register
-
-# Health thresholds — mirrors situation_builder._classify_health.
-_STUN_WOUNDED_PCT = 50
-_STUN_CRITICAL_PCT = 25
-
-
-def _health_is_not_default(situation: Situation) -> bool:
-    actor = situation.actor
-    max_stun = actor.max_stun
-    if max_stun <= 0:
-        return False
-    stun_pct = round(100 * actor.current_stun / max_stun)
-    body_pct = round(100 * actor.current_body / max(actor.max_body, 1))
-    if body_pct <= 0 or stun_pct <= _STUN_CRITICAL_PCT:
-        return True
-    return stun_pct < _STUN_WOUNDED_PCT
 
 
 @register
@@ -58,7 +44,7 @@ class RepositionWhenSpotted(Tactic):
     )
 
     def applicable(self, situation: Situation) -> bool:
-        if not _health_is_not_default(situation):
+        if classify_health(situation.actor) == "healthy":
             return False
         return _best_ranged_attack(situation) is not None
 

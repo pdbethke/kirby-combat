@@ -2,15 +2,13 @@
 
 A combatant who has taken significant damage should stop fighting from
 the open. Moving to cover buys time for recovery and reduces incoming
-damage next phase. The health thresholds mirror ``_classify_health``
-in ``situation_builder``: wounded = STUN < 50%; critical = STUN ≤ 25%
-or BODY ≤ 0.
+damage next phase.
 
 Preconditions:
-  * Actor's health is NOT at the "default" state — i.e. current STUN
-    has dropped below 50% of max OR current BODY has reached 0 or
-    below. (Mirrors ``situation_builder._classify_health`` logic;
-    duplicated here to keep tactics DB-free and cycle-free.)
+  * Actor's health is not ``"healthy"`` — `kirby_combat.health.
+    classify_health` owns that ladder (wounded = STUN < 50%; critical =
+    STUN ≤ 25% or BODY ≤ 0) and this module asks it rather than keeping
+    its own copy of the arithmetic, which is what it used to do.
 
 Terrain linkage:
   The ``move_to_cover`` action in the enumerated menu is the concrete
@@ -19,29 +17,9 @@ Terrain linkage:
 """
 from __future__ import annotations
 
+from kirby_combat.health import classify_health
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.library import register
-
-# Mirrors situation_builder._classify_health thresholds.
-# "wounded": STUN < 50%; "critical": STUN ≤ 25% or BODY ≤ 0.
-# Together: health ≠ default ⟺ stun_pct < 50 OR body_pct <= 0.
-_STUN_WOUNDED_PCT = 50
-_STUN_CRITICAL_PCT = 25
-
-
-def _health_is_not_default(situation: Situation) -> bool:
-    actor = situation.actor
-    max_stun = actor.max_stun
-    max_body = actor.max_body
-    if max_stun <= 0:
-        return False
-    stun_pct = round(100 * actor.current_stun / max_stun)
-    body_pct = round(100 * actor.current_body / max(max_body, 1))
-    # critical: STUN ≤ 25% or BODY ≤ 0
-    if body_pct <= 0 or stun_pct <= _STUN_CRITICAL_PCT:
-        return True
-    # wounded: STUN < 50%
-    return stun_pct < _STUN_WOUNDED_PCT
 
 
 @register
@@ -59,7 +37,7 @@ class TakeCoverWhenHurt(Tactic):
     )
 
     def applicable(self, situation: Situation) -> bool:
-        return _health_is_not_default(situation)
+        return classify_health(situation.actor) != "healthy"
 
     def execute(self, situation: Situation) -> Plan:
         stun_pct = round(

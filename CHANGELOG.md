@@ -18,6 +18,21 @@ declarations. Before this, a
 consumer that persisted only the events could rehydrate a fight and find
 nobody able to act.
 
+**One door for health.** `classify_health(combatant) -> "healthy" | "wounded" |
+"critical"` (exported from `kirby_combat`) is now the single statement of the
+engine's own judgement about how badly hurt a fighter is — half STUN is
+wounded, a quarter or any BODY at zero is critical, the same rung the Recover
+offer reads. The two tactics that gated on it (`take_cover_when_hurt`,
+`reposition_when_spotted`) each held a private copy of the arithmetic; both
+copies and their constants are gone.
+
+**`Brief.render(..., extra_doctrine=())`.** A caller's own advice for this
+fight is appended after the engine's lines, under the same
+"What your doctrine says, best first:" heading and at the same indent, and is
+governed by exactly the same one-way suppression (`KIRBY_BRIEF_NO_DOCTRINE`, or
+`doctrine=False`, removes the extras too). With extras and no doctrine of its
+own, the section opens with the extras alone. Nothing else on the page changes.
+
 `CombatTemplate.by_name(name)` resolves a stored template name
 (`"6e-superheroic"`, `"6e-heroic"`) and raises `KeyError` naming the known
 ones. No default argument: a fight whose rules were lost must not quietly be
