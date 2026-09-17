@@ -10,9 +10,11 @@ Preconditions:
   * Actor total physical defense (combat_stats().pd + .rpd — rpd
     carries FORCEFIELD/RESISTANTPROTECTION) ≥ threshold (15) — high
     enough to make absorbing hits viable.
-  * Actor health is at "default" (STUN ≥ 50% of max AND BODY > 0).
-    A hurt high-PD character should still take cover (see
-    ``take_cover_when_hurt``). This tactic applies only when healthy.
+  * Actor health is ``"healthy"`` --- the rung
+    `kirby_combat.health.classify_health` owns (STUN at or above 50% of
+    max AND BODY above 0). A hurt high-PD character should still take
+    cover (see ``take_cover_when_hurt``), which asks the same function,
+    so the two tactics cannot end up on different sides of one line.
 
 Terrain linkage:
   Primarily a meta-decision tactic. The narrative text advises the chooser
@@ -20,6 +22,7 @@ Terrain linkage:
 """
 from __future__ import annotations
 
+from kirby_combat.health import classify_health
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.library import register
 
@@ -30,24 +33,36 @@ from kirby_combat.tactics.library import register
 # seeded brick archetype); Cheshire has pd=14/rpd=0 and should not.
 # A 20 threshold (even on pd+rpd) excludes the corpus brick entirely.
 _MIN_PD_TO_STAND = 15
-_STUN_HEALTHY_PCT = 50  # must be at or above this to stand
 
 
 def _is_high_pd_and_healthy(situation: Situation) -> bool:
+    """High enough defenses to trade, and whole enough to want to.
+
+    THE HEALTH HALF IS NOT THIS MODULE'S TO DECIDE. It kept its own
+    `_STUN_HEALTHY_PCT = 50` and its own `current_body <= 0` test --- a
+    fifth copy of the ladder `kirby_combat.health.classify_health` owns,
+    and the same one: "healthy" there is exactly STUN at or above half
+    AND BODY above zero. Two statements of one judgement is two
+    judgements the day either moves a rung, and this tactic and
+    `take_cover_when_hurt` are meant to be opposite sides of the SAME
+    line.
+
+    THE ONE THING THAT IS THIS MODULE'S: a combatant with no STUN
+    maximum. `classify_health` answers "healthy" for him, because there
+    is no ladder to place him on. That is the right answer to "how hurt
+    is he" and the wrong answer to "should he stand and trade" --- a
+    posture about absorbing STUN needs a STUN track to absorb it with ---
+    so the refusal is stated here, where the question is asked, rather
+    than pushed into the ladder where it would change what "healthy"
+    means for everybody.
+    """
     actor = situation.actor
     stats = actor.combat_stats()
     if (stats.pd + stats.rpd) < _MIN_PD_TO_STAND:
         return False
-    max_stun = actor.max_stun
-    if max_stun <= 0:
+    if actor.max_stun <= 0:
         return False
-    stun_pct = round(100 * actor.current_stun / max_stun)
-    # Must be at "default" health: STUN ≥ 50% AND BODY > 0
-    if stun_pct < _STUN_HEALTHY_PCT:
-        return False
-    if actor.current_body <= 0:
-        return False
-    return True
+    return classify_health(actor) == "healthy"
 
 
 @register

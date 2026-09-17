@@ -24,7 +24,13 @@ engine's own judgement about how badly hurt a fighter is — half STUN is
 wounded, a quarter or any BODY at zero is critical, the same rung the Recover
 offer reads. The two tactics that gated on it (`take_cover_when_hurt`,
 `reposition_when_spotted`) each held a private copy of the arithmetic; both
-copies and their constants are gone.
+copies and their constants are gone. Three more have followed them:
+`enumerate_actions`' Recover offer (which alone was written as
+`current_stun < max_stun // 2`, so at an odd STUN total it really did disagree
+with the percentage the tactics read — 22 of 45 was "wounded" to one and
+"healthy" to the other), `stand_and_take_it`'s `_STUN_HEALTHY_PCT`, and the
+percentage the two hurt-tactics printed in their rationale, which is now
+`health.stun_percent` — the number the ladder itself is cut from.
 
 **`Brief.render(..., extra_doctrine=())`.** A caller's own advice for this
 fight is appended after the engine's lines, under the same

@@ -17,7 +17,7 @@ Terrain linkage:
 """
 from __future__ import annotations
 
-from kirby_combat.health import classify_health
+from kirby_combat.health import classify_health, stun_percent
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.library import register
 
@@ -40,10 +40,10 @@ class TakeCoverWhenHurt(Tactic):
         return classify_health(situation.actor) != "healthy"
 
     def execute(self, situation: Situation) -> Plan:
-        stun_pct = round(
-            100 * situation.actor.current_stun
-            / max(situation.actor.max_stun, 1)
-        )
+        # The SAME percentage the ladder is cut from. Recomputed here
+        # until 2026-09-17, so the number the reader was shown and the
+        # number `classify_health` branched on were two expressions.
+        stun_pct = stun_percent(situation.actor)
         return Plan(
             tactic_name=self.name,
             rationale=(

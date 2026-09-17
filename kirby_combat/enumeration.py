@@ -29,6 +29,7 @@ from kirby_combat.resolution.bleeding import (
     EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
     stabilize_target as _stabilize_target,
 )
+from kirby_combat.health import classify_health
 from kirby_combat.endurance import costs_end
 from kirby_combat.actions.throw import resolve_object_throw
 from kirby_combat.hero_view import HeroCombatant
@@ -671,8 +672,9 @@ def enumerate_actions(
         HANDTOHANDATTACK / HA via ``actor.attacks``.
       * one Dodge action.
       * one Set action.
-      * one Recover action when the actor is wounded (<½ STUN) or
-        low on END (<⅓ END).
+      * one Recover action when the actor is wounded or worse --- the
+        rung `kirby_combat.health.classify_health` owns (<½ STUN) ---
+        or low on END (<⅓ END).
       * (PR-9) one ``move`` action per alive enemy when
         ``has_scene=True`` — the driver will read positions and
         step toward the chosen target.
@@ -2682,8 +2684,21 @@ def enumerate_actions(
                             f"1/2 self-damage."
                         ),
                     ))
+    # WOUNDED IS A RUNG, AND THE RUNG LIVES IN ONE PLACE. This kept its
+    # own reading of "<½ STUN" -- `current_stun < max_stun // 2`, integer
+    # division against a rounded percentage -- so the menu and the tactic
+    # layer could disagree about the same fighter: at max_stun 45, `//2`
+    # is 22, half is 22.5, and a man at 22 STUN was offered a Recover by
+    # the menu while `classify_health` called him healthy. `health.py`
+    # says out loud that this offer is the same rung as "wounded"; now it
+    # asks rather than restating it.
+    #
+    # The END half stays here. It is not a health rung at all -- a fresh
+    # fighter low on END is offered a Recovery and is not "wounded" by
+    # any reading -- and `classify_health` deliberately knows nothing
+    # about END.
     if (
-        actor.state.current_stun < s.max_stun // 2
+        classify_health(actor) != "healthy"
         or actor.state.current_end < s.max_end // 3
     ):
         actions.append(LegalAction(
