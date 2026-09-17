@@ -496,6 +496,17 @@ CombatEvent = (
     | FlashApplied
     | FlashRecovered
     | PresenceApplied
+    # `PresenceActionLost` was declared beside the others, emitted by
+    # `pre_attacks/presence_effects.py` and folded by `apply_event` --- and
+    # left out of this union, so the registry `from_dict` derives from it
+    # never knew the name. A fight in which a Presence Attack cost a man his
+    # Phase could be written and never read back: `unknown type
+    # 'PresenceActionLost'`. Same shape as the six `VitalsChanged` was in,
+    # one level up --- `EVENT_CLASSES` guards the registry against the union
+    # and could not guard the union against the classes. That derivation is
+    # `tests/serialization/test_roundtrip.py`'s
+    # `_event_classes_the_module_defines`.
+    | PresenceActionLost
     | PresenceFaded
     | EnvironmentalTriggered
     | ConstructDamaged

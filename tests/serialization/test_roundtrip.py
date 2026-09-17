@@ -386,3 +386,100 @@ def test_status_effects_changed_unregistered_type_fails_to_replay():
             from_dict(wire)
     finally:
         from_dict_module._TYPE_REGISTRY["StatusEffectsChanged"] = saved
+
+
+# ---------------------------------------------------------------------------
+# The union is DERIVED-AGAINST, not trusted
+# ---------------------------------------------------------------------------
+
+def _event_classes_the_module_defines() -> set[type]:
+    """Every concrete `_BaseEvent` subclass declared in
+    `kirby_combat.session.events`.
+
+    THE DERIVATION, and the reason it is not `EVENT_CLASSES`. `EVENT_CLASSES`
+    is `get_args(CombatEvent)`, which closed the gap between the union and
+    the registry --- but it cannot close the gap between the union and the
+    CLASSES THEMSELVES. `PresenceActionLost` was a `_BaseEvent` subclass that
+    `pre_attacks/presence_effects.py` emitted and `apply_event` folded, and
+    it was absent from the union: so the registry did not know it, `from_dict`
+    raised `unknown type 'PresenceActionLost'`, and a fight that lost a Phase
+    to a Presence Attack could be written and never read back. Every gate
+    that read `EVENT_CLASSES` was green, because a list of where a property
+    holds is not a guard on the property.
+
+    Filtered to classes declared in the events module so a test-local event
+    subclass (this file defines two, deliberately) is not counted as one the
+    engine ships.
+    """
+    from kirby_combat.session import events as _events
+    from kirby_combat.session.events import _BaseEvent
+
+    found: set[type] = set()
+
+    def _walk(cls: type) -> None:
+        for sub in cls.__subclasses__():
+            if sub.__module__ == _events.__name__:
+                found.add(sub)
+            _walk(sub)
+
+    _walk(_BaseEvent)
+    return found
+
+
+def test_the_union_holds_every_event_class_the_engine_defines():
+    """THE PROPERTY. An event class that exists is an event class that
+    deserialises --- no class may be declared beside the union and left out
+    of it."""
+    defined = _event_classes_the_module_defines()
+
+    assert len(defined) >= 29, (
+        f"only {len(defined)} event classes found; the derivation is broken, "
+        f"not the union")
+    assert defined == set(EVENT_CLASSES), (
+        "these event classes are declared in kirby_combat.session.events and "
+        "are NOT in the CombatEvent union, so from_dict cannot read them: "
+        f"{sorted(c.__name__ for c in defined - set(EVENT_CLASSES))}")
+
+
+def test_the_derived_union_gate_could_actually_fail():
+    """The negative control. A `_BaseEvent` subclass that belongs to the
+    events module and is not in the union must be REPORTED by the
+    derivation above --- otherwise that test passes whether or not the
+    union is complete."""
+    from dataclasses import dataclass, field
+    from typing import Literal
+
+    from kirby_combat.session import events as _events
+    from kirby_combat.session.events import _BaseEvent
+
+    @dataclass
+    class _DeclaredButNotInTheUnion(_BaseEvent):
+        kind: Literal["_DeclaredButNotInTheUnion"] = field(
+            default="_DeclaredButNotInTheUnion", init=False)
+
+    _DeclaredButNotInTheUnion.__module__ = _events.__name__
+    try:
+        missing = _event_classes_the_module_defines() - set(EVENT_CLASSES)
+        assert missing == {_DeclaredButNotInTheUnion}
+    finally:
+        _DeclaredButNotInTheUnion.__module__ = __name__
+
+
+@pytest.mark.parametrize(
+    "cls", sorted(_event_classes_the_module_defines(), key=lambda c: c.__name__),
+    ids=lambda c: c.__name__,
+)
+def test_every_event_class_the_engine_defines_roundtrips(cls):
+    """The same round-trip claim as `test_every_event_in_the_union_roundtrips`,
+    over the DERIVED set rather than over the union --- so a class the union
+    forgot is still asked to survive the wire, and fails here."""
+    original = _an_instance(cls)
+
+    restored = from_dict(to_dict(original))
+
+    assert type(restored) is type(original)
+    for f in dataclasses.fields(original):
+        if f.name == "timestamp":
+            assert restored.timestamp == original.timestamp.isoformat()
+            continue
+        assert getattr(restored, f.name) == getattr(original, f.name), f.name
