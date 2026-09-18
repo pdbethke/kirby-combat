@@ -95,7 +95,7 @@ def concealment_for(session, *, observer_id: str) -> dict[str, tuple[bool, bool]
     return out
 
 
-def perceives(session, observer, target, **kwargs: Any) -> bool:
+def perceives(session, observer, target, *, roller, **kwargs: Any) -> bool:
     """Whether `observer` can target `target` right now, hiding included.
 
     The one place the log's concealment and the build's Invisibility are
@@ -118,9 +118,15 @@ def perceives(session, observer, target, **kwargs: Any) -> bool:
     rather than copied --- so a stat block Flashed in the Sight Group is
     blind here rather than silently sighted.
 
-    NOT ALWAYS A READ. `perceive` rolls in exactly two places: the PER
-    roll for an Invisible target's Fringe within 2 m, and a Hidden
-    target's opposed Stealth contest. Every other pair is deterministic.
+    NOT ALWAYS A READ, WHICH IS WHY `roller` IS REQUIRED. `perceive` rolls
+    in exactly two places: the PER roll for an Invisible target's Fringe
+    within 2 m, and a Hidden target's opposed Stealth contest. Every other
+    pair is deterministic. `perceive` builds its own `RandomRoller` when
+    handed none, so a caller that omitted it would get a different answer
+    for those two pair kinds on every call --- which is fine for a
+    one-shot question and fatal for anything replayed. There is no
+    default here: the caller says which roller, or the call does not
+    happen.
 
     `sense_penalties.cannot_perceive` is a NARROWER question and stays its
     own predicate: it asks only `targetable_physical`, because a CV
@@ -138,5 +144,5 @@ def perceives(session, observer, target, **kwargs: Any) -> bool:
     kwargs.setdefault("observer_flashed_groups", frozenset(flashed))
     result = perceive(as_sensing_observer(observer), target, scene,
                       target_invisible=invisible, target_hidden=hidden,
-                      **kwargs)
+                      roller=roller, **kwargs)
     return bool(result.targetable_physical or result.targetable_mental)

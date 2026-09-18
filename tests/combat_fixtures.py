@@ -24,6 +24,15 @@ from kirby_combat.template import RAW_SUPERHEROIC
 from kirby_dice import RandomRoller
 
 
+def a_roller(seed: int = 7) -> RandomRoller:
+    """`state_view` takes its roller from the caller and has no default.
+
+    A test that wants the same answer twice passes the same seed; the api
+    derives one from the sequence it is replaying.
+    """
+    return RandomRoller(seed=seed)
+
+
 def a_fighter(id_: str) -> StatBlockCombatant:
     return StatBlockCombatant(
         id=id_, name=id_.title(), ocv=8, dcv=8, omcv=5, dmcv=5,
@@ -150,12 +159,18 @@ class _InvisibilityPower:
     sub_powers: list = []
 
 
-def an_invisible_fighter_session() -> CombatSession:
+def an_invisible_fighter_session(close_enough_for_the_fringe: bool = False):
     """Alice bought Invisibility; bob is an enemy and carol an ally.
 
-    Ten metres apart, which is well beyond the 2 m Fringe, so no PER roll
-    is drawn and the answer is a read.
+    Ten metres apart by default, which is well beyond the 2 m Fringe, so
+    no PER roll is drawn and the answer is a read. With
+    ``close_enough_for_the_fringe`` bob stands 1 m away, inside the
+    Fringe, so HIS pair is decided by a PER roll -- the one place this
+    view is not a projection. Carol stays at ten metres in both cases, so
+    every test has a deterministic pair to compare against the rolled
+    one.
     """
+    bob_x = 1.0 if close_enough_for_the_fringe else 10.0
     alice = synthetic_combatant(id="alice", name="Alice", side=Side.named("x"))
     alice.hero.powers.append(_InvisibilityPower())
     scene = Scene(
@@ -172,7 +187,7 @@ def an_invisible_fighter_session() -> CombatSession:
         walls=[], hazards=[], ambient=AmbientConditions(),
         combatant_positions={
             "alice": Position(x=0.0, y=0.0, z=0.0, facing=0.0),
-            "bob": Position(x=10.0, y=0.0, z=0.0, facing=3.14),
+            "bob": Position(x=bob_x, y=0.0, z=0.0, facing=3.14),
             "carol": Position(x=0.0, y=10.0, z=0.0, facing=3.14),
         },
     )

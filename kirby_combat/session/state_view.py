@@ -20,6 +20,16 @@ he is in, and who he can see.
 
 `rewind_to_sequence` is what makes this a playback surface: a session
 rewound to sequence N, projected here, is the fight as it stood at N.
+
+AND PLAYBACK IS WHY `roller` IS REQUIRED AND HAS NO DEFAULT. Almost every
+field here is a read, but perception is not quite: `perceive` rolls a PER
+for an Invisible target's Fringe within 2 m and an opposed Stealth
+contest for a Hidden one. A view that made its own roller would answer
+differently every time it was asked about the same sequence, so two reads
+of one moment would disagree and a replay would not be a replay. The
+caller supplies the roller --- derived from the sequence, if it wants the
+same answer twice --- and a caller that has not thought about it gets a
+TypeError rather than a silent reseed.
 """
 from __future__ import annotations
 
@@ -106,9 +116,10 @@ class CombatantStateView:
     #:
     #: NOT ALWAYS A READ. `perceive` rolls in exactly two places — the
     #: PER roll for an Invisible target's Fringe within 2 m, and a Hidden
-    #: target's opposed Stealth contest — so those pairs are a roll and
-    #: not a projection. Every other pair is deterministic. Said here
-    #: rather than papered over.
+    #: target's opposed Stealth contest — so those two pair kinds are a
+    #: roll and not a projection. Every other pair is deterministic. That
+    #: is what `state_view`'s required `roller` is for: one roller, one
+    #: answer, and the same answer again for the same sequence.
     perceives: list[str]
 
 
@@ -137,7 +148,7 @@ class SessionStateView:
 
 
 def _combatant_view(
-    session: "CombatSession", combatant,
+    session: "CombatSession", combatant, roller,
 ) -> CombatantStateView:
     side = Side.of(combatant)
     held = statuses_for(session, str(combatant.id))
@@ -165,13 +176,19 @@ def _combatant_view(
         perceives=sorted(
             str(other.id) for other in session.combatants.values()
             if str(other.id) != str(combatant.id)
-            and _perceives(session, combatant, other)
+            and _perceives(session, combatant, other, roller=roller)
         ),
     )
 
 
-def state_view(session: "CombatSession") -> SessionStateView:
-    """The fight as it stands, in the shape a viewer is checked against."""
+def state_view(session: "CombatSession", *, roller) -> SessionStateView:
+    """The fight as it stands, in the shape a viewer is checked against.
+
+    `roller` is REQUIRED and keyword-only. See the module docstring: the
+    perception fold rolls for two pair kinds, so a self-seeded roller
+    would make two reads of one sequence disagree. A caller replaying a
+    fight passes a roller derived from the sequence it is asking about.
+    """
     return SessionStateView(
         status=session.status,
         turn=session.timeline.turn,
@@ -182,7 +199,7 @@ def state_view(session: "CombatSession") -> SessionStateView:
         ),
         next_actor_id=_next_actor_id(session),
         combatants=[
-            _combatant_view(session, c)
+            _combatant_view(session, c, roller)
             for c in session.combatants.values()
         ],
     )

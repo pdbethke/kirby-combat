@@ -16,9 +16,11 @@ import json
 
 from kirby_combat import state_view
 from kirby_combat.models import StatBlockCombatant
+from kirby_combat.schema import SCHEMA_PATH
 from kirby_combat.serialization import json_schema
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import RAW_SUPERHEROIC
+from kirby_dice import RandomRoller
 
 
 def a_fighter(id_: str) -> StatBlockCombatant:
@@ -36,7 +38,13 @@ def main() -> None:
     #    itself, so a generator on the other side cannot be given a kind
     #    this engine does not emit or miss one it does.
     schema = json_schema()
-    print(f"engine {schema['x-kirby-combat-version']}, "
+    # The VERSION comes off the shipped document, not off the derivation.
+    # `json_schema()` stamps `importlib.metadata`, which reports whatever
+    # distribution this interpreter happens to resolve — in a source
+    # checkout that can lag the repository. The file in the package is
+    # the artefact a consumer generates from, so it is the one to quote.
+    shipped = json.loads(SCHEMA_PATH.read_text())
+    print(f"engine {shipped['x-kirby-combat-version']}, "
           f"{len(schema['oneOf'])} event kinds")
     print("  e.g.", json.dumps(
         sorted(schema["$defs"]["VitalsChanged"]["properties"])))
@@ -49,7 +57,13 @@ def main() -> None:
         id="demo", combatants=[a_fighter("alice"), a_fighter("bob")],
         scene=None, template=RAW_SUPERHEROIC, dice_roller=None,
     )
-    view = state_view(session)
+    # THE ROLLER IS REQUIRED, and this is why: the perception fold rolls
+    # for an Invisible target inside the 2 m Fringe and for a Hidden
+    # target's Stealth contest. A view that seeded itself would answer
+    # differently every time it was asked about the same sequence, so a
+    # replay would not replay. A caller reading sequence N passes a
+    # roller derived from N and gets the same board back every time.
+    view = state_view(session, roller=RandomRoller(seed=1))
     print(f"turn {view.turn} segment {view.segment} status {view.status}, "
           f"next {view.next_actor_id}")
     for c in view.combatants:
