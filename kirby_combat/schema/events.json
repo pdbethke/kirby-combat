@@ -538,6 +538,9 @@
         "current_stun": {
           "type": "integer"
         },
+        "dex": {
+          "type": "integer"
+        },
         "down": {
           "type": "boolean"
         },
@@ -594,6 +597,9 @@
             }
           ]
         },
+        "spd": {
+          "type": "integer"
+        },
         "stunned": {
           "type": "boolean"
         }
@@ -609,6 +615,8 @@
         "max_stun",
         "max_body",
         "max_end",
+        "spd",
+        "dex",
         "health",
         "down",
         "position",
@@ -2114,7 +2122,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.18.2",
+  "$id": "urn:kirby-combat:schema:events:0.18.3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -2209,5 +2217,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.18.2"
+  "x-kirby-combat-version": "0.18.3"
 }

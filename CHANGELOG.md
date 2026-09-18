@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.3 — 2026-09-18
+
+State view carries `spd`/`dex` (and `max_*`) as build facts. Krackle's SPD
+ribbon and DEX ordering need SPD and DEX; they are bought-on-the-sheet build
+facts, like `invisible`, not folds of the log — so `CombatantStateView` now
+carries `spd: int` and `dex: int`, read through `combat_stats()`, the one
+door every characteristic already goes through. `max_stun`/`max_body`/
+`max_end` were checked and were already there, read the same way. No default:
+a combatant with no SPD raises, same as every other characteristic.
+
 ## 0.18.2 — 2026-09-18
 
 **A viewer generates its event types from the engine, and checks its fold
