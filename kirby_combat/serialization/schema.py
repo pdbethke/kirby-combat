@@ -36,30 +36,67 @@ from kirby_combat.session.timeline import ActionIntent
 from kirby_combat.session.state_view import (
     CombatantStateView, PositionView, SessionStateView,
 )
+from kirby_combat.scene.scene import (
+    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene,
+    SceneBounds, Surface, Wall,
+)
+from kirby_combat.scene.construct import Construct, ConstructEffect
+# RESOLUTION ONLY. `scene.py` imports `Encounter` under `if TYPE_CHECKING:`,
+# so `get_type_hints(Scene)` raises `NameError` without it in the namespace
+# — same reason `ActionIntent` is imported above. `Encounter` is never
+# walked: see `FREE_FORM_PAYLOADS`'s `Scene.encounter` entry.
+from kirby_combat.encounter import Encounter
 
 _LOCALNS: dict[str, Any] = {
     "ActionIntent": ActionIntent,
     "EventAuthor": EventAuthor,
     "CombatantStateView": CombatantStateView,
     "PositionView": PositionView,
+    "Scene": Scene,
+    "SceneBounds": SceneBounds,
+    "Position": Position,
+    "AmbientConditions": AmbientConditions,
+    "Surface": Surface,
+    "Wall": Wall,
+    "Hazard": Hazard,
+    "HazardEffect": HazardEffect,
+    "Furnishing": Furnishing,
+    "Construct": Construct,
+    "ConstructEffect": ConstructEffect,
+    "Encounter": Encounter,
 }
 
 #: THE ONLY FIELDS ALLOWED TO BE FREE-FORM, named one at a time.
 #:
-#: `Any` has no JSON Schema meaning, and mapping it to `{}` — "anything at
-#: all" — is a permissive default of exactly the kind this module refuses
-#: everywhere else. These four really are free-form: they are the payload
-#: bags the engine writes whatever a particular action produced into, and
-#: no closed shape describes them. Every OTHER `Any` is a mistake, and
-#: raises. Listed as `Class.field` and asserted whole by
-#: `tests/serialization/test_json_schema.py`, so a field that acquires an
-#: `Any` annotation fails the build rather than quietly becoming
-#: unconstrained in every consumer's generated types.
+#: Four of these are `Any`: it has no JSON Schema meaning, and mapping it
+#: to `{}` — "anything at all" — is a permissive default of exactly the
+#: kind this module refuses everywhere else. They are the payload bags the
+#: engine writes whatever a particular action produced into, and no closed
+#: shape describes them.
+#:
+#: The fifth, `Scene.encounter`, is not `Any` — it types as `Encounter |
+#: None` — but is free-form for the same reason: `Encounter.sessions` is
+#: `list["CombatSession"]`, the full internal fight (combatants, HeroCombatant
+#: snapshots and all) that `SessionStateView` above exists to publish
+#: separately, as its own flat, read-only projection — see that module's
+#: docstring: "a viewer that needs those reads the record". Walking `Scene`
+#: into `Encounter` would grow a second, un-flattened copy of that same
+#: graph inside this one document, which is the drift `SessionStateView`
+#: was built to stop. A `Scene` on the wire is walls, surfaces, hazards
+#: and constructs; every fixture in this package's own test suite leaves
+#: `encounter` at its `None` default.
+#:
+#: Every OTHER `Any` is a mistake, and raises. Listed as `Class.field` and
+#: asserted whole by `tests/serialization/test_json_schema.py`, so a field
+#: that acquires an `Any` annotation — or a field that needs this same
+#: carve-out — fails the build rather than quietly becoming unconstrained
+#: in every consumer's generated types.
 FREE_FORM_PAYLOADS: frozenset[str] = frozenset({
     "ActionDeclared.parameters",
     "ActionResolved.result_payload",
     "EnvironmentalTriggered.effect",
     "GMOverride.patch",
+    "Scene.encounter",
 })
 
 #: 2020-12 is what a schema-to-types generator reads and what `$defs`
@@ -163,8 +200,17 @@ def _define(cls: type, defs: dict[str, dict]) -> str:
     }
     required = ["__type__"]
     for field in dataclasses.fields(cls):
-        properties[field.name] = _schema_for(
-            hints[field.name], defs, f"{name}.{field.name}")
+        where = f"{name}.{field.name}"
+        # SHORT-CIRCUITED, not walked. `where in FREE_FORM_PAYLOADS` is
+        # checked here — before `hints[field.name]` is handed to
+        # `_schema_for` — so a field named for this exact reason (see
+        # `Scene.encounter`'s entry) never resolves its own annotation
+        # into a `$ref` at all, and never recurses into a graph this
+        # document does not otherwise reach.
+        properties[field.name] = (
+            {} if where in FREE_FORM_PAYLOADS
+            else _schema_for(hints[field.name], defs, where)
+        )
         required.append(field.name)
 
     defs[name] = {
@@ -196,6 +242,16 @@ def json_schema() -> dict:
     for cls in events:
         _define(cls, defs)
     _define(SessionStateView, defs)
+    # THE SCENE'S SHAPE, published the same way: `Scene` and everything it
+    # reaches (`Wall`, `Surface`, `Hazard`, `HazardEffect`, `Furnishing`,
+    # `Construct`, `ConstructEffect`, `AmbientConditions`, `SceneBounds`,
+    # `Position`) walked as authored in `scene/`, not retyped here. A
+    # consumer that hand-writes its own geometry types drifts against this
+    # engine's own wire shape exactly as a hand-written event shape would —
+    # measured, in a viewer, as a `Wall.segment` read as `Wall.start`/`end`,
+    # a polygon read as flat coordinates rather than pairs, and a hazard's
+    # `effect` read as a scalar rather than the object it is.
+    _define(Scene, defs)
 
     return {
         "$schema": _DIALECT,

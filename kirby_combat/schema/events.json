@@ -151,10 +151,7 @@
           ],
           "type": "string"
         },
-        "parameters": {
-          "additionalProperties": {},
-          "type": "object"
-        },
+        "parameters": {},
         "sequence": {
           "type": "integer"
         },
@@ -243,10 +240,7 @@
           ],
           "type": "string"
         },
-        "result_payload": {
-          "additionalProperties": {},
-          "type": "object"
-        },
+        "result_payload": {},
         "sequence": {
           "type": "integer"
         },
@@ -394,6 +388,42 @@
         "remaining_delta"
       ],
       "title": "AdjustmentFaded",
+      "type": "object"
+    },
+    "AmbientConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "AmbientConditions",
+          "enum": [
+            "AmbientConditions"
+          ],
+          "type": "string"
+        },
+        "gravity_scale": {
+          "type": "number"
+        },
+        "light_level": {
+          "type": "integer"
+        },
+        "weather": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "light_level",
+        "gravity_scale",
+        "weather"
+      ],
+      "title": "AmbientConditions",
       "type": "object"
     },
     "BleedingSuffered": {
@@ -629,6 +659,204 @@
       "title": "CombatantStateView",
       "type": "object"
     },
+    "Construct": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Construct",
+          "enum": [
+            "Construct"
+          ],
+          "type": "string"
+        },
+        "blocks_los": {
+          "type": "boolean"
+        },
+        "blocks_movement": {
+          "type": "boolean"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cover_level": {
+          "type": "integer"
+        },
+        "created_at_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creator_immune": {
+          "type": "boolean"
+        },
+        "def_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ed_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConstructEffect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elevation_range_m": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "height_m": {
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "wall",
+            "hazard_zone",
+            "force_wall",
+            "illusion_zone",
+            "darkness_zone"
+          ],
+          "type": "string"
+        },
+        "no_teleport_levels": {
+          "type": "integer"
+        },
+        "obj_id": {
+          "type": "string"
+        },
+        "part_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permeability": {
+          "enum": [
+            "porous",
+            "impermeable"
+          ],
+          "type": "string"
+        },
+        "polygon_xy": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "portable": {
+          "type": "boolean"
+        },
+        "resistant": {
+          "type": "boolean"
+        },
+        "segment": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Position"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sense_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_combatant_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "obj_id",
+        "kind",
+        "segment",
+        "polygon_xy",
+        "elevation_range_m",
+        "height_m",
+        "blocks_los",
+        "blocks_movement",
+        "permeability",
+        "cover_level",
+        "no_teleport_levels",
+        "portable",
+        "def_value",
+        "ed_value",
+        "resistant",
+        "body",
+        "part_of",
+        "effect",
+        "source_combatant_id",
+        "created_at_seq",
+        "sense_group",
+        "creator_immune"
+      ],
+      "title": "Construct",
+      "type": "object"
+    },
     "ConstructDamaged": {
       "additionalProperties": false,
       "properties": {
@@ -701,6 +929,72 @@
         "by_combatant"
       ],
       "title": "ConstructDamaged",
+      "type": "object"
+    },
+    "ConstructEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ConstructEffect",
+          "enum": [
+            "ConstructEffect"
+          ],
+          "type": "string"
+        },
+        "damage_dice": {
+          "type": "integer"
+        },
+        "damage_type": {
+          "type": "string"
+        },
+        "gating": {
+          "enum": [
+            "physical_def",
+            "breathing_swimming",
+            "mental_disbelief",
+            "none"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "damage",
+            "suffocation",
+            "status",
+            "mental"
+          ],
+          "type": "string"
+        },
+        "status_inflicted": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trigger": {
+          "enum": [
+            "on_enter",
+            "on_pass",
+            "every_segment",
+            "passive"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "kind",
+        "gating",
+        "trigger",
+        "damage_dice",
+        "damage_type",
+        "status_inflicted"
+      ],
+      "title": "ConstructEffect",
       "type": "object"
     },
     "ConstructSpawned": {
@@ -930,10 +1224,7 @@
         "author": {
           "$ref": "#/$defs/EventAuthor"
         },
-        "effect": {
-          "additionalProperties": {},
-          "type": "object"
-        },
+        "effect": {},
         "hazard_id": {
           "type": "string"
         },
@@ -1119,6 +1410,123 @@
       "title": "FlashRecovered",
       "type": "object"
     },
+    "Furnishing": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Furnishing",
+          "enum": [
+            "Furnishing"
+          ],
+          "type": "string"
+        },
+        "blocks_los_override": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blocks_movement": {
+          "type": "boolean"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cover_level": {
+          "type": "integer"
+        },
+        "ed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height_m": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "pd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "polygon_xy": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "portable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "polygon_xy",
+        "height_m",
+        "material",
+        "pd",
+        "ed",
+        "body",
+        "cover_level",
+        "blocks_movement",
+        "blocks_los_override",
+        "model",
+        "portable"
+      ],
+      "title": "Furnishing",
+      "type": "object"
+    },
     "GMOverride": {
       "additionalProperties": false,
       "properties": {
@@ -1145,10 +1553,7 @@
           ],
           "type": "string"
         },
-        "patch": {
-          "additionalProperties": {},
-          "type": "object"
-        },
+        "patch": {},
         "sequence": {
           "type": "integer"
         },
@@ -1187,6 +1592,97 @@
         "justification"
       ],
       "title": "GMOverride",
+      "type": "object"
+    },
+    "Hazard": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Hazard",
+          "enum": [
+            "Hazard"
+          ],
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/HazardEffect"
+        },
+        "elevation_range_m": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "polygon_xy": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "trigger": {
+          "enum": [
+            "on_enter",
+            "on_pass",
+            "every_segment"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "polygon_xy",
+        "elevation_range_m",
+        "trigger",
+        "effect"
+      ],
+      "title": "Hazard",
+      "type": "object"
+    },
+    "HazardEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "HazardEffect",
+          "enum": [
+            "HazardEffect"
+          ],
+          "type": "string"
+        },
+        "damage_dice": {
+          "type": "integer"
+        },
+        "damage_type": {
+          "type": "string"
+        },
+        "status_inflicted": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "damage_dice",
+        "damage_type",
+        "status_inflicted"
+      ],
+      "title": "HazardEffect",
       "type": "object"
     },
     "HeldActionDeclared": {
@@ -1456,6 +1952,39 @@
       "title": "PhaseSpent",
       "type": "object"
     },
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Position",
+          "enum": [
+            "Position"
+          ],
+          "type": "string"
+        },
+        "facing": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "x",
+        "y",
+        "z",
+        "facing"
+      ],
+      "title": "Position",
+      "type": "object"
+    },
     "PositionView": {
       "additionalProperties": false,
       "properties": {
@@ -1711,6 +2240,124 @@
         "end_recovered"
       ],
       "title": "RecoveryTaken",
+      "type": "object"
+    },
+    "Scene": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Scene",
+          "enum": [
+            "Scene"
+          ],
+          "type": "string"
+        },
+        "ambient": {
+          "$ref": "#/$defs/AmbientConditions"
+        },
+        "bounds": {
+          "$ref": "#/$defs/SceneBounds"
+        },
+        "combatant_positions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Position"
+          },
+          "type": "object"
+        },
+        "constructs": {
+          "items": {
+            "$ref": "#/$defs/Construct"
+          },
+          "type": "array"
+        },
+        "encounter": {},
+        "furnishings": {
+          "items": {
+            "$ref": "#/$defs/Furnishing"
+          },
+          "type": "array"
+        },
+        "hazards": {
+          "items": {
+            "$ref": "#/$defs/Hazard"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "surfaces": {
+          "items": {
+            "$ref": "#/$defs/Surface"
+          },
+          "type": "array"
+        },
+        "walls": {
+          "items": {
+            "$ref": "#/$defs/Wall"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "bounds",
+        "surfaces",
+        "walls",
+        "hazards",
+        "ambient",
+        "combatant_positions",
+        "constructs",
+        "furnishings",
+        "encounter"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "SceneBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SceneBounds",
+          "enum": [
+            "SceneBounds"
+          ],
+          "type": "string"
+        },
+        "max_x": {
+          "type": "number"
+        },
+        "max_y": {
+          "type": "number"
+        },
+        "max_z": {
+          "type": "number"
+        },
+        "min_x": {
+          "type": "number"
+        },
+        "min_y": {
+          "type": "number"
+        },
+        "min_z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "min_x",
+        "min_y",
+        "min_z",
+        "max_x",
+        "max_y",
+        "max_z"
+      ],
+      "title": "SceneBounds",
       "type": "object"
     },
     "SegmentAdvanced": {
@@ -2055,6 +2702,82 @@
       "title": "StatusEffectsChanged",
       "type": "object"
     },
+    "Surface": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Surface",
+          "enum": [
+            "Surface"
+          ],
+          "type": "string"
+        },
+        "climb_difficulty": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cover_level": {
+          "type": "integer"
+        },
+        "elevation_m": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "is_precarious": {
+          "type": "boolean"
+        },
+        "is_supporting": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "polygon_xy": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "surface_type": {
+          "enum": [
+            "ground",
+            "rooftop",
+            "water",
+            "ice",
+            "rubble",
+            "forest",
+            "road",
+            "sand"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "polygon_xy",
+        "elevation_m",
+        "surface_type",
+        "cover_level",
+        "is_supporting",
+        "is_precarious",
+        "climb_difficulty"
+      ],
+      "title": "Surface",
+      "type": "object"
+    },
     "VitalsChanged": {
       "additionalProperties": false,
       "properties": {
@@ -2120,9 +2843,113 @@
       ],
       "title": "VitalsChanged",
       "type": "object"
+    },
+    "Wall": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Wall",
+          "enum": [
+            "Wall"
+          ],
+          "type": "string"
+        },
+        "blocks_los": {
+          "type": "boolean"
+        },
+        "blocks_movement": {
+          "type": "boolean"
+        },
+        "body": {
+          "type": "integer"
+        },
+        "climb_difficulty": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cover_level": {
+          "type": "integer"
+        },
+        "def_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ed_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height_m": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "part_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resistant": {
+          "type": "boolean"
+        },
+        "segment": {
+          "items": {
+            "$ref": "#/$defs/Position"
+          },
+          "type": "array"
+        },
+        "walkable_width_m": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "segment",
+        "height_m",
+        "blocks_los",
+        "blocks_movement",
+        "cover_level",
+        "body",
+        "def_value",
+        "ed_value",
+        "resistant",
+        "part_of",
+        "walkable_width_m",
+        "climb_difficulty"
+      ],
+      "title": "Wall",
+      "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.18.3",
+  "$id": "urn:kirby-combat:schema:events:0.18.4",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -2217,5 +3044,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.18.3"
+  "x-kirby-combat-version": "0.18.4"
 }

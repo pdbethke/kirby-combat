@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.4 — 2026-09-18
+
+**The scene is in the published schema.** A viewer that renders a fight's
+map has always hand-written its geometry types against `to_dict(scene)`'s
+shape, and it drifted in five places: `Wall.segment` read as `start`/`end`
+rather than two `Position` objects, a polygon read as flat coordinates
+rather than `[x, y]` pairs, `elevation_range_m` missed entirely, a
+hazard's `effect` read as a scalar rather than the object it is, and
+`ambient.light_level` missed too. `serialization.json_schema()` now walks
+`Scene` the same way it already walks `SessionStateView` — `Wall`,
+`Surface`, `Hazard`, `HazardEffect`, `Furnishing`, `Construct`,
+`ConstructEffect`, `AmbientConditions`, `SceneBounds` and `Position` all
+get `$defs`, derived from `scene/` as authored, not retyped by hand.
+`Scene.encounter` is the one field walked out on purpose — it types as
+the full internal fight (`Encounter.sessions: list[CombatSession]`) that
+`SessionStateView` already publishes as its own flat projection, and
+walking it here would grow a second, un-flattened copy of that same
+graph. Added to `FREE_FORM_PAYLOADS` for that reason, next to the four
+`Any` payload bags it now sits beside.
+
 ## 0.18.3 — 2026-09-18
 
 State view carries `spd`/`dex` (and `max_*`) as build facts. Krackle's SPD

@@ -91,6 +91,13 @@ def test_the_gate_could_actually_fail():
     assert _UnregisteredEvent not in EVENT_CLASSES
     assert "_UnregisteredEvent" not in schema["$defs"]
     assert "LoadedHero" not in schema["$defs"]
+    # The same property, planted for the Scene tree's own carve-out
+    # (`Scene.encounter`, see `FREE_FORM_PAYLOADS`): a walk that followed
+    # the annotation instead of stopping at the allow-list would pull in
+    # the internal fight `Encounter` carries — sessions, combatants,
+    # HeroCombatant snapshots and all.
+    assert "Encounter" not in schema["$defs"]
+    assert "CombatSession" not in schema["$defs"]
 
 
 def test_the_oneof_is_the_union_and_discriminates_on_kind():
@@ -136,16 +143,22 @@ def test_a_multi_value_literal_is_typed_as_well_as_enumerated():
     }
 
 
-def test_exactly_these_four_fields_are_free_form():
+def test_exactly_these_five_fields_are_free_form():
     """`Any` describes nothing, so it is REFUSED except on the four
-    payload bags that really are free-form. Asserted whole, not as a
-    subset: a field that acquires an `Any` annotation must fail here
-    rather than quietly become unconstrained in every generated type."""
+    payload bags that really are free-form, PLUS `Scene.encounter` —
+    which is not `Any` but is walked out of the document for the same
+    reason (see the constant's docstring: walking it would grow a second,
+    un-flattened copy of the session graph `SessionStateView` already
+    publishes). Asserted whole, not as a subset: a field that acquires an
+    `Any` annotation, or that is added to this allow-list without a
+    matching reason, must fail here rather than quietly become
+    unconstrained in every generated type."""
     assert FREE_FORM_PAYLOADS == {
         "ActionDeclared.parameters",
         "ActionResolved.result_payload",
         "EnvironmentalTriggered.effect",
         "GMOverride.patch",
+        "Scene.encounter",
     }
 
     defs = json_schema()["$defs"]
@@ -211,6 +224,119 @@ def test_the_session_state_shape_is_published_beside_the_events():
     }
     assert set(defs["PositionView"]["properties"]) == {
         "__type__", "x", "y", "z", "facing",
+    }
+
+
+#: The scene's own richest fixture: at least one of everything
+#: `to_dict(scene)` can emit for a populated map — a wall, a surface, a
+#: hazard and a construct — so the round-trip test below exercises the
+#: whole tree the viewer generates its geometry types from, not just
+#: `Scene` itself.
+def _a_richly_furnished_scene():
+    from kirby_combat.scene.construct import Construct, ConstructEffect
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Hazard, HazardEffect, Position, Scene,
+        SceneBounds, Surface, Wall,
+    )
+
+    return Scene(
+        id="sc1", name="O.K. Corral",
+        bounds=SceneBounds(0, 0, 0, 50, 50, 10),
+        surfaces=[
+            Surface(id="floor1", name="Main floor",
+                    polygon_xy=[(0, 0), (50, 0), (50, 50), (0, 50)],
+                    elevation_m=0.0, surface_type="ground", cover_level=0,
+                    is_supporting=True, climb_difficulty=None),
+        ],
+        walls=[
+            Wall(id="w1", name="Corral fence",
+                 segment=(Position(10, 0, 0), Position(10, 50, 0)),
+                 height_m=2.0, blocks_los=True, blocks_movement=True,
+                 cover_level=4, body=8, def_value=4, ed_value=4,
+                 walkable_width_m=0.5, climb_difficulty=2),
+        ],
+        hazards=[
+            Hazard(id="lava1", name="Spilled lamp oil",
+                   polygon_xy=[(20, 20), (30, 20), (30, 30), (20, 30)],
+                   elevation_range_m=(0.0, 0.5),
+                   trigger="on_enter",
+                   effect=HazardEffect(damage_dice=4, damage_type="killing",
+                                        status_inflicted="on_fire")),
+        ],
+        ambient=AmbientConditions(light_level=2, gravity_scale=1.0,
+                                   weather="fog"),
+        combatant_positions={"wyatt": Position(5, 5, 0, facing=1.5)},
+        constructs=[
+            Construct(obj_id="fw1", kind="force_wall",
+                      segment=(Position(0, 0, 0), Position(5, 0, 0)),
+                      blocks_los=True, blocks_movement=True,
+                      def_value=8, body=10, no_teleport_levels=2,
+                      effect=ConstructEffect(kind="damage", damage_dice=2,
+                                              trigger="on_enter")),
+        ],
+    )
+
+
+def test_every_dataclass_reachable_from_scene_has_a_def():
+    """The walk, not a hand-kept list: every type a populated `Scene` can
+    carry gets a `$def`, the same property `test_every_registered_kind_
+    has_a_schema` checks for events."""
+    defs = json_schema()["$defs"]
+
+    for name in (
+        "Scene", "Wall", "Surface", "Hazard", "HazardEffect", "Furnishing",
+        "Construct", "ConstructEffect", "AmbientConditions", "SceneBounds",
+        "Position",
+    ):
+        assert name in defs, f"{name} has no $def"
+
+
+def test_a_populated_scene_validates_against_its_own_schema():
+    """The same property `test_a_populated_instance_validates_against_
+    its_own_schema` checks for every event, over the scene's richest
+    fixture: a wall, a surface, a hazard and a construct. Checked
+    recursively — the nested dataclasses, not only `Scene` itself,
+    because a drifted `Wall` or `Hazard` is exactly what the viewer
+    hand-wrote wrong."""
+    scene = _a_richly_furnished_scene()
+    payload = to_dict(scene)
+    defs = json_schema()["$defs"]
+
+    def _check(value, defs):
+        if isinstance(value, dict) and "__type__" in value:
+            definition = defs[value["__type__"]]
+            assert set(value) == set(definition["properties"])
+            assert set(definition["required"]) == set(value)
+            for v in value.values():
+                _check(v, defs)
+        elif isinstance(value, list):
+            for v in value:
+                _check(v, defs)
+        elif isinstance(value, dict):
+            for v in value.values():
+                _check(v, defs)
+
+    _check(payload, defs)
+    # The property that motivated this file: a wall's segment is TWO
+    # `Position` objects (`start`/`end` on the wire is wrong), not a flat
+    # pair of coordinates.
+    assert defs["Wall"]["properties"]["segment"] == {
+        "type": "array", "items": {"$ref": "#/$defs/Position"},
+    }
+    # A polygon is a list of [x, y] pairs, not a flat coordinate list.
+    assert defs["Surface"]["properties"]["polygon_xy"] == {
+        "type": "array",
+        "items": {"type": "array", "items": {"type": "number"}},
+    }
+    assert defs["Hazard"]["properties"]["elevation_range_m"] == {
+        "type": "array", "items": {"type": "number"},
+    }
+    # A hazard's effect is an object, not a scalar.
+    assert defs["Hazard"]["properties"]["effect"] == {
+        "$ref": "#/$defs/HazardEffect",
+    }
+    assert defs["AmbientConditions"]["properties"]["light_level"] == {
+        "type": "integer",
     }
 
 
