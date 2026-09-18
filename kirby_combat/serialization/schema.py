@@ -44,6 +44,24 @@ _LOCALNS: dict[str, Any] = {
     "PositionView": PositionView,
 }
 
+#: THE ONLY FIELDS ALLOWED TO BE FREE-FORM, named one at a time.
+#:
+#: `Any` has no JSON Schema meaning, and mapping it to `{}` — "anything at
+#: all" — is a permissive default of exactly the kind this module refuses
+#: everywhere else. These four really are free-form: they are the payload
+#: bags the engine writes whatever a particular action produced into, and
+#: no closed shape describes them. Every OTHER `Any` is a mistake, and
+#: raises. Listed as `Class.field` and asserted whole by
+#: `tests/serialization/test_json_schema.py`, so a field that acquires an
+#: `Any` annotation fails the build rather than quietly becoming
+#: unconstrained in every consumer's generated types.
+FREE_FORM_PAYLOADS: frozenset[str] = frozenset({
+    "ActionDeclared.parameters",
+    "ActionResolved.result_payload",
+    "EnvironmentalTriggered.effect",
+    "GMOverride.patch",
+})
+
 #: 2020-12 is what a schema-to-types generator reads and what `$defs`
 #: belongs to; draft-07's `definitions` would be a second spelling.
 _DIALECT = "https://json-schema.org/draft/2020-12/schema"
@@ -58,11 +76,21 @@ class UnmappableField(TypeError):
     """
 
 
-def _schema_for(annotation: Any, defs: dict[str, dict]) -> dict:
+def _schema_for(annotation: Any, defs: dict[str, dict], where: str) -> dict:
+    """`where` is the `Class.field` this annotation was reached through —
+    carried the whole way down so the `Any` refusal can name the field a
+    reader has to go and fix, and so the free-form allow-list is checked
+    against a field rather than against a type."""
     origin = get_origin(annotation)
 
     if annotation is Any:
-        return {}
+        if where in FREE_FORM_PAYLOADS:
+            return {}
+        raise UnmappableField(
+            f"{where} is annotated `Any`, which describes nothing. Give it "
+            f"a serialisable type, or — if it really is a free-form payload "
+            f"bag — add it to FREE_FORM_PAYLOADS deliberately."
+        )
     if annotation is bool:
         return {"type": "boolean"}
     if annotation is int:
@@ -76,15 +104,23 @@ def _schema_for(annotation: Any, defs: dict[str, dict]) -> dict:
         return {"type": "string", "format": "date-time"}
     if origin is Literal:
         values = list(get_args(annotation))
+        # The type goes on BOTH branches. A multi-value `Literal` of
+        # strings is still a string on the wire, and emitting a bare
+        # `enum` makes a generator produce a weaker type than the engine
+        # actually guarantees.
+        typed = (
+            {"type": "string"} if values and all(isinstance(v, str) for v in values)
+            else {}
+        )
         if len(values) == 1:
-            return {"type": "string", "enum": values, "const": values[0]}
-        return {"enum": values}
+            return {**typed, "enum": values, "const": values[0]}
+        return {**typed, "enum": values}
     if origin in (types.UnionType, Union):
         parts = [a for a in get_args(annotation) if a is not type(None)]
         nullable = len(parts) != len(get_args(annotation))
         inner = (
-            _schema_for(parts[0], defs) if len(parts) == 1
-            else {"anyOf": [_schema_for(p, defs) for p in parts]}
+            _schema_for(parts[0], defs, where) if len(parts) == 1
+            else {"anyOf": [_schema_for(p, defs, where) for p in parts]}
         )
         return {"anyOf": [inner, {"type": "null"}]} if nullable else inner
     if origin in (list, tuple, set, frozenset):
@@ -94,11 +130,14 @@ def _schema_for(annotation: Any, defs: dict[str, dict]) -> dict:
         args = [a for a in get_args(annotation) if a is not Ellipsis]
         return {
             "type": "array",
-            "items": _schema_for(args[0], defs) if args else {},
+            "items": _schema_for(args[0], defs, where) if args else {},
         }
     if origin is dict:
         _key, value = get_args(annotation)
-        return {"type": "object", "additionalProperties": _schema_for(value, defs)}
+        return {
+            "type": "object",
+            "additionalProperties": _schema_for(value, defs, where),
+        }
     if dataclasses.is_dataclass(annotation):
         return {"$ref": f"#/$defs/{_define(annotation, defs)}"}
 
@@ -124,7 +163,8 @@ def _define(cls: type, defs: dict[str, dict]) -> str:
     }
     required = ["__type__"]
     for field in dataclasses.fields(cls):
-        properties[field.name] = _schema_for(hints[field.name], defs)
+        properties[field.name] = _schema_for(
+            hints[field.name], defs, f"{name}.{field.name}")
         required.append(field.name)
 
     defs[name] = {
@@ -159,7 +199,11 @@ def json_schema() -> dict:
 
     return {
         "$schema": _DIALECT,
-        "$id": "https://kirby.productbinder.io/schema/kirby-combat/events.json",
+        # A URN, not a URL. A `$id` must be a URI and nothing says it
+        # must resolve — and a standalone library naming a deployment
+        # host would be this package claiming to know where it is served
+        # from, which it does not and which nothing answers at.
+        "$id": f"urn:kirby-combat:schema:events:{kirby_combat.__version__}",
         "title": "CombatEvent",
         "x-kirby-combat-version": kirby_combat.__version__,
         "oneOf": [{"$ref": f"#/$defs/{cls.__name__}"} for cls in events],
@@ -167,4 +211,4 @@ def json_schema() -> dict:
     }
 
 
-__all__ = ["UnmappableField", "json_schema"]
+__all__ = ["FREE_FORM_PAYLOADS", "UnmappableField", "json_schema"]

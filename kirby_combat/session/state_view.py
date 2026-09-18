@@ -9,8 +9,8 @@ second time here.
 NOTHING HERE IS A RULE. Every field is a read: `classify_health` for the
 rung, `is_down` for whether he is still in it, `Side.of` for whose part he
 is on, `position_of` for where he stands, `statuses_for` for his
-conditions, `cannot_perceive` for what he can see, `next_actor_id` for
-whose Phase is next. A second reading of any of them here would be exactly
+conditions, `concealment.perceives` for what he can see, `next_actor_id`
+for whose Phase is next. A second reading of any of them here would be exactly
 the drift this view exists to catch.
 
 DELIBERATELY FLAT. It carries no build, no powers and no scene geometry —
@@ -26,12 +26,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from kirby_combat.concealment import concealment_for
+from kirby_combat.concealment import is_invisible
+from kirby_combat.concealment import perceives as _perceives
 from kirby_combat.enumeration import is_down
 from kirby_combat.health import classify_health
 from kirby_combat.loop.run import next_actor_id as _next_actor_id
 from kirby_combat.scene.placement import position_of
-from kirby_combat.sense_penalties import cannot_perceive
 from kirby_combat.side import Side
 from kirby_combat.statuses import KNOCKED_OUT, PRONE, STUNNED, statuses_for
 
@@ -81,16 +81,34 @@ class CombatantStateView:
     prone: bool
     stunned: bool
     ko: bool
-    #: Hidden from at least one other combatant, per `concealment_for`.
-    #: Carried separately from `perceives` on purpose: `cannot_perceive`
-    #: passes no Hidden flag, so a Hidden fighter's opposed Stealth
-    #: contest is NOT folded into anyone's `perceives` and would otherwise
-    #: go unreported.
-    hidden: bool
+    #: Whether the BUILD carries Invisibility at all, per
+    #: `concealment.is_invisible` — a standing fact about the character,
+    #: which is why it sits beside the conditions rather than inside
+    #: anyone's `perceives`.
+    #:
+    #: NOT a second statement of who can see him. Being unseen is
+    #: PAIRWISE and lives in `perceives` alone; a fighter who is Hidden
+    #: from one enemy and watched by another has no single answer, so
+    #: none is published. Invisibility is different: it is bought on the
+    #: sheet, it is true of him rather than of a pair, and a board wants
+    #: to draw it.
+    invisible: bool
     #: The ids of the other combatants this one can perceive, through
-    #: `cannot_perceive` — the engine's ONE predicate for 6E2 p.127 / p.9.
-    #: Folds a Flash on his Sense Group, a Darkness field on the ray,
-    #: Invisibility and the walls, all at once. Never contains his own id.
+    #: `concealment.perceives` — the one door that hands the log's
+    #: concealment and the build's Invisibility to `perception.perceive`
+    #: together, with his own Flash. Folds a Flash on his Sense Group, a
+    #: Darkness field on the ray, Invisibility, a Hidden target's Stealth
+    #: contest and the walls, all at once. Never contains his own id.
+    #:
+    #: THIS IS WHERE UNSEEN-NESS LIVES, and it is per observer, which is
+    #: the granularity the engine's own Hide contest resolves at: one
+    #: enemy may lose a man while another keeps him in view.
+    #:
+    #: NOT ALWAYS A READ. `perceive` rolls in exactly two places — the
+    #: PER roll for an Invisible target's Fringe within 2 m, and a Hidden
+    #: target's opposed Stealth contest — so those pairs are a roll and
+    #: not a projection. Every other pair is deterministic. Said here
+    #: rather than papered over.
     perceives: list[str]
 
 
@@ -105,9 +123,11 @@ class SessionStateView:
     #: nothing has happened. `SessionStarted` IS stored, at sequence 1, so
     #: a length is the last sequence and not one off it — but a log
     #: holding only that event is a fight that has not started trading
-    #: blows, and it answers 0 rather than 1. Read off the last event
-    #: either way: counting the rows would be a second statement of the
-    #: same number.
+    #: blows, and it answers 0 rather than 1. The GUARD is a length; the
+    #: ANSWER is read off the event, never counted from it — a count
+    #: would be a second statement of a number the log already carries,
+    #: and the arithmetic that looks right is wrong the day an event is
+    #: minted without being stored.
     last_sequence: int
     #: Whose Phase is next, or `None` when the fight is decided.
     #: `next_actor_id` is a QUESTION and spends no slot — it used to spend
@@ -116,20 +136,8 @@ class SessionStateView:
     combatants: list[CombatantStateView]
 
 
-def _hidden_ids(session: "CombatSession") -> set[str]:
-    """Everyone some other combatant's concealment map marks hidden."""
-    hidden: set[str] = set()
-    for observer_id in session.combatants:
-        for target_id, (_invisible, is_hidden) in concealment_for(
-            session, observer_id=observer_id,
-        ).items():
-            if is_hidden:
-                hidden.add(target_id)
-    return hidden
-
-
 def _combatant_view(
-    session: "CombatSession", combatant, hidden: set[str],
+    session: "CombatSession", combatant,
 ) -> CombatantStateView:
     side = Side.of(combatant)
     held = statuses_for(session, str(combatant.id))
@@ -153,18 +161,17 @@ def _combatant_view(
         prone=PRONE in held,
         stunned=STUNNED in held,
         ko=KNOCKED_OUT in held,
-        hidden=str(combatant.id) in hidden,
+        invisible=is_invisible(combatant),
         perceives=sorted(
             str(other.id) for other in session.combatants.values()
             if str(other.id) != str(combatant.id)
-            and not cannot_perceive(session, combatant, other)
+            and _perceives(session, combatant, other)
         ),
     )
 
 
 def state_view(session: "CombatSession") -> SessionStateView:
     """The fight as it stands, in the shape a viewer is checked against."""
-    hidden = _hidden_ids(session)
     return SessionStateView(
         status=session.status,
         turn=session.timeline.turn,
@@ -175,7 +182,7 @@ def state_view(session: "CombatSession") -> SessionStateView:
         ),
         next_actor_id=_next_actor_id(session),
         combatants=[
-            _combatant_view(session, c, hidden)
+            _combatant_view(session, c)
             for c in session.combatants.values()
         ],
     )

@@ -138,3 +138,52 @@ def flashed_session() -> CombatSession:
         author=make_author_engine(),
         target_id="alice", sense_group="sight", segments=3,
     ))
+
+
+class _InvisibilityPower:
+    """An INVISIBILITY power with no group adder, which `perception.
+    invisibility_groups` reads as the Sight Group — the HERO default."""
+
+    xmlid = "INVISIBILITY"
+    alias = "Invisibility"
+    adders: list = []
+    sub_powers: list = []
+
+
+def an_invisible_fighter_session() -> CombatSession:
+    """Alice bought Invisibility; bob is an enemy and carol an ally.
+
+    Ten metres apart, which is well beyond the 2 m Fringe, so no PER roll
+    is drawn and the answer is a read.
+    """
+    alice = synthetic_combatant(id="alice", name="Alice", side=Side.named("x"))
+    alice.hero.powers.append(_InvisibilityPower())
+    scene = Scene(
+        id="floor", name="Floor",
+        bounds=SceneBounds(0, 0, 0, 40, 40, 40),
+        surfaces=[
+            Surface(
+                id="ground", name="Ground",
+                polygon_xy=[(0, 0), (40, 0), (40, 40), (0, 40)],
+                elevation_m=0.0, surface_type="ground",
+                cover_level=0, is_supporting=True,
+            ),
+        ],
+        walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={
+            "alice": Position(x=0.0, y=0.0, z=0.0, facing=0.0),
+            "bob": Position(x=10.0, y=0.0, z=0.0, facing=3.14),
+            "carol": Position(x=0.0, y=10.0, z=0.0, facing=3.14),
+        },
+    )
+    return CombatSession.create(
+        id="s5",
+        combatants=[
+            alice,
+            synthetic_combatant(id="bob", name="Bob", side=Side.named("y")),
+            synthetic_combatant(id="carol", name="Carol", side=Side.named("x")),
+        ],
+        scene=scene,
+        template=RAW_SUPERHEROIC,
+        dice_roller=None,
+    ).start()

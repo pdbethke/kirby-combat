@@ -183,6 +183,32 @@ def check_install_and_version(wheel: Path) -> bool:
     return True
 
 
+def check_shipped_schema(wheel: Path) -> bool:
+    """The schema inside the wheel must name the wheel's own version.
+
+    `x-kirby-combat-version` is stamped from `importlib.metadata` at
+    generation time, so an artefact regenerated against a stale editable
+    install carries a version that is not the one being published. The
+    suite gates that against `pyproject.toml`; this gates it at the last
+    door before PyPI, against the artefact actually going out.
+    """
+    version = wheel_metadata(wheel)["Version"][0]
+    path = "kirby_combat/schema/events.json"
+    z = zipfile.ZipFile(wheel)
+    if path not in z.namelist():
+        fail(f"{wheel.name} carries no {path} -- the derived schema is not shipping")
+        return False
+    stamped = json.loads(z.read(path))["x-kirby-combat-version"]
+    if stamped != version:
+        fail(
+            f"{path} says {stamped!r} but the wheel is {version!r} -- the schema "
+            f"was derived against a different install; reinstall and regenerate"
+        )
+        return False
+    ok(f"the shipped schema names the version it ships in ({version})")
+    return True
+
+
 def check_tag(wheel: Path) -> bool:
     """Only meaningful in CI, where the tag is what triggered the release."""
     ref = os.environ.get("GITHUB_REF_NAME")
@@ -216,6 +242,7 @@ def main() -> int:
     results = [
         check_licensed(dist),
         check_install_and_version(wheels[0]),
+        check_shipped_schema(wheels[0]),
         check_tag(wheels[0]),
     ]
     if all(results):

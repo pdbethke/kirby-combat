@@ -101,13 +101,42 @@ def perceives(session, observer, target, **kwargs: Any) -> bool:
     The one place the log's concealment and the build's Invisibility are
     handed to `perception.perceive` together, so callers do not each
     assemble the arguments and each forget a different one.
+
+    IT ALSO CARRIES THE OBSERVER'S FLASH, AND FOR THE SAME REASON. A
+    caller that reached `perceive` through here still had to remember
+    ``observer_flashed_groups`` on its own, which is the same forgetting
+    one argument at a time this door exists to stop --- and it was a
+    forgetting with teeth, because a Flash is the one blinding that needs
+    no geometry and so is the only one a scene-less fight can have. The
+    read is `Flash.is_flashed`, the engine's own fold of the log; nothing
+    is recomputed here.
+
+    AND IT DOES NOT FAIL OPEN. `perceive` asks the observer for
+    `senses()`, which only a build-backed combatant has. A flat stat
+    block is handed 6E2 p.9's normal human by `as_sensing_observer` ---
+    the same grounding `sense_penalties.cannot_perceive` uses, shared
+    rather than copied --- so a stat block Flashed in the Sight Group is
+    blind here rather than silently sighted.
+
+    NOT ALWAYS A READ. `perceive` rolls in exactly two places: the PER
+    roll for an Invisible target's Fringe within 2 m, and a Hidden
+    target's opposed Stealth contest. Every other pair is deterministic.
+
+    `sense_penalties.cannot_perceive` is a NARROWER question and stays its
+    own predicate: it asks only `targetable_physical`, because a CV
+    penalty is about aiming a physical attack, where this asks whether the
+    target can be reached by any sense at all.
     """
+    from kirby_combat.actions.flash import Flash
     from kirby_combat.perception import perceive
+    from kirby_combat.sense_penalties import as_sensing_observer
 
     scene = getattr(session, "scene", None)
     conceal = concealment_for(session, observer_id=getattr(observer, "id", ""))
     invisible, hidden = conceal.get(getattr(target, "id", ""), (False, False))
-    result = perceive(observer, target, scene,
+    _, flashed = Flash.is_flashed(session, getattr(observer, "id", ""))
+    kwargs.setdefault("observer_flashed_groups", frozenset(flashed))
+    result = perceive(as_sensing_observer(observer), target, scene,
                       target_invisible=invisible, target_hidden=hidden,
                       **kwargs)
     return bool(result.targetable_physical or result.targetable_mental)
