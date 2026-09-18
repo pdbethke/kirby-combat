@@ -162,6 +162,35 @@ contradicts the rule it illustrates and Kirby follows the rule.
 .venv/bin/pytest tests/ --cov=kirby_combat --cov-report=term-missing
 ```
 
+## Serialization
+
+`to_dict()` / `from_dict()` round-trip a whole encounter — every dataclass, `datetime`, tuple
+and set written as the wire expects (`__type__` on every object, an ISO string, a list, a
+sorted list). That is the format a session's own state and event log are persisted and
+replayed in.
+
+`kirby_combat.serialization.json_schema()` and `kirby_combat.session.state_view.state_view()`
+are the read-only half of that surface, for a **viewer** — a front end that renders a fight
+rather than resolves one. `json_schema()` derives a single JSON Schema document from the
+engine's own event union and `SessionStateView`/`Scene` dataclasses — one walk, starting at
+`EVENT_CLASSES` (the same list the type registry and the round-trip gate read), so there is no
+second list of shapes to keep in sync by hand. `state_view()` is the read-time projection of a
+session: the fields a viewer needs but no event publishes on its own — perception
+(`concealment.perceives`), the health rung (`classify_health`), whether a man is down
+(`is_down`), and whose Phase is next.
+
+```bash
+python -m kirby_combat.schema > events.json
+```
+
+prints the shipped document as-is. **A consumer generates its types from this schema; it does
+not write them by hand.** A hand-written copy of a snapshot is exactly the failure this surface
+exists to remove — it drifts silently against a shape that has already changed, which is what
+happened to the viewer this was designed for before the schema became the source. The document
+carries its own `x-kirby-combat-version`, read off `kirby_combat.__version__` at generation
+time, so a consumer can assert the schema it generated from is the engine it is actually
+talking to.
+
 ## Where this is going
 
 This is one of three engines behind [Kirby](https://kirbyvtt.org), a virtual
