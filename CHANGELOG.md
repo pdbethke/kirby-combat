@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.18.5 — 2026-09-18
+
+**Positions and statuses are in the log, and the one-writer gate covers
+them.** Task A7 made a fighter's vitals fold only through `apply_event`.
+Two fields were left outside it, and Krackle's checkpoint gate — a replay
+of recorded fights against this engine's own `state?at` — measured both.
+
+*Where a man stands.* `apply_event` treated `MovementResolved` as
+log-only while `scene/placement.py::commit_move` wrote the landing onto
+`scene.combatant_positions` in place beside it. A session rebuilt from
+its rows — and therefore `state_view` and `rewind_to_sequence` — put
+every fighter at his starting placement for ever: all fourteen
+checkpoints of a recorded fight had Wyatt at (3.1, 3.7) although he moved
+at sequence 7. `apply_event` folds the row now and `commit_move` writes
+nothing, so the live path and the replayed path move a man in the same
+one place. `rewind_to_sequence` seeded its fresh session from the
+FINISHED Scene, which is the same defect from the other end — a rewind to
+sequence 1 showed the fight's last placement — so `CombatSession` carries
+`initial_scene`, the board as the fight found it, exactly as it already
+carried `initial_combatants`.
+
+*What condition he is in.* Nothing in this engine ever emitted a
+`StatusEffectsChanged`: its only door,
+`status_emission.apply_event_with_deltas`, had no caller anywhere, and
+`StatusChanged` had no producer at all. Knocked out, stunned, prone,
+held, entangled, flashed — none of it reached the log, so a viewer
+reading the rows could not know a man had gone down.
+`status_emission.record_status_changes` is the one emitter now: it diffs
+the RULE (`statuses.statuses_for`) against the RECORD
+(`CombatSession.statuses`, folded by `apply_event` out of these rows) and
+writes down what moved. `run_phase` — this engine's one step door —
+calls it on every exit, so the rows are among the events a Phase hands
+back. `session/state_view.py` reads the folded record rather than
+deriving a second answer.
+
+*The gate.* `tests/session/test_apply_is_the_only_writer.py` (renamed
+from `..._of_vitals.py`) walks the engine by AST for two more properties:
+nothing outside the fold decides where a combatant is standing, and
+nothing outside it writes `CombatSession.statuses`. The placement gate is
+keyed PER ROUTE rather than per file — mutating a position map, calling
+`place_combatant`, building a board with `replace(..., combatant_positions=)`,
+and installing one with `replace(..., scene=)` are four separate
+allow-lists — so a module that may bring a wall down is not thereby
+allowed to move a fighter. Both gates carry their own negative controls
+and assert their allow-lists whole.
+
+**Wire changes.**
+
+* `MovementResolved.from_pos` and `.to_pos` now carry `facing` alongside
+  `x`/`y`/`z` — the four numbers `scene.Position` holds. Facing was
+  dropped on the wire, so a replay could put a man on the right spot
+  pointing the wrong way, which a board draws.
+* `StatusChanged` is **deleted**. It was a scalar `from_status`/
+  `to_status` pair standing beside `StatusEffectsChanged` with no
+  producer anywhere in the engine and exactly one consumer — Prone's
+  clear edge in `statuses._is_prone`, which now reads `PRONE` in a
+  `StatusEffectsChanged.removed`. A combatant getting to his feet is
+  still a consumer's explicit act. The event union is 29 kinds, and
+  `kirby_combat/schema/events.json` is regenerated.
+* `CombatSession` gains `initial_scene` and `statuses`. A session built
+  with events already on it, a Scene, and no `initial_scene` raises —
+  the same refusal `initial_combatants` already makes, for the same
+  reason.
+* `Scene` gains `snapshot()` (the board as it stands, positions copied)
+  and `with_position()` (the what-if board). `move_strike` and `Images`
+  both built an altered board themselves — one through
+  `dataclasses.replace`, one through a hand-rolled `__slots__` proxy —
+  and now ask the Scene, which is where the position map lives.
+* `status_emission.apply_event_with_deltas` is **deleted** and replaced
+  by `record_status_changes`. The pure diff `status_deltas` is unchanged.
+
 ## 0.18.4 — 2026-09-18
 
 **The scene is in the published schema.** A viewer that renders a fight's

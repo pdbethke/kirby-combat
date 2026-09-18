@@ -72,7 +72,10 @@ Segment and with what declared intent (`ActingOrderResolved`), and whose Phase
 has been spent, including one its owner was in no condition to use
 (`PhaseSpent`) — all leave events in the log, so a fight replays from that log
 alone and conditions like Stunned and Dead derive from history rather than
-being recalculated. The pure resolvers stay pure: recording entry points sit
+being recalculated. So does where everybody is standing (`MovementResolved`,
+folded onto the Scene by `apply_event`) and what condition each of them is in
+(`StatusEffectsChanged`, written down once per Phase), which is what lets a
+viewer draw the board from the rows without re-running the rules. The pure resolvers stay pure: recording entry points sit
 beside them and are opt-in.
 
 ## Usage

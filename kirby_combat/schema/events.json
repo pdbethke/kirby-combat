@@ -2576,68 +2576,6 @@
       "title": "SessionStateView",
       "type": "object"
     },
-    "StatusChanged": {
-      "additionalProperties": false,
-      "properties": {
-        "__type__": {
-          "const": "StatusChanged",
-          "enum": [
-            "StatusChanged"
-          ],
-          "type": "string"
-        },
-        "author": {
-          "$ref": "#/$defs/EventAuthor"
-        },
-        "combatant_id": {
-          "type": "string"
-        },
-        "from_status": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "const": "StatusChanged",
-          "enum": [
-            "StatusChanged"
-          ],
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "sequence": {
-          "type": "integer"
-        },
-        "session_id": {
-          "type": "string"
-        },
-        "timestamp": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "to_status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "__type__",
-        "id",
-        "session_id",
-        "sequence",
-        "timestamp",
-        "author",
-        "kind",
-        "combatant_id",
-        "from_status",
-        "to_status",
-        "reason"
-      ],
-      "title": "StatusChanged",
-      "type": "object"
-    },
     "StatusEffectsChanged": {
       "additionalProperties": false,
       "properties": {
@@ -2949,7 +2887,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.18.4",
+  "$id": "urn:kirby-combat:schema:events:0.18.5",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -3034,9 +2972,6 @@
       "$ref": "#/$defs/SessionStarted"
     },
     {
-      "$ref": "#/$defs/StatusChanged"
-    },
-    {
       "$ref": "#/$defs/StatusEffectsChanged"
     },
     {
@@ -3044,5 +2979,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.18.4"
+  "x-kirby-combat-version": "0.18.5"
 }

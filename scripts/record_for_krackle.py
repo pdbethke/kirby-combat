@@ -18,10 +18,15 @@ kirby-api used to emit over a WebSocket before it was parked:
 THE SNAPSHOT IS THE OPENING STATE, not the end. The existing demo page
 ships an END snapshot and reverse-folds every event to reconstruct the
 start, which the Krackle notes record as having "proved impossible" to do
-faithfully -- END clamps at zero, and nothing ever emits RecoveryTaken or
-StatusChanged, so those reversals are guesses. Recording the opening
-directly removes the guess: a replay that starts from what actually
-happened first cannot drift from it.
+faithfully -- the fold is not injective (a Recovery is bounded by the
+maximum), so those reversals are guesses. Recording the opening directly
+removes the guess: a replay that starts from what actually happened first
+cannot drift from it.
+
+AND THE ENGINE KEEPS THE OPENING ITSELF (0.18.5). `CombatSession` carries
+`initial_combatants` and `initial_scene` -- the men and the board as the
+fight FOUND them -- so this script asks for them rather than rebuilding
+the cast and the scene from the example module and hoping the two agree.
 
 WHAT IT MAY RECORD. Only fights whose cast this repository is allowed to
 publish. `the_ok_corral.py` loads archetypes and an arsenal out of the
@@ -250,27 +255,27 @@ def main() -> None:
     args = ap.parse_args()
 
     from the_shootout_we_can_publish import (
-        DEMO_SEED, the_cast, the_fight, the_scene,
+        DEMO_SEED, the_fight,
     )
 
     seed = DEMO_SEED if args.seed is None else args.seed
 
-    # THE OPENING STATE IS REBUILT, not read off the finished session.
-    # BOTH HALVES, and the first cut got this half wrong: the cast was
-    # rebuilt at its starting vitals while the positions came off the
-    # finished session's SCENE, whose `combatant_positions` the fight
-    # mutates in place. So every man began the replay standing where he
-    # ended it, the MovementResolved events moved him to where he already
-    # was, and nobody appeared to move at all. `the_scene()` is a function
-    # for exactly this reason.
+    # THE OPENING STATE, ASKED OF THE SESSION. This used to rebuild both
+    # halves out here -- the cast from `the_cast()`, the board from
+    # `the_scene()` -- because the session held neither. The first cut got
+    # the board half wrong and read the positions off the FINISHED
+    # session, whose `combatant_positions` the fight mutated in place, so
+    # every man began the replay standing where he ended it and nobody
+    # appeared to move at all. The session keeps both now
+    # (`initial_combatants`, `initial_scene`), which is one answer instead
+    # of two that have to agree.
     chooser, result = the_fight(seed)
     session = result.encounter.sessions[0]
 
     from dataclasses import replace as _replace
 
-    fresh = {c.id: c for c in the_cast()}
-    opening = _replace(session, combatants=fresh)
-    snapshot = opening_snapshot(opening, the_scene())
+    opening = _replace(session, combatants=dict(session.initial_combatants))
+    snapshot = opening_snapshot(opening, session.initial_scene)
 
     recording = {"snapshot": _with_town(snapshot),
                  "events": events_of(session)}
