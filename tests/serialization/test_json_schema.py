@@ -199,7 +199,7 @@ def test_the_session_state_shape_is_published_beside_the_events():
     assert set(defs["CombatantStateView"]["properties"]) == {
         "__type__", "id", "name", "side",
         "current_stun", "current_body", "current_end",
-        "max_stun", "max_body", "max_end", "health", "down",
+        "max_stun", "max_body", "max_end", "spd", "dex", "health", "down",
         "position", "prone", "stunned", "ko", "invisible", "perceives",
     }
     # `position` is nullable (a combatant not on the map), and the

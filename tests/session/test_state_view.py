@@ -64,6 +64,23 @@ def test_every_combatant_is_projected_through_the_engines_own_readings():
         assert c.current_end == int(live.current_end)
 
 
+def test_spd_and_dex_are_build_facts_read_through_combat_stats():
+    """Krackle's SPD ribbon and DEX ordering need these, and they are
+    bought on the sheet rather than folded from the log — like
+    `max_stun`/`max_body`/`max_end`, read through `combat_stats()`, the
+    one door every characteristic goes through, never re-derived here."""
+    session = two_fighter_session()
+
+    view = state_view(session, roller=a_roller())
+
+    assert len(view.combatants) == len(session.combatants)
+    for c in view.combatants:
+        live = session.combatants[c.id]
+        stats = live.combat_stats()
+        assert c.spd == stats.spd
+        assert c.dex == stats.dex
+
+
 def test_the_view_carries_where_he_is_and_which_way_he_faces():
     """`position_of` is the door. A combatant not on the map reads None —
     NOT the origin, which would put him adjacent to whoever stands at
@@ -254,6 +271,7 @@ def test_the_view_is_frozen_and_flat():
         "id", "name", "side",
         "current_stun", "current_body", "current_end",
         "max_stun", "max_body", "max_end",
+        "spd", "dex",
         "health", "down",
         "position", "prone", "stunned", "ko", "invisible", "perceives",
     }

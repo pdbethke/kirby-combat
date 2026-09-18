@@ -78,6 +78,12 @@ class CombatantStateView:
     max_stun: int
     max_body: int
     max_end: int
+    #: BUILD facts, like `invisible` below — read through `combat_stats()`,
+    #: the one door every characteristic goes through, never re-derived.
+    #: Krackle's SPD ribbon and DEX ordering are the reason they are here:
+    #: both are bought on the sheet and neither is a fold of the log.
+    spd: int
+    dex: int
     #: `classify_health`'s rung, verbatim.
     health: str
     #: `is_down`, verbatim: has he stopped fighting.
@@ -163,6 +169,8 @@ def _combatant_view(
         max_stun=int(combatant.max_stun),
         max_body=int(combatant.max_body),
         max_end=int(combatant.max_end),
+        spd=int(combatant.spd),
+        dex=int(combatant.dex),
         health=classify_health(combatant),
         down=is_down(combatant),
         position=None if at is None else PositionView(
