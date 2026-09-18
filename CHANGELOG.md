@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.18.2 — 2026-09-18
+
+**A viewer generates its event types from the engine, and checks its fold
+against the engine's.** A consumer that renders these fights has always
+hand-written the event shapes, which is a copy of a contract nothing checks —
+the same defect this package's own type registry had when six of twenty-eight
+events could be written and never read back. `serialization.json_schema()`
+walks `EVENT_CLASSES`, which is `get_args(CombatEvent)` — the union itself,
+and the same derivation the registry and the round-trip gate read — and emits
+a 2020-12 JSON Schema document: a top-level `oneOf` over one `$def` per event
+kind, each pinning `kind` to a `const`, so a generator on the other side turns
+it into a union an exhaustive switch narrows. It describes the WIRE `to_dict`
+writes, not the Python behind it: `__type__` on every object, an ISO
+`date-time` string for a `datetime`, an array for a tuple or a set. A field
+whose type has no JSON Schema meaning RAISES rather than being skipped — a
+field quietly left out is a field the consumer discovers is missing by reading
+it off a real row.
+
+**The state a viewer checks itself against.** `state_view(session)` publishes
+the shape `rewind_to_sequence` exposes: the clock, the status, the last
+sequence on the log, whose Phase is next, and for each fighter his vitals,
+where he stands and which way he faces, what condition he is in, whether his
+build carries Invisibility, and who he can perceive. NOTHING ON IT IS A NEW
+RULE. Every field is read through a door this engine already had —
+`classify_health`, `is_down`, `Side.of`, `position_of`, `statuses_for`,
+`concealment.is_invisible`, `concealment.perceives` and `next_actor_id` — so a
+viewer's fold can be compared against the engine's field by field instead of
+trusted. In particular a viewer's fog is now the engine's own answer rather
+than the viewer's opinion about who sees whom, which used to fail OPEN and
+show everyone.
+
+**`perceives` goes through `concealment.perceives`, which is the one door.**
+That function is documented as the one place the log's hiding and the build's
+Invisibility are handed to `perception.perceive` together, "so callers do not
+each assemble the arguments and each forget a different one" — and it now
+carries the observer's Flash and the normal-human grounding for a flat stat
+block as well, which a caller reaching it still had to remember on its own.
+`sense_penalties.cannot_perceive` reaches `perceive` without the concealment
+arguments at all, so it does not fold Invisibility even partly: the power is
+skipped entirely. A view built on it would have published an Invisible fighter
+as seen by every enemy on the board while claiming to be the engine's answer.
+So what `perceives` folds, exactly: a Flash on the observer's Sense Group, a
+Darkness field on the ray, the target's Invisibility, a Hidden target's
+opposed Stealth contest, and the walls. It is NOT always a read — `perceive`
+rolls for an Invisible target's Fringe within 2 m and for a Hidden target's
+Stealth contest, and those two pair kinds are a roll rather than a projection.
+Invisibility is not side-aware in 6E and is not made so here: an ally is as
+blind to it as an enemy.
+
+**Being unseen is published PAIRWISE and nowhere else.** `perceives` is per
+observer, which is the granularity the engine's own Hide contest resolves at —
+"being unseen is not a property of the hider: one enemy may lose you while
+another keeps you in view". There is deliberately no flattened `hidden` flag
+beside it: a global "unseen by somebody" would answer the same question at a
+second granularity and a consumer could not recover the pairwise truth. What
+IS published per combatant is `invisible`, the build fact, which is true of
+the character rather than of a pair.
+
+**`state_view(session, *, roller)` — the roller is required and has no
+default, because this is a playback surface.** Two reads of the same sequence
+must agree, and `perceive` builds its own `RandomRoller` when handed none, so a
+view that seeded itself would answer differently every call for the two rolled
+pair kinds and a replay would not replay. The caller supplies the roller —
+derived from the sequence it is asking about, if it wants the same board
+twice — and a caller that has not thought about it gets a `TypeError` rather
+than a silent reseed. `concealment.perceives` takes the roller through for the
+same reason and likewise defaults nothing.
+
+A combatant who is not on the map reads `position: None`, never the origin,
+which would put an absent man adjacent to whoever stands at (0, 0, 0).
+
+The derived document is committed and shipped: `kirby_combat/schema/events.json`
+is carried in the wheel, `python -m kirby_combat.schema` prints it, and
+`tests/serialization/test_json_schema.py` fails if the file and the derivation
+disagree in shape. The version stamped on the document is checked against
+`pyproject.toml`'s `[project] version` rather than against the environment
+that generated it — an artefact derived from a stale editable install carries
+the wrong version, and comparing it against that same environment would agree
+whenever both were wrong. `scripts/check_release.py` repeats the check against
+the built wheel, at the last door before publication. The document's `$id` is
+a URN, not a URL: a standalone library does not name a deployment host it
+knows nothing about. `json_schema`, `state_view`, `SessionStateView`, `CombatantStateView`
+and `PositionView` are on the import surface, demonstrated by
+`examples/the_schema_a_viewer_generates_from.py`.
+
+**THIS RELEASE IS THE SCHEMA AND THE STATE VIEW, AND NOTHING ELSE.** The
+harness follow-ons under discussion — a situation on `PhaseResult`, the
+session-ended event's shape, a public event base class and a progress
+predicate — are deliberately NOT here; they are a separate release, so nothing
+downstream waits on them.
+
 ## 0.18.1 — 2026-09-17
 
 **A round-tripped combatant can fight.** `serialization/to_dict` projects a

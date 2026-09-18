@@ -544,11 +544,11 @@
         "health": {
           "type": "string"
         },
-        "hidden": {
-          "type": "boolean"
-        },
         "id": {
           "type": "string"
+        },
+        "invisible": {
+          "type": "boolean"
         },
         "ko": {
           "type": "boolean"
@@ -615,7 +615,7 @@
         "prone",
         "stunned",
         "ko",
-        "hidden",
+        "invisible",
         "perceives"
       ],
       "title": "CombatantStateView",
@@ -983,7 +983,8 @@
             "combatant",
             "gm",
             "engine"
-          ]
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -2113,7 +2114,7 @@
       "type": "object"
     }
   },
-  "$id": "https://kirby.productbinder.io/schema/kirby-combat/events.json",
+  "$id": "urn:kirby-combat:schema:events:0.18.2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -2208,5 +2209,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.17.0"
+  "x-kirby-combat-version": "0.18.2"
 }
