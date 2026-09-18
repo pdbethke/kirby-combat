@@ -136,7 +136,7 @@ from kirby_combat.session.events import (  # noqa: E402
     AbortDeclared, ActingOrderResolved, ActionDeclared, ActionResolved,
     BleedingSuffered, CombatEvent, PhaseSpent, RecoveryTaken, VitalsChanged,
     EnvironmentalTriggered, GMOverride, HeldActionDeclared, HeldActionReleased,
-    MovementResolved, SegmentAdvanced, StatusChanged,
+    MovementResolved, SegmentAdvanced,
     make_author_combatant, make_author_engine, make_author_gm,
 )
 
@@ -242,7 +242,6 @@ __all__ = [
     "VitalsChanged",
     "EnvironmentalTriggered", "GMOverride", "HeldActionDeclared",
     "HeldActionReleased", "MovementResolved", "SegmentAdvanced",
-    "StatusChanged",
     "make_author_combatant", "make_author_engine", "make_author_gm",
     # Perception and senses
     "BreakoutResult", "ENTANGLE_ESCAPE_AUTO_HITS", "ENTANGLED_DCV_FACTOR",

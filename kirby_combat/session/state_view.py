@@ -8,8 +8,8 @@ second time here.
 
 NOTHING HERE IS A RULE. Every field is a read: `classify_health` for the
 rung, `is_down` for whether he is still in it, `Side.of` for whose part he
-is on, `position_of` for where he stands, `statuses_for` for his
-conditions, `concealment.perceives` for what he can see, `next_actor_id`
+is on, `position_of` for where he stands, the session's own folded
+`statuses` for his conditions, `concealment.perceives` for what he can see, `next_actor_id`
 for whose Phase is next. A second reading of any of them here would be exactly
 the drift this view exists to catch.
 
@@ -43,7 +43,7 @@ from kirby_combat.health import classify_health
 from kirby_combat.loop.run import next_actor_id as _next_actor_id
 from kirby_combat.scene.placement import position_of
 from kirby_combat.side import Side
-from kirby_combat.statuses import KNOCKED_OUT, PRONE, STUNNED, statuses_for
+from kirby_combat.statuses import KNOCKED_OUT, PRONE, STUNNED
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
@@ -92,8 +92,12 @@ class CombatantStateView:
     #: no position is absent from every distance, not adjacent to whoever
     #: stands at (0, 0, 0).
     position: PositionView | None
-    #: Folded out of the log by `statuses_for`, which is the one door every
-    #: condition source goes through.
+    #: Read off `CombatSession.statuses` --- the set `apply_event` folds
+    #: out of the `StatusEffectsChanged` rows, which is the one door a
+    #: condition goes through to reach the log. NOT `statuses_for`: that
+    #: is the RULE, and deriving it again here would be a second answer
+    #: to a question the record already answers, which is exactly the
+    #: drift this view exists to catch.
     prone: bool
     stunned: bool
     ko: bool
@@ -157,7 +161,7 @@ def _combatant_view(
     session: "CombatSession", combatant, roller,
 ) -> CombatantStateView:
     side = Side.of(combatant)
-    held = statuses_for(session, str(combatant.id))
+    held = session.statuses[str(combatant.id)]
     at = position_of(session.scene, str(combatant.id))
     return CombatantStateView(
         id=str(combatant.id),

@@ -320,6 +320,34 @@ def _advance_to_an_actor(
     return encounter, None
 
 
+def _phase_result(
+    encounter: "Encounter", session, log_before: int, **fields,
+) -> PhaseResult:
+    """Every exit from a Phase, through one place.
+
+    TWO THINGS HAPPEN HERE AND BOTH ARE THE SAME THING. The conditions
+    this Phase changed are written down --- `record_status_changes` is
+    the one door a condition goes through to reach the log, and until
+    2026-09-18 nothing anywhere called it, so no knockout, Stun, Trip,
+    Entangle, Flash or Held Action this engine produced was ever a row a
+    viewer could read. And `events` is measured off the log AFTER that,
+    so the rows the Phase wrote down are among the rows it hands back;
+    a consumer persisting what it is handed keeps a contiguous sequence.
+
+    Written as one helper called from every `return` rather than
+    repeated at each: five copies of "and also write the conditions
+    down" is four places for the next exit to forget it.
+    """
+    from kirby_combat.status_emission import record_status_changes
+
+    session, _ = record_status_changes(session)
+    return PhaseResult(
+        encounter=_with(encounter, session),
+        events=session.event_log[log_before:],
+        **fields,
+    )
+
+
 def run_phase(
     encounter: "Encounter",
     chooser: Chooser,
@@ -450,9 +478,8 @@ def run_phase(
     if not can_act(session, actor_id):
         session = PresenceEffects.forfeit_phase(session, actor_id)
         session, spent = _mark_acted(session, actor_id)
-        return PhaseResult(
-            encounter=_with(encounter, session), actor_id=actor_id,
-            events=session.event_log[log_before:],
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
@@ -560,9 +587,8 @@ def run_phase(
     )
     if not menu:
         session, spent = _mark_acted(session, actor_id)
-        return PhaseResult(
-            encounter=_with(encounter, session), actor_id=actor_id,
-            events=session.event_log[log_before:],
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
             notes=[f"{actor_id} had no legal action"],
         )
 
@@ -595,19 +621,18 @@ def run_phase(
         if on_unresolvable == "raise":
             raise
         session, spent = _mark_acted(session, actor_id)
-        return PhaseResult(
-            encounter=_with(encounter, session), actor_id=actor_id, action_id=action.action_id,
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
+            action_id=action.action_id,
             kind=action.kind, skipped_kind=action.kind,
-            events=session.event_log[log_before:],
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
     session, spent = _mark_acted(resolved.session, actor_id)
-    return PhaseResult(
-        encounter=_with(encounter, session), actor_id=actor_id,
+    return _phase_result(
+        encounter, session, log_before, actor_id=actor_id,
         action_id=action.action_id, kind=action.kind,
         result=resolved.result,
-        events=session.event_log[log_before:],
     )
 
 

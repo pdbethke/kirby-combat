@@ -59,7 +59,7 @@ Only the reach rule still bites. Pass a scene whenever mode legality matters.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from kirby_combat.actions.reach import ReachVerdict, within_reach
@@ -273,6 +273,4 @@ def _scene_after_close(scene: Any, observer_id: str, landing: Position) -> Any:
     positions = getattr(scene, "combatant_positions", None)
     if not positions or observer_id not in positions:
         return scene
-    return replace(
-        scene, combatant_positions={**positions, observer_id: landing},
-    )
+    return scene.with_position(observer_id, landing)

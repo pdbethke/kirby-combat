@@ -17,6 +17,16 @@ So a fight on a map was frozen: everyone enumerated, attacked and was
 attacked from where they started, forever. Nothing raised, because a
 stationary fight is a perfectly valid fight. Exactly the shape of every
 other defect this carve-out has turned up -- green suites, silent wrong.
+
+AND THEN IT WAS WRITTEN IN THE WRONG PLACE. `commit_move` updated
+`scene.combatant_positions` IN PLACE beside a `MovementResolved` that
+`apply_event` did nothing with, so a session rebuilt from its rows put
+everybody back at his starting placement. `apply_event` folds the row
+now (`session/apply.py::_fold_position`), which means the new position is
+on the RETURNED session and not on the one that was handed in --- so
+every test below reads the result of the call rather than the session it
+passed, the same way the vitals tests do. Reading the input session was
+only ever possible because the write leaked out of the fold.
 """
 from __future__ import annotations
 
@@ -91,23 +101,26 @@ def test_moving_toward_an_enemy_changes_the_position():
     before = position_of(session.scene, "actor")
     assert before.x == 0.0
 
-    _resolve(session, _act("move"))
+    resolved = _resolve(session, _act("move"))
 
-    after = position_of(session.scene, "actor")
+    after = position_of(resolved.session.scene, "actor")
     assert after.x > before.x, "the mover never moved"
+    assert position_of(session.scene, "actor").x == 0.0, (
+        "the session handed in must be untouched --- the fold returns a "
+        "new one, the same way it does for a vital")
 
 
 def test_a_full_move_is_capped_by_the_characters_running():
     """12m of RUNNING does not cross 30m of street in one Phase."""
     session = _session(apart=30.0)
-    _resolve(session, _act("move"))
-    assert position_of(session.scene, "actor").x == pytest.approx(12.0)
+    resolved = _resolve(session, _act("move"))
+    assert position_of(resolved.session.scene, "actor").x == pytest.approx(12.0)
 
 
 def test_a_reachable_destination_is_reached_exactly():
     session = _session(apart=5.0)
-    _resolve(session, _act("move"))
-    assert position_of(session.scene, "actor").x == pytest.approx(5.0)
+    resolved = _resolve(session, _act("move"))
+    assert position_of(resolved.session.scene, "actor").x == pytest.approx(5.0)
 
 
 def test_the_outcome_says_whether_the_destination_was_reached():
@@ -121,8 +134,8 @@ def test_the_outcome_says_whether_the_destination_was_reached():
 def test_a_partial_move_is_a_real_move():
     """Falling short is not failing: the mover is somewhere new."""
     session = _session(apart=100.0)
-    _resolve(session, _act("move"))
-    assert position_of(session.scene, "actor").x > 0
+    resolved = _resolve(session, _act("move"))
+    assert position_of(resolved.session.scene, "actor").x > 0
 
 
 # ---- Refusals rather than guesses ----
@@ -151,10 +164,10 @@ def test_repositioning_without_a_destination_refuses():
 
 def test_repositioning_goes_where_the_offer_said():
     session = _session()
-    _resolve(session, _act(
+    resolved = _resolve(session, _act(
         "reposition", target_id=None, reposition_dest=(0.0, 8.0, 0.0),
     ))
-    landed = position_of(session.scene, "actor")
+    landed = position_of(resolved.session.scene, "actor")
     assert (landed.x, landed.y) == pytest.approx((0.0, 8.0))
 
 
@@ -177,7 +190,7 @@ def test_a_reposition_strike_attacks_from_the_NEW_position():
         _attack_view=blast("eb", dice=8),
     ))
 
-    assert position_of(session.scene, "actor").x == pytest.approx(5.0)
+    assert position_of(resolved.session.scene, "actor").x == pytest.approx(5.0)
     assert resolved.result is not None
     assert resolved.session.combatants["mark"].state.current_stun <= before
 
@@ -189,12 +202,13 @@ def test_a_reposition_strike_is_capped_at_a_half_move():
     session = _session(apart=20.0)
     running = float(session.combatants["actor"].hero.characteristic_value("RUNNING"))
 
-    _resolve(session, _act(
+    resolved = _resolve(session, _act(
         "reposition_strike", reposition_dest=(9.0, 0.0, 0.0),
         _attack_view=blast("eb", dice=8),
     ))
 
-    assert position_of(session.scene, "actor").x == pytest.approx(running / 2.0)
+    assert position_of(resolved.session.scene, "actor").x == pytest.approx(
+        running / 2.0)
 
 
 def test_move_strike_closes_on_the_target_then_strikes():
@@ -202,7 +216,7 @@ def test_move_strike_closes_on_the_target_then_strikes():
     resolved = _resolve(session, _act(
         "move_strike", _attack_view=blast("eb", dice=8),
     ))
-    assert position_of(session.scene, "actor").x > 0.0
+    assert position_of(resolved.session.scene, "actor").x > 0.0
     assert resolved.result is not None
 
 
@@ -213,14 +227,14 @@ def test_commit_move_records_a_decision_it_did_not_make():
     legality. Keeping them apart is what stops a 'could I get there?' query
     mutating the world."""
     session = _session()
-    _, outcome = move_toward(
+    moved, outcome = move_toward(
         session, "actor", Position(4.0, 0.0, 0.0),
         mode="running", distance_m=12.0,
     )
-    assert position_of(session.scene, "actor").x == pytest.approx(4.0)
+    assert position_of(moved.scene, "actor").x == pytest.approx(4.0)
 
-    commit_move(session, "mark", outcome)
-    assert position_of(session.scene, "mark").x == pytest.approx(4.0)
+    committed = commit_move(moved, "mark", outcome)
+    assert position_of(committed.scene, "mark").x == pytest.approx(4.0)
 
 
 def test_committing_with_no_scene_is_a_no_op_not_a_crash():
@@ -246,4 +260,4 @@ def test_the_movement_event_carries_the_starting_position():
     _new, event = Running.make(distance_m=6.0, move_type="half", base_inches=12).resolve(
         session, "actor",
     )
-    assert event.from_pos == {"x": 0.0, "y": 0.0, "z": 0.0}
+    assert event.from_pos == {"x": 0.0, "y": 0.0, "z": 0.0, "facing": 0.0}

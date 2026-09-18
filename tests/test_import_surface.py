@@ -47,7 +47,7 @@ REQUIRED_BY_CONSUMERS = {
     "build_acting_order_for_segment",
     "AbortDeclared", "ActionDeclared", "ActionResolved", "SegmentAdvanced",
     "EnvironmentalTriggered", "GMOverride", "HeldActionDeclared",
-    "HeldActionReleased", "MovementResolved", "StatusChanged",
+    "HeldActionReleased", "MovementResolved",
     "make_author_combatant", "make_author_engine", "make_author_gm",
     # Perception and senses
     "perceive", "per_roll_target", "flash_groups", "darkness_groups",

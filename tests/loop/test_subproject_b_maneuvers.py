@@ -108,22 +108,29 @@ def test_a_trip_does_no_damage():
 def test_prone_clears_only_on_an_explicit_status_change():
     """Getting up costs a Half Phase and this engine has no stand-up action
     among the kinds it offers, so nothing can signal it automatically. A
-    clearing rule is NOT invented here -- it is a consumer's explicit act."""
+    clearing rule is NOT invented here -- it is a consumer's explicit act.
+
+    Through `StatusEffectsChanged`, which is the ONE door a condition
+    goes through now: this used to name `StatusChanged`, a second event
+    shape for the same fact that no producer in the engine ever built.
+    """
     import uuid
     from datetime import datetime, timezone
 
     from kirby_combat.session.apply import apply_event
-    from kirby_combat.session.events import StatusChanged, make_author_engine
+    from kirby_combat.session.events import (
+        StatusEffectsChanged, make_author_engine,
+    )
 
     _, resolved = _resolve(_act("trip"), roller=_hits())
     session = resolved.session
     assert PRONE in statuses_for(session, "mark")
 
-    session = apply_event(session, StatusChanged(
+    session = apply_event(session, StatusEffectsChanged(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        combatant_id="mark",
+        combatant_id="mark", removed=frozenset({PRONE}),
     ))
     assert PRONE not in statuses_for(session, "mark")
 

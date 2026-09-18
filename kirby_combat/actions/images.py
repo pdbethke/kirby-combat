@@ -330,9 +330,13 @@ class Images:
 
         target = _PointTarget()
         if scene is not None and eye is not None:
-            positions = dict(positions)
-            positions[target.id] = point
-            scene = _ScenePositionsView(scene, positions)
+            # A POINT, GIVEN AN ID, so `_darkness_blocks` --- which looks
+            # both endpoints up in the scene's position map --- can be
+            # asked about it. `Scene.with_position` returns a new board
+            # rather than touching the shared one; this used to be a
+            # hand-rolled `__slots__` proxy, a second way of saying what
+            # the Scene can say itself.
+            scene = scene.with_position(target.id, point)
 
         for group in groups:
             if group in flashed:
@@ -457,24 +461,3 @@ class Images:
             image_id=image_id, observer_id=observer_id, succeeded=succeeded,
             roll=roll, target_number=target_number,
         )
-
-
-class _ScenePositionsView:
-    """A read-only Scene proxy with one extra entry in
-    ``combatant_positions`` — the Image's point, under a synthetic id.
-
-    ``perception._darkness_blocks`` looks its two endpoints up in the
-    scene's position map, so asking it about a POINT means the point has to
-    appear there. Wrapping rather than mutating keeps ``Images`` free of
-    side effects on a shared Scene, and keeps ``_darkness_blocks`` unaware
-    that anything but combatants exists.
-    """
-
-    __slots__ = ("_scene", "combatant_positions")
-
-    def __init__(self, scene, positions):
-        self._scene = scene
-        self.combatant_positions = positions
-
-    def __getattr__(self, name):
-        return getattr(self._scene, name)

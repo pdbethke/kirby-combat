@@ -1,10 +1,30 @@
-"""status_deltas — an opt-in, pure diff surface for publishing status change.
+"""status_emission — THE ONE DOOR a condition goes through to reach the log.
 
-CONTROLLER OVERRIDE (2026-08-27, status-emission Task 4): the original task
-brief asked for this to be wired *inside* ``apply_event`` -- diff before/after
-per combatant, on every call, and append the resulting ``StatusEffectsChanged``
-events to the same log entry as the event just applied. That was rejected
-before this module was written:
+WHAT WAS WRONG WITH IT (measured 2026-09-18, Krackle's checkpoint gate).
+This module held a pure diff (``status_deltas``) and one convenience
+wrapper, ``apply_event_with_deltas``, that handed the diff back to a
+caller to persist "if it wants to". **Nothing in the engine called that
+wrapper, and nothing anywhere emitted a ``StatusEffectsChanged``** -- so
+no condition this engine produces ever reached the log as a row.
+Knocked out, stunned, prone, held, entangled, flashed: a viewer reading
+the record could not know a man had gone down.
+
+``record_status_changes`` below is the door that closes it. It is the
+ONE emitter: it diffs the RULE (``statuses.statuses_for``) against the
+RECORD (``CombatSession.statuses``, folded by ``apply_event`` out of
+these very rows) and emits one ``StatusEffectsChanged`` per combatant
+whose set has moved. ``loop/run.py::run_phase`` -- this engine's one step
+door -- calls it on every exit, so every Phase that changes a condition
+writes the change down.
+
+The wrapper is deleted. A door nothing goes through is not a door.
+
+CONTROLLER OVERRIDE (2026-08-27, status-emission Task 4), KEPT because it
+is still the reason the emission is not *inside* ``apply_event``: the
+original task brief asked for this to be wired *inside* ``apply_event`` --
+diff before/after per combatant, on every call, and append the resulting
+``StatusEffectsChanged`` events to the same log entry as the event just
+applied. That was rejected before this module was written:
 
 - ``apply_event`` enforces ``event.sequence == len(session.event_log) + 1``
   (``kirby_combat/session/apply.py``) and raises ``ValueError`` on a mismatch.
@@ -85,10 +105,9 @@ def status_deltas(
 
     Nothing is appended to any log by this function. It is a pure
     computation over two ``CombatSession`` values; the caller decides
-    whether/how to persist or publish the result (see
-    `apply_event_with_deltas` below for the common "apply one event, get
-    its deltas back" shape -- itself just this function plus a call to
-    the untouched `apply_event`).
+    whether/how to persist or publish the result. The engine's own
+    caller is `record_status_changes` below, which is the one door
+    between this diff and the log.
 
     Preconditions (inherited from ``statuses_for``, called twice per
     combatant here): both `before` and `after` must be sessions whose
@@ -213,41 +232,69 @@ def status_deltas(
     return events
 
 
-def apply_event_with_deltas(
+def record_status_changes(
     session: "CombatSession",
-    event: "CombatEvent",
     *,
     author: EventAuthor | None = None,
     timestamp: datetime | None = None,
     id_factory: Callable[[int, str], str] | None = None,
 ) -> tuple["CombatSession", list[StatusEffectsChanged]]:
-    """Apply one event via the untouched `apply_event`, then compute the
-    `StatusEffectsChanged` deltas it produced.
+    """THE ONE EMITTER: write down every condition that has changed.
 
-    Convenience only -- does **not** change `apply_event` in any way (it
-    calls it exactly once, unmodified) and does **not** append the
-    returned deltas to the new session's `event_log`. If a caller wants
-    them persisted, that is a second, explicit `apply_event` call per
-    delta (each needs its own next-sequence number, which is exactly why
-    `status_deltas`' `start_sequence` is a required keyword rather than
-    something this function guesses): the deltas are handed back for the
-    caller to decide, matching the "no event for an unchanged combatant,
-    nothing appended unless the caller does it" contract `status_deltas`
-    itself documents.
+    Compares, for each combatant, the RULE --- ``statuses_for``, which is
+    what makes a condition true --- against the RECORD, ``session
+    .statuses``, which ``apply_event`` folds out of the rows this
+    function emits. Where they differ, one ``StatusEffectsChanged`` is
+    emitted and applied, and they agree again.
 
-    The returned deltas' `start_sequence` is `event.sequence + 1` -- the
-    next slot after the event that was just applied, so a caller who does
-    choose to append them keeps a contiguous, gap-free sequence.
+    Returns ``(session, events)``. A fight in which nothing changed
+    returns the session it was handed and an empty list --- a row saying
+    "still knocked out" is noise the record does not need, the same
+    principle ``record_vitals_change`` applies to a zero delta.
+
+    THE DIFF IS AGAINST THE FOLD, not against a `before` session. Two
+    sessions is what ``status_deltas`` above takes, and it is the right
+    shape for a consumer publishing a transition it already holds both
+    sides of; it is the wrong shape here, because the question this
+    function answers is "does the record still say what the rule says",
+    and the record is one object.
+
+    WHY IT CANNOT LOOP. ``statuses_for`` reads
+    ``StatusEffectsChanged`` in exactly one place --- Prone's clear edge,
+    which fires only on a row that names ``PRONE`` in ``removed``, and
+    this function emits a removal only when the rule has ALREADY stopped
+    saying Prone. So an emitted row can never be what makes the next
+    diff non-empty; a second call over the same session emits nothing.
+
+    Cost: one ``statuses_for`` per combatant, which is O(events) each ---
+    the same order as one ``status_deltas`` call, half the calls. It runs
+    once per Phase, not once per event.
     """
-    before = session
-    after = apply_event(session, event)
-    deltas = status_deltas(
-        before,
-        after,
-        session_id=session.id,
-        start_sequence=event.sequence + 1,
-        author=author,
-        timestamp=timestamp,
-        id_factory=id_factory,
-    )
-    return after, deltas
+    if author is None:
+        author = make_author_engine()
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    if id_factory is None:
+        id_factory = _default_id_factory
+
+    emitted: list[StatusEffectsChanged] = []
+    for combatant_id in sorted(session.combatants):
+        rule = statuses_for(session, combatant_id)
+        record = session.statuses[combatant_id]
+        if rule == record:
+            continue
+        sequence = len(session.event_log) + 1
+        event = StatusEffectsChanged(
+            id=id_factory(sequence, combatant_id),
+            session_id=session.id,
+            sequence=sequence,
+            timestamp=timestamp,
+            author=author,
+            combatant_id=combatant_id,
+            added=rule - record,
+            removed=record - rule,
+        )
+        session = apply_event(session, event)
+        emitted.append(event)
+
+    return session, emitted

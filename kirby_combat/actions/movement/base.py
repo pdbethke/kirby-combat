@@ -154,7 +154,8 @@ class MovementAction:
             author=make_author_combatant(combatant_id),
             combatant_id=combatant_id,
             from_pos=(
-                {"x": start.x, "y": start.y, "z": start.z}
+                {"x": start.x, "y": start.y, "z": start.z,
+                 "facing": start.facing}
                 if start is not None else None
             ),
             to_pos=None,

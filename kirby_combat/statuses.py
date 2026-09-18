@@ -229,10 +229,15 @@ PRONE = "prone"
 #
 # WHAT IS NOT IMPLEMENTED, and is not invented here: WHEN IT CLEARS. Getting
 # up costs a Half Phase, and this engine has no stand-up action among the 51
-# kinds enumeration offers -- so nothing can signal it yet. A `StatusChanged`
-# naming this combatant clears the flag, which makes standing up a consumer's
-# explicit act rather than a duration this module guessed at. Inventing a
-# clearing rule would be worse than saying it is absent.
+# kinds enumeration offers -- so nothing can signal it yet. A
+# `StatusEffectsChanged` naming this combatant with PRONE among its `removed`
+# ids clears the flag, which makes standing up a consumer's explicit act
+# rather than a duration this module guessed at. Inventing a clearing rule
+# would be worse than saying it is absent.
+#
+# (It used to be a `StatusChanged` -- a second event shape for the same fact,
+# with no producer anywhere in the engine. One door now; see that event's
+# docstring.)
 
 # ---------------------------------------------------------------------------
 # Flash — per-Sense-Group blinding
@@ -429,10 +434,12 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
     not re-derive it. Entries written before that key existed fall back to
     ``hit``, which is what the key means for a Trip with no save.
 
-    CLEAR: a ``StatusChanged`` naming this combatant. There is no automatic
-    clear, deliberately -- see the module NOTE beside ``PRONE``. Getting up
-    costs a Half Phase and nothing in this engine can declare that yet, so
-    standing up is an explicit act rather than a duration guessed at here.
+    CLEAR: a ``StatusEffectsChanged`` naming this combatant with ``PRONE``
+    among its ``removed`` ids -- the one door a condition goes through.
+    There is no automatic clear, deliberately -- see the module NOTE
+    beside ``PRONE``. Getting up costs a Half Phase and nothing in this
+    engine can declare that yet, so standing up is an explicit act rather
+    than a duration guessed at here.
     """
     prone = False
     for evt in session.event_log:
@@ -445,7 +452,11 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
                 and payload.get("is_prone_after", payload.get("hit"))
             ):
                 prone = True
-        elif kind == "StatusChanged" and getattr(evt, "combatant_id", None) == combatant_id:
+        elif (
+            kind == "StatusEffectsChanged"
+            and getattr(evt, "combatant_id", None) == combatant_id
+            and PRONE in getattr(evt, "removed", frozenset())
+        ):
             prone = False
     return prone
 

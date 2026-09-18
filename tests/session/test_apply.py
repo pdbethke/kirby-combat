@@ -276,12 +276,17 @@ def test_lightning_reflexes_restriction_is_inert_without_the_driver():
     assert s2.event_log[-1].kind == "ActionDeclared"
 
 
-def test_apply_status_effects_changed_is_log_only():
-    """StatusEffectsChanged is a derived-status delta, audit-only: applying
-    it must append to the log and otherwise leave the session untouched.
-    The status set itself comes from `statuses_for` folding the log, never
-    from mutating state in response to this event."""
+def test_apply_status_effects_changed_folds_the_condition():
+    """IT USED TO BE LOG-ONLY, and this test said so: "applying it must
+    append to the log and otherwise leave the session untouched". That
+    made `StatusEffectsChanged` a row nothing read --- and since nothing
+    emitted one either, no condition this engine produced ever reached
+    the record at all.
+
+    It is the one door now: `apply_event` folds it onto
+    `CombatSession.statuses`, which is what `state_view` reads."""
     s = _session()
+    assert s.statuses["alice"] == frozenset()
     evt = StatusEffectsChanged(
         id="evt-x", session_id="s1", sequence=len(s.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
@@ -290,9 +295,29 @@ def test_apply_status_effects_changed_is_log_only():
         removed=frozenset({"entangled"}),
     )
     s2 = apply_event(s, evt)
+
     assert evt in s2.event_log
-    # Nothing besides the log (and updated_at) changed.
-    assert replace(s2, event_log=s.event_log, updated_at=s.updated_at) == s
+    assert s2.statuses["alice"] == frozenset({"stunned"})
+    assert s.statuses["alice"] == frozenset(), "the input session is untouched"
+    # Nothing besides the log, the fold (and updated_at) changed.
+    assert replace(
+        s2, event_log=s.event_log, updated_at=s.updated_at,
+        statuses=s.statuses,
+    ) == s
+
+
+def test_a_status_row_addressed_to_a_stranger_raises():
+    """The same refusal `_fold_vitals` makes, for the same reason: a
+    replay that quietly drops a condition is a replay that disagrees with
+    the fight and says nothing."""
+    s = _session()
+    evt = StatusEffectsChanged(
+        id="evt-x", session_id="s1", sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id="ghost", added=frozenset({"stunned"}),
+    )
+    with pytest.raises(ValueError, match="ghost"):
+        apply_event(s, evt)
 
 
 def test_apply_unknown_event_raises():

@@ -25,11 +25,17 @@ lives in `movement_legality`. Recording that they went there is a rule too
 different one, and putting it inside `movement_reach` would make a pure
 "could I get there?" query mutate the world as a side effect.
 
-MUTATION, DELIBERATELY, AND ONLY HERE. `Scene` documents itself as holding
-a "Mutable combatant_positions dict", so committing a move updates that dict
-in place rather than rebuilding the Scene. Everything else in the session ---
-combatants, the event log --- stays immutable and is replaced. The asymmetry
-is the Scene's own design, not an exception invented here.
+AND IT NO LONGER WRITES (0.18.5). This module used to update
+`scene.combatant_positions` in place and then emit a `MovementResolved`
+that `apply_event` did nothing with --- mutate-then-log, the exact shape
+Task A7 removed from the vitals. The consequence was the same: a session
+rebuilt from its rows put every fighter at his starting placement for
+ever, measured on a recorded fight as all fourteen checkpoints reporting
+Wyatt at (3.1, 3.7) although he moved at sequence 7.
+
+So `commit_move` now emits the row and the FOLD writes the Scene
+(`session/apply.py::_fold_position`). One writer, and the live path and
+the replayed path go through it in that same one place.
 """
 from __future__ import annotations
 
@@ -69,6 +75,9 @@ def commit_move(
     An unreachable outcome still lands the mover at ``outcome.landing`` ---
     which `movement_reach` sets to the furthest point actually reached (or
     to the start, for a refusal). A partial move is a real move.
+
+    WRITES NOTHING ITSELF. It records the move; `apply_event` applies it.
+    See this module's docstring for the defect that split them.
     """
     scene = session.scene
     if scene is None:
@@ -76,9 +85,8 @@ def commit_move(
     positions = getattr(scene, "combatant_positions", None)
     if positions is None:
         return session
-    start = positions.get(combatant_id)
-    positions[combatant_id] = outcome.landing
-    return _record_move(session, combatant_id, start, outcome)
+    return _record_move(session, combatant_id, positions.get(combatant_id),
+                        outcome)
 
 
 def _record_move(session, combatant_id, start, outcome):
@@ -100,14 +108,16 @@ def _record_move(session, combatant_id, start, outcome):
 
     A ZERO-LENGTH MOVE IS NOT A MOVE. `movement_reach` lands a refusal back
     at the start, and a log full of those is noise a replay would animate
-    as a twitch.
+    as a twitch. FACING COUNTS as part of that comparison: a man who
+    turns on the spot has moved, as far as anything drawing him is
+    concerned.
     """
     import uuid
     from datetime import datetime, timezone
 
     landing = outcome.landing
-    if start is not None and (start.x, start.y, start.z) == (
-            landing.x, landing.y, landing.z):
+    if start is not None and (start.x, start.y, start.z, start.facing) == (
+            landing.x, landing.y, landing.z, landing.facing):
         return session
 
     from kirby_combat.session.apply import apply_event
@@ -122,9 +132,11 @@ def _record_move(session, combatant_id, start, outcome):
         timestamp=datetime.now(timezone.utc),
         author=make_author_combatant(combatant_id),
         combatant_id=combatant_id,
-        from_pos=({"x": start.x, "y": start.y, "z": start.z}
+        from_pos=({"x": start.x, "y": start.y, "z": start.z,
+                   "facing": start.facing}
                   if start is not None else None),
-        to_pos={"x": landing.x, "y": landing.y, "z": landing.z},
+        to_pos={"x": landing.x, "y": landing.y, "z": landing.z,
+                "facing": landing.facing},
         velocity_mps=float(getattr(outcome, "distance_m", 0.0) or 0.0),
         move_type=getattr(outcome, "mode", None) or "move",
     ))

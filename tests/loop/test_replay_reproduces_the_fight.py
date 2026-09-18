@@ -27,9 +27,14 @@ from kirby_combat.encounter import Encounter
 from kirby_combat.loop import FirstLegalChooser, next_actor_id, run_phase
 from kirby_combat.loop.run import run_encounter
 from kirby_combat.roster import LastSideStanding, Roster
+from kirby_combat.scene.scene import (
+    AmbientConditions, Position, Scene, SceneBounds, Surface,
+)
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.rewind import rewind_to_sequence
+from kirby_combat.session.state_view import state_view
 from kirby_combat.side import Side
+from kirby_combat.statuses import statuses_for
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -43,6 +48,33 @@ SESSION_SEED = 7
 MAX_TURNS = 8
 
 
+class CloseTheDistanceThenFight:
+    """Take a step the first time you act, then fight.
+
+    `FirstLegalChooser` picks the first offer on the menu and that offer
+    is always `attack`, so a fight driven by it never moves anybody ---
+    which would make this file's position claim true of a fold that
+    writes nothing. This chooser moves each man once and then behaves
+    exactly like `FirstLegalChooser`. It rolls nothing: the decision is
+    a function of who is acting and whether he has already moved, so the
+    fight it drives is as reproducible as the one `FirstLegalChooser`
+    drives.
+    """
+
+    def __init__(self) -> None:
+        self._moved: set[str] = set()
+
+    def choose(self, situation):
+        actor_id = str(situation.actor.id)
+        if actor_id not in self._moved:
+            move = next(
+                (m for m in situation.menu if m.kind == "move"), None)
+            if move is not None:
+                self._moved.add(actor_id)
+                return move.action_id
+        return situation.menu[0].action_id
+
+
 def _combatants():
     """Three fighters, built fresh each call --- two against one, so the
     fight actually reaches `last_side_standing` inside the Turn guard."""
@@ -53,9 +85,37 @@ def _combatants():
     ]
 
 
+#: WHERE THE THREE OF THEM START. A fight with no Scene is a fight in
+#: which nobody can move, so the position half of this file's claim would
+#: be satisfied by three men standing still --- the exact failure the
+#: vitals half was written to catch.
+#: Far enough apart that a half-move toward the other side is on every
+#: menu, and facing each other so that a move which turns a man shows up
+#: as a change of facing and not only of place.
+START = {
+    "a": Position(1.0, 0.0, 0.0, 0.0),
+    "b": Position(21.0, 0.0, 0.0, 3.14),
+    "c": Position(21.0, 4.0, 0.0, 3.14),
+}
+
+
+def _scene() -> Scene:
+    return Scene(
+        id="lot", name="lot",
+        bounds=SceneBounds(-5.0, -5.0, 0.0, 400.0, 400.0, 14.0),
+        surfaces=[Surface(
+            id="g", name="g",
+            polygon_xy=[(-5, -5), (400, -5), (400, 400), (-5, 400)],
+            elevation_m=0.0, surface_type="ground", cover_level=0,
+        )],
+        walls=[], hazards=[], ambient=AmbientConditions(light_level=4),
+        combatant_positions=dict(START),
+    )
+
+
 def _fresh_session() -> CombatSession:
     return CombatSession.create(
-        id="s", combatants=_combatants(), scene=None, template=TEMPLATE,
+        id="s", combatants=_combatants(), scene=_scene(), template=TEMPLATE,
         dice_roller=RandomRoller(seed=SESSION_SEED),
     )
 
@@ -74,6 +134,58 @@ def _vitals(session: CombatSession) -> dict[str, tuple[int, int, int]]:
         )
         for cid, c in sorted(session.combatants.items())
     }
+
+
+def _places(session: CombatSession) -> dict[str, tuple]:
+    """Where every man stands and which way he faces, in one comparable
+    shape.
+
+    FACING IS IN IT: a `Position` carries it ("0 rad = east") and a board
+    draws it, so a replay that put a man on the right spot pointing the
+    wrong way is not the same fight.
+    """
+    positions = (getattr(session.scene, "combatant_positions", None) or {})
+    return {
+        cid: (round(p.x, 6), round(p.y, 6), round(p.z, 6), round(p.facing, 6))
+        for cid, p in sorted(positions.items())
+    }
+
+
+def _recorded(session: CombatSession) -> dict[str, frozenset[str]]:
+    """What the RECORD says --- `CombatSession.statuses`, folded by
+    `apply_event` out of the `StatusEffectsChanged` rows."""
+    return dict(sorted(session.statuses.items()))
+
+
+def _conditions(session: CombatSession) -> dict[str, frozenset[str]]:
+    """Every condition every man is in --- knocked out, stunned, prone,
+    held, entangled, flashed --- asked of the session, per combatant."""
+    return {
+        cid: statuses_for(session, cid)
+        for cid in sorted(session.combatants)
+    }
+
+
+def _view(session: CombatSession) -> tuple:
+    """The whole published projection, minus the one field that is a roll.
+
+    `state_view` requires a roller because the perception fold rolls for
+    two pair kinds; those two are not a projection of the log. Every
+    other field is a read, and that is what is compared --- both sides
+    are handed a roller seeded the same way, so even the rolled field
+    agrees when the fight does.
+    """
+    view = state_view(session, roller=RandomRoller(seed=99))
+    return (
+        view.status, view.turn, view.segment, view.last_sequence,
+        view.next_actor_id,
+        tuple(
+            (c.id, c.current_stun, c.current_body, c.current_end,
+             c.health, c.down, c.position, c.prone, c.stunned, c.ko,
+             c.invisible, tuple(c.perceives))
+            for c in view.combatants
+        ),
+    )
 
 
 def _shape(event) -> tuple:
@@ -95,6 +207,8 @@ def _shape(event) -> tuple:
         "VitalsChanged": ("combatant_id", "stun", "body", "end", "reason"),
         "RecoveryTaken": ("combatant_id", "stun_recovered", "end_recovered"),
         "BleedingSuffered": ("combatant_id", "body_lost", "stun_lost", "rule"),
+        "MovementResolved": ("combatant_id", "from_pos", "to_pos", "move_type"),
+        "StatusEffectsChanged": ("combatant_id", "added", "removed"),
     }.get(event.kind, ())
     return (event.kind, *(repr(getattr(event, f)) for f in fields))
 
@@ -102,7 +216,7 @@ def _shape(event) -> tuple:
 def _ran_the_whole_fight():
     """The live fight: one roller, one `run_encounter`, run to a verdict."""
     result = run_encounter(
-        _encounter(), FirstLegalChooser(),
+        _encounter(), CloseTheDistanceThenFight(),
         roller=RandomRoller(seed=FIGHT_SEED),
         max_turns=MAX_TURNS, on_unresolvable="skip",
     )
@@ -126,6 +240,71 @@ def test_the_fight_hurts_somebody():
     assert _vitals(live) != start
 
 
+def test_somebody_moves_in_this_fight():
+    """The negative control for POSITIONS. Three men who never take a step
+    make the position equivalence below true of any two fights, including
+    two in which the fold does nothing at all --- which is exactly the
+    state `MovementResolved` was in."""
+    live = _ran_the_whole_fight().encounter.sessions[0]
+
+    assert any(e.kind == "MovementResolved" for e in live.event_log), (
+        "nobody moved, so the position claim below proves nothing")
+    assert _places(live) != _places(_fresh_session()), (
+        "every man is where he started, so the position claim below is "
+        "satisfied by a fold that writes nothing")
+
+
+def test_somebody_goes_down_in_this_fight():
+    """The negative control for CONDITIONS. A fight in which nobody is
+    ever knocked out, stunned or put on the ground makes the condition
+    equivalence below true of two empty status sets."""
+    live = _ran_the_whole_fight().encounter.sessions[0]
+
+    landed = set().union(*_conditions(live).values())
+    assert landed, (
+        "nobody ended the fight in any condition at all, so the condition "
+        f"claim below proves nothing (sets were {_conditions(live)})")
+
+
+def test_a_condition_reaches_the_log_as_a_row():
+    """THE SECOND DEFECT THIS FILE PINS. Conditions were derived from the
+    log and never written TO it: `StatusEffectsChanged` had no producer
+    anywhere in the engine (its only door,
+    `status_emission.apply_event_with_deltas`, was called by nothing) and
+    `StatusChanged` had none either. So a viewer reading the rows could
+    not know a man had gone down --- it could only know if it re-ran this
+    engine's whole derivation itself.
+
+    `run_phase` writes them down now, through the one door."""
+    live = _ran_the_whole_fight().encounter.sessions[0]
+
+    rows = [e for e in live.event_log if e.kind == "StatusEffectsChanged"]
+    assert rows, "no condition in this fight was ever written down"
+    assert any("knockedOut" in e.added for e in rows), (
+        f"nobody was recorded going down; the rows said "
+        f"{[(e.combatant_id, sorted(e.added), sorted(e.removed)) for e in rows]}")
+
+
+def test_the_record_says_what_the_rule_says():
+    """The fold is not a second opinion.
+
+    `statuses_for` is the RULE --- what makes a condition true ---  and
+    `session.statuses` is the RECORD of it, folded out of the rows. A
+    record that quietly drifted from the rule would satisfy every
+    live-versus-replayed comparison in this file, because both sides
+    would drift the same way. So they are compared to each other, at
+    every Phase boundary of a whole fight.
+    """
+    _live, observed = _ran_it_and_wrote_down_what_it_saw()
+
+    assert observed, "no observations"
+    for sequence, (_v, _a, _p, rule, record) in observed.items():
+        assert rule == record, (
+            f"the record and the rule disagree at sequence {sequence}: "
+            f"rule {rule}, record {record}"
+        )
+
+
 def _ran_it_and_wrote_down_what_it_saw():
     """The live fight, stepped by `run_phase`, RECORDING the state after
     every Phase as it happens.
@@ -142,18 +321,22 @@ def _ran_it_and_wrote_down_what_it_saw():
     that Phase's last event carries.
     """
     roller = RandomRoller(seed=FIGHT_SEED)
+    chooser = CloseTheDistanceThenFight()
     encounter = _encounter()
     stop = LastSideStanding()
     observed: dict[int, tuple] = {}
 
     for _ in range(MAX_TURNS * 12 * 12):
-        phase = run_phase(encounter, FirstLegalChooser(), roller=roller,
+        phase = run_phase(encounter, chooser, roller=roller,
                           on_unresolvable="skip")
         if phase.actor_id is None:
             break
         encounter = phase.encounter
         live = phase.session
-        observed[len(live.event_log)] = (_vitals(live), next_actor_id(live))
+        observed[len(live.event_log)] = (
+            _vitals(live), next_actor_id(live), _places(live),
+            _conditions(live), _recorded(live),
+        )
         if Roster(live).decide(stop):
             break
     else:                                   # pragma: no cover - guard
@@ -166,7 +349,7 @@ def test_replaying_the_log_reproduces_what_the_live_fight_showed():
     """Anchored to the live session, not to another replay."""
     live, observed = _ran_it_and_wrote_down_what_it_saw()
     assert len(observed) >= 4, "too few observations to mean anything"
-    seen = [v for v, _ in observed.values()]
+    seen = [o[0] for o in observed.values()]
     assert seen[0] != seen[-1], (
         "nobody's vitals moved across the observations, so the comparison "
         "below would hold for two fights in which nothing happened")
@@ -176,7 +359,8 @@ def test_replaying_the_log_reproduces_what_the_live_fight_showed():
         replayed = apply_event(replayed, event)
         if event.sequence not in observed:
             continue
-        seen_vitals, seen_actor = observed[event.sequence]
+        seen_vitals, seen_actor, seen_places, seen_cond, seen_record = (
+            observed[event.sequence])
 
         assert _vitals(replayed) == seen_vitals, (
             f"vitals diverge at sequence {event.sequence} ({event.kind}) "
@@ -185,6 +369,23 @@ def test_replaying_the_log_reproduces_what_the_live_fight_showed():
         assert next_actor_id(replayed) == seen_actor, (
             f"next actor diverges at sequence {event.sequence} "
             f"({event.kind}) from what the live fight showed"
+        )
+        assert _places(replayed) == seen_places, (
+            f"positions diverge at sequence {event.sequence} "
+            f"({event.kind}) from what the live fight showed"
+        )
+        assert _conditions(replayed) == seen_cond, (
+            f"conditions diverge at sequence {event.sequence} "
+            f"({event.kind}) from what the live fight showed"
+        )
+        assert _recorded(replayed) == seen_record, (
+            f"the recorded conditions diverge at sequence "
+            f"{event.sequence} ({event.kind}) from what the live fight "
+            f"showed"
+        )
+        assert _view(replayed) == _view(rewind_to_sequence(live, event.sequence)), (
+            f"the state view diverges at sequence {event.sequence} "
+            f"({event.kind})"
         )
 
 
@@ -211,6 +412,16 @@ def test_replaying_the_log_reproduces_every_vital_at_every_sequence():
         assert next_actor_id(replayed) == next_actor_id(rewound), (
             f"next actor diverges at sequence {event.sequence} ({event.kind})"
         )
+        assert _places(replayed) == _places(rewound), (
+            f"positions diverge at sequence {event.sequence} ({event.kind})"
+        )
+        assert _conditions(replayed) == _conditions(rewound), (
+            f"conditions diverge at sequence {event.sequence} ({event.kind})"
+        )
+        assert _view(replayed) == _view(rewound), (
+            f"the state view diverges at sequence {event.sequence} "
+            f"({event.kind})"
+        )
 
 
 def test_the_replayed_fight_ends_where_the_live_one_did():
@@ -222,6 +433,9 @@ def test_the_replayed_fight_ends_where_the_live_one_did():
         replayed = apply_event(replayed, event)
 
     assert _vitals(replayed) == _vitals(live)
+    assert _places(replayed) == _places(live)
+    assert _conditions(replayed) == _conditions(live)
+    assert _view(replayed) == _view(live)
     assert Roster(replayed).decide(LastSideStanding()).winner == result.winner
 
 
@@ -238,7 +452,7 @@ def _stepped_one_phase_at_a_time():
     claim is about the fight, not about the random stream.
     """
     roller = RandomRoller(seed=FIGHT_SEED)
-    chooser = FirstLegalChooser()
+    chooser = CloseTheDistanceThenFight()
     stop = LastSideStanding()
     rows: list = list(_encounter().sessions[0].event_log)
     winner = None

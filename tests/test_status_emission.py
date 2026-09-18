@@ -1,5 +1,4 @@
-"""status_deltas / apply_event_with_deltas -- pure diff surface for
-publishing status change (status-emission Task 4).
+"""status_deltas (the pure diff) and record_status_changes (the one door).
 
 CONTROLLER OVERRIDE: the task-4 brief asked for this to be wired inside
 `apply_event`. It is not -- see the module docstring in
@@ -21,7 +20,7 @@ from kirby_dice import FakeRoller
 from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.events import SegmentAdvanced, make_author_engine
 from kirby_combat.status_emission import (
-    apply_event_with_deltas, status_deltas,
+    record_status_changes, status_deltas,
 )
 from kirby_combat.statuses import ABORTED, ENTANGLED, KNOCKED_OUT
 from kirby_combat.template import CombatTemplate
@@ -47,6 +46,14 @@ def _session(*combatants) -> CombatSession:
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
     ).start()
+
+
+def _entangle(session: CombatSession, target_id: str) -> CombatSession:
+    session, _ = Entangle.apply(
+        session, attacker_id="alice", target_id=target_id,
+        entangle_body=8, entangle_pd=4, entangle_ed=4,
+    )
+    return session
 
 
 # ---------------------------------------------------------------------------
@@ -245,21 +252,53 @@ def test_diffing_across_the_emitted_events_finds_nothing_further():
 
 
 # ---------------------------------------------------------------------------
-# apply_event_with_deltas: convenience wrapper.
+# record_status_changes: THE ONE DOOR. It writes the rows down.
 # ---------------------------------------------------------------------------
 
-def test_apply_event_with_deltas_returns_session_and_deltas_uncommitted():
+def test_a_fight_in_which_nothing_changed_writes_nothing_down():
+    """A row saying "still knocked out" is noise the record does not need
+    --- the same principle `record_vitals_change` applies to a zero
+    delta."""
     s = _session(_c("alice"), _c("bob"))
-    evt = SegmentAdvanced(
-        id="evt-x", session_id="s1", sequence=len(s.event_log) + 1,
-        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        from_segment=12, to_segment=1, to_turn=2,
-    )
-    new_session, deltas = apply_event_with_deltas(s, evt)
-    assert new_session.timeline.segment == 1
-    assert deltas == []  # SegmentAdvanced changes no combatant's status set
-    # Deltas are not appended -- only the applied event is in the log.
-    assert len(new_session.event_log) == len(s.event_log) + 1
+
+    after, emitted = record_status_changes(s)
+
+    assert emitted == []
+    assert after is s
+
+
+def test_a_condition_becomes_a_row_and_the_row_becomes_the_record():
+    """THE DEFECT THIS PINS. Nothing in this engine ever emitted a
+    `StatusEffectsChanged`: `apply_event_with_deltas`, the only door
+    there was, had no caller anywhere. So a man could be entangled and
+    the log said nothing, and a viewer rebuilding the fight from its rows
+    could not know."""
+    s = _session(_c("alice"), _c("bob"))
+    assert s.statuses["alice"] == frozenset()
+    s = _entangle(s, "alice")  # alice entangles herself; the fold is the point
+
+    after, emitted = record_status_changes(s)
+
+    assert [(e.kind, e.combatant_id, e.added, e.removed) for e in emitted] == [
+        ("StatusEffectsChanged", "alice", frozenset({ENTANGLED}), frozenset()),
+    ]
+    assert after.event_log[-1] is emitted[0]
+    assert after.statuses["alice"] == frozenset({ENTANGLED})
+    assert after.statuses["bob"] == frozenset()
+
+
+def test_asking_twice_writes_the_row_once():
+    """The record and the rule agree again the moment the row is written,
+    so a second call has nothing to say. This is also what makes the
+    emitter safe to call on every Phase."""
+    s = _entangle(_session(_c("alice"), _c("bob")), "alice")
+    s, first = record_status_changes(s)
+
+    s2, second = record_status_changes(s)
+
+    assert len(first) == 1
+    assert second == []
+    assert s2 is s
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +309,7 @@ def test_apply_event_sequence_contract_is_unaffected_by_status_emission():
     """The whole point of the controller override: apply_event still
     raises on a sequence mismatch, still accepts exactly the next
     sequence, and still appends exactly one event per call -- regardless
-    of anything status_deltas / apply_event_with_deltas does."""
+    of anything status_deltas / record_status_changes does."""
     s = _session(_c("alice"), _c("bob"))
 
     good = SegmentAdvanced(

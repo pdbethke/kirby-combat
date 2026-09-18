@@ -132,8 +132,11 @@ def _take_cover(session):
 def test_taking_cover_moves_the_actor():
     session = _session(_scene())
     before = position_of(session.scene, "actor").x
-    _take_cover(session)
-    assert position_of(session.scene, "actor").x != before
+    resolved = _take_cover(session)
+    # The new placement is on the RETURNED session: `apply_event` folds
+    # `MovementResolved` now, so the move no longer leaks back onto the
+    # session that was handed in.
+    assert position_of(resolved.session.scene, "actor").x != before
 
 
 def test_the_actor_ends_up_ON_THE_FAR_SIDE_of_the_cover():
@@ -191,10 +194,11 @@ def test_it_actually_buys_cover():
         shooter_pos=enemy, target_pos=position_of(session.scene, "actor"),
         target_is_prone_or_diving=False, scene=session.scene,
     )
-    _take_cover(session)
+    resolved = _take_cover(session)
     after = compute_cover_level(
-        shooter_pos=enemy, target_pos=position_of(session.scene, "actor"),
-        target_is_prone_or_diving=False, scene=session.scene,
+        shooter_pos=enemy,
+        target_pos=position_of(resolved.session.scene, "actor"),
+        target_is_prone_or_diving=False, scene=resolved.session.scene,
     )
     assert after > before, f"cover went {before} -> {after}"
 

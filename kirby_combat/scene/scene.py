@@ -459,6 +459,45 @@ class Scene:
                 out.append(strip)
         return out
 
+    def with_position(self, combatant_id: str, position: Position) -> "Scene":
+        """THE WHAT-IF BOARD: this scene with one body somewhere else.
+
+        Not a move --- nothing that calls this is changing where anybody
+        stands. It is for the questions the engine asks about a position
+        somebody is NOT at: `move_strike` asks perception to judge the
+        geometry from where the close WILL leave the mover, and `Images`
+        asks the Darkness gate about a point by giving that point a
+        synthetic id in the map. Both used to build the altered board
+        themselves --- one through `dataclasses.replace`, one through a
+        hand-rolled `__slots__` proxy --- which is two copies of a thing
+        the Scene can do once.
+
+        NO BOUNDS CHECK, unlike `place_combatant`: a hypothetical is not
+        a placement, and the fold in `session/apply.py` writes a landing
+        `movement_reach` has already clamped. `place_combatant` stays the
+        door for putting somebody on the board for real.
+        """
+        return replace(
+            self,
+            combatant_positions={**self.combatant_positions,
+                                 combatant_id: position},
+        )
+
+    def snapshot(self) -> "Scene":
+        """This Scene with a COPY of where everybody is standing.
+
+        `combatant_positions` is a mutable dict by this class's own
+        design, so a caller that wants to keep "the board as it stands
+        now" cannot simply keep this object --- it moves with the fight.
+        `CombatSession.initial_scene` keeps exactly that, and a rewind
+        replays the fight's movement into it.
+
+        The geometry (surfaces, walls, hazards, furnishings) is shared,
+        not copied: those are frozen subtypes per the Phase 2 design and
+        nothing moves them.
+        """
+        return replace(self, combatant_positions=dict(self.combatant_positions))
+
     def place_combatant(self, combatant_id: str, position: Position) -> "Scene":
         """Return a new Scene with the combatant positioned.
 

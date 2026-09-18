@@ -228,6 +228,25 @@ class BleedingSuffered(_BaseEvent):
 
 @dataclass
 class MovementResolved(_BaseEvent):
+    """Where a man went — and, since 0.18.5, WHAT APPLIES IT.
+
+    `apply_event` folds this onto `session.scene.combatant_positions`,
+    which makes it the one writer of where anybody stands. It used to be
+    log-only, and `scene/placement.py::commit_move` wrote the landing
+    onto the Scene beside it: a session rebuilt from its rows put every
+    fighter at his starting placement for ever. Measured on a recorded
+    fight — all fourteen checkpoints had Wyatt at (3.1, 3.7) although he
+    moved at sequence 7.
+
+    `from_pos` and `to_pos` carry `x`, `y`, `z` AND `facing` — radians,
+    0 = east, the same four numbers `scene.Position` holds. Facing was
+    dropped from the wire until 0.18.5, so a replay could put a man on
+    the right spot pointing the wrong way, which a board draws.
+
+    `to_pos is None` is not a missing value: it means this row records a
+    movement that CHOSE NO DESTINATION (`MovementAction.resolve` spends
+    END for a distance), so the fold moves nobody.
+    """
     kind: Literal["MovementResolved"] = field(default="MovementResolved", init=False)
     combatant_id: str = ""
     from_pos: dict[str, float] | None = None
@@ -237,26 +256,31 @@ class MovementResolved(_BaseEvent):
 
 
 @dataclass
-class StatusChanged(_BaseEvent):
-    kind: Literal["StatusChanged"] = field(default="StatusChanged", init=False)
-    combatant_id: str = ""
-    from_status: str = ""
-    to_status: str = ""
-    reason: str = ""
-
-
-@dataclass
 class StatusEffectsChanged(_BaseEvent):
-    """Delta view of a combatant's condition set at one change point.
+    """THE ONE DOOR a condition goes through to reach the log.
 
-    `StatusChanged` (above) carries a scalar from/to pair for narration
-    ("went from Stunned to Knocked Out"). Conditions are not scalar — a
-    combatant can be Entangled AND Flashed in two sense groups AND
-    Knocked Out at once, and each id toggles independently (this is how
-    Foundry's per-effect toggle API works). This event carries exactly
-    that: the ids added and the ids removed at this change point. It is
-    plumbing, not a rule — the status set itself is derived elsewhere
-    (`kirby_combat.statuses.statuses_for`), never from this event.
+    Conditions are not scalar — a combatant can be Entangled AND Flashed
+    in two sense groups AND Knocked Out at once, and each id toggles
+    independently (this is how Foundry's per-effect toggle API works).
+    This event carries exactly that: the ids added and the ids removed at
+    this change point.
+
+    THE SECOND DOOR IS GONE (0.18.5). `StatusChanged` — a scalar
+    `from_status`/`to_status` pair — stood beside this one with no
+    producer anywhere in the engine and exactly one consumer, Prone's
+    clear edge in `kirby_combat.statuses._is_prone`. Two shapes for one
+    fact, one of them unreachable, is the shape this engine has paid for
+    repeatedly; the clear edge now reads THIS event (`PRONE` in
+    `removed`) and the scalar event is deleted. A combatant getting to
+    his feet is still a consumer's explicit act, which is the whole
+    reason that edge exists.
+
+    `apply_event` folds it onto `CombatSession.statuses`, and
+    `session/state_view.py` reads that folded set rather than deriving a
+    second one. The RULE for what a condition is stays in
+    `kirby_combat.statuses.statuses_for`, which is what
+    `status_emission.record_status_changes` — the one emitter — diffs to
+    decide that a row is owed.
     """
     kind: Literal["StatusEffectsChanged"] = field(default="StatusEffectsChanged", init=False)
     combatant_id: str = ""
@@ -483,7 +507,6 @@ CombatEvent = (
     | RecoveryTaken
     | BleedingSuffered
     | MovementResolved
-    | StatusChanged
     | StatusEffectsChanged
     | AbortDeclared
     | BlockPriorityGained

@@ -10,7 +10,7 @@ from kirby_combat.session.events import (
     ActionResolved,
     RecoveryTaken,
     MovementResolved,
-    StatusChanged,
+    StatusEffectsChanged,
     AbortDeclared,
     HeldActionDeclared,
     HeldActionReleased,

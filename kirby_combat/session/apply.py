@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import (
     ActingOrderResolved, ActionDeclared, BleedingSuffered,
-    BlockPriorityGained, CombatEvent, PhaseSpent, RecoveryTaken,
-    SegmentAdvanced, VitalsChanged,
+    BlockPriorityGained, CombatEvent, MovementResolved, PhaseSpent,
+    RecoveryTaken, SegmentAdvanced, StatusEffectsChanged, VitalsChanged,
 )
 from kirby_combat.session.timeline import restore_acting_order
 from kirby_combat.talents.lightning_reflexes import restriction_for_slot
@@ -168,6 +168,14 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
+    if kind == "MovementResolved":
+        assert isinstance(event, MovementResolved)
+        return _fold_position(session, new_log, now, event)
+
+    if kind == "StatusEffectsChanged":
+        assert isinstance(event, StatusEffectsChanged)
+        return _fold_statuses(session, new_log, now, event)
+
     if kind == "ActionDeclared":
         assert isinstance(event, ActionDeclared)
         _enforce_lightning_reflexes_phase_restriction(session, event)
@@ -195,17 +203,11 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     #     got through, who was Stunned by it. The STUN and BODY it cost now
     #     ride on their own `VitalsChanged`, emitted beside it, so no fold
     #     has to parse a free-form `result_payload`
-    #   - MovementResolved: where a man went. Its END is a `VitalsChanged`
-    #     for the same reason
-    #   - StatusEffectsChanged: audit-only delta view; the status set itself
-    #     is derived from the log by kirby_combat.statuses.statuses_for, so
-    #     applying this event must never be what makes a status true
     #   - GMOverride / EnvironmentalTriggered: structural log entries only
     #   - ConstructDamaged / ConstructSpawned: audit-only; construct state
     #     lives in the driver, not the engine session (Plan 2)
     if kind in {
-        "ActionResolved", "MovementResolved",
-        "StatusChanged", "StatusEffectsChanged", "HeldActionReleased",
+        "ActionResolved", "HeldActionReleased",
         "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
@@ -251,6 +253,89 @@ def _fold_vitals(
     )
     return replace(
         session, event_log=new_log, combatants=new_combatants, updated_at=now,
+    )
+
+
+def _fold_position(
+    session: CombatSession, new_log, now, event: MovementResolved,
+) -> CombatSession:
+    """THE ONE WRITER of where a combatant is standing, and which way.
+
+    `MovementResolved` was log-only and `scene/placement.py::commit_move`
+    wrote the landing onto the Scene beside it --- the same mutate-then-log
+    shape the vitals fold below was built to remove, one field over. The
+    consequence was the same too: a session rebuilt from its rows (and so
+    `state_view` and `rewind_to_sequence`) put every fighter at his
+    starting placement for ever.
+
+    A row with no `to_pos` MOVES NOBODY, and that is not a default: it is
+    `MovementAction.resolve`'s row, which spends END for a distance and
+    chooses no destination. A session with no Scene has no board to
+    write on and the row is kept as it stands.
+
+    A row addressed to a combatant this session does not know RAISES ---
+    the same refusal `_fold_vitals` makes, for the same reason: a replay
+    that quietly drops a man's movement is a replay that disagrees with
+    the fight and says nothing.
+
+    NOTHING IS JUDGED HERE. `scene/movement_legality.py::movement_reach`
+    decided the landing, clamped by walls, reach and support, before the
+    row was ever built; re-asking `Scene.place_combatant` (which refuses
+    an out-of-bounds point) would be a second ruling on a decision the
+    log has already recorded.
+    """
+    from kirby_combat.scene.scene import Position
+
+    if event.combatant_id not in session.combatants:
+        raise ValueError(
+            f"{event.combatant_id!r} is not a combatant in session "
+            f"{session.id!r}: known combatants are "
+            f"{sorted(session.combatants)}"
+        )
+    if event.to_pos is None or session.scene is None:
+        return replace(session, event_log=new_log, updated_at=now)
+
+    landing = Position(
+        x=float(event.to_pos["x"]),
+        y=float(event.to_pos["y"]),
+        z=float(event.to_pos["z"]),
+        facing=float(event.to_pos["facing"]),
+    )
+    return replace(
+        session, event_log=new_log,
+        scene=session.scene.with_position(event.combatant_id, landing),
+        updated_at=now,
+    )
+
+
+def _fold_statuses(
+    session: CombatSession, new_log, now, event: StatusEffectsChanged,
+) -> CombatSession:
+    """THE ONE WRITER of `CombatSession.statuses`.
+
+    The RULE for what a condition is stays in
+    `kirby_combat.statuses.statuses_for`; this is the record of it.
+    `status_emission.record_status_changes` is the one emitter, and it
+    diffs that rule against this fold to decide a row is owed --- so the
+    two cannot drift without a row saying so.
+
+    `removed` is applied after `added`, which matters for nothing today
+    (the emitter never puts one id in both) and makes the order stated
+    rather than incidental.
+    """
+    if event.combatant_id not in session.combatants:
+        raise ValueError(
+            f"{event.combatant_id!r} is not a combatant in session "
+            f"{session.id!r}: known combatants are "
+            f"{sorted(session.combatants)}"
+        )
+    held = session.statuses[event.combatant_id]
+    new_statuses = {
+        **session.statuses,
+        event.combatant_id: (held | event.added) - event.removed,
+    }
+    return replace(
+        session, event_log=new_log, statuses=new_statuses, updated_at=now,
     )
 
 

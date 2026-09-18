@@ -67,7 +67,11 @@ def test_every_registered_kind_has_a_schema():
     defs = schema["$defs"]
     missing = sorted(c.__name__ for c in EVENT_CLASSES if c.__name__ not in defs)
     assert missing == [], f"registered kinds with no schema: {missing}"
-    assert len(EVENT_CLASSES) >= 30
+    # 29, not 30, since 0.18.5: `StatusChanged` was deleted --- a second
+    # event shape for a fact `StatusEffectsChanged` already carried, with
+    # no producer anywhere in the engine. The floor moves with a
+    # deliberate deletion; it does not move for a collapse.
+    assert len(EVENT_CLASSES) >= 29
 
 
 def test_the_gate_could_actually_fail():

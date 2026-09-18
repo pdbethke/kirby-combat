@@ -72,13 +72,61 @@ class CombatSession:
     #: rebuilding a session from a snapshot has the starting combatants
     #: and must pass them.
     initial_combatants: dict[str, CombatantLike] | None = None
+    #: THE BOARD AS THE FIGHT FOUND IT --- the Scene before the first
+    #: event, positions and all. Exactly the same reason as
+    #: `initial_combatants` above, one field over: `apply_event` folds
+    #: `MovementResolved` now, so `rewind_to_sequence` seeded with
+    #: `scene` would replay every step of the fight on top of the
+    #: placement the fight ENDED in. Measured before it was fixed: a
+    #: rewind to sequence 1 --- before anybody had taken a step --- put
+    #: all three fighters on the spot they were standing on when it was
+    #: over.
+    #:
+    #: A SNAPSHOT, not the same object. `Scene.combatant_positions` is a
+    #: mutable dict by the Scene's own design, so holding the live Scene
+    #: here would be holding a reference that moves with the fight.
+    #: `Scene.snapshot()` copies it.
+    initial_scene: "Scene | None" = None
+    #: EVERY CONDITION EVERY MAN IS IN, folded from the log by
+    #: `apply_event` out of `StatusEffectsChanged` --- knocked out,
+    #: stunned, prone, held, entangled, flashed. Keyed by combatant id,
+    #: one frozenset each, and every combatant has an entry (an empty one
+    #: is "no conditions", which is a fact; a missing one would be a
+    #: question).
+    #:
+    #: `kirby_combat.statuses.statuses_for` is the RULE --- what makes a
+    #: condition true. This is the RECORD of it, and
+    #: `session/state_view.py` reads this rather than deriving a second
+    #: answer. `status_emission.record_status_changes` is the one door
+    #: between them.
+    statuses: dict[str, frozenset[str]] = field(default_factory=dict)
     status: str = "setup"
     dice_roller: Optional["DiceRoller"] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
+        # EVERY COMBATANT HAS AN ENTRY. A missing key is a question
+        # ("has he no conditions, or has nobody asked?"); an empty
+        # frozenset is an answer. Seeded here so no reader needs a
+        # default; anything already supplied wins, so a session
+        # rehydrated from a snapshot carries its own conditions.
+        self.statuses = {
+            **{combatant_id: frozenset() for combatant_id in self.combatants},
+            **self.statuses,
+        }
         if self.initial_combatants is not None:
+            if self.initial_scene is None and self.scene is not None:
+                if self.event_log:
+                    raise ValueError(
+                        f"session {self.id!r} was built with "
+                        f"{len(self.event_log)} events already on it, a "
+                        f"Scene, and no `initial_scene`: the Scene it "
+                        f"holds has the men where the fight LEFT them, "
+                        f"and `rewind_to_sequence` replays into where it "
+                        f"FOUND them. Pass the starting Scene."
+                    )
+                self.initial_scene = self.scene.snapshot()
             return
         if self.event_log:
             raise ValueError(
@@ -89,6 +137,8 @@ class CombatSession:
                 f"into the men it FOUND. Pass the starting combatants."
             )
         self.initial_combatants = dict(self.combatants)
+        if self.initial_scene is None and self.scene is not None:
+            self.initial_scene = self.scene.snapshot()
 
     @classmethod
     def create(
