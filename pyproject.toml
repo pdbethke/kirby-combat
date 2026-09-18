@@ -42,6 +42,14 @@ dev = [
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
+# The derived schema ships IN THE WHEEL. A consumer pins an engine version
+# and generates its event types out of the package it pinned; auto-discovery
+# finds the packages but carries no data files, so without this the
+# `kirby_combat.schema` package installs empty and the generator reads
+# nothing.
+[tool.setuptools.package-data]
+kirby_combat = ["schema/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

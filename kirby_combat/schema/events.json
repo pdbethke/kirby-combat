@@ -1,0 +1,2212 @@
+{
+  "$defs": {
+    "AbortDeclared": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "AbortDeclared",
+          "enum": [
+            "AbortDeclared"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "AbortDeclared",
+          "enum": [
+            "AbortDeclared"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "to_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "to_action"
+      ],
+      "title": "AbortDeclared",
+      "type": "object"
+    },
+    "ActingOrderResolved": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ActingOrderResolved",
+          "enum": [
+            "ActingOrderResolved"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "intents": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionIntent"
+          },
+          "type": "object"
+        },
+        "kind": {
+          "const": "ActingOrderResolved",
+          "enum": [
+            "ActingOrderResolved"
+          ],
+          "type": "string"
+        },
+        "order": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "order",
+        "segment",
+        "turn",
+        "intents"
+      ],
+      "title": "ActingOrderResolved",
+      "type": "object"
+    },
+    "ActionDeclared": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ActionDeclared",
+          "enum": [
+            "ActionDeclared"
+          ],
+          "type": "string"
+        },
+        "action_type": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ActionDeclared",
+          "enum": [
+            "ActionDeclared"
+          ],
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "action_type",
+        "targets",
+        "parameters"
+      ],
+      "title": "ActionDeclared",
+      "type": "object"
+    },
+    "ActionIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ActionIntent",
+          "enum": [
+            "ActionIntent"
+          ],
+          "type": "string"
+        },
+        "action_type": {
+          "type": "string"
+        },
+        "elect_lightning_reflexes": {
+          "type": "boolean"
+        },
+        "is_mental": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "__type__",
+        "action_type",
+        "is_mental",
+        "elect_lightning_reflexes"
+      ],
+      "title": "ActionIntent",
+      "type": "object"
+    },
+    "ActionResolved": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ActionResolved",
+          "enum": [
+            "ActionResolved"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "declaration_event_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ActionResolved",
+          "enum": [
+            "ActionResolved"
+          ],
+          "type": "string"
+        },
+        "result_payload": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "declaration_event_id",
+        "result_payload"
+      ],
+      "title": "ActionResolved",
+      "type": "object"
+    },
+    "AdjustmentApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "AdjustmentApplied",
+          "enum": [
+            "AdjustmentApplied"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "delta": {
+          "type": "integer"
+        },
+        "fade_rate_per_turn": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "AdjustmentApplied",
+          "enum": [
+            "AdjustmentApplied"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_event_id": {
+          "type": "string"
+        },
+        "stat": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "stat",
+        "delta",
+        "fade_rate_per_turn",
+        "source_event_id"
+      ],
+      "title": "AdjustmentApplied",
+      "type": "object"
+    },
+    "AdjustmentFaded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "AdjustmentFaded",
+          "enum": [
+            "AdjustmentFaded"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "AdjustmentFaded",
+          "enum": [
+            "AdjustmentFaded"
+          ],
+          "type": "string"
+        },
+        "remaining_delta": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "stat": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "stat",
+        "remaining_delta"
+      ],
+      "title": "AdjustmentFaded",
+      "type": "object"
+    },
+    "BleedingSuffered": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "BleedingSuffered",
+          "enum": [
+            "BleedingSuffered"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body_lost": {
+          "type": "integer"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "dice": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "BleedingSuffered",
+          "enum": [
+            "BleedingSuffered"
+          ],
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "stun_lost": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "body_lost",
+        "stun_lost",
+        "rule",
+        "dice"
+      ],
+      "title": "BleedingSuffered",
+      "type": "object"
+    },
+    "BlockPriorityGained": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "BlockPriorityGained",
+          "enum": [
+            "BlockPriorityGained"
+          ],
+          "type": "string"
+        },
+        "attacker_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "blocker_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "BlockPriorityGained",
+          "enum": [
+            "BlockPriorityGained"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "blocker_id",
+        "attacker_id"
+      ],
+      "title": "BlockPriorityGained",
+      "type": "object"
+    },
+    "CombatantStateView": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "CombatantStateView",
+          "enum": [
+            "CombatantStateView"
+          ],
+          "type": "string"
+        },
+        "current_body": {
+          "type": "integer"
+        },
+        "current_end": {
+          "type": "integer"
+        },
+        "current_stun": {
+          "type": "integer"
+        },
+        "down": {
+          "type": "boolean"
+        },
+        "health": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "ko": {
+          "type": "boolean"
+        },
+        "max_body": {
+          "type": "integer"
+        },
+        "max_end": {
+          "type": "integer"
+        },
+        "max_stun": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "perceives": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PositionView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prone": {
+          "type": "boolean"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stunned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "name",
+        "side",
+        "current_stun",
+        "current_body",
+        "current_end",
+        "max_stun",
+        "max_body",
+        "max_end",
+        "health",
+        "down",
+        "position",
+        "prone",
+        "stunned",
+        "ko",
+        "hidden",
+        "perceives"
+      ],
+      "title": "CombatantStateView",
+      "type": "object"
+    },
+    "ConstructDamaged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ConstructDamaged",
+          "enum": [
+            "ConstructDamaged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body_after": {
+          "type": "integer"
+        },
+        "body_rolled": {
+          "type": "integer"
+        },
+        "body_through": {
+          "type": "integer"
+        },
+        "by_combatant": {
+          "type": "string"
+        },
+        "construct_id": {
+          "type": "string"
+        },
+        "def_value": {
+          "type": "integer"
+        },
+        "destroyed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ConstructDamaged",
+          "enum": [
+            "ConstructDamaged"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "construct_id",
+        "body_rolled",
+        "def_value",
+        "body_through",
+        "body_after",
+        "destroyed",
+        "by_combatant"
+      ],
+      "title": "ConstructDamaged",
+      "type": "object"
+    },
+    "ConstructSpawned": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ConstructSpawned",
+          "enum": [
+            "ConstructSpawned"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "construct_id": {
+          "type": "string"
+        },
+        "construct_kind": {
+          "type": "string"
+        },
+        "def_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ConstructSpawned",
+          "enum": [
+            "ConstructSpawned"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "construct_id",
+        "construct_kind",
+        "def_value",
+        "body",
+        "source_combatant"
+      ],
+      "title": "ConstructSpawned",
+      "type": "object"
+    },
+    "EntangleApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EntangleApplied",
+          "enum": [
+            "EntangleApplied"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "entangle_body": {
+          "type": "integer"
+        },
+        "entangle_ed": {
+          "type": "integer"
+        },
+        "entangle_pd": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EntangleApplied",
+          "enum": [
+            "EntangleApplied"
+          ],
+          "type": "string"
+        },
+        "no_teleport_levels": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "entangle_body",
+        "entangle_pd",
+        "entangle_ed",
+        "no_teleport_levels"
+      ],
+      "title": "EntangleApplied",
+      "type": "object"
+    },
+    "EntangleEscape": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EntangleEscape",
+          "enum": [
+            "EntangleEscape"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "damage_to_entangle_body": {
+          "type": "integer"
+        },
+        "escaped": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EntangleEscape",
+          "enum": [
+            "EntangleEscape"
+          ],
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "method",
+        "damage_to_entangle_body",
+        "escaped"
+      ],
+      "title": "EntangleEscape",
+      "type": "object"
+    },
+    "EnvironmentalTriggered": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EnvironmentalTriggered",
+          "enum": [
+            "EnvironmentalTriggered"
+          ],
+          "type": "string"
+        },
+        "affected_combatants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "effect": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "hazard_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EnvironmentalTriggered",
+          "enum": [
+            "EnvironmentalTriggered"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "hazard_id",
+        "affected_combatants",
+        "effect"
+      ],
+      "title": "EnvironmentalTriggered",
+      "type": "object"
+    },
+    "EventAuthor": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EventAuthor",
+          "enum": [
+            "EventAuthor"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "combatant",
+            "gm",
+            "engine"
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "type",
+        "id"
+      ],
+      "title": "EventAuthor",
+      "type": "object"
+    },
+    "FlashApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "FlashApplied",
+          "enum": [
+            "FlashApplied"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "FlashApplied",
+          "enum": [
+            "FlashApplied"
+          ],
+          "type": "string"
+        },
+        "segments": {
+          "type": "integer"
+        },
+        "sense_group": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "sense_group",
+        "segments"
+      ],
+      "title": "FlashApplied",
+      "type": "object"
+    },
+    "FlashRecovered": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "FlashRecovered",
+          "enum": [
+            "FlashRecovered"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "FlashRecovered",
+          "enum": [
+            "FlashRecovered"
+          ],
+          "type": "string"
+        },
+        "segments_remaining": {
+          "type": "integer"
+        },
+        "sense_group": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "sense_group",
+        "segments_remaining"
+      ],
+      "title": "FlashRecovered",
+      "type": "object"
+    },
+    "GMOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "GMOverride",
+          "enum": [
+            "GMOverride"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "justification": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "GMOverride",
+          "enum": [
+            "GMOverride"
+          ],
+          "type": "string"
+        },
+        "patch": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tier": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "tier",
+        "target_event_id",
+        "patch",
+        "justification"
+      ],
+      "title": "GMOverride",
+      "type": "object"
+    },
+    "HeldActionDeclared": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "HeldActionDeclared",
+          "enum": [
+            "HeldActionDeclared"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "for_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "HeldActionDeclared",
+          "enum": [
+            "HeldActionDeclared"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "trigger_condition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "trigger_condition",
+        "for_action"
+      ],
+      "title": "HeldActionDeclared",
+      "type": "object"
+    },
+    "HeldActionReleased": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "HeldActionReleased",
+          "enum": [
+            "HeldActionReleased"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "held_event_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "HeldActionReleased",
+          "enum": [
+            "HeldActionReleased"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "trigger_observed": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "held_event_id",
+        "trigger_observed"
+      ],
+      "title": "HeldActionReleased",
+      "type": "object"
+    },
+    "MovementResolved": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "MovementResolved",
+          "enum": [
+            "MovementResolved"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "from_pos": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "MovementResolved",
+          "enum": [
+            "MovementResolved"
+          ],
+          "type": "string"
+        },
+        "move_type": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "to_pos": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "velocity_mps": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "from_pos",
+        "to_pos",
+        "velocity_mps",
+        "move_type"
+      ],
+      "title": "MovementResolved",
+      "type": "object"
+    },
+    "PhaseSpent": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PhaseSpent",
+          "enum": [
+            "PhaseSpent"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PhaseSpent",
+          "enum": [
+            "PhaseSpent"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "segment",
+        "turn",
+        "reason"
+      ],
+      "title": "PhaseSpent",
+      "type": "object"
+    },
+    "PositionView": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PositionView",
+          "enum": [
+            "PositionView"
+          ],
+          "type": "string"
+        },
+        "facing": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "x",
+        "y",
+        "z",
+        "facing"
+      ],
+      "title": "PositionView",
+      "type": "object"
+    },
+    "PresenceActionLost": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PresenceActionLost",
+          "enum": [
+            "PresenceActionLost"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PresenceActionLost",
+          "enum": [
+            "PresenceActionLost"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id"
+      ],
+      "title": "PresenceActionLost",
+      "type": "object"
+    },
+    "PresenceApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PresenceApplied",
+          "enum": [
+            "PresenceApplied"
+          ],
+          "type": "string"
+        },
+        "attacker_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PresenceApplied",
+          "enum": [
+            "PresenceApplied"
+          ],
+          "type": "string"
+        },
+        "segments": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "attacker_id",
+        "tier",
+        "segments"
+      ],
+      "title": "PresenceApplied",
+      "type": "object"
+    },
+    "PresenceFaded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PresenceFaded",
+          "enum": [
+            "PresenceFaded"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PresenceFaded",
+          "enum": [
+            "PresenceFaded"
+          ],
+          "type": "string"
+        },
+        "segments_remaining": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "segments_remaining"
+      ],
+      "title": "PresenceFaded",
+      "type": "object"
+    },
+    "RecoveryTaken": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "RecoveryTaken",
+          "enum": [
+            "RecoveryTaken"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "end_recovered": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "RecoveryTaken",
+          "enum": [
+            "RecoveryTaken"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "stun_recovered": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "stun_recovered",
+        "end_recovered"
+      ],
+      "title": "RecoveryTaken",
+      "type": "object"
+    },
+    "SegmentAdvanced": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SegmentAdvanced",
+          "enum": [
+            "SegmentAdvanced"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "from_segment": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SegmentAdvanced",
+          "enum": [
+            "SegmentAdvanced"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "to_segment": {
+          "type": "integer"
+        },
+        "to_turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "from_segment",
+        "to_segment",
+        "to_turn"
+      ],
+      "title": "SegmentAdvanced",
+      "type": "object"
+    },
+    "SessionEnded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SessionEnded",
+          "enum": [
+            "SessionEnded"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SessionEnded",
+          "enum": [
+            "SessionEnded"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "reason"
+      ],
+      "title": "SessionEnded",
+      "type": "object"
+    },
+    "SessionStarted": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SessionStarted",
+          "enum": [
+            "SessionStarted"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SessionStarted",
+          "enum": [
+            "SessionStarted"
+          ],
+          "type": "string"
+        },
+        "scene_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "scene_id",
+        "combatant_ids"
+      ],
+      "title": "SessionStarted",
+      "type": "object"
+    },
+    "SessionStateView": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SessionStateView",
+          "enum": [
+            "SessionStateView"
+          ],
+          "type": "string"
+        },
+        "combatants": {
+          "items": {
+            "$ref": "#/$defs/CombatantStateView"
+          },
+          "type": "array"
+        },
+        "last_sequence": {
+          "type": "integer"
+        },
+        "next_actor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "status",
+        "turn",
+        "segment",
+        "last_sequence",
+        "next_actor_id",
+        "combatants"
+      ],
+      "title": "SessionStateView",
+      "type": "object"
+    },
+    "StatusChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "StatusChanged",
+          "enum": [
+            "StatusChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "from_status": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "StatusChanged",
+          "enum": [
+            "StatusChanged"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "to_status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "from_status",
+        "to_status",
+        "reason"
+      ],
+      "title": "StatusChanged",
+      "type": "object"
+    },
+    "StatusEffectsChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "StatusEffectsChanged",
+          "enum": [
+            "StatusEffectsChanged"
+          ],
+          "type": "string"
+        },
+        "added": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "StatusEffectsChanged",
+          "enum": [
+            "StatusEffectsChanged"
+          ],
+          "type": "string"
+        },
+        "removed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "added",
+        "removed"
+      ],
+      "title": "StatusEffectsChanged",
+      "type": "object"
+    },
+    "VitalsChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "VitalsChanged",
+          "enum": [
+            "VitalsChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body": {
+          "type": "integer"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "VitalsChanged",
+          "enum": [
+            "VitalsChanged"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "stun": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "stun",
+        "body",
+        "end",
+        "reason"
+      ],
+      "title": "VitalsChanged",
+      "type": "object"
+    }
+  },
+  "$id": "https://kirby.productbinder.io/schema/kirby-combat/events.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AbortDeclared"
+    },
+    {
+      "$ref": "#/$defs/ActingOrderResolved"
+    },
+    {
+      "$ref": "#/$defs/ActionDeclared"
+    },
+    {
+      "$ref": "#/$defs/ActionResolved"
+    },
+    {
+      "$ref": "#/$defs/AdjustmentApplied"
+    },
+    {
+      "$ref": "#/$defs/AdjustmentFaded"
+    },
+    {
+      "$ref": "#/$defs/BleedingSuffered"
+    },
+    {
+      "$ref": "#/$defs/BlockPriorityGained"
+    },
+    {
+      "$ref": "#/$defs/ConstructDamaged"
+    },
+    {
+      "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/EntangleApplied"
+    },
+    {
+      "$ref": "#/$defs/EntangleEscape"
+    },
+    {
+      "$ref": "#/$defs/EnvironmentalTriggered"
+    },
+    {
+      "$ref": "#/$defs/FlashApplied"
+    },
+    {
+      "$ref": "#/$defs/FlashRecovered"
+    },
+    {
+      "$ref": "#/$defs/GMOverride"
+    },
+    {
+      "$ref": "#/$defs/HeldActionDeclared"
+    },
+    {
+      "$ref": "#/$defs/HeldActionReleased"
+    },
+    {
+      "$ref": "#/$defs/MovementResolved"
+    },
+    {
+      "$ref": "#/$defs/PhaseSpent"
+    },
+    {
+      "$ref": "#/$defs/PresenceActionLost"
+    },
+    {
+      "$ref": "#/$defs/PresenceApplied"
+    },
+    {
+      "$ref": "#/$defs/PresenceFaded"
+    },
+    {
+      "$ref": "#/$defs/RecoveryTaken"
+    },
+    {
+      "$ref": "#/$defs/SegmentAdvanced"
+    },
+    {
+      "$ref": "#/$defs/SessionEnded"
+    },
+    {
+      "$ref": "#/$defs/SessionStarted"
+    },
+    {
+      "$ref": "#/$defs/StatusChanged"
+    },
+    {
+      "$ref": "#/$defs/StatusEffectsChanged"
+    },
+    {
+      "$ref": "#/$defs/VitalsChanged"
+    }
+  ],
+  "title": "CombatEvent",
+  "x-kirby-combat-version": "0.17.0"
+}

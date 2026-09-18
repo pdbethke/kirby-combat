@@ -72,6 +72,11 @@ REQUIRED_BY_CONSUMERS = {
     # for one thing is how a consumer ends up depending on the wrong repo.
     # Serialization
     "to_dict", "from_dict",
+    # The generated contract: a viewer generates its event types from the
+    # engine's own schema and checks its fold — position, conditions and
+    # perception included — against the engine's own view.
+    "json_schema", "state_view",
+    "SessionStateView", "CombatantStateView", "PositionView",
 }
 
 

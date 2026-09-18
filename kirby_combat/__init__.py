@@ -172,7 +172,7 @@ from kirby_combat.resolution.object_damage import (  # noqa: E402
 )
 from kirby_combat.tables import range_penalty  # noqa: E402
 from kirby_combat.template import CombatTemplate, RAW_SUPERHEROIC  # noqa: E402
-from kirby_combat.serialization import from_dict, to_dict  # noqa: E402
+from kirby_combat.serialization import from_dict, json_schema, to_dict  # noqa: E402
 
 # Place TYPES only -- see the note above on why the operations are absent.
 from kirby_combat.scene.scene import (  # noqa: E402
@@ -195,6 +195,13 @@ from kirby_combat.loop import (  # noqa: E402
     PhaseSituation, ResolvedAction, TacticChooser, UnresolvableAction,
     LastSideStanding, Roster, Side, StopCondition, Verdict,
     next_actor_id, registered_kinds, run_encounter, run_phase,
+)
+
+# The readable projection of a fight, imported after the loop for the same
+# reason the loop is imported last: it reads `next_actor_id` and
+# `enumeration`, both of which need the names bound above.
+from kirby_combat.session.state_view import (  # noqa: E402
+    CombatantStateView, PositionView, SessionStateView, state_view,
 )
 
 __all__ = [
@@ -227,6 +234,9 @@ __all__ = [
     "resolve_object_throw",
     # The session and its log
     "CombatSession", "Timeline", "apply_event", "build_acting_order_for_segment",
+    # The readable projection of a fight, and the contract a viewer
+    # generates from
+    "CombatantStateView", "PositionView", "SessionStateView", "state_view",
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
     "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
     "VitalsChanged",
@@ -261,6 +271,8 @@ __all__ = [
     # Dice
     # Serialization
     "from_dict", "to_dict",
+    # The contract a viewer generates its event types from
+    "json_schema",
     # Place TYPES (operations live in kirby-world)
     "AmbientConditions", "Construct", "ConstructEffect", "Hazard",
     "Furnishing",
