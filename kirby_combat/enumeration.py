@@ -302,6 +302,15 @@ class LegalAction:
     push_end: int = 0
     # Climbing: the wall this climb is against. None for every other kind.
     climb_wall_id: str | None = None
+    # Sweep / Multiple Attack: the enemies this offer names, in shot order.
+    # Enumeration decides who is in Reach and quotes the OCV for exactly
+    # that many; the resolver strikes these and no others. It used to
+    # rebuild the list from the whole roster, so a Sweep offered against
+    # "the 2 of 3 enemies in reach" also struck the man 64 m away, at the
+    # three-target penalty. Same rule as ``reposition_dest``: enumeration
+    # computes it, the resolver consumes it, nothing recomputes. Empty for
+    # every other kind.
+    target_ids: tuple[str, ...] = ()
 
 
 # Pushing a Power adds up to +10 Active Points at 1 END per Character Point
@@ -2228,6 +2237,7 @@ def enumerate_actions(
                     f"the rest miss too; full-phase, ½ DCV (6E2 p73)"
                 ),
                 _attack_view=ap,
+                target_ids=tuple(e.id for e in reachable_enemies),
             ))
     # PR-47: Push — spend +5 END for +1 DC on a specific attack
     # (6E2 p133). Per-power × per-enemy variant of attack with the

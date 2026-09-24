@@ -2454,7 +2454,11 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
             continue          # a shot at someone already down is wasted
         attack = AttackInput(
             attacker=session.combatants[actor.id], target=current, power=power,
-            distance_m=None, aim=None,
+            # Each shot pays the Range Modifier a single shot at this man
+            # would (6E2 p.73 charges the multi-shot penalty on top of the
+            # usual modifiers). This was `None`, so a Multiple Attack at
+            # 64 m rolled at OCV 18 where a single shot rolled at 14.
+            distance_m=_range_to(session, actor, current), aim=None,
             dice=_attack_dice(roller, dice),
             ocv_modifier=ocv - base_ocv,
         )
@@ -2482,19 +2486,27 @@ def _multi_attack(session, actor, action, *, roller, sweep: bool):
     because the book does: a Sweep is hand-to-hand and can only reach what
     is already within Reach, which enumeration has already gated.
 
-    EVERY ENEMY THE OFFER NAMED. The summary reads "hit all N enemies" and
-    now quotes the OCV each of them is taken at, so the count is the
-    chooser's to weigh rather than the resolver's to shrink.
+    EVERY ENEMY THE OFFER NAMED, AND NO OTHERS. The offer carries its
+    targets in ``target_ids`` and quotes the OCV for exactly that many, so
+    the count is the chooser's to weigh, neither the resolver's to shrink
+    nor its to widen.
     """
     from kirby_combat.actions.multiple_attack import MultipleAttack
     from kirby_combat.actions.sweep import Sweep
 
     from kirby_combat.roster import Roster
 
-    # The offer says "hit all N enemies", so it hits all of them -- capped
-    # only by who is actually still up. Taking two when the menu promised
-    # four would quietly under-deliver the maneuver the chooser picked.
-    targets = Roster(session).enemies_of(actor)
+    # THE OFFER'S TARGETS, NOT THE ROSTER'S. Enumeration gated a Sweep to
+    # the enemies in Reach and priced the OCV for that many; rebuilding the
+    # list from the roster here struck men the offer never named, at a
+    # penalty it never quoted. An offer with no `target_ids` was built by
+    # hand rather than by `enumerate_actions`, and keeps the old meaning:
+    # every enemy.
+    if action.target_ids:
+        targets = [session.combatants[i] for i in action.target_ids
+                   if i in session.combatants]
+    else:
+        targets = Roster(session).enemies_of(actor)
     if not targets:
         raise UnresolvableAction(action.kind, action.action_id)
 
