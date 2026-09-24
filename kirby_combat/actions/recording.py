@@ -754,7 +754,10 @@ def resolve_attack_in_session(
             body_dealt=result.body_dealt,
             target_max_body=attack.target.max_body,
             target_body_after=s.combatants[target_id].state.current_body,
-            roller=session.dice_roller,
+            # The caller's roller, as `_activation_check` uses: one source
+            # of randomness for the whole resolution, so a seeded fight
+            # stays seeded and a session with no roller of its own works.
+            roller=roller or session.dice_roller,
         )
 
     return s, result

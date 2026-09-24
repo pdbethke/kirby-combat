@@ -59,7 +59,13 @@ def _sequence(to_hit_totals, enemies: int = 3):
     template = CombatTemplate.default_6e_superheroic()
     session = CombatSession.create(
         id="s", scene=None, template=template, dice_roller=RandomRoller(seed=8),
-        combatants=[fighter("actor", side=Side.named("a"), dex=20)]
+        # TWO DICE, so no shot gets BODY through ED 4 (at most 2 BODY a
+        # die). A blow that does is violence the other marks witness (6E2
+        # p.138), and their Presence reaction now rolls on the caller's
+        # roller: its 3d6 would land where `_Rigged` expects the next
+        # shot's to-hit and spend it. Not one die: `_Rigged` reads any
+        # 1-die draw as the STUN Multiplier that ends an attack.
+        combatants=[fighter("actor", side=Side.named("a"), dex=20, dice=2)]
         + [fighter(f"mark{i}", side=Side.named("b"), dex=10)
            for i in range(enemies)],
     ).start()

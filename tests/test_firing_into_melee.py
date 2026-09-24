@@ -254,6 +254,11 @@ def _scripted_stray(first_roll, *, stray_activation):
     pool = [
         first_roll, [3, 3], [3, 3, 3], [1], [3, 3, 3],          # the shot
         [3, 3, 3], [3, 3], [3, 3, 3], [1], stray_activation,    # the stray
+        # A stray that goes off and draws BODY from frank is violence doc
+        # witnesses, and his Presence reaction (6E2 p.138) rolls on this
+        # same roller now rather than the session's. Low, so it frightens
+        # nobody and the test reads only the stray.
+        [1, 1, 1],
     ]
     return resolve_chosen(
         session, session.combatants["ike"],

@@ -1040,7 +1040,7 @@ def _resolve_rapid_fire(
     # Every shot at the SAME target -- that is what distinguishes Rapid Fire
     # from a Multiple Attack, which spreads its shots across enemies.
     new_session, results = _resolve_shots(
-        session, actor, action, roller=roller,
+        session, actor, action, template=template, roller=roller,
         targets=[target] * len(outcome.per_shot_ocv),
         per_shot_ocv=list(outcome.per_shot_ocv),
     )
@@ -1823,7 +1823,7 @@ def _resolve_move(
     })
 
 
-def _reposition(session, actor, action, *, roller, then_attack: bool):
+def _reposition(session, actor, action, *, template, roller, then_attack: bool):
     """Shared body for the four reposition kinds.
 
     Each offer already chose its destination --- enumeration put it on
@@ -1881,7 +1881,7 @@ def _reposition(session, actor, action, *, roller, then_attack: bool):
         dice=_attack_dice(roller, max(1, int(power.damage_dice or 0))),
     )
     after, result = resolve_attack_in_session(
-        new_session, attack, session.template, action_type="attack",
+        new_session, attack, template, action_type="attack",
         roller=roller,
     )
     return ResolvedAction(
@@ -1912,7 +1912,7 @@ def _resolve_reposition(
     destination inside the pushed radius, so the actor does travel it.
     Only the price was missing.
     """
-    out = _reposition(session, actor, action, roller=roller, then_attack=False)
+    out = _reposition(session, actor, action, template=template, roller=roller, then_attack=False)
     cost = int(getattr(action, "push_end", 0) or 0)
     if action.kind == "reposition_push" and cost > 0:
         out = replace(out, session=_spend_end(out.session, actor.id, cost))
@@ -1978,7 +1978,7 @@ def _resolve_reposition_strike(
             action, "reposition_dest",
             (destination.x, destination.y, destination.z),
         )
-    return _reposition(session, actor, action, roller=roller, then_attack=True)
+    return _reposition(session, actor, action, template=template, roller=roller, then_attack=True)
 
 
 @resolves("pickup")
@@ -2013,7 +2013,7 @@ def _resolve_pickup(
 
 
 def _maneuver_attack(
-    session, actor, action: LegalAction, *, roller, ocv_modifier: int,
+    session, actor, action: LegalAction, *, template, roller, ocv_modifier: int,
     damage_dice: int | None = None, action_type: str = "strike",
     payload_extras=None,
 ):
@@ -2047,7 +2047,7 @@ def _maneuver_attack(
         ocv_modifier=ocv_modifier,
     )
     new_session, result = resolve_attack_in_session(
-        session, attack, session.template, action_type=action_type,
+        session, attack, template, action_type=action_type,
         roller=roller,
         # HAND-TO-HAND, and said so rather than derived. Trip (6E2 p.67)
         # and Disarm (p.65) are hand-to-hand maneuvers; the power on the
@@ -2178,7 +2178,7 @@ def _resolve_trip(
         }
 
     new_session, result = _maneuver_attack(
-        session, actor, action, roller=roller, ocv_modifier=-1, damage_dice=0,
+        session, actor, action, template=template, roller=roller, ocv_modifier=-1, damage_dice=0,
         payload_extras=_trip_payload,
     )
 
@@ -2205,7 +2205,7 @@ def _resolve_disarm(
     off.
     """
     new_session, result = _maneuver_attack(
-        session, actor, action, roller=roller, ocv_modifier=-2, damage_dice=0,
+        session, actor, action, template=template, roller=roller, ocv_modifier=-2, damage_dice=0,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -2243,7 +2243,7 @@ def _resolve_spread(
         raise UnresolvableAction(action.kind, action.action_id)
 
     new_session, result = _maneuver_attack(
-        session, actor, action, roller=roller,
+        session, actor, action, template=template, roller=roller,
         ocv_modifier=+spread, damage_dice=base - spread, action_type="attack",
     )
     return ResolvedAction(
@@ -2412,7 +2412,7 @@ def _offer_count(action: LegalAction, *, default: int) -> int:
     return int(tail) if tail.isdigit() and int(tail) > 0 else default
 
 
-def _resolve_shots(session, actor, action: LegalAction, *, roller,
+def _resolve_shots(session, actor, action: LegalAction, *, template, roller,
                    targets: list, per_shot_ocv: list,
                    stop_on_miss: bool = False) -> tuple:
     """Resolve one attack per (target, OCV) pair, in order.
@@ -2463,7 +2463,7 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
             ocv_modifier=ocv - base_ocv,
         )
         session, result = resolve_attack_in_session(
-            session, attack, session.template, action_type="attack",
+            session, attack, template, action_type="attack",
             roller=roller,
         )
         results.append((target.id, result))
@@ -2477,7 +2477,7 @@ def _resolve_shots(session, actor, action: LegalAction, *, roller,
     return session, results
 
 
-def _multi_attack(session, actor, action, *, roller, sweep: bool):
+def _multi_attack(session, actor, action, *, template, roller, sweep: bool):
     """Sweep (6E2 p.56) and Multiple Attack (6E2 p.71): several targets in
     one Phase at a widening OCV penalty, and half DCV for the whole Phase.
 
@@ -2514,7 +2514,7 @@ def _multi_attack(session, actor, action, *, roller, sweep: bool):
     outcome = compute(base_ocv=int(actor.combat_stats().ocv),
                       num_targets=len(targets))
     new_session, results = _resolve_shots(
-        session, actor, action, roller=roller,
+        session, actor, action, template=template, roller=roller,
         targets=targets, per_shot_ocv=list(outcome.per_shot_ocv),
         stop_on_miss=True,
     )
@@ -2539,7 +2539,7 @@ def _resolve_sweep(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """Sweep --- a hand-to-hand Multiple Attack (6E2 p.56)."""
-    return _multi_attack(session, actor, action, roller=roller, sweep=True)
+    return _multi_attack(session, actor, action, template=template, roller=roller, sweep=True)
 
 
 @resolves("multiple_attack")
@@ -2548,7 +2548,7 @@ def _resolve_multiple_attack(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """Multiple Attack --- the ranged form (6E2 p.71)."""
-    return _multi_attack(session, actor, action, roller=roller, sweep=False)
+    return _multi_attack(session, actor, action, template=template, roller=roller, sweep=False)
 
 
 def _climb(session, actor, action: LegalAction, *, fast: bool):

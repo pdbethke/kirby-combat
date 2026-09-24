@@ -62,10 +62,10 @@ class _AlwaysLow(RandomRoller):
         return [1] * n
 
 
-def _fighter(id_: str, side: str, *, attack=None):
+def _fighter(id_: str, side: str, *, attack=None, ocv: int = 9, str_: int = 15):
     return synthetic_combatant(
-        id=id_, name=id_, ocv=9, dcv=5, omcv=5, dmcv=5,
-        spd=4, dex=20, ego=15, str_=15, con=18, pre=15, rec=6,
+        id=id_, name=id_, ocv=ocv, dcv=5, omcv=5, dmcv=5,
+        spd=4, dex=20, ego=15, str_=str_, con=18, pre=15, rec=6,
         pd=4, ed=4, rpd=2, red=2, md=3, power_defense=0, flash_defense=0,
         max_stun=40, max_body=12, max_end=40,
         current_stun=40, current_body=12, current_end=40,
