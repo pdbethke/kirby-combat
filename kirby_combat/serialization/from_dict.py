@@ -39,6 +39,12 @@ def _ensure_registry() -> None:
         Timeline, ActingSlot, ActionIntent, HeldAction, AbortWindow,
     )
     from kirby_combat.session.combat_session import CombatSession
+    # THE RULES THE FIGHT IS PLAYED UNDER. `CombatSession.template` is a
+    # field like any other and `to_dict` has always written it, but it was
+    # never registered here, so no saved session could be read back:
+    # `from_dict` raised `unknown type 'CombatTemplate'` on the first one.
+    from kirby_combat.template import CombatTemplate
+    from kirby_combat.session.tie_rule import TieRule
     # EVERY EVENT CLASS, DERIVED. This was a hand-written list beside the
     # import above, and it went stale silently: `VitalsChanged` -- the row
     # that now carries every point of STUN, BODY and END -- was in the
@@ -63,13 +69,19 @@ def _ensure_registry() -> None:
         DefenseProfile, KnockbackResult, AttackResult,
         Vehicle, Passenger, Unit, ObjectCombatant,
         Timeline, ActingSlot, ActionIntent, HeldAction, AbortWindow,
-        CombatSession, EventAuthor,
+        CombatSession, CombatTemplate, EventAuthor,
         MovementCapability, FrameworkView, SlotView,
         MartialManeuverView, SenseCapability, Side,
     ]:
         _register(cls)
     # Enums register too so we can rehydrate enum-valued fields if needed.
     _TYPE_REGISTRY["UnitMorale"] = UnitMorale  # type: ignore[assignment]
+    _TYPE_REGISTRY["TieRule"] = TieRule  # type: ignore[assignment]
+    # Every timestamp is annotated `datetime`, which under PEP 563 arrives
+    # here as the STRING "datetime"; unregistered, `_coerce_field`'s
+    # datetime branch never matched and every event came back stamped with
+    # a str. Nobody noticed because a str serialises to the same text.
+    _TYPE_REGISTRY["datetime"] = datetime  # type: ignore[assignment]
     # `to_dict` still tags a StatBlockCombatant "Combatant" on the wire (a
     # pinned tag -- see to_dict.py -- so already-persisted sessions written
     # before the combatant-redesign rename keep loading). Accept BOTH tags
@@ -104,22 +116,74 @@ def _coerce_field(field_type: Any, value: Any) -> Any:
             return datetime.fromisoformat(value)
         except ValueError:
             return value
-    # frozenset-typed fields (e.g. StatusEffectsChanged.added/.removed) go
-    # over the wire as a sorted list (JSON has no set type — see
-    # to_dict.py's set/frozenset branch). `field_type` is a string here
-    # (PEP 563 forward ref, e.g. "frozenset[str]") since it never matches
-    # a registered class; rehydrate the list back into a frozenset rather
-    # than leaving it a list, so the round-tripped instance is `==` to
-    # the original.
-    if isinstance(field_type, str) and field_type.startswith("frozenset[") and isinstance(value, list):
-        return frozenset(value)
-    # tuple-typed fields go over the wire as a list for the same reason
-    # (JSON has no tuple), and came back as one -- so
-    # `BleedingSuffered.dice` (the rolled dice, 6E2 p.115) round-tripped to
-    # a value that was not `==` to what went out. Found by the round-trip
-    # gate once it walked the union instead of a hand-written list.
-    if isinstance(field_type, str) and field_type.startswith("tuple[") and isinstance(value, list):
-        return tuple(value)
+    # CONTAINERS. JSON has a list and an object and nothing else, so a
+    # frozenset, set or tuple goes over the wire as a list and comes back
+    # as one unless its annotation says otherwise. This used to be two
+    # top-level checks (`frozenset[...]`, `tuple[...]`), which missed
+    # everything nested or bare: `CombatSession.statuses` (a dict OF
+    # frozensets) came back holding lists and `record_status_changes`
+    # raised on `frozenset - list`; `ActingSlot.lightning_reflexes_grants`
+    # (a bare `tuple`) came back a list. Both were invisible to any test
+    # that compared `to_dict` output, because a list and a frozenset
+    # serialise alike.
+    if isinstance(field_type, str):
+        return _coerce_annotated(field_type, value)
+    return value
+
+
+def _split_args(inner: str, sep: str = ",") -> list[str]:
+    """Split at top-level `sep` only ("str, tuple[int, int]" -> 2 parts)."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(inner):
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+        elif ch == sep and depth == 0:
+            parts.append(inner[start:i].strip())
+            start = i + 1
+    parts.append(inner[start:].strip())
+    return [p for p in parts if p]
+
+
+def _coerce_annotated(annotation: str, value: Any) -> Any:
+    """Rebuild the containers a string annotation names, all the way down.
+
+    Leaves are handed back to `_coerce_field` (enums, datetimes); anything
+    it does not recognise passes through untouched, as before.
+    """
+    if value is None:
+        return None
+    annotation = annotation.strip()
+    if annotation.startswith("Optional[") and annotation.endswith("]"):
+        annotation = annotation[len("Optional["):-1]
+    # A union: coerce against its one non-None arm. A union of two real
+    # types is ambiguous from a JSON value alone, so it passes through.
+    arms = [a for a in _split_args(annotation, "|") if a != "None"]
+    if len(arms) != 1:
+        return value
+    annotation = arms[0]
+
+    head, _, rest = annotation.partition("[")
+    args = _split_args(rest[:-1]) if rest.endswith("]") else []
+    if head in ("frozenset", "set", "tuple", "list") and isinstance(
+            value, (list, tuple, set, frozenset)):
+        if head == "tuple" and len(args) == 2 and args[1] == "...":
+            items = [_coerce_annotated(args[0], v) for v in value]
+        elif head == "tuple" and args:
+            items = [_coerce_annotated(a, v) for a, v in zip(args, value)]
+        elif args:
+            items = [_coerce_annotated(args[0], v) for v in value]
+        else:
+            items = list(value)
+        return {"frozenset": frozenset, "set": set, "tuple": tuple,
+                "list": list}[head](items)
+    if head == "dict" and isinstance(value, dict) and len(args) == 2:
+        return {k: _coerce_annotated(args[1], v) for k, v in value.items()}
+    if rest:
+        return value
+    if head in _TYPE_REGISTRY or head == "datetime":
+        return _coerce_field(_TYPE_REGISTRY.get(head, datetime), value)
     return value
 
 

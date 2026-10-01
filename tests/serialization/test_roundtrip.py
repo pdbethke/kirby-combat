@@ -141,13 +141,8 @@ def test_every_event_in_the_union_roundtrips(cls):
 
     assert type(restored) is type(original)
     for f in dataclasses.fields(original):
-        if f.name == "timestamp":
-            # Pre-existing: `to_dict` writes an ISO string and `from_dict`
-            # leaves it as one for a `datetime`-annotated field. Out of
-            # scope here; asserted as the shape it really is so this gate
-            # is not quietly asserting something false.
-            assert restored.timestamp == original.timestamp.isoformat()
-            continue
+        # Timestamps included: they came back as ISO strings until
+        # "datetime" was registered (see `from_dict._ensure_registry`).
         assert getattr(restored, f.name) == getattr(original, f.name), f.name
 
 
@@ -479,7 +474,6 @@ def test_every_event_class_the_engine_defines_roundtrips(cls):
 
     assert type(restored) is type(original)
     for f in dataclasses.fields(original):
-        if f.name == "timestamp":
-            assert restored.timestamp == original.timestamp.isoformat()
-            continue
+        # Timestamps included: they came back as ISO strings until
+        # "datetime" was registered (see `from_dict._ensure_registry`).
         assert getattr(restored, f.name) == getattr(original, f.name), f.name

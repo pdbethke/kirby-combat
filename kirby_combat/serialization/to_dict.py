@@ -26,6 +26,18 @@ _STABLE_WIRE_TAGS: dict[type, str] = {
 }
 
 
+#: Fields that are INPUTS to a fight, not part of its record, by class name
+#: (a name rather than the class, so this module imports nothing it would
+#: otherwise not need). A session's `dice_roller` went out as
+#: `{"__type__": "RandomRoller"}` --- no seed, no state --- and reading that
+#: back could only produce a fresh, unseeded roller wearing the original's
+#: name. Whoever resumes a saved fight hands it dice, exactly as whoever
+#: starts one does; leaving the field off says so instead of faking it.
+_NOT_ON_THE_WIRE: dict[str, frozenset[str]] = {
+    "CombatSession": frozenset({"dice_roller"}),
+}
+
+
 def to_dict(obj: Any) -> Any:
     """Recursively convert to JSON-safe shape."""
     if obj is None or isinstance(obj, (int, float, str, bool)):
@@ -141,8 +153,10 @@ def to_dict(obj: Any) -> Any:
     if is_dataclass(obj):
         type_tag = _STABLE_WIRE_TAGS.get(type(obj), type(obj).__name__)
         result: dict[str, Any] = {"__type__": type_tag}
+        skipped = _NOT_ON_THE_WIRE.get(type(obj).__name__, frozenset())
         for f in fields(obj):
-            result[f.name] = to_dict(getattr(obj, f.name))
+            if f.name not in skipped:
+                result[f.name] = to_dict(getattr(obj, f.name))
         return result
     # Fallback: try vars()
     if hasattr(obj, "__dict__"):
