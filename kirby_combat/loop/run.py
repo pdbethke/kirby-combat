@@ -157,12 +157,21 @@ def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
     already through the door: at the O.K. Corral, Billy Claiborne was
     off the field at y=-11 and was still asked to decide two Segments
     later, running to y=-23. The scoreboard knew; the loop did not.
+
+    AND SO IS THE PHASE HE ABORTED. 6E2 p.24: Lazer aborts to Dodge in
+    Segment 6, "when Segment 8 rolls around, Lazer can do nothing". The
+    Abort WAS that Phase, taken early; handing it to him again gave every
+    Dodge away for free.
     """
     combatant = session.combatants.get(combatant_id)
     if combatant is None or is_down(combatant):
         return "down"
     if Roster(session).has_left(combatant_id):
         return "left"
+    window = session.timeline.aborts.get(combatant_id)
+    if window is not None and window.aborted == (
+            session.timeline.turn, session.timeline.segment):
+        return "aborted"
     return None
 
 

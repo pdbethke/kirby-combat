@@ -48,7 +48,7 @@ could -- **for a session whose logs are complete.** A consumer can
 regenerate the same stream retroactively from a recorded combat only when
 both snapshots come from a session the engine built end-to-end (every
 event replayed through ``apply_event``), or from a session rehydrated
-*with* its full ``event_log`` and ``timeline.aborted_this_phase``. It is
+*with* its full ``event_log`` and ``timeline.aborts``. It is
 NOT true of kirby-api's live rehydrate path, which supplies neither (see
 ``kirby_combat.statuses.statuses_for``'s Preconditions section for the
 exact lines and the resulting failure mode). "Publish live combat
@@ -112,7 +112,7 @@ def status_deltas(
     Preconditions (inherited from ``statuses_for``, called twice per
     combatant here): both `before` and `after` must be sessions whose
     ``event_log`` carries the *complete* history and whose
-    ``timeline.aborted_this_phase`` has been populated by every abort
+    ``timeline.aborts`` has been populated by every abort
     applied so far. A session engine-built end-to-end via `apply_event`
     satisfies this by construction. kirby-api's rehydrated session does
     not -- see ``kirby_combat.statuses.statuses_for``'s own Preconditions

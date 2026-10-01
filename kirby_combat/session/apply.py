@@ -10,7 +10,7 @@ from kirby_combat.session.events import (
     BlockPriorityGained, CombatEvent, MovementResolved, PhaseSpent,
     RecoveryTaken, SegmentAdvanced, StatusEffectsChanged, VitalsChanged,
 )
-from kirby_combat.session.timeline import restore_acting_order
+from kirby_combat.session.timeline import AbortWindow, restore_acting_order
 from kirby_combat.talents.lightning_reflexes import restriction_for_slot
 
 
@@ -50,12 +50,24 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # down rules out. The `has_acted` flags are the sharp edge -- a
         # surviving order would carry them into the next Segment and skip a
         # combatant who had only acted in the previous one.
+        #
+        # An Abort whose bonus Phase is now behind the clock is over (6E2
+        # p.24). The usual close is his spending that Phase (`PhaseSpent`
+        # below); this one is for a consumer that moves the clock without
+        # spending slots, so the Dodge cannot outlive the Segment the book
+        # ends it in.
+        clock = (event.to_turn, event.to_segment)
         new_timeline = replace(
             session.timeline,
             segment=event.to_segment,
             turn=event.to_turn,
             acting_order=[],
             current_slot_index=0,
+            aborts={
+                combatant_id: window
+                for combatant_id, window in session.timeline.aborts.items()
+                if window.bonus_until >= clock
+            },
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
@@ -120,7 +132,15 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
                 f"{session.timeline.segment} to spend (order: "
                 f"{[(s.combatant_id, s.has_acted) for s in new_order]})"
             )
-        new_timeline = replace(session.timeline, acting_order=new_order)
+        # Spending the Phase an Abort's bonus runs to ends it (6E2 p.24,
+        # "until his next Phase after that"): the Dodge guards him up to
+        # his DEX in that Segment and no further.
+        new_aborts = dict(session.timeline.aborts)
+        window = new_aborts.get(event.combatant_id)
+        if window is not None and window.bonus_until == (event.turn, event.segment):
+            del new_aborts[event.combatant_id]
+        new_timeline = replace(
+            session.timeline, acting_order=new_order, aborts=new_aborts)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     if kind == "VitalsChanged":
@@ -188,9 +208,15 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "AbortDeclared":
         from kirby_combat.session.events import AbortDeclared as _AD
         assert isinstance(event, _AD)
-        new_aborted = set(session.timeline.aborted_this_phase)
-        new_aborted.add(event.combatant_id)
-        new_timeline = replace(session.timeline, aborted_this_phase=new_aborted)
+        # One window per man: a second Abort replaces the first, which is
+        # 6E2 p.24's "or until he Aborts to do something else".
+        new_aborts = dict(session.timeline.aborts)
+        new_aborts[event.combatant_id] = AbortWindow(
+            to_action=event.to_action,
+            aborted=(event.aborted_turn, event.aborted_segment),
+            bonus_until=(event.bonus_until_turn, event.bonus_until_segment),
+        )
+        new_timeline = replace(session.timeline, aborts=new_aborts)
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
     # These events persist to the log and change no combatant stat --- not

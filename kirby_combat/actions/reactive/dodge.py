@@ -21,17 +21,15 @@ class Dodge:
 
     @staticmethod
     def dcv_bonus(session: CombatSession, combatant_id: str) -> int:
-        """Return +3 if the combatant is currently dodging this phase, else 0.
+        """Return +3 while his Dodge is standing, else 0.
 
-        A combatant is "currently dodging" if their most recent AbortDeclared
-        event in the log has to_action == "dodge" AND they are still in
-        aborted_this_phase (i.e., segment hasn't cycled past their phase).
+        6E2 p.24: what he aborted to lasts "until his next Phase after"
+        the one he gave up --- longer than the lockout, which is why this
+        reads the Abort's own window rather than `is_aborting`. The window
+        is closed by `apply_event`; his latest Abort is the only one held,
+        so a Block declared after a Dodge ends the Dodge.
         """
-        from kirby_combat.session.events import AbortDeclared as _AD
-        if combatant_id not in session.timeline.aborted_this_phase:
+        window = session.timeline.aborts.get(combatant_id)
+        if window is None or window.to_action != "dodge":
             return 0
-        # Find the most recent AbortDeclared for this combatant.
-        for evt in reversed(session.event_log):
-            if isinstance(evt, _AD) and evt.combatant_id == combatant_id:
-                return _DODGE_DCV_BONUS if evt.to_action == "dodge" else 0
-        return 0
+        return _DODGE_DCV_BONUS

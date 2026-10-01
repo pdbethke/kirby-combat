@@ -9,8 +9,42 @@ from kirby_combat.session.events import AbortDeclared, make_author_combatant
 
 
 def is_aborting(session: CombatSession, combatant_id: str) -> bool:
-    """True if the combatant has declared an abort this phase."""
+    """True while an Abort locks him out (6E2 p.24): from the declaration
+    until the Phase he gave up has passed."""
     return combatant_id in session.timeline.aborted_this_phase
+
+
+def abort_windows(
+    session: CombatSession, combatant_id: str,
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Which Phase an Abort declared now gives up, and when its bonus ends.
+
+    6E2 p.24, "HOW TO ABORT AN ACTION". The Phase given up is THIS
+    Segment's if he has one here and has not yet used it ("he still had
+    his full Phase left in Segment 5 and could use it to Abort to Dodge"),
+    and otherwise his next one (Lazer, attacked in Segment 6, gives up
+    Segment 8). The bonus lasts "until his next Phase after that".
+
+    Both read his SPD as it stands NOW, and are recorded on the event, so
+    a later Drain does not move a window already opened.
+    """
+    from kirby_combat.session.timeline import next_phase
+    from kirby_combat.tables import segments_for_spd
+
+    timeline = session.timeline
+    phases = segments_for_spd(
+        session.combatants[combatant_id].combat_stats().spd)
+    used_this_segment = any(
+        slot.combatant_id == combatant_id and slot.has_acted
+        and slot.segment == timeline.segment
+        for slot in timeline.acting_order
+    )
+    aborted = next_phase(
+        phases, timeline.turn, timeline.segment,
+        inclusive=not used_this_segment,
+    )
+    bonus_until = next_phase(phases, *aborted, inclusive=False)
+    return aborted, bonus_until
 
 
 def mark_aborting(
@@ -67,6 +101,8 @@ def mark_aborting(
             "(6E2 p.106)"
         )
 
+    (aborted_turn, aborted_segment), (bonus_turn, bonus_segment) = (
+        abort_windows(session, combatant_id))
     evt = AbortDeclared(
         id=str(uuid.uuid4()),
         session_id=session.id,
@@ -75,5 +111,9 @@ def mark_aborting(
         author=make_author_combatant(combatant_id),
         combatant_id=combatant_id,
         to_action=to_action,
+        aborted_turn=aborted_turn,
+        aborted_segment=aborted_segment,
+        bonus_until_turn=bonus_turn,
+        bonus_until_segment=bonus_segment,
     )
     return apply_event(session, evt), evt

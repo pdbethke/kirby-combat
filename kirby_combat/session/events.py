@@ -129,8 +129,9 @@ class PhaseSpent(_BaseEvent):
     combatant_id: str = ""
     segment: int = 0
     turn: int = 0
-    #: "acted" (he used it), "down" (unconscious or worse, 6E1 p.421) or
-    #: "left" (out of the scene's bounds, so no longer in the fight).
+    #: "acted" (he used it), "down" (unconscious or worse, 6E1 p.421),
+    #: "left" (out of the scene's bounds, so no longer in the fight) or
+    #: "aborted" (he already spent it on an Abort, 6E2 p.24).
     reason: str = "acted"
 
 
@@ -293,6 +294,18 @@ class AbortDeclared(_BaseEvent):
     kind: Literal["AbortDeclared"] = field(default="AbortDeclared", init=False)
     combatant_id: str = ""
     to_action: str = ""
+    #: The Phase he gave up (6E2 p.24, "HOW TO ABORT AN ACTION"). He can
+    #: neither abort again nor act until it has passed, and when it comes
+    #: round he does nothing in it.
+    aborted_turn: int = 0
+    aborted_segment: int = 0
+    #: His next Phase after that one: what he aborted to (the Dodge's DCV)
+    #: lasts until he takes it. Fixed HERE, at declaration, rather than
+    #: re-derived from SPD when the clock moves, so a replayed log expires
+    #: the abort at the same moments as the fight that ran even if his SPD
+    #: was Drained in between.
+    bonus_until_turn: int = 0
+    bonus_until_segment: int = 0
 
 
 @dataclass

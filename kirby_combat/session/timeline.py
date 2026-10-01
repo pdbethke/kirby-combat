@@ -55,6 +55,26 @@ class HeldAction:
     for_action_type: str | None  # None = TBD when released
 
 
+@dataclass(frozen=True)
+class AbortWindow:
+    """One standing Abort and the two windows 6E2 p.24 gives it.
+
+    "HOW TO ABORT AN ACTION": once a character aborts he "cannot Abort
+    again or take any other Actions until after the Phase he Aborted has
+    passed" (the LOCKOUT, ending after `aborted`), and the modifiers he
+    gets from aborting "last until his next Phase after that" (the BONUS,
+    ending when he takes his Phase at `bonus_until`). Both are
+    (turn, segment) pairs, copied off the `AbortDeclared` that opened them.
+    """
+    to_action: str
+    aborted: tuple[int, int]
+    bonus_until: tuple[int, int]
+
+    def locks_out(self, turn: int, segment: int) -> bool:
+        """True until the Phase he gave up has passed."""
+        return (turn, segment) <= self.aborted
+
+
 @dataclass
 class Timeline:
     """Mutable timeline state for a CombatSession."""
@@ -63,7 +83,13 @@ class Timeline:
     acting_order: list[ActingSlot]
     current_slot_index: int
     held_actions: list[HeldAction] = field(default_factory=list)
-    aborted_this_phase: set[str] = field(default_factory=set)
+    #: Every Abort still doing something, by combatant id. Opened by
+    #: `AbortDeclared`; closed by `apply_event` when the clock passes its
+    #: bonus Phase (`SegmentAdvanced`) or he spends that Phase
+    #: (`PhaseSpent`). A man appears here at most once: aborting again
+    #: replaces the old window, which is the book's "or until he Aborts to
+    #: do something else".
+    aborts: dict[str, AbortWindow] = field(default_factory=dict)
     #: Carried Block "acts first" priority (6E2 p.60): blocker_id ->
     #: attacker_id. It lives HERE, on the timeline `apply_event` writes,
     #: rather than only on `Encounter.acts_first`, because it is fight
@@ -77,6 +103,20 @@ class Timeline:
     #: order (see `consume_block_priority` for the same rule stated as a
     #: pure function).
     block_priority: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def aborted_this_phase(self) -> frozenset[str]:
+        """Who is inside an Abort's LOCKOUT right now (6E2 p.24).
+
+        Was a stored set that nothing ever cleared, so one Dodge locked a
+        man out of aborting for the rest of the fight. Now derived from
+        `aborts` and the clock, so it empties when the Phase he gave up
+        has passed.
+        """
+        return frozenset(
+            combatant_id for combatant_id, window in self.aborts.items()
+            if window.locks_out(self.turn, self.segment)
+        )
 
 
 def _tie_key(c: StatBlockCombatant) -> tuple[int, int]:
@@ -475,6 +515,28 @@ def consume_block_priority(
         for blocker_id, attacker_id in acts_first.items()
         if not (blocker_id in ids_in_segment and attacker_id in ids_in_segment)
     }
+
+
+def next_phase(
+    phases: Iterable[int], turn: int, segment: int, *, inclusive: bool,
+) -> tuple[int, int]:
+    """The first of a man's Phases at or after (turn, segment).
+
+    `phases` is his SPD chart row (`segments_for_spd`). With `inclusive`
+    False the search starts in the Segment AFTER `segment`, wrapping past
+    Segment 12 into the next Turn. A man with no Phases at all (SPD 0)
+    gets (turn, segment) back: there is no Phase to find, and answering
+    "now" closes any window keyed on it at once rather than never.
+    """
+    phases = frozenset(phases)
+    if not phases:
+        return (turn, segment)
+    t, s = turn, segment
+    if not inclusive:
+        t, s = (t + 1, 1) if s >= 12 else (t, s + 1)
+    while s not in phases:
+        t, s = (t + 1, 1) if s >= 12 else (t, s + 1)
+    return (t, s)
 
 
 def _sum_roll(roll: int | list[int] | tuple[int, ...]) -> int:

@@ -36,7 +36,7 @@ def _ensure_registry() -> None:
     from kirby_combat.masscombat import Unit, UnitMorale
     from kirby_combat.breakables.object_combatant import ObjectCombatant
     from kirby_combat.session.timeline import (
-        Timeline, ActingSlot, ActionIntent, HeldAction,
+        Timeline, ActingSlot, ActionIntent, HeldAction, AbortWindow,
     )
     from kirby_combat.session.combat_session import CombatSession
     # EVERY EVENT CLASS, DERIVED. This was a hand-written list beside the
@@ -62,8 +62,8 @@ def _ensure_registry() -> None:
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
         Vehicle, Passenger, Unit, ObjectCombatant,
-        Timeline, ActingSlot, ActionIntent, HeldAction, CombatSession,
-        EventAuthor,
+        Timeline, ActingSlot, ActionIntent, HeldAction, AbortWindow,
+        CombatSession, EventAuthor,
         MovementCapability, FrameworkView, SlotView,
         MartialManeuverView, SenseCapability, Side,
     ]:

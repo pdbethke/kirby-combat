@@ -10,8 +10,20 @@
           ],
           "type": "string"
         },
+        "aborted_segment": {
+          "type": "integer"
+        },
+        "aborted_turn": {
+          "type": "integer"
+        },
         "author": {
           "$ref": "#/$defs/EventAuthor"
+        },
+        "bonus_until_segment": {
+          "type": "integer"
+        },
+        "bonus_until_turn": {
+          "type": "integer"
         },
         "combatant_id": {
           "type": "string"
@@ -49,7 +61,11 @@
         "author",
         "kind",
         "combatant_id",
-        "to_action"
+        "to_action",
+        "aborted_turn",
+        "aborted_segment",
+        "bonus_until_turn",
+        "bonus_until_segment"
       ],
       "title": "AbortDeclared",
       "type": "object"

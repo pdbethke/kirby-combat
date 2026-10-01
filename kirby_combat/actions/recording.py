@@ -917,10 +917,9 @@ def resolve_block_in_session(
     (``actions/reactive/abort.py``) to emit the ``AbortDeclared`` Block
     already declares itself with via ``Block.declare`` (which is exactly
     ``mark_aborting(session, combatant_id, to_action="block")``) -- and by
-    doing so on this default path, THIS function is now a caller feeding
-    ``session.timeline.aborted_this_phase``, a ONE-WAY LATCH that nothing
-    in this package ever clears (``statuses.py``'s ``ABORTED`` comment:
-    "aborted for the rest of the fight", not "aborted this phase") -- and uses
+    doing so on this default path, THIS function opens an Abort window on
+    ``session.timeline.aborts`` (6E2 p.24: it spends one Phase and locks
+    him out until that Phase has passed) -- and uses
     its id as the resolution's ``declaration_event_id``. Pass the id
     ``Block.declare`` already returned when the caller declared the Block
     itself; this parameter exists so callers who separate declare/resolve

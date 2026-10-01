@@ -428,13 +428,12 @@ def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
     these Segments -- exactly the "one full Phase too long" bug this test
     pins shut.
 
-    Each Segment gets its OWN fresh session: ``AbortDeclared`` sets
-    ``timeline.aborted_this_phase`` and nothing in this engine ever
-    clears it on ``SegmentAdvanced`` (a real, separate quirk -- there is
-    no in-engine "next Phase releases the Abort lock" event), so reusing
-    one session across Segment 9's successful Abort would make Segment
-    10's ``Dodge.declare`` fail on the WRONG precondition ("already
-    aborted") instead of proving the Stunned-window check.
+    Each Segment gets its OWN fresh session: the Segment 9 Abort gives up
+    her Segment 12 Phase and locks her out until it has passed (6E2 p.24,
+    see ``tests/session/test_abort_expiry.py``), so reusing one session
+    would make Segment 10's ``Dodge.declare`` fail on the WRONG
+    precondition ("already aborted") instead of proving the
+    Stunned-window check.
     """
     from kirby_combat.actions.reactive.dodge import Dodge
     from kirby_combat.statuses import statuses_for

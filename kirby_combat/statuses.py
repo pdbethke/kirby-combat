@@ -194,18 +194,13 @@ ABORTED = "aborted"
 # See kirby_combat.actions.reactive.abort.is_aborting /
 # session.timeline.aborted_this_phase.
 #
-# ONE-WAY LATCH, not a toggle: nothing in this package ever removes a
-# combatant id from `aborted_this_phase` -- `apply_event`'s
-# `SegmentAdvanced` branch (`session/apply.py`) replaces only
-# `segment`/`turn` on the timeline, never touches `aborted_this_phase`.
-# Verified: abort, then apply 26 `SegmentAdvanced` events (two full Turns)
-# later, the id is still set. So despite the field's name, in an
-# engine-built session this id never clears on its own once set -- it
-# reads as "aborted for the rest of the fight", not "aborted this phase".
-# This is pre-existing engine state (the clearing, if it belongs
-# anywhere, is `apply_event`'s to add, and is its own separate change);
-# this module just surfaces it as-is, so a consumer of `ABORTED` should
-# not expect it to fall off phase-to-phase.
+# It falls off when the Phase he gave up has passed: 6E2 p.24, "HOW TO
+# ABORT AN ACTION" ("cannot Abort again or take any other Actions until
+# after the Phase he Aborted has passed"). This used to be a one-way latch
+# that nothing cleared, so one Dodge read as "aborted for the rest of the
+# fight". `aborted_this_phase` is now derived from `Timeline.aborts` and
+# the clock; the Dodge's DCV, which lasts one Phase longer, is read off the
+# same window by `Dodge.dcv_bonus`.
 
 HOLDING = "holding"
 # 6E2 p61 SS HOLD AN ACTION -- phase consumed, waiting on a declared trigger.
@@ -840,8 +835,8 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       through ``SENSE_GROUP_TO_STATUS_ID`` independently -- a combatant
       flashed in two groups gets both ids, never collapsed to one.
     - Aborted: ``session.timeline.aborted_this_phase`` (``session/timeline
-      .py``), a ``set[str]`` of combatant ids maintained by
-      ``actions/reactive/abort.py``.
+      .py``), the ids inside an Abort's lockout, derived from
+      ``Timeline.aborts`` and the clock (6E2 p.24).
     - Holding: ``HeldAction.get_pending(session, combatant_id)``
       (``actions/held_action.py``, 6E2 p61 SS HOLD AN ACTION) -- **not**
       ``session.timeline.held_actions``, despite that field's name and
@@ -902,8 +897,8 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     Preconditions -- this function requires a session whose ``event_log``
     contains the *complete* history for the seven sources that walk it
     (Entangled, Grabbed, Flashed, Holding, Stunned, Dead, and the
-    payload half of Knocked Out), and a ``timeline.aborted_this_phase``
-    that has been populated by every abort applied so far. **kirby-api's
+    payload half of Knocked Out), and a ``timeline.aborts`` that has been
+    populated by every abort applied so far. **kirby-api's
     rehydrated session supplies neither:**
 
     - ``kirby-api/kirby/combat/services/session_service.py:237`` sets
@@ -912,8 +907,7 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
       never handed back to the engine outside the rewind-rebuild path.
     - ``kirby-api/kirby/combat/services/session_service.py:219`` builds
       ``Timeline(turn=..., segment=..., acting_order=[],
-      current_slot_index=...)`` -- ``aborted_this_phase`` is never
-      populated.
+      current_slot_index=...)`` -- ``aborts`` is never populated.
 
     So on that path, ``before.event_log`` is empty and ``after.event_log``
     holds only the event just applied: the stream can only ever turn a

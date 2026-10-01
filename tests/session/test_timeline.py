@@ -310,7 +310,7 @@ def test_block_priority_leapfrogs_an_uninvolved_third_party():
 
 def test_timeline_initial_state():
     t = Timeline(turn=1, segment=1, acting_order=[], current_slot_index=0,
-                 held_actions=[], aborted_this_phase=set())
+                 held_actions=[], aborts={})
     assert t.turn == 1
     assert t.segment == 1
     assert t.current_slot_index == 0
