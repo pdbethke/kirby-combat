@@ -38,6 +38,39 @@ def point_in_polygon_xy(point: tuple[float, float], poly: list[tuple[float, floa
     return inside
 
 
+def distance_to_segment_xy(
+    point: tuple[float, float],
+    a: tuple[float, float],
+    b: tuple[float, float],
+) -> float:
+    """Distance in xy from `point` to the NEAREST point of segment a-b."""
+    px, py = point
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else max(
+        0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
+    nx, ny = ax + t * dx, ay + t * dy
+    return sqrt((px - nx) ** 2 + (py - ny) ** 2)
+
+
+def distance_to_polygon_xy(
+    point: tuple[float, float], poly: list[tuple[float, float]],
+) -> float:
+    """Distance in xy from `point` to a polygon's AREA: 0 inside or on an
+    edge, otherwise the distance to the nearest edge."""
+    if not poly:
+        return float("inf")
+    if point_in_polygon_xy(point, poly):
+        return 0.0
+    n = len(poly)
+    return min(
+        distance_to_segment_xy(point, poly[i], poly[(i + 1) % n])
+        for i in range(n)
+    )
+
+
 def _on_segment(a: tuple[float, float], b: tuple[float, float], p: tuple[float, float]) -> bool:
     """True if p lies on segment ab (inclusive of endpoints)."""
     cross = (p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])

@@ -81,33 +81,45 @@ def _construct_point(construct: Any) -> tuple[float, float, float] | None:
 _COVER_ADJACENCY_M = 2.0
 
 
-def _feature_point(feature: Any) -> Any | None:
-    """Representative engine ``Position`` for a scene cover feature: a wall's
-    segment midpoint or a surface's polygon centroid. None when unreadable."""
-    from kirby_combat.scene.scene import Position
+def _distance_to_cover(pos: Any, feature: Any) -> float | None:
+    """Metres from `pos` to the NEAREST part of a cover feature, or None
+    when the feature has no geometry this can read.
+
+    A wall is measured to its segment, a surface to its area (zero when
+    standing on it), each with the vertical gap added: a rooftop's cover
+    is no use to a man in the street below it. This was a CENTROID (a
+    surface's) or MIDPOINT (a wall's), so the corner of a forty-metre wood
+    or the end of a long wall did not count as being near it; and it read
+    `polygon_xy` as a flat list when `Surface` stores (x, y) tuples, so
+    every Surface raised and none ever offered Hide.
+    """
+    from kirby_combat.scene.geometry import (
+        distance_to_polygon_xy, distance_to_segment_xy,
+    )
 
     seg = getattr(feature, "segment", None)
     if seg is not None:
         a, b = seg
-        return Position(x=(a.x + b.x) / 2.0, y=(a.y + b.y) / 2.0, z=(a.z + b.z) / 2.0)
+        flat = distance_to_segment_xy((pos.x, pos.y), (a.x, a.y), (b.x, b.y))
+        base = min(a.z, b.z)
+        top = base + float(getattr(feature, "height_m", 0.0) or 0.0)
+        rise = max(0.0, base - pos.z, pos.z - top)
+        return (flat * flat + rise * rise) ** 0.5
     poly = getattr(feature, "polygon_xy", None)
     if poly:
-        # polygon_xy is a flat [x0,y0,x1,y1,...] list (engine Surface shape).
-        xs = poly[0::2]
-        ys = poly[1::2]
-        if not xs:
-            return None
-        z = float(getattr(feature, "elevation_m", 0.0) or 0.0)
-        return Position(x=sum(xs) / len(xs), y=sum(ys) / len(ys), z=z)
+        flat = distance_to_polygon_xy((pos.x, pos.y), list(poly))
+        rise = abs(pos.z - float(getattr(feature, "elevation_m", 0.0) or 0.0))
+        return (flat * flat + rise * rise) ** 0.5
     return None
 
 
 def _actor_has_cover(actor: HeroCombatant, scene: Any) -> bool:
-    """True when ``actor`` is adjacent to a cover-bearing scene feature
-    (a wall or surface with ``cover_level > 0`` within ~2 m). This is the
-    Hide-availability predicate — Hide is offered only when there's cover or
-    concealment to break line-of-sight. Scene-less / no actor position → False
-    (no cover info ⇒ no Hide). Reads the same geometry ``cover_at`` reads."""
+    """True when ``actor`` is within ~2 m of a cover-bearing scene feature
+    (a wall or surface with ``cover_level > 0``), measured to the nearest
+    part of it (`_distance_to_cover`). This is the Hide-availability
+    predicate --- Hide is offered only when there's cover or concealment to
+    break line-of-sight. Scene-less / no actor position -> False (no cover
+    info => no Hide)."""
     if scene is None:
         return False
     actor_pos = (
@@ -120,10 +132,8 @@ def _actor_has_cover(actor: HeroCombatant, scene: Any) -> bool:
     for feat in features:
         if (getattr(feat, "cover_level", 0) or 0) <= 0:
             continue
-        pt = _feature_point(feat)
-        if pt is None:
-            continue
-        if _xyz_dist(actor_pos, pt) <= _COVER_ADJACENCY_M + _EPS_M:
+        distance = _distance_to_cover(actor_pos, feat)
+        if distance is not None and distance <= _COVER_ADJACENCY_M + _EPS_M:
             return True
     return False
 
@@ -1793,11 +1803,10 @@ def enumerate_actions(
     # overt attack (break-on-attack, driver-side).
     _actor_already_hidden = bool((concealment or {}).get(actor.id, (False, False))[1])
     if not _actor_already_hidden:
-        try:
-            _has_cover = _actor_has_cover(actor, scene)
-        except Exception:
-            _has_cover = False  # fail-closed: no Hide when cover can't be read
-        if _has_cover:
+        # NO `except Exception` here. One swallowed every Surface's
+        # TypeError and turned "this code is broken" into "there is no
+        # cover", so Hide was silently never offered next to a Surface.
+        if _actor_has_cover(actor, scene):
             actions.append(LegalAction(
                 action_id="hide",
                 kind="hide",
