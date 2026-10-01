@@ -275,6 +275,29 @@ def _mark_acted(
     return apply_event(session, event), event
 
 
+def _require_one_fight(encounter: "Encounter") -> None:
+    """The loop steps ONE fight; refuse an Encounter holding any other number.
+
+    `Encounter` can hold several sessions sharing one clock, and
+    `run_segment` interleaves them into one scene-wide DEX order (6E2
+    p.18). This loop was written for one: it reads `sessions[0]` for who
+    acts, who has won and what to hand back, and `_with` puts the result
+    back as `sessions=[session]`. Handed two fights it deleted the second
+    without a word.
+
+    Stepping several fights needs rulings the loop does not make yet ---
+    whose Phase is next across fights, and when "the fight" is over when
+    one ends and another has not --- so it says so instead.
+    """
+    if len(encounter.sessions) != 1:
+        raise ValueError(
+            f"the combat loop steps an Encounter holding exactly one "
+            f"session; this one holds {len(encounter.sessions)} "
+            f"({[s.id for s in encounter.sessions]}). Stepping several "
+            "fights on one clock is not supported yet."
+        )
+
+
 def _with(encounter: "Encounter", session: "CombatSession") -> "Encounter":
     """The same Encounter carrying this session --- the one place the two
     are put back together, so a Phase cannot return a session the clock
@@ -412,6 +435,7 @@ def run_phase(
     still filling --- 52 kinds are enumerable and 4 are resolvable today.
     A skip is never silent.
     """
+    _require_one_fight(encounter)
     if on_unresolvable not in ("raise", "skip"):
         raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
 
@@ -675,6 +699,7 @@ def run_encounter(
     ``expected_sides`` to also reject a side that was never declared,
     which is the only thing that catches a real misspelling.
     """
+    _require_one_fight(encounter)
     Roster(encounter.sessions[0]).validate(expected=expected_sides)
 
     stop: StopCondition = until or LastSideStanding()
