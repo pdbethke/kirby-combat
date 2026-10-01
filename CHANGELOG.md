@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.19.0 — 2026-10-01
+
+**Eight defects from an outside review, all under a green suite.** Codex
+reviewed this engine on 2026-09-23 and every finding held up. Most were
+something computed correctly and delivered to nobody, or a duplicate input
+that the resolution path read from the wrong place.
+
+*Behaviour changes a consumer will see.*
+
+- **An Abort spends one Phase, and it ends** (6E2 p.24, "How to Abort an
+  Action"). `aborted_this_phase` was a one-way latch: one Dodge kept its
+  +3 DCV for the rest of the fight, locked the man out of aborting again,
+  and never took the Phase he gave up. Now the lockout lasts until the
+  aborted Phase has passed, the bonus lasts until his next Phase after
+  that, and the aborted Phase is forfeit (`PhaseSpent(reason="aborted")`).
+  Fights in which anyone dodges or blocks will play out differently.
+  `AbortDeclared` carries four new fields (`aborted_turn`,
+  `aborted_segment`, `bonus_until_turn`, `bonus_until_segment`);
+  `Timeline.aborts` replaces the stored set, and `aborted_this_phase` is
+  now a read-only property derived from it.
+- **A saved `CombatSession` restores.** `from_dict(to_dict(session))`
+  raised `unknown type 'CombatTemplate'`. Restoring also brought back
+  every timestamp as a str, and nested frozensets and bare tuples as
+  lists; all three now come back as what went out.
+  `CombatSession.dice_roller` is **no longer written to the wire**. It
+  went out with no seed and no state, so it could only have come back as
+  a lie. Whoever resumes a fight supplies the dice.
+- **`run_phase` and `run_encounter` refuse an Encounter holding more than
+  one session.** They used to keep the first fight and silently delete
+  the rest.
+
+*Resolution fixes.*
+
+- A Sweep strikes only the enemies it offered (`LegalAction.target_ids`),
+  and every shot of a Multiple Attack pays its range modifier.
+- Every action resolves under the caller's `CombatTemplate` and rolls the
+  caller's dice. Four resolvers read the session's copy instead.
+- Hide is offered next to a `Surface`. A tuple-vs-flat-list misread
+  raised inside a bare `except` and became "no cover". Adjacency is now
+  measured to the nearest part of a wall or surface, not its midpoint or
+  centroid.
+
 ## 0.18.5 — 2026-09-18
 
 **Positions and statuses are in the log, and the one-writer gate covers
