@@ -20,7 +20,7 @@ from typing import Iterable
 from kirby_combat.models import AttackPower, DiceValues
 from kirby_combat.template import CombatTemplate
 from kirby_combat.resolution.damage import compute_damage
-from kirby_combat.scene import Construct
+from kirby_world import Construct
 
 
 @dataclass(frozen=True)

@@ -1,29 +1,10 @@
-"""World — a setting containing many Scenes."""
-from __future__ import annotations
+"""PERMANENT re-export: `World` lives in `kirby_world.world` (0.20.0).
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+The module object itself is aliased, so `kirby_combat.world` and
+`kirby_world.world` are one module and `World` is one class.
+"""
+import sys
 
-if TYPE_CHECKING:
-    from kirby_combat.scene import Scene
+import kirby_world.world as _world
 
-
-@dataclass
-class World:
-    """A setting containing many Scenes.
-
-    A World is a container for scenes — e.g., a street, a base, and a rooftop
-    are three scenes in the same world. It holds no clock (the clock lives on
-    Encounter, which is scene-scoped), no rules, and no relationships between
-    scenes.
-    """
-    id: str
-    name: str
-    scenes: list[Scene] = field(default_factory=list)
-
-    def scene_by_id(self, scene_id: str) -> Scene | None:
-        """Return the scene with the given id, or None if not found."""
-        for scene in self.scenes:
-            if scene.id == scene_id:
-                return scene
-        return None
+sys.modules[__name__] = _world

@@ -92,7 +92,7 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 from kirby_combat.campaign import Campaign  # noqa: E402
 from kirby_combat.encounter import Encounter  # noqa: E402
 from kirby_combat.vitals import apply_vitals_delta
-from kirby_combat.world import World  # noqa: E402
+from kirby_world.world import World  # noqa: E402
 
 from kirby_combat.models import (  # noqa: E402
     AttackInput, AttackPower, Combatant, DiceValues,
@@ -175,11 +175,11 @@ from kirby_combat.template import CombatTemplate, RAW_SUPERHEROIC  # noqa: E402
 from kirby_combat.serialization import from_dict, json_schema, to_dict  # noqa: E402
 
 # Place TYPES only -- see the note above on why the operations are absent.
-from kirby_combat.scene.scene import (  # noqa: E402
-    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene,
-    SceneBounds, Surface, Wall,
+from kirby_world.scene import (
+    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene, SceneBounds, Surface,
+    Wall,
 )
-from kirby_combat.scene.construct import Construct, ConstructEffect  # noqa: E402
+from kirby_world.construct import Construct, ConstructEffect  # noqa: E402
 
 # The turn loop, imported LAST and deliberately.
 #

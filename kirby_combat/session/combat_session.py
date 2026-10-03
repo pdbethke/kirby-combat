@@ -21,7 +21,7 @@ from kirby_combat.session.events import (
 )
 
 if TYPE_CHECKING:
-    from kirby_combat.scene.scene import Scene
+    from kirby_world.scene import Scene
     from kirby_combat.template import CombatTemplate
     from kirby_dice import DiceRoller
 

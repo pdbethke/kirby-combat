@@ -310,7 +310,7 @@ def _fold_position(
     an out-of-bounds point) would be a second ruling on a decision the
     log has already recorded.
     """
-    from kirby_combat.scene.scene import Position
+    from kirby_world.scene import Position
 
     if event.combatant_id not in session.combatants:
         raise ValueError(

@@ -143,7 +143,7 @@ class MovementAction:
         # a destination: it spends END for a distance. A caller that has a
         # destination goes through `scene/placement.py`, which decides the
         # landing and writes it onto the Scene.
-        from kirby_combat.scene.placement import position_of
+        from kirby_world.occupancy import position_of
 
         start = position_of(session.scene, combatant_id)
         evt = MovementResolved(

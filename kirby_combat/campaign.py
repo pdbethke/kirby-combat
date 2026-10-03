@@ -23,7 +23,7 @@ from kirby_combat.template import DEFAULT_TEMPLATE, CombatTemplate
 
 if TYPE_CHECKING:
     from kirby_combat.encounter import Encounter
-    from kirby_combat.world import World
+    from kirby_world.world import World
 
 
 @dataclass

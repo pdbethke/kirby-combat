@@ -45,8 +45,8 @@ from kirby_combat.loop.registry import (
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import PhaseSpent, make_author_engine
-from kirby_combat.scene.construct import constructs_in
-from kirby_combat.scene.geometry import distance_3d
+from kirby_combat.constructs import constructs_in
+from kirby_world.geometry import distance_3d
 from kirby_combat.side import Side
 
 if TYPE_CHECKING:

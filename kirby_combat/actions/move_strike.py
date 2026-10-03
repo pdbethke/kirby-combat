@@ -63,8 +63,8 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from kirby_combat.actions.reach import ReachVerdict, within_reach
-from kirby_combat.scene.geometry import distance_3d
-from kirby_combat.scene.scene import Position
+from kirby_world.geometry import distance_3d
+from kirby_world.scene import Position
 
 
 @dataclass(frozen=True)
@@ -154,7 +154,7 @@ def resolve_move_strike(
                 facing=actor_pos.facing,
             )
     else:
-        from kirby_combat.scene.movement_legality import movement_reach
+        from kirby_combat.reach import movement_reach
 
         outcome = movement_reach(
             mode, actor_pos, desired, half_move_m, scene,

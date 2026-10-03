@@ -35,7 +35,8 @@ OWN = {"kirby_combat"}
 #: a number of dice or a roll belongs there, and this package acts on the
 #: numbers it is given. kirby-dice rolls them: it owns the RNG, its fairness
 #: tests and the seed, and it holds no rules — what a roll MEANS stays here.
-DECLARED = {"kirby_cost", "kirby_dice", "kirby_terrain"}
+#: kirby-world is the place a fight happens in (0.20.0); it imports no fight.
+DECLARED = {"kirby_cost", "kirby_dice", "kirby_terrain", "kirby_world"}
 
 #: Modules that ship with Python. `sys.stdlib_module_names` is authoritative
 #: (3.10+) and needs no hand-maintained list to drift.

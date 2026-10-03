@@ -18,9 +18,8 @@ def _ensure_registry() -> None:
     """Import types lazily to avoid circular deps."""
     if _TYPE_REGISTRY:
         return
-    from kirby_combat.scene import (
-        Scene, SceneBounds, Position, AmbientConditions,
-        Surface, Wall, Hazard, HazardEffect,
+    from kirby_world import (
+        Scene, SceneBounds, Position, AmbientConditions, Surface, Wall, Hazard, HazardEffect,
     )
     from kirby_combat.models import (
         StatBlockCombatant, AttackPower, DefenseItem, CombatSkillLevel,

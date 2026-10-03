@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
-from kirby_combat.scene.cover import cover_ocv_modifier
+from kirby_world.cover import cover_ocv_modifier
 from kirby_combat.resolution.bleeding import (
     EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
     stabilize_target as _stabilize_target,
@@ -36,7 +36,7 @@ from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.perception import flash_groups, perceive
 
 if TYPE_CHECKING:
-    from kirby_combat.scene import Construct
+    from kirby_world import Construct
 
 # Movement spec §3: tolerance for "lands meaningfully closer" + within-reach.
 _EPS_M = 1e-6
@@ -93,9 +93,7 @@ def _distance_to_cover(pos: Any, feature: Any) -> float | None:
     `polygon_xy` as a flat list when `Surface` stores (x, y) tuples, so
     every Surface raised and none ever offered Hide.
     """
-    from kirby_combat.scene.geometry import (
-        distance_to_polygon_xy, distance_to_segment_xy,
-    )
+    from kirby_world.geometry import distance_to_polygon_xy, distance_to_segment_xy
 
     seg = getattr(feature, "segment", None)
     if seg is not None:
@@ -156,7 +154,7 @@ def _point_within_reach(actor_pos: Any, enemy_pos: Any, reach_m: float) -> Any:
     (so a mover landing there is within melee reach). Returns an engine
     ``Position``. If the actor is already within reach, returns ``enemy_pos``
     unchanged."""
-    from kirby_combat.scene.scene import Position
+    from kirby_world.scene import Position
 
     d = _xyz_dist(actor_pos, enemy_pos)
     # The reach decision is the engine's (6E2 p56); the `d < _EPS_M` arm is a
@@ -1404,7 +1402,7 @@ def enumerate_actions(
                     _cpt = _construct_point(c)
                     if _cpt is None:
                         continue
-                    from kirby_combat.scene.scene import Position as _CPos
+                    from kirby_world.scene import Position as _CPos
 
                     if not within_reach(
                         _xyz_dist(
@@ -1581,7 +1579,7 @@ def enumerate_actions(
                 cpt = _construct_point(c)
                 if cpt is None:
                     continue
-                from kirby_combat.scene.scene import Position as _Pos
+                from kirby_world.scene import Position as _Pos
 
                 cpos = _Pos(x=cpt[0], y=cpt[1], z=cpt[2])
                 if not within_reach(
@@ -2658,9 +2656,7 @@ def enumerate_actions(
                 _epos = _vel_positions.get(enemy_id)
                 if _epos is None:
                     return True
-                from kirby_combat.scene.movement_legality import (
-                    movement_reach as _mr,
-                )
+                from kirby_combat.reach import movement_reach as _mr
 
                 try:
                     out = _mr(
@@ -2773,7 +2769,7 @@ def enumerate_actions(
         is not None
     )
     if _gated_movement:
-        from kirby_combat.scene.movement_legality import movement_reach
+        from kirby_combat.reach import movement_reach
 
         positions = scene.combatant_positions
         actor_pos = positions[actor.id]
@@ -3050,11 +3046,9 @@ def enumerate_actions(
                 from kirby_combat.resolution.line_of_sight import (
                     has_line_of_sight,
                 )
-                from kirby_combat.scene.movement_legality import (
-                    mode_requires_support,
-                    movement_reach,
-                )
-                from kirby_combat.scene.visibility import nearest_visible_point
+                from kirby_world.movement_legality import mode_requires_support
+                from kirby_combat.reach import movement_reach
+                from kirby_world.visibility import nearest_visible_point
 
                 best_name = best_attack.name or (best_attack.xmlid or "").lower()
                 for enemy in alive_enemies:
@@ -3260,11 +3254,9 @@ def enumerate_actions(
             except Exception:
                 _def_caps = []
             if _def_caps:
-                from kirby_combat.scene.movement_legality import (
-                    mode_requires_support,
-                    movement_reach,
-                )
-                from kirby_combat.scene.visibility import nearest_hidden_point
+                from kirby_world.movement_legality import mode_requires_support
+                from kirby_combat.reach import movement_reach
+                from kirby_world.visibility import nearest_hidden_point
 
                 _def_offered = 0
                 for enemy in alive_enemies:
@@ -3354,10 +3346,8 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_combat.scene.cover import (
-            compute_cover_level, cover_available, cover_breakdown,
-        )
-        from kirby_combat.scene.movement_legality import movement_reach
+        from kirby_world.cover import compute_cover_level, cover_available, cover_breakdown
+        from kirby_combat.reach import movement_reach
 
         _threats = [
             _cover_positions[e.id] for e in alive_enemies
@@ -3455,7 +3445,7 @@ def enumerate_actions(
             # hiding from one man while others walk round is a real trade.
             # What is withheld is a spot that blinds him to everybody.
             if alive_enemies:
-                from kirby_combat.scene.geometry import first_blocking_wall
+                from kirby_world.geometry import first_blocking_wall
 
                 _walls = getattr(scene, "walls", None) or []
                 _sees_any = False
@@ -3523,7 +3513,7 @@ def enumerate_actions(
     if scene is not None and _dis_actor_pos is not None and alive_enemies:
         import math as _dis_math
 
-        from kirby_combat.scene.scene import Position as _DisPosition
+        from kirby_world.scene import Position as _DisPosition
 
         _foes = [
             _dis_positions[e.id] for e in alive_enemies
@@ -3544,9 +3534,7 @@ def enumerate_actions(
                     _run = None
                 _budget = float(getattr(_run, "combat_m", 0.0) or 0.0)
                 if _budget > 0:
-                    from kirby_combat.scene.movement_legality import (
-                        movement_reach as _dis_reach,
-                    )
+                    from kirby_combat.reach import movement_reach as _dis_reach
 
                     # GEOMETRY IS NOT PERMISSION. Straight away from the
                     # centroid is where the actor WANTS to go; a wall
@@ -3616,12 +3604,10 @@ def enumerate_actions(
         from kirby_combat.climbing import (
             CLIMB_BASE_M, CLIMB_FAST_M, CLIMB_FAST_PENALTY,
         )
-        from kirby_combat.scene.movement_legality import (
-            CLIMB_FACE_REACH_M, _nearest_point_on_segment_xy,
-            movement_reach,
-        )
-        from kirby_combat.scene.scene import Position as _ClimbPos
-        from kirby_combat.scene.scene import is_climbable
+        from kirby_world.movement_legality import CLIMB_FACE_REACH_M, _nearest_point_on_segment_xy
+        from kirby_combat.reach import movement_reach
+        from kirby_world.scene import Position as _ClimbPos
+        from kirby_world.scene import is_climbable
 
         # 6E1 p70 gating needs only "does the hero HAVE the Skill" here;
         # the roll TARGET is read in the resolver via _skill_roll_target.

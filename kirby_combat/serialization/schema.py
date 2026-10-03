@@ -36,11 +36,11 @@ from kirby_combat.session.timeline import ActionIntent
 from kirby_combat.session.state_view import (
     CombatantStateView, PositionView, SessionStateView,
 )
-from kirby_combat.scene.scene import (
-    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene,
-    SceneBounds, Surface, Wall,
+from kirby_world.scene import (
+    AmbientConditions, Furnishing, Hazard, HazardEffect, Position, Scene, SceneBounds, Surface,
+    Wall,
 )
-from kirby_combat.scene.construct import Construct, ConstructEffect
+from kirby_world.construct import Construct, ConstructEffect
 # RESOLUTION ONLY. `scene.py` imports `Encounter` under `if TYPE_CHECKING:`,
 # so `get_type_hints(Scene)` raises `NameError` without it in the namespace
 # — same reason `ActionIntent` is imported above. `Encounter` is never
