@@ -147,7 +147,7 @@ def _inside(pos: Any, construct: Any) -> bool:
     """
     if getattr(construct, "polygon_xy", None) is None:
         return False
-    from kirby_combat.scene.construct import constructs_containing
+    from kirby_world.construct import constructs_containing
 
     return bool(constructs_containing(pos, [construct]))
 

@@ -61,8 +61,8 @@ def _range_to(session, actor, target) -> float | None:
     scene = getattr(session, "scene", None)
     if scene is None:
         return None
-    from kirby_combat.scene.geometry import distance_3d
-    from kirby_combat.scene.placement import position_of
+    from kirby_world.geometry import distance_3d
+    from kirby_world.occupancy import position_of
 
     here = position_of(scene, getattr(actor, "id", None))
     there = position_of(scene, getattr(target, "id", None))
@@ -466,7 +466,7 @@ def _point_near_nearest_enemy(
     coordinate.
     """
     from kirby_combat.roster import Roster
-    from kirby_combat.scene.geometry import distance_3d
+    from kirby_world.geometry import distance_3d
 
     scene = session.scene
     positions = getattr(scene, "combatant_positions", None) or {}
@@ -1084,7 +1084,7 @@ def _resolve_throw(
         from kirby_combat.resolution.object_damage import (
             apply_attack_to_construct,
         )
-        from kirby_combat.scene.construct import constructs_in
+        from kirby_combat.constructs import constructs_in
 
         scene = session.scene
         here = constructs_in(scene, session=session) if scene is not None else []
@@ -1143,7 +1143,7 @@ def _resolve_throw(
     if target is not None:
         from kirby_combat.actions.throw import resolve_object_throw
         from kirby_combat.models import AttackInput, AttackPower, DiceValues
-        from kirby_combat.scene.construct import constructs_in
+        from kirby_combat.constructs import constructs_in
 
         scene = session.scene
         here = constructs_in(scene, session=session) if scene is not None else []
@@ -1454,7 +1454,7 @@ def _resolve_attack_construct(
     """
     from kirby_combat.resolution.object_damage import apply_attack_to_construct
 
-    from kirby_combat.scene.construct import constructs_in
+    from kirby_combat.constructs import constructs_in
 
     scene = session.scene
     target_id = action.target_id
@@ -1693,7 +1693,7 @@ def _resolve_force_wall(
     shared placement helper --- because a barrier that is not between you
     and the threat is not a barrier.
     """
-    from kirby_combat.scene.scene import Position, Wall
+    from kirby_world.scene import Position, Wall
 
     power = action._attack_view
     if power is None:
@@ -1763,8 +1763,8 @@ def _stop_at_reach(here, there, reach_m: float):
     Returns `there` unchanged when the mover is already inside reach ---
     closing on someone you can already hit is not a move backwards.
     """
-    from kirby_combat.scene.geometry import distance_3d
-    from kirby_combat.scene.scene import Position
+    from kirby_world.geometry import distance_3d
+    from kirby_world.scene import Position
 
     if here is None:
         return there
@@ -1802,7 +1802,8 @@ def _resolve_move(
     supporting surface or plain distance may leave them short, and a partial
     move is a real move.
     """
-    from kirby_combat.scene.placement import move_toward, position_of
+    from kirby_combat.placement import move_toward
+    from kirby_world.occupancy import position_of
 
     mode = action.mode or "running"
     destination = position_of(session.scene, action.target_id)
@@ -1833,8 +1834,8 @@ def _reposition(session, actor, action, *, template, roller, then_attack: bool):
     engine went to another.
     """
     from kirby_combat.models import AttackInput, DiceValues
-    from kirby_combat.scene.placement import move_toward
-    from kirby_combat.scene.scene import Position
+    from kirby_combat.placement import move_toward
+    from kirby_world.scene import Position
 
     if action.reposition_dest is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -1960,7 +1961,7 @@ def _resolve_reposition_strike(
     enumeration chose. Both end in an attack resolved from the NEW position,
     which is what makes them a single action rather than two.
     """
-    from kirby_combat.scene.placement import position_of
+    from kirby_world.occupancy import position_of
 
     if action.reposition_dest is None and action.target_id:
         # `move_strike` names an enemy rather than a point: close on them.
@@ -2660,8 +2661,8 @@ def _resolve_move_to_cover(
     the menu advertised one spot and the engine went to another, which is
     the same disagreement Rapid Fire's shot count had.
     """
-    from kirby_combat.scene.placement import move_toward
-    from kirby_combat.scene.scene import Position
+    from kirby_combat.placement import move_toward
+    from kirby_world.scene import Position
 
     if action.reposition_dest is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -2705,8 +2706,8 @@ def _resolve_disengage(
     position, not as a flag toggled by this action, which is the house
     contract for anything a later reader has to fold forward.
     """
-    from kirby_combat.scene.placement import move_toward
-    from kirby_combat.scene.scene import Position
+    from kirby_combat.placement import move_toward
+    from kirby_world.scene import Position
 
     if action.reposition_dest is None:
         raise UnresolvableAction(action.kind, action.action_id)

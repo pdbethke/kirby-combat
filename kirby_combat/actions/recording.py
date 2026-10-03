@@ -191,7 +191,7 @@ def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, in
     if shooter is None or target is None:
         return 0, 0
 
-    from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
+    from kirby_world.cover import compute_cover_level, cover_ocv_modifier
     from kirby_combat.statuses import statuses_for
 
     prone = "prone" in {

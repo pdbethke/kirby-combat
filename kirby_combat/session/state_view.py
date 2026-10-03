@@ -41,7 +41,7 @@ from kirby_combat.concealment import perceives as _perceives
 from kirby_combat.enumeration import is_down
 from kirby_combat.health import classify_health
 from kirby_combat.loop.run import next_actor_id as _next_actor_id
-from kirby_combat.scene.placement import position_of
+from kirby_world.occupancy import position_of
 from kirby_combat.side import Side
 from kirby_combat.statuses import KNOCKED_OUT, PRONE, STUNNED
 

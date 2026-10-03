@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, Optional
 
 if TYPE_CHECKING:
-    from kirby_combat.scene.scene import Scene
+    from kirby_world.scene import Scene
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +179,8 @@ def _scene_filter_los(
     Per 6E1 p339, Indirect bypasses obstacles, so when indirect=True every
     affected target stays in the list.
     """
-    from kirby_combat.scene.scene import Position
-    from kirby_combat.scene.geometry import line_of_sight_clear
+    from kirby_world.scene import Position
+    from kirby_world.geometry import line_of_sight_clear
 
     if indirect:
         return list(affected)
@@ -208,8 +208,8 @@ def _hazards_along_path(
     even before reaching its end point. We synthesize a single virtual
     'aoe_path' combatant to use the existing crossing-detection code.
     """
-    from kirby_combat.scene.scene import Position
-    from kirby_combat.scene.hazards import compute_hazard_triggers
+    from kirby_world.scene import Position
+    from kirby_world.hazards import compute_hazard_triggers
 
     before = {"_aoe_path_": Position(x=origin_xy[0], y=origin_xy[1], z=elevation_z)}
     after = {"_aoe_path_": Position(x=end_xy[0], y=end_xy[1], z=elevation_z)}

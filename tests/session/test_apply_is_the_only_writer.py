@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import ast
 import pathlib
+
+import kirby_world
 import uuid
 from datetime import datetime, timezone
 
@@ -60,6 +62,10 @@ from kirby_combat.vitals import record_vitals_change
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
 ENGINE = pathlib.Path(__file__).resolve().parent.parent.parent / "kirby_combat"
+#: The place package (0.20.0). Its Scene OWNS the position map and its arena
+#: generator builds one, so two carve-outs below live there; the walks still
+#: cover ENGINE only, because the gate is about what the FIGHT may write.
+WORLD = pathlib.Path(kirby_world.__file__).resolve().parent
 
 #: The only modules allowed to write a combatant's STUN, BODY or END.
 #:
@@ -113,11 +119,11 @@ _VITAL_FIELDS = frozenset({"current_stun", "current_body", "current_end"})
 #:   above, which they are NOT allowed to take.
 ALLOWED_PLACERS: dict[str, frozenset[pathlib.Path]] = {
     "mutates": frozenset({
-        ENGINE / "scene" / "scene.py",
-        ENGINE / "scene" / "generate.py",
+        WORLD / "scene.py",
+        WORLD / "generate.py",
     }),
     "place_combatant": frozenset({ENGINE / "gm" / "spawn_despawn.py"}),
-    "rebuilds": frozenset({ENGINE / "scene" / "scene.py"}),
+    "rebuilds": frozenset({WORLD / "scene.py"}),
     "installs": frozenset({
         ENGINE / "session" / "apply.py",
         ENGINE / "collapse.py",
@@ -697,11 +703,11 @@ def test_the_placement_allow_list_is_asserted_whole():
     """An allow-list is a place a defect hides, so it is asserted whole."""
     assert ALLOWED_PLACERS == {
         "mutates": frozenset({
-        ENGINE / "scene" / "scene.py",
-        ENGINE / "scene" / "generate.py",
+        WORLD / "scene.py",
+        WORLD / "generate.py",
     }),
         "place_combatant": frozenset({ENGINE / "gm" / "spawn_despawn.py"}),
-        "rebuilds": frozenset({ENGINE / "scene" / "scene.py"}),
+        "rebuilds": frozenset({WORLD / "scene.py"}),
         "installs": frozenset({
             ENGINE / "session" / "apply.py",
             ENGINE / "collapse.py",
@@ -721,7 +727,7 @@ def test_placement_no_longer_writes_the_board():
     module whose own docstring used to say it mutated the position map
     "deliberately, and only here"; it records the move now and writes
     nothing."""
-    assert _position_routes(ENGINE / "scene" / "placement.py") == frozenset()
+    assert _position_routes(ENGINE / "placement.py") == frozenset()
 
 
 # ---------------------------------------------------------------------------

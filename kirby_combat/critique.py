@@ -252,7 +252,7 @@ def _best_case_against_terrain(situation, power, action) -> tuple[int, int] | No
     """
     from kirby_combat.models import DiceValues
     from kirby_combat.resolution.object_damage import apply_attack_to_construct
-    from kirby_combat.scene.construct import constructs_in
+    from kirby_combat.constructs import constructs_in
     from kirby_combat.template import DEFAULT_TEMPLATE
 
     session = getattr(situation, "session", None)

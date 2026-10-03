@@ -109,7 +109,7 @@ class Darkness:
         it exists to trigger. ``ConstructSpawned`` is still emitted for the
         log, matching how every other construct announces itself.
         """
-        from kirby_combat.scene.construct import construct_from_spawn_spec
+        from kirby_world.construct import construct_from_spawn_spec
         from kirby_combat.session.apply import apply_event
         from kirby_combat.session.events import (
             ActionDeclared, ActionResolved, ConstructSpawned,

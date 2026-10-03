@@ -295,7 +295,7 @@ class Images:
         from kirby_combat.actions.flash import Flash
         from kirby_combat.perception import SenseCapability, _darkness_blocks
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
-        from kirby_combat.scene.scene import Position
+        from kirby_world.scene import Position
 
         image = Images.get(session, image_id)
         if image is None:

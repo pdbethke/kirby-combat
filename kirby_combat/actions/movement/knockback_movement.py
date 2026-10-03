@@ -14,14 +14,10 @@ from typing import TYPE_CHECKING
 
 from kirby_combat.models import DiceValues
 from kirby_combat.resolution.knockback import compute_knockback
-from kirby_combat.scene.scene import Position, Scene, Wall
-from kirby_combat.scene.geometry import (
-    segments_intersect_xy,
-    segment_intersection_xy,
-    wall_height_blocks,
-)
-from kirby_combat.scene.falling import is_supported_at, resolve_fall, FallingResult
-from kirby_combat.scene.hazards import compute_hazard_triggers, HazardTriggerResult
+from kirby_world.scene import Position, Scene, Wall
+from kirby_world.geometry import segments_intersect_xy, segment_intersection_xy, wall_height_blocks
+from kirby_world.falling import is_supported_at, resolve_fall, FallingResult
+from kirby_world.hazards import compute_hazard_triggers, HazardTriggerResult
 
 if TYPE_CHECKING:
     from kirby_combat.template import CombatTemplate

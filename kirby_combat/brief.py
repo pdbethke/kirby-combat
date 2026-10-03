@@ -188,7 +188,7 @@ class Terrain:
         return self.scene is not None and self.position_of(self._actor.id) is not None
 
     def position_of(self, combatant_id: str):
-        from kirby_combat.scene.placement import position_of
+        from kirby_world.occupancy import position_of
 
         return position_of(self.scene, combatant_id)
 
@@ -214,7 +214,7 @@ class Terrain:
         """
         import math
 
-        from kirby_combat.scene.cover import cover_available
+        from kirby_world.cover import cover_available
 
         here = self.position_of(self._actor.id)
         if here is None:
@@ -310,8 +310,8 @@ class Terrain:
     @property
     def bearings(self) -> list[EnemyBearing]:
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
-        from kirby_combat.scene.cover import compute_cover_level, cover_ocv_modifier
-        from kirby_combat.scene.geometry import distance_3d
+        from kirby_world.cover import compute_cover_level, cover_ocv_modifier
+        from kirby_world.geometry import distance_3d
 
         here = self.position_of(self._actor.id)
         out: list[EnemyBearing] = []

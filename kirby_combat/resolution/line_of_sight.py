@@ -20,12 +20,8 @@ even be made?
 """
 from __future__ import annotations
 
-from kirby_combat.scene.geometry import (
-    first_blocking_surface,
-    first_blocking_wall,
-    line_of_sight_clear,
-)
-from kirby_combat.scene.scene import Position, Scene, Wall
+from kirby_world.geometry import first_blocking_surface, first_blocking_wall, line_of_sight_clear
+from kirby_world.scene import Position, Scene, Wall
 
 
 def has_line_of_sight(
