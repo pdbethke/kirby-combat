@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.20.0 — 2026-10-03
+
+**Places move to their own package: kirby-world.** `Scene`, `World` and the
+geometry inside them (surfaces, walls, furnishings, hazards, constructs,
+cover, falling, visibility, movement reachability, arena generation) now
+live in `kirby-world` 0.1.0, a new dependency that imports nothing of the
+fight. A house with five people in it no longer needs a combat engine.
+
+*No behaviour change.* The suite is the same 2,796 tests with the same
+result, unmodified except two architecture guards that had to name the new
+file locations, and nine scripted example fights produce byte-identical
+output before and after.
+
+*Nothing for a consumer to change.* `kirby_combat.scene` and
+`kirby_combat.world` are PERMANENT re-exports, not deprecated: the pure
+modules are the very same module objects as kirby-world's, and the two
+functions that took a fight's `session` keep their signatures here.
+
+*What stayed in the fight, and why.*
+
+- `kirby_combat.reach.movement_reach(..., session=)` — whether the mover
+  may move at all (Stunned or recovering, 6E2 p.106) is a rule about him;
+  it is asked here and passed to the world as `mover_can_move`.
+- `kirby_combat.constructs.constructs_in(scene, session)` — what a fight has
+  done to a building is folded from its event log (one fold,
+  `damage_by_object`; `damage_taken` reads it) and passed as `damage=`.
+- `kirby_combat.placement` (committing a move) and
+  `kirby_combat.construct_effects` (a hazard's effect on the person in it)
+  moved up out of `scene/`; the old paths still import.
+
+New code should import places from `kirby_world` directly.
+
 ## 0.19.0 — 2026-10-01
 
 **Eight defects from an outside review, all under a green suite.** Codex
