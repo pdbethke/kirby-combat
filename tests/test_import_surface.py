@@ -49,6 +49,11 @@ REQUIRED_BY_CONSUMERS = {
     "EnvironmentalTriggered", "GMOverride", "HeldActionDeclared",
     "HeldActionReleased", "MovementResolved",
     "make_author_combatant", "make_author_engine", "make_author_gm",
+    # The event registry a recorder reads instead of re-deriving it. kirby-api
+    # imported the PRIVATE `_BaseEvent` to learn the base fields and walked the
+    # events module itself to find the kinds -- which is why it had to pin this
+    # engine EXACTLY, and why it sat on 0.18.5 while 0.19/0.20 shipped.
+    "BaseEvent", "EVENT_KINDS",
     # Perception and senses
     "perceive", "per_roll_target", "flash_groups", "darkness_groups",
     "darkness_personal_immunity", "disbelieve_image", "is_surprised",
@@ -251,4 +256,24 @@ def test_the_undemonstrated_set_is_not_stale():
     assert stale == [], (
         "these are demonstrated in examples/ now — remove them from "
         f"UNDEMONSTRATED: {stale}"
+    )
+
+
+def test_the_event_registry_is_on_the_front_door():
+    """A recorder maps the base fields to columns and looks a row's kind up.
+    Both come from here, so no consumer walks `session.events` or reaches a
+    private to do it."""
+    import dataclasses
+
+    from kirby_combat import EVENT_KINDS, BaseEvent
+    from kirby_combat.session import events
+
+    assert {f.name for f in dataclasses.fields(BaseEvent)} == {
+        "id", "session_id", "sequence", "timestamp", "author",
+    }
+    assert EVENT_KINDS, "an empty registry would read every row as unknown"
+    assert all(issubclass(cls, BaseEvent) for cls in EVENT_KINDS.values())
+    assert not hasattr(events, "_BaseEvent"), (
+        "the private name is gone, not aliased: a second name for one thing "
+        "is how a consumer goes on depending on the wrong one"
     )

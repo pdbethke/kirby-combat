@@ -135,6 +135,7 @@ from kirby_combat.session.timeline import (  # noqa: E402
 from kirby_combat.session.events import (  # noqa: E402
     AbortDeclared, ActingOrderResolved, ActionDeclared, ActionResolved,
     BleedingSuffered, CombatEvent, PhaseSpent, RecoveryTaken, VitalsChanged,
+    BaseEvent, EVENT_KINDS,
     EnvironmentalTriggered, GMOverride, HeldActionDeclared, HeldActionReleased,
     MovementResolved, SegmentAdvanced,
     make_author_combatant, make_author_engine, make_author_gm,
@@ -240,6 +241,9 @@ __all__ = [
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
     "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
     "VitalsChanged",
+    # The registry a recorder maps rows with: base fields -> columns, kind ->
+    # class. Public since 0.20.1; kirby-api reached the private name before.
+    "BaseEvent", "EVENT_KINDS",
     "EnvironmentalTriggered", "GMOverride", "HeldActionDeclared",
     "HeldActionReleased", "MovementResolved", "SegmentAdvanced",
     "make_author_combatant", "make_author_engine", "make_author_gm",

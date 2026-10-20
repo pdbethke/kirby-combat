@@ -1,4 +1,4 @@
-"""Construct events follow the frozen _BaseEvent pattern (spec §1.2, §1.7)."""
+"""Construct events follow the frozen BaseEvent pattern (spec §1.2, §1.7)."""
 from datetime import datetime, timezone
 from kirby_combat.session.events import (
     ConstructDamaged, ConstructSpawned, make_author_engine,
