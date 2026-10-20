@@ -99,10 +99,10 @@ def test_the_gate_could_actually_fail():
     from dataclasses import dataclass, field
     from typing import Literal
 
-    from kirby_combat.session.events import _BaseEvent
+    from kirby_combat.session.events import BaseEvent
 
     @dataclass
-    class _Unregistered(_BaseEvent):
+    class _Unregistered(BaseEvent):
         kind: Literal["_Unregistered"] = field(
             default="_Unregistered", init=False)
 
@@ -388,13 +388,13 @@ def test_status_effects_changed_unregistered_type_fails_to_replay():
 # ---------------------------------------------------------------------------
 
 def _event_classes_the_module_defines() -> set[type]:
-    """Every concrete `_BaseEvent` subclass declared in
+    """Every concrete `BaseEvent` subclass declared in
     `kirby_combat.session.events`.
 
     THE DERIVATION, and the reason it is not `EVENT_CLASSES`. `EVENT_CLASSES`
     is `get_args(CombatEvent)`, which closed the gap between the union and
     the registry --- but it cannot close the gap between the union and the
-    CLASSES THEMSELVES. `PresenceActionLost` was a `_BaseEvent` subclass that
+    CLASSES THEMSELVES. `PresenceActionLost` was a `BaseEvent` subclass that
     `pre_attacks/presence_effects.py` emitted and `apply_event` folded, and
     it was absent from the union: so the registry did not know it, `from_dict`
     raised `unknown type 'PresenceActionLost'`, and a fight that lost a Phase
@@ -407,7 +407,7 @@ def _event_classes_the_module_defines() -> set[type]:
     engine ships.
     """
     from kirby_combat.session import events as _events
-    from kirby_combat.session.events import _BaseEvent
+    from kirby_combat.session.events import BaseEvent
 
     found: set[type] = set()
 
@@ -417,7 +417,7 @@ def _event_classes_the_module_defines() -> set[type]:
                 found.add(sub)
             _walk(sub)
 
-    _walk(_BaseEvent)
+    _walk(BaseEvent)
     return found
 
 
@@ -437,7 +437,7 @@ def test_the_union_holds_every_event_class_the_engine_defines():
 
 
 def test_the_derived_union_gate_could_actually_fail():
-    """The negative control. A `_BaseEvent` subclass that belongs to the
+    """The negative control. A `BaseEvent` subclass that belongs to the
     events module and is not in the union must be REPORTED by the
     derivation above --- otherwise that test passes whether or not the
     union is complete."""
@@ -445,10 +445,10 @@ def test_the_derived_union_gate_could_actually_fail():
     from typing import Literal
 
     from kirby_combat.session import events as _events
-    from kirby_combat.session.events import _BaseEvent
+    from kirby_combat.session.events import BaseEvent
 
     @dataclass
-    class _DeclaredButNotInTheUnion(_BaseEvent):
+    class _DeclaredButNotInTheUnion(BaseEvent):
         kind: Literal["_DeclaredButNotInTheUnion"] = field(
             default="_DeclaredButNotInTheUnion", init=False)
 

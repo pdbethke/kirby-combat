@@ -4,7 +4,7 @@ name: Tests
 # private-index credentials and a dispatch token, and neither belongs in a
 # public repository. What is left is the gate a reader can actually run.
 #
-# Real-character tests skip here by design — they read KIRBY_COMBAT_AUTHORED,
+# Real-character tests skip here by design — they read KIRBY_COMBAT_BUILDS,
 # which is not set in CI and never will be. See tests/corpus.py.
 
 on:

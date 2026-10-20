@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.20.1 — 2026-10-20
+
+**The event registry is on the front door.** `BaseEvent` (was the private
+`_BaseEvent`) and `EVENT_KINDS` are exported from `kirby_combat`. kirby-api
+imported the private class to learn the base fields and walked
+`session.events` itself to find the kinds, so it had to pin this engine
+EXACTLY and was still on 0.18.5 while 0.19.0 and 0.20.0 shipped their fixes.
+With the names public a consumer can take a compatible range.
+
+The private name is removed, not aliased. Nothing in a consumer's history
+breaks: the only one that reached it pins `==0.18.5`.
+
+No behaviour change; the shipped schema differs only in its version stamp.
+
 ## 0.20.0 — 2026-10-03
 
 **Places move to their own package: kirby-world.** `Scene`, `World` and the

@@ -24,7 +24,7 @@ from kirby_combat.serialization import json_schema, to_dict
 from kirby_combat.serialization.schema import (
     FREE_FORM_PAYLOADS, UnmappableField,
 )
-from kirby_combat.session.events import EVENT_CLASSES, EVENT_KINDS, _BaseEvent
+from kirby_combat.session.events import EVENT_CLASSES, EVENT_KINDS, BaseEvent
 
 
 SHIPPED = pathlib.Path(kirby_combat.__file__).parent / "schema" / "events.json"
@@ -77,7 +77,7 @@ def test_every_registered_kind_has_a_schema():
 def test_the_gate_could_actually_fail():
     """The negative control, and it is planted rather than imagined.
 
-    `_UnregisteredEvent` below is a REAL `_BaseEvent` subclass, defined
+    `_UnregisteredEvent` below is a REAL `BaseEvent` subclass, defined
     here and deliberately absent from the `CombatEvent` union. If the
     walk were over "every event class the package defines" rather than
     over the union, it would appear in `$defs` and this would fail — so
@@ -85,7 +85,7 @@ def test_the_gate_could_actually_fail():
     input. (An events-module class missing from the union is a different
     property and is guarded upstream by
     `tests/serialization/test_roundtrip.py`'s walk over
-    `_BaseEvent.__subclasses__()`; this file does not duplicate it.)
+    `BaseEvent.__subclasses__()`; this file does not duplicate it.)
 
     `LoadedHero` keeps the other half honest: a walk over every dataclass
     in the package rather than over the events would pull it in.
@@ -388,12 +388,12 @@ def test_the_module_prints_the_shipped_file():
 
 
 @dataclasses.dataclass
-class _UnregisteredEvent(_BaseEvent):
+class _UnregisteredEvent(BaseEvent):
     """A real event class that is NOT in the `CombatEvent` union.
 
     Defined here rather than in the events module on purpose: this is the
     planted control for `test_the_gate_could_actually_fail`, and the
-    round-trip gate's walk over `_BaseEvent.__subclasses__()` filters to
+    round-trip gate's walk over `BaseEvent.__subclasses__()` filters to
     classes the events module defines, so this one is invisible to it.
     """
 

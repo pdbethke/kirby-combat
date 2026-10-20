@@ -40,7 +40,7 @@ def make_author_engine() -> EventAuthor:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class _BaseEvent:
+class BaseEvent:
     id: str
     session_id: str
     sequence: int
@@ -53,14 +53,14 @@ class _BaseEvent:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class SessionStarted(_BaseEvent):
+class SessionStarted(BaseEvent):
     kind: Literal["SessionStarted"] = field(default="SessionStarted", init=False)
     scene_id: str = ""
     combatant_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
-class SegmentAdvanced(_BaseEvent):
+class SegmentAdvanced(BaseEvent):
     kind: Literal["SegmentAdvanced"] = field(default="SegmentAdvanced", init=False)
     from_segment: int = 0
     to_segment: int = 0
@@ -68,7 +68,7 @@ class SegmentAdvanced(_BaseEvent):
 
 
 @dataclass
-class ActingOrderResolved(_BaseEvent):
+class ActingOrderResolved(BaseEvent):
     """Who acts, in what order, in one Segment of one fight.
 
     THE LOOP'S OWN DECISION, WHICH NEVER REACHED THE RECORD. The order is
@@ -107,7 +107,7 @@ class ActingOrderResolved(_BaseEvent):
 
 
 @dataclass
-class PhaseSpent(_BaseEvent):
+class PhaseSpent(BaseEvent):
     """One combatant's slot in this Segment's order, used up.
 
     The other half of the same gap: an order that replay can restore still
@@ -136,7 +136,7 @@ class PhaseSpent(_BaseEvent):
 
 
 @dataclass
-class ActionDeclared(_BaseEvent):
+class ActionDeclared(BaseEvent):
     kind: Literal["ActionDeclared"] = field(default="ActionDeclared", init=False)
     combatant_id: str = ""
     action_type: str = ""
@@ -145,14 +145,14 @@ class ActionDeclared(_BaseEvent):
 
 
 @dataclass
-class ActionResolved(_BaseEvent):
+class ActionResolved(BaseEvent):
     kind: Literal["ActionResolved"] = field(default="ActionResolved", init=False)
     declaration_event_id: str = ""
     result_payload: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
-class VitalsChanged(_BaseEvent):
+class VitalsChanged(BaseEvent):
     """STUN, BODY or END moving on one combatant --- the whole of it.
 
     THE CHANGE WAS NEVER IN THE RECORD. Every resolver in this engine
@@ -196,7 +196,7 @@ class VitalsChanged(_BaseEvent):
 
 
 @dataclass
-class RecoveryTaken(_BaseEvent):
+class RecoveryTaken(BaseEvent):
     kind: Literal["RecoveryTaken"] = field(default="RecoveryTaken", init=False)
     combatant_id: str = ""
     stun_recovered: int = 0
@@ -204,7 +204,7 @@ class RecoveryTaken(_BaseEvent):
 
 
 @dataclass
-class BleedingSuffered(_BaseEvent):
+class BleedingSuffered(BaseEvent):
     """BODY (and, under the optional rules, STUN) lost between Phases.
 
     6E2 p.109's bleeding to death is 1 BODY at the end of each Turn for
@@ -228,7 +228,7 @@ class BleedingSuffered(_BaseEvent):
 
 
 @dataclass
-class MovementResolved(_BaseEvent):
+class MovementResolved(BaseEvent):
     """Where a man went — and, since 0.18.5, WHAT APPLIES IT.
 
     `apply_event` folds this onto `session.scene.combatant_positions`,
@@ -257,7 +257,7 @@ class MovementResolved(_BaseEvent):
 
 
 @dataclass
-class StatusEffectsChanged(_BaseEvent):
+class StatusEffectsChanged(BaseEvent):
     """THE ONE DOOR a condition goes through to reach the log.
 
     Conditions are not scalar — a combatant can be Entangled AND Flashed
@@ -290,7 +290,7 @@ class StatusEffectsChanged(_BaseEvent):
 
 
 @dataclass
-class AbortDeclared(_BaseEvent):
+class AbortDeclared(BaseEvent):
     kind: Literal["AbortDeclared"] = field(default="AbortDeclared", init=False)
     combatant_id: str = ""
     to_action: str = ""
@@ -309,7 +309,7 @@ class AbortDeclared(_BaseEvent):
 
 
 @dataclass
-class BlockPriorityGained(_BaseEvent):
+class BlockPriorityGained(BaseEvent):
     """A successful Block earning its blocker the right to act first.
 
     6E2 p.60, "ACTING FIRST": a character who Blocks an attack
@@ -338,7 +338,7 @@ class BlockPriorityGained(_BaseEvent):
 
 
 @dataclass
-class HeldActionDeclared(_BaseEvent):
+class HeldActionDeclared(BaseEvent):
     kind: Literal["HeldActionDeclared"] = field(default="HeldActionDeclared", init=False)
     combatant_id: str = ""
     trigger_condition: str = ""
@@ -346,14 +346,14 @@ class HeldActionDeclared(_BaseEvent):
 
 
 @dataclass
-class HeldActionReleased(_BaseEvent):
+class HeldActionReleased(BaseEvent):
     kind: Literal["HeldActionReleased"] = field(default="HeldActionReleased", init=False)
     held_event_id: str = ""
     trigger_observed: str = ""
 
 
 @dataclass
-class AdjustmentApplied(_BaseEvent):
+class AdjustmentApplied(BaseEvent):
     kind: Literal["AdjustmentApplied"] = field(default="AdjustmentApplied", init=False)
     target_id: str = ""
     stat: str = ""
@@ -363,7 +363,7 @@ class AdjustmentApplied(_BaseEvent):
 
 
 @dataclass
-class AdjustmentFaded(_BaseEvent):
+class AdjustmentFaded(BaseEvent):
     kind: Literal["AdjustmentFaded"] = field(default="AdjustmentFaded", init=False)
     target_id: str = ""
     stat: str = ""
@@ -371,7 +371,7 @@ class AdjustmentFaded(_BaseEvent):
 
 
 @dataclass
-class EntangleApplied(_BaseEvent):
+class EntangleApplied(BaseEvent):
     kind: Literal["EntangleApplied"] = field(default="EntangleApplied", init=False)
     target_id: str = ""
     entangle_body: int = 0
@@ -383,7 +383,7 @@ class EntangleApplied(_BaseEvent):
 
 
 @dataclass
-class EntangleEscape(_BaseEvent):
+class EntangleEscape(BaseEvent):
     kind: Literal["EntangleEscape"] = field(default="EntangleEscape", init=False)
     target_id: str = ""
     method: str = ""                      # "casual_str" | "full_str" | "break_out"
@@ -392,7 +392,7 @@ class EntangleEscape(_BaseEvent):
 
 
 @dataclass
-class FlashApplied(_BaseEvent):
+class FlashApplied(BaseEvent):
     kind: Literal["FlashApplied"] = field(default="FlashApplied", init=False)
     target_id: str = ""
     sense_group: str = ""
@@ -400,7 +400,7 @@ class FlashApplied(_BaseEvent):
 
 
 @dataclass
-class FlashRecovered(_BaseEvent):
+class FlashRecovered(BaseEvent):
     kind: Literal["FlashRecovered"] = field(default="FlashRecovered", init=False)
     target_id: str = ""
     sense_group: str = ""
@@ -408,7 +408,7 @@ class FlashRecovered(_BaseEvent):
 
 
 @dataclass
-class PresenceApplied(_BaseEvent):
+class PresenceApplied(BaseEvent):
     """A Presence Attack tier landing on a target (6E2 p.139).
 
     ``segments`` is the tier's full duration at the moment it lands. The
@@ -422,7 +422,7 @@ class PresenceApplied(_BaseEvent):
 
 
 @dataclass
-class PresenceActionLost(_BaseEvent):
+class PresenceActionLost(BaseEvent):
     """The one Full Phase a Presence Attack costs its target (6E2 p.139).
 
     ITS OWN CLOCK, because the tier has two. At PRE+20 the book says
@@ -441,7 +441,7 @@ class PresenceActionLost(_BaseEvent):
 
 
 @dataclass
-class PresenceFaded(_BaseEvent):
+class PresenceFaded(BaseEvent):
     """Time passing on a Presence effect.
 
     ``segments_remaining`` is the RESULTING value, absolute — never a delta
@@ -457,7 +457,7 @@ class PresenceFaded(_BaseEvent):
 
 
 @dataclass
-class EnvironmentalTriggered(_BaseEvent):
+class EnvironmentalTriggered(BaseEvent):
     kind: Literal["EnvironmentalTriggered"] = field(default="EnvironmentalTriggered", init=False)
     hazard_id: str = ""
     affected_combatants: list[str] = field(default_factory=list)
@@ -465,7 +465,7 @@ class EnvironmentalTriggered(_BaseEvent):
 
 
 @dataclass
-class GMOverride(_BaseEvent):
+class GMOverride(BaseEvent):
     kind: Literal["GMOverride"] = field(default="GMOverride", init=False)
     tier: int = 1
     target_event_id: str | None = None
@@ -478,7 +478,7 @@ class GMOverride(_BaseEvent):
 
 
 @dataclass
-class ConstructDamaged(_BaseEvent):
+class ConstructDamaged(BaseEvent):
     kind: Literal["ConstructDamaged"] = field(default="ConstructDamaged", init=False)
     construct_id: str = ""
     body_rolled: int = 0
@@ -490,7 +490,7 @@ class ConstructDamaged(_BaseEvent):
 
 
 @dataclass
-class ConstructSpawned(_BaseEvent):
+class ConstructSpawned(BaseEvent):
     kind: Literal["ConstructSpawned"] = field(default="ConstructSpawned", init=False)
     construct_id: str = ""
     construct_kind: str = "force_wall"
@@ -500,7 +500,7 @@ class ConstructSpawned(_BaseEvent):
 
 
 @dataclass
-class SessionEnded(_BaseEvent):
+class SessionEnded(BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
 
