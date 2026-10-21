@@ -18,12 +18,20 @@ not set. A directory rather than three variables, and no default: a path into
 a maintainer's home is not shippable, and a variable that names one reads as
 configured while behaving as absent everywhere else.
 
-To produce them, once, from outside this package:
+To produce them, once, from the cleared .hdc (with KIRBY_COST_HDT set):
 
-    python -c "import json,sys;from kirby_cost.io.hdc_loader import HDCLoader; \
-      from kirby_cost.io.build_json import to_build_json; \
-      json.dump(to_build_json(HDCLoader().load_file(sys.argv[1])), \
-                open(sys.argv[2],'w'))" Ravel.hdc Ravel.json
+    python scripts/write_build_docs.py <dir holding Ravel.hdc etc> <out dir>
+    KIRBY_COMBAT_BUILDS=<out dir> pytest
+
+NOT FROM THE .json BESIDE THE .hdc. `kirby-cost/tests/fixtures/authored/`
+holds oracle dumps next to the authored files; they look like build docs and
+are not (no costing header, `complications` for `disadvantages`), and loaded
+as one they lose every framework (Warp review 2026-10-20, F2). A doc without
+the canonical header is refused by name below.
+
+UNSET SKIPS; SET-BUT-WRONG FAILS. A directory that is missing, incomplete or
+holds the wrong shape is a configured run that would otherwise go green on
+fewer characters than it claims, or red with what reads as an engine defect.
 
 Tests that assert MECHANICS rather than ingestion should not come here at
 all. A synthetic stub states its input as data, runs everywhere, and does not
@@ -52,22 +60,57 @@ AUTHORED = {
 }
 
 
+#: The top-level keys `kirby_cost.io.build_json.to_build_json` always writes
+#: and an oracle dump never has. The header is what costing reads; a doc
+#: without it is some other document.
+CANONICAL_KEYS = ("template", "base_points", "disad_points", "experience", "disadvantages")
+
+_WRITE_THEM = "Write them with scripts/write_build_docs.py (see tests/corpus.py)."
+
+
 def authored_root() -> Optional[Path]:
-    """The directory holding the authored characters, or None if unset."""
+    """The directory holding the authored characters; None only if UNSET.
+
+    Set to something that is not a directory is a failure, not a skip.
+    """
     raw = os.environ.get(AUTHORED_ENV, "").strip()
     if not raw:
         return None
     root = Path(raw).expanduser()
-    return root if root.is_dir() else None
+    if not root.is_dir():
+        pytest.fail(f"{AUTHORED_ENV}={raw!r} is not a directory. {_WRITE_THEM}")
+    return root
 
 
 def authored_doc(name: str) -> Optional[Path]:
-    """``<authored root>/<name>.json``, if the root is set and it exists."""
+    """``<authored root>/<name>.json``; None only if the variable is unset.
+
+    A configured corpus missing a cleared character fails by name.
+    """
     root = authored_root()
     if root is None:
         return None
     candidate = root / f"{name}.json"
-    return candidate if candidate.exists() else None
+    if not candidate.exists():
+        pytest.fail(
+            f"{AUTHORED_ENV} is set but {candidate} does not exist; it must hold "
+            f"{', '.join(f'{n}.json' for n in sorted(AUTHORED))}. {_WRITE_THEM}"
+        )
+    return candidate
+
+
+def _read_build_doc(path: Path) -> dict:
+    """The doc at ``path``, refused unless it is a canonical build doc."""
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    missing = [k for k in CANONICAL_KEYS if not isinstance(doc, dict) or k not in doc]
+    if missing:
+        pytest.fail(
+            f"{path} is not a canonical build doc: it lacks {', '.join(missing)}. "
+            f"An oracle dump (the .json beside each .hdc in kirby-cost's "
+            f"fixtures) looks like one and loses every framework. {_WRITE_THEM}"
+        )
+    return doc
 
 
 def require_authored_doc(name: str) -> dict:
@@ -83,8 +126,7 @@ def require_authored_doc(name: str) -> dict:
             f"{name}.json not available — set {AUTHORED_ENV} to a directory "
             f"holding build docs for {', '.join(sorted(AUTHORED))}."
         )
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+    return _read_build_doc(path)
 
 
 def require_authored(name: str) -> Any:
@@ -94,8 +136,9 @@ def require_authored(name: str) -> Any:
     of this helper: no test should hold a path, because holding a path is
     how re-parsing creeps back in.
 
-    Skips rather than fails: the build is the maintainer's own and is not in
-    the repository, so its absence is a configuration state, not a defect.
+    Skips when the corpus is UNSET: the build is the maintainer's own and is
+    not in the repository, so its absence is a configuration state. A corpus
+    that is set fails instead when the doc is missing or the wrong shape.
     """
     from kirby_cost.io.build_json import build_from_json
 
@@ -106,8 +149,7 @@ def require_authored(name: str) -> Any:
             f"holding build docs for {', '.join(sorted(AUTHORED))}. "
             f"See this module's docstring for how to write them."
         )
-    with open(path, encoding="utf-8") as fh:
-        return build_from_json(json.load(fh))
+    return build_from_json(_read_build_doc(path))
 
 
 #: kirby-cost needs a HERO Designer template to cost anything, and ships
