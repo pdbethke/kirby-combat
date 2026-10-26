@@ -208,6 +208,12 @@ class CombatSkillLevel:
     named_attacks: str = ""
 
 
+#: A character's base Reach: one metre (6E2 p.56; 6E2 p.40; 6E1 p.231). The
+#: citations and the history of the old 2 m value are in hero_view.py's reach
+#: constants, which add Stretching on top of this.
+BASE_REACH_M: float = 1.0
+
+
 @dataclass
 class StatBlockCombatant(Stunnable, CombatParticipant):
     """A character or NPC participating in combat, described by a flat stat
@@ -279,6 +285,37 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
         """Return self — flat fields ARE the stats. Mirrors
         :meth:`HeroCombatant.combat_stats` for uniform access."""
         return self
+
+    def str_strike_view(self) -> AttackPower:
+        """The bare-handed Strike: STR/5 dice, normal damage vs PD.
+
+        The same view `HeroCombatant.str_strike_view` builds, from this
+        block's own STR through the cost engine's `strike_dice`. A stat
+        block has no Stretching to read, so its reach is the base metre.
+        Without this, Trip and Disarm -- STR maneuvers enumeration offers
+        to anyone with STR >= 5 -- could not be rolled by a stat block.
+        """
+        from kirby_cost.engine.damage import strike_dice
+
+        full_dice, half_die = strike_dice(self.str_)
+        return AttackPower(
+            source_id=f"{self.id}:STR",
+            xmlid="STR",
+            name="Strike",
+            damage_dice=full_dice,
+            half_die=half_die,
+            plus_one=False,
+            damage_type="normal",
+            defense_type="pd",
+            range_m=0.0,
+            uses_str=True,
+            str_min=0,
+            armor_piercing=0,
+            penetrating=0,
+            increased_stun_mult=0,
+            is_ranged=False,
+            reach_m=BASE_REACH_M,
+        )
 
     @property
     def state(self) -> "StatBlockCombatant":

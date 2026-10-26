@@ -66,7 +66,7 @@ from kirby_cost.model.modifiers import (
     find_modifier, has_modifier, modifier_levels,
 )
 
-from kirby_combat.models import AttackPower, DefenseItem, MovementCapability
+from kirby_combat.models import BASE_REACH_M, AttackPower, DefenseItem, MovementCapability
 from kirby_combat.side import Side
 from kirby_combat.participant import CombatParticipant, Stunnable
 
@@ -1343,7 +1343,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Reach constants (reach spec §1; corrected 2026-08-31)
-# _BASE_REACH_M: 1m, per THREE citations — 6E2 p56 (which sets a character's
+# BASE_REACH_M (now in models.py, so a stat block's Strike shares it): 1m, per THREE citations — 6E2 p56 (which sets a character's
 #   base Reach at one metre), 6E2 p40 (the Range Modifier table gives the reach
 #   band its own row at 1m, listed separately from the next band up), and
 #   6E1 p231 (a character with no Growth can hit only targets within his own
@@ -1358,7 +1358,6 @@ class HeroCombatant(Stunnable, CombatParticipant):
 #   1 metre. Verified against Main6E.hdt: LVLCOST="1" LVLVAL="1" → 1 CP per
 #   1m, so LEVELS == metres of stretching. Evidence: Ravel.hdc LEVELS="8"
 #   → 8m stretch, total reach 9m.
-_BASE_REACH_M: float = 1.0
 _STRETCH_M_PER_LEVEL: float = 1.0
 
 
@@ -1374,7 +1373,7 @@ def _base_reach_m(hero) -> float:
     for p in getattr(hero, "powers", []) or []:
         if (getattr(p, "xmlid", None) or "").upper() == "STRETCHING":
             stretch += int(getattr(p, "levels", 0) or 0)
-    return _BASE_REACH_M + stretch * _STRETCH_M_PER_LEVEL
+    return BASE_REACH_M + stretch * _STRETCH_M_PER_LEVEL
 
 
 # ─────────────────────────────────────────────────────────────────────────────
