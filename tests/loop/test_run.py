@@ -127,8 +127,13 @@ def test_a_downed_combatant_is_skipped_not_asked():
     second = run_phase(first.encounter, FirstLegalChooser(), roller=roller)
 
     assert second.actor_id == "c", "the downed man was passed over"
-    assert [(e.combatant_id, e.reason) for e in second.events
-            if e.kind == "PhaseSpent"] == [("down", "down"), ("c", "acted")]
+    spent = [(e.combatant_id, e.reason) for e in second.events
+             if e.kind == "PhaseSpent"]
+    assert spent[0] == ("down", "down")
+    # c's own Phase follows. "a" opened by shooting him, and a shot that
+    # Stuns him costs him this Phase (6E2 p.106) --- so it is spent acting
+    # or spent recovering, and either way it is c's.
+    assert spent[1] in {("c", "acted"), ("c", "stunned")}
 
 
 # ---- The seat ----

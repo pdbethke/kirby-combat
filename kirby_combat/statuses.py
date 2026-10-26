@@ -456,6 +456,11 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
     return prone
 
 
+#: The `PhaseSpent.reason` for the Phase a Stunned man spends recovering
+#: (6E2 p.107: "recovering from being Stunned is all he can do that Phase").
+STUN_RECOVERY = "stunned"
+
+
 def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
     """Fold Stunned's SET/CLEAR edges out of the event log (Task 4).
 
@@ -558,6 +563,14 @@ def _is_stunned(session: "CombatSession", combatant_id: str) -> bool:
         elif kind == "SegmentAdvanced" and stunned:
             if not phase_segments or evt.to_segment in phase_segments:
                 stunned = False
+        elif (kind == "PhaseSpent" and stunned and evt.combatant_id == combatant_id
+              and evt.reason == STUN_RECOVERY):
+            # HIS RECOVERY PHASE WAS IN THE SEGMENT HE WAS HIT IN. Stunned
+            # before his own DEX came up in Segment N, his Phase in N is
+            # "the character's next full Phase after becoming Stunned"
+            # (6E2 p.107) --- and no `SegmentAdvanced` marks it, so the loop
+            # records the forfeit and this reads it.
+            stunned = False
     return stunned
 
 
@@ -660,6 +673,12 @@ def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bo
                 and "Stunned" in payload.get("status_changes", ())
             ):
                 stage = "stunned"
+        elif (kind == "PhaseSpent" and stage == "stunned"
+              and evt.combatant_id == combatant_id and evt.reason == STUN_RECOVERY):
+            # The recovery Phase fell in the Segment he was Stunned in (see
+            # `_is_stunned`'s branch for the same edge): he is recovering
+            # now, and the next `SegmentAdvanced` clears it.
+            stage = "recovering"
         elif kind == "SegmentAdvanced":
             if stage == "stunned":
                 at_phase = not phase_segments or evt.to_segment in phase_segments

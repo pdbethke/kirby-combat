@@ -34,7 +34,7 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
-from kirby_combat.statuses import stunned_or_recovering_for
+from kirby_combat.statuses import STUN_RECOVERY, stunned_or_recovering_for
 from kirby_combat.mental.continuing import (
     WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
 )
@@ -505,6 +505,22 @@ def run_phase(
     # before he suffers the effects".
     session = roll_breakouts(session, actor_id, roller)
     actor = session.combatants[actor_id]
+
+    # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
+    # being Stunned can take no Actions"; p.107: "In the character's next
+    # full Phase after becoming Stunned, he recovers ... recovering from
+    # being Stunned is all he can do that Phase." `stunned_or_recovering_for`
+    # has folded that window for a long time and gated the CV penalty, the
+    # Abort and the move --- and NOTHING gated the Phase, so a Stunned man
+    # chose an action every time his Phase came round. In prod fight
+    # 33bf8bee a Stunned fighter chose a close-and-strike twice; the move
+    # was refused (he cannot move) and the menu offered it again.
+    if stunned_or_recovering_for(session, actor_id):
+        session, spent = _mark_acted(session, actor_id, reason=STUN_RECOVERY)
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
+            notes=[f"{actor_id} is Stunned and spends the Phase recovering"],
+        )
 
     # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
     # upward, and `presence_effects.can_act` has said so all along --- it

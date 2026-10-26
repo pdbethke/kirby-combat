@@ -106,10 +106,12 @@ def test_the_driver_tells_enumeration_who_cannot_be_seen(hidden_session):
     import kirby_combat.loop.run as run
 
     passed: dict = {}
+    asked: list = []
     original = run.enumerate_actions
 
     def spy(actor, enemies, **kwargs):
         if getattr(actor, "id", None) == blind_id:
+            asked.append(True)
             passed.update(kwargs.get("concealment") or {})
         return original(actor, enemies, **kwargs)
 
@@ -129,17 +131,19 @@ def test_the_driver_tells_enumeration_who_cannot_be_seen(hidden_session):
         # comes up. `run_phase` advances the Segment itself now, so the
         # loop simply runs Phases until he has one; `actor_id is None`
         # means the fight is decided.
-        for _ in range(8):
+        # Until he is ASKED: a Phase of his spent recovering from a Stun
+        # (6E2 p.107) enumerates nothing and proves nothing.
+        for _ in range(16):
             result = run.run_phase(encounter, _First(),
                                    roller=RandomRoller(seed=5),
                                    on_unresolvable="skip")
             encounter = result.encounter
-            if result.actor_id in (None, blind_id):
+            if result.actor_id is None or asked:
                 break
     finally:
         run.enumerate_actions = original
 
-    assert passed or result.actor_id == blind_id, (
+    assert asked, (
         "the watcher never got a Phase, so nothing was proved")
 
     assert passed.get(hider_id, (False, False))[1] is True, (
@@ -149,8 +153,11 @@ def test_the_driver_tells_enumeration_who_cannot_be_seen(hidden_session):
 
 
 class _First:
-    """Takes whatever is offered first; this test is about the menu, not
-    the choice."""
+    """Dodges where it can, else takes whatever is offered first; this test
+    is about the menu, not the choice. Not shooting matters: a sneak who
+    opens fire Stuns the watcher every Segment, and a Stunned man's Phase
+    is spent recovering (6E2 p.107) without a menu ever being built."""
 
     def choose(self, situation):
-        return situation.menu[0].action_id
+        dodge = next((a for a in situation.menu if a.kind == "dodge"), None)
+        return (dodge or situation.menu[0]).action_id

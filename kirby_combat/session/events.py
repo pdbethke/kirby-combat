@@ -130,8 +130,9 @@ class PhaseSpent(BaseEvent):
     segment: int = 0
     turn: int = 0
     #: "acted" (he used it), "down" (unconscious or worse, 6E1 p.421),
-    #: "left" (out of the scene's bounds, so no longer in the fight) or
-    #: "aborted" (he already spent it on an Abort, 6E2 p.24).
+    #: "left" (out of the scene's bounds, so no longer in the fight),
+    #: "aborted" (he already spent it on an Abort, 6E2 p.24) or "stunned"
+    #: (he spent it recovering from being Stunned, 6E2 p.107).
     reason: str = "acted"
 
 
