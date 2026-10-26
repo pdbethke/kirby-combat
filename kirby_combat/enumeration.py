@@ -301,10 +301,11 @@ class LegalAction:
     # None for non-movement actions. Defaults to "running" for the bare
     # ``move:<enemy>`` / ``move_strike:<enemy>:<xmlid>`` running aliases.
     mode: str | None = None
-    # Mind Control's ORDER (`mental/mind_control.ORDERS`): the book names the
-    # order before the roll and the order sets the level needed (6E1 p.255),
-    # so it is part of the offer, not something chosen after. None for every
-    # other kind.
+    # Mind Control's ORDER (`mental/mind_control.ORDERS`), or a Mental
+    # Illusion's ILLUSION (`mental/mental_illusion.ILLUSIONS`, by name): the
+    # book names either before the roll and it sets the level needed (6E1
+    # p.255, p.250), so it is part of the offer, not something chosen after.
+    # None for every other kind.
     order: str | None = None
     # True when this action is aimed at TERRAIN (a wall/construct) rather than
     # a combatant. Terrain offers led the action list -- six of the first six
@@ -2616,22 +2617,52 @@ def enumerate_actions(
                 ),
                 _attack_view=tp_power,
             ))
+    # Mental Illusions (6E1 p.250): like Mind Control's order, the illusion is
+    # named BEFORE the roll and sets the level needed, so it is part of the
+    # offer --- one per (target x illusion x power). See
+    # `mental/mental_illusion.ILLUSIONS` for the set and its pages.
+    from kirby_combat.mental.mental_illusion import (
+        ILLUSIONS as _ILLUSIONS, illusory_attack_dice as _illusory_dice,
+    )
+
     for mi_power in mental_illusion_powers:
         mi_dice = getattr(mi_power, "levels", 0) or 0
+        mi_ap = int(float(getattr(mi_power, "active_cost", 0) or 0))
         for enemy in alive_enemies:
-            actions.append(LegalAction(
-                action_id=_power_action_id("mental_illusion", enemy.id, mi_power),
-                kind="mental_illusion",
-                target_id=enemy.id,
-                power_xmlid=mi_power.xmlid,
-                power_name=getattr(mi_power, "name", None) or "Mental Illusion",
-                summary=(
-                    f"Mental Illusion vs {_friendly(enemy)} "
-                    f"({mi_dice}d6 effect vs target EGO; degree: "
-                    f"partial / full / complete sensory hallucination)"
-                ),
-                _attack_view=mi_power,
-            ))
+            ego, md = _avg_md_ego(enemy)
+            his_friends = [e for e in alive_enemies
+                           if e.id != enemy.id and _Side.of(e) == _Side.of(enemy)]
+            for illusion in _ILLUSIONS:
+                # Friends shown as foes needs friends to show.
+                if illusion.allies_as_foes and not his_friends:
+                    continue
+                # 6E1 p.253 caps an illusory attack at the power's Active
+                # Points; a power that states none cannot be priced.
+                if illusion.harm is not None and mi_ap <= 0:
+                    continue
+                need = ego + illusion.level + md
+                harm = ""
+                if illusion.harm is not None:
+                    harm = (f"; if he believes it, up to "
+                            f"{_illusory_dice(need, mi_ap)}d6 against his ED, once")
+                actions.append(LegalAction(
+                    action_id=(f"{_power_action_id('mental_illusion', enemy.id, mi_power)}"
+                               f":{illusion.name}"),
+                    kind="mental_illusion",
+                    target_id=enemy.id,
+                    power_xmlid=mi_power.xmlid,
+                    power_name=getattr(mi_power, "name", None) or "Mental Illusion",
+                    summary=(
+                        f"Mental Illusion on {_friendly(enemy)}: {illusion.shows}. "
+                        f"OMCV {s.omcv} vs his DMCV to hit, then {mi_dice}d6 "
+                        f"(avg {mi_dice * 3.5:.0f}) must reach {need} "
+                        f"(EGO {ego} + {illusion.level} + Mental Defense {md}) or "
+                        f"nothing happens; he gets a Breakout Roll before he "
+                        f"believes it{harm}"
+                    ),
+                    _attack_view=mi_power,
+                    order=illusion.name,
+                ))
     # PR-35: Trip — knock the target prone (6E2 p67). -1 OCV, no
     # damage, on hit the target's is_prone flag flips. Prone targets
     # take +2 OCV from melee attackers, -2 to their own OCV. Half-

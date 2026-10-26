@@ -436,15 +436,30 @@ def _resolve_mental_illusion(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A Mental Illusion, classified against EGO on the same degree ladder."""
+    """A Mental Illusion naming its illusion (6E1 p.250): MCV Attack Roll,
+    then the Effect Roll less Mental Defense against EGO + the illusion's
+    level. Established, it is a continuing effect (`mental/continuing.py`)
+    the target believes from the Phase he fails his first Breakout Roll.
+
+    An offer without an illusion is a defect in whoever built it, exactly as
+    a Mind Control offer without an order is: the book names it first.
+    """
+    from kirby_combat.enumeration import _src_id
+    from kirby_combat.mental.mental_illusion import illusion_named
     from kirby_combat.mental.recording import resolve_mental_illusion_in_session
 
+    if action.order is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    illusion = illusion_named(action.order)
     target = session.combatants[action.target_id]
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
     new_session, result = resolve_mental_illusion_in_session(
-        session, actor, target, _effect_dice(action, roller), to_hit=to_hit,
+        session, actor, target, _effect_dice(action, roller),
+        illusion=illusion,
+        power_active_points=int(float(getattr(action._attack_view, "active_cost", 0) or 0)),
+        source_id=_src_id(action._attack_view), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

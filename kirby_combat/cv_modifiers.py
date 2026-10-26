@@ -223,6 +223,22 @@ def _presence_cv_modifiers(
     return presence_cv_modifiers(session, combatant_id)
 
 
+def _illusion_cv_modifiers(
+    session: "CombatSession", combatant_id: str,
+) -> dict[str, float]:
+    """A man lost in an EGO+30 Mental Illusion (6E1 p.251): "Characters in
+    this state are usually at 1/2 DCV (possibly even 0 DCV)."
+
+    RULING: the usual case, 1/2 DCV. The 0 DCV and the "lesser reduction" for
+    an illusion of a combat scene are GM options the engine does not take.
+    """
+    from kirby_combat.mental.continuing import illusions_believed
+
+    if any(i.entranced for i, _e in illusions_believed(session, combatant_id)):
+        return {"dcv_factor": 0.5}
+    return {}
+
+
 #: Ordered sources folded into ``cv_modifiers_for``. THIS tuple is the
 #: seam: add one more ``(session, combatant_id) -> dict`` entry here for a
 #: new CV-affecting condition (see the module docstring's sense-affecting-
@@ -233,6 +249,7 @@ _CV_MODIFIER_SOURCES: tuple[
     _stunned_cv_modifiers,
     _presence_cv_modifiers,
     _multi_attack_cv_modifiers,
+    _illusion_cv_modifiers,
 )
 
 

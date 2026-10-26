@@ -25,8 +25,8 @@ an effect to combatant state. Mind Control and Mind Scan record
 ``established`` and the facts their lasting effect needs (who, the order,
 the lock's level, the Breakout modifier); `mental/continuing.py` folds those
 payloads forward, so the payload IS the effect rather than a second record
-of it. Mental Illusion and Telepathy still change nothing after the roll
---- an illusion believed is effect-state nobody has modelled yet.
+of it. Mental Illusions do the same with the illusion they cast. Telepathy
+still changes nothing after the roll.
 """
 from __future__ import annotations
 
@@ -181,22 +181,40 @@ def resolve_mind_scan_in_session(
 
 def resolve_mental_illusion_in_session(
     session: "CombatSession", attacker, target, effect_dice_values: list[int],
-    *, to_hit: MentalToHitResult,
+    *, illusion, power_active_points: int, source_id: str,
+    to_hit: MentalToHitResult,
     declaration_event_id: str | None = None, action_type: str = "mental_illusion",
 ):
-    """Resolve a Mental Illusion and record the degree achieved."""
+    """Resolve a Mental Illusion for ``illusion`` and record whether it took hold.
+
+    Like Mind Control, an established payload is the effect itself:
+    `continuing.py` folds its ``illusion`` and ``breakout_modifier`` forward
+    until the target sees through it, and a harmful one's ``illusion_dice``
+    are rolled when he first fails to (6E1 p.253).
+    """
     now = datetime.now(timezone.utc)
-    result = resolve_mental_illusion(attacker, target, effect_dice_values)
+    result = resolve_mental_illusion(
+        attacker, target, effect_dice_values,
+        illusion=illusion, power_active_points=power_active_points,
+    )
     s, decl_id = _declare(
         session, attacker.id, target.id, action_type, declaration_event_id, now,
     )
     s = _record(s, attacker.id, decl_id, {
         "kind": action_type,
         "target_id": target.id,
+        "attacker_id": attacker.id,
         **to_hit_payload(to_hit),
+        "illusion": result.illusion,
+        "required_total": result.required_total,
+        "effect_rolled": result.effect_rolled,
         "effect_total": result.effect_total,
         "degree": result.degree,
         "target_ego": result.target_ego,
+        "established": result.established,
+        "breakout_modifier": result.breakout_modifier,
+        "illusion_dice": result.illusion_dice,
+        "source_id": source_id,
     }, now)
     return s, result
 
@@ -229,3 +247,67 @@ def resolve_telepathy_in_session(
         "target_is_aware": result.target_is_aware,
     }, now)
     return s, result
+
+
+def illusion_strikes(session: "CombatSession", effect, roller) -> "CombatSession":
+    """A harmful Mental Illusion's one attack, as the victim first believes it.
+
+    6E1 p.253: Normal Damage of ``illusion_dice`` (sized when it was cast, the
+    lesser of the Effect Roll and the power's Active Points, /5), against
+    the defense the illusory attack calls for (`ILLUSORY_ATTACK_DEFENSE`).
+    STUN only unless it was cast at the BODY-and-STUN level. "Illusory
+    attacks never do Knockback" --- none is rolled.
+
+    Recorded the way a Mental Blast's damage is: a `VitalsChanged` through
+    `_apply_damage`, then an ``ActionResolved`` (kind
+    ``mental_illusion_damage``) whose ``status_changes`` let a Stun or a
+    knockout fold exactly as any other attack's do. It points at the
+    illusion's own declaration, since this is that action landing.
+    """
+    from kirby_combat.actions.recording import _apply_damage
+    from kirby_combat.adjustments import adjusted_con
+    from kirby_combat.mental.mental_illusion import (
+        ILLUSORY_ATTACK_DEFENSE, IllusoryHarm, illusion_named,
+    )
+    from kirby_combat.models import AttackPower, DiceValues
+    from kirby_combat.resolution.damage import compute_damage
+    from kirby_combat.resolution.defense import compute_defense
+    from kirby_combat.resolution.status import determine_status_changes
+
+    illusion = illusion_named(effect.illusion)
+    if illusion.harm is None:
+        return session
+    cast = next(e for e in session.event_log if e.id == effect.effect_id)
+    dice = int(cast.result_payload["illusion_dice"])
+    target = session.combatants[effect.target_id]
+    phantom = AttackPower(
+        xmlid="MENTALILLUSION", name="illusory attack", damage_dice=dice,
+        half_die=False, plus_one=False, damage_type="normal",
+        defense_type=ILLUSORY_ATTACK_DEFENSE, range_m=None, uses_str=False,
+        str_min=0, armor_piercing=0, penetrating=0, increased_stun_mult=0,
+        source_id=None,
+    )
+    stun = body = 0
+    if dice > 0:                # under 5 points of effect buys no die at all
+        rolled = compute_damage(phantom, DiceValues(damage=roller.roll_dice(dice)),
+                                session.template)
+        defense = compute_defense(target, phantom).total_defense
+        stun = max(0, rolled.stun - defense)
+        if illusion.harm is IllusoryHarm.STUN_AND_BODY:
+            body = max(0, rolled.body - defense)
+    s = _apply_damage(session, target.id, stun=stun, body=body)
+    status_changes = determine_status_changes(
+        stun_before=target.current_stun, stun_after=target.current_stun - stun,
+        body_before=target.current_body, body_after=target.current_body - body,
+        con=adjusted_con(s, target), max_body=target.max_body,
+    )
+    return _record(s, effect.attacker_id, cast.declaration_event_id, {
+        "kind": "mental_illusion_damage",
+        "target_id": target.id,
+        "attacker_id": effect.attacker_id,
+        "effect_id": effect.effect_id,
+        "illusion": illusion.name,
+        "stun_dealt": stun,
+        "body_dealt": body,
+        "status_changes": status_changes,
+    }, datetime.now(timezone.utc))

@@ -36,7 +36,7 @@ from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
 from kirby_combat.statuses import STUN_RECOVERY, stunned_or_recovering_for
 from kirby_combat.mental.continuing import (
-    WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
+    ENTRANCED, WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
 )
 from kirby_combat.concealment import concealment_for
 from kirby_combat.framework import allocation_for
@@ -554,6 +554,17 @@ def run_phase(
         roster.allies_of(actor) + roster.fallen_allies_of(actor),
     )
     enemies = obeyed.enemies
+    # LOST IN A MENTAL ILLUSION (6E1 p.251, EGO+30): "the victim no longer
+    # interacts with his environment ... he only thinks he is, for example,
+    # walking forward or striking an opponent; he won't actually perform
+    # these actions." Nothing he could choose would happen, so he chooses
+    # nothing and the Phase is spent, saying why.
+    if obeyed.entranced:
+        session, spent = _mark_acted(session, actor_id, reason=ENTRANCED)
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
+            notes=[f"{actor_id} is lost in a Mental Illusion and stands still"],
+        )
     _held = held_object(session, actor_id)
 
     # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
