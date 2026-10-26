@@ -270,9 +270,17 @@ class MartialManeuverView:
     name: str              # display/alias — what the menu shows ("Martial Dodge")
     ocv: int               # parsed flat OCV modifier (velocity → 0 at view time)
     dcv: int               # parsed flat DCV modifier
-    dc_bonus: int          # extra damage classes
+    #: The maneuver's own DCs PLUS every Extra Damage Class the character
+    #: bought (6E2 p.94: "An Extra Damage Class adds to all of a character's
+    #: Martial Maneuvers").
+    dc_bonus: int
     add_str: bool          # whether STR damage is added
-    damage_type: str       # "normal" | "killing"
+    #: The damage family (``actions.maneuver_effects.ManeuverDamage``, a str
+    #: Enum): from the EFFECT's damage token for a standard maneuver, from
+    #: HD's damage-type code for a custom one. It was ``"killing"`` only for
+    #: code 3 and ``"normal"`` for everything else, so a Killing Strike
+    #: (token ``[KILLINGDC]``, code 0) read as Normal Damage.
+    damage_type: str
     phase: str             # "1/2" | "full" | "none"
     category_is_ranged: bool
     reach_m: float         # HTH reach (0.0 if ranged)
@@ -1177,13 +1185,24 @@ class HeroCombatant(Stunnable, CombatParticipant):
             Escape (escapes a Grab, no offensive roll: "[STRDC] vs. Grabs").
         """
         from kirby_combat.actions.cv_parser import parse_cv
+        from kirby_combat.actions.maneuver_effects import damage_family
 
         if self.snapshot is not None:
             return self.snapshot.maneuvers
 
         out: list[MartialManeuverView] = []
         reach = _base_reach_m(self.hero)
-        for m in getattr(self.hero, "martial_arts", None) or []:
+        section = list(getattr(self.hero, "martial_arts", None) or [])
+        # EXTRA DAMAGE CLASSES. 6E2 p.94: each adds one DC to every Martial
+        # Maneuver. kirby-cost sums them in `Maneuver.total_dc_no_str`, which
+        # reads the engine's global active hero and so cannot be asked about
+        # this one; the sum is the same walk over the same section. Ranged
+        # maneuvers take RANGEDDC instead, and are not offered here.
+        extra_dc = sum(
+            int(getattr(m, "levels", 0) or 0) for m in section
+            if (getattr(m, "xmlid", "") or "").upper() == "EXTRADC"
+        )
+        for m in section:
             # Only declarable maneuvers; skip List wrappers / EXTRADC elements.
             if (getattr(m, "xmlid", "") or "").upper() != "MANEUVER":
                 continue
@@ -1193,8 +1212,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
             ocv = parse_cv(getattr(m, "ocv", "--")).flat()
             dcv = parse_cv(getattr(m, "dcv", "--")).flat()
             is_ranged = (getattr(m, "category", "Hand To Hand") or "").strip().lower().startswith("ranged")
-            dt_int = int(getattr(m, "damage_type", 0) or 0)
-            damage_type = "killing" if dt_int == 3 else "normal"
+            damage_type = damage_family(effect, int(getattr(m, "damage_type", 0) or 0))
 
             is_dodge = "dodge" in effect_l
             is_block = "block" in effect_l
@@ -1214,7 +1232,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 name=name,
                 ocv=ocv,
                 dcv=dcv,
-                dc_bonus=int(getattr(m, "dc", 0) or getattr(m, "dcs", 0) or 0),
+                dc_bonus=(int(getattr(m, "dc", 0) or getattr(m, "dcs", 0) or 0)
+                          + (0 if is_ranged else extra_dc)),
                 add_str=bool(getattr(m, "add_str", False)),
                 damage_type=damage_type,
                 phase=str(getattr(m, "phase", "1/2") or "1/2"),
