@@ -1,108 +1,66 @@
-"""Mental Entangle — Entangle variant defended by MD, escape via EGO.
+"""Mental Entangle --- 6E1 p.219's MENTAL PARALYSIS, a real Entangle.
 
-Variant of Entangle (6E1 p102) with the following Advantages typically:
-- Works Against EGO (defended by Mental Defense, not PD/ED)
-- Mental Paralysis (target cannot move, often cannot use mental powers)
+"Characters can use Entangle to create a type of power called Mental
+Paralysis. Mental Paralysis Entangles must be built with these Advantages:
+ACV (uses OMCV against DMCV; +1/4), Takes No Damage From Attacks (+3/4, see
+text); and Works Against EGO, Not STR (+1/4)" (6E1 p.219). The corpus marks
+it with the VERSUSEGO modifier, which is what enumeration keys on.
 
-Escape uses an EGO contest rather than STR vs Entangle BODY.
+So it is applied and escaped through the physical Entangle's own machinery
+(`actions/entangle.py`: the hold, the escape ladder, DCV 0, the breakout
+margin) with p.219's differences:
+
+* **BODY** is the Entangle's: "he rolls his Entangle dice and counts the
+  Normal Damage BODY" (p.217). Mental Defense takes NOTHING off it: "Mental
+  Defense neither adds to the character's EGO for purposes of breaking out
+  of, nor offers any other protection against, Mental Paralysis" (p.219).
+  (This module used to subtract the target's MD from the dice's pip total,
+  wrong twice over.)
+* **Defense**: "A Mental Paralysis has Resistant Mental Defense instead of
+  PD/ED." RULING: one point per die, the 1 PD/1 ED per 1d6 an Entangle has
+  (p.217) carried over to the defense that replaces them; extra defense
+  bought on the power is not read.
+* **Escape** with EGO, 1d6 per 5 points (`actions.entangle.ego_escape_dice`),
+  against that Mental Defense; or with a Mental Blast, whose STUN-only dice
+  count their "BODY" as Normal Damage (p.219). Physical attacks cannot
+  damage it, and Teleporting out leaves him still paralysed (p.219).
+
+NOT BUILT (surfaced, not invented): an outside character attacking the
+paralysis (it has DMCV 3 for that, p.219), its Mental Defense also protecting
+the victim from other mental attacks (p.219), Pushing EGO, and the END a
+breakout costs.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
+from kirby_combat.actions.entangle import counted_body
 from kirby_combat.models import StatBlockCombatant
 
 
-@dataclass
-class MentalEntangleState:
-    """An active mental entangle effect on a target."""
+@dataclass(frozen=True)
+class MentalParalysisResult:
+    """What a Mental Paralysis Effect Roll made: the Entangle to apply."""
     target_id: str
-    entangle_body: int           # remaining BODY of the entangle
-    initial_body: int
-    blocks_mental_powers: bool = True
-    blocks_physical_powers: bool = False
+    body: int                    # counted Normal Damage BODY (6E1 p.217)
+    md: int                      # its Resistant Mental Defense (6E1 p.219)
+    audit: list[str]
 
 
-@dataclass
-class MentalEntangleResult:
-    target_id: str
-    body_dealt_to_entangle: int
-    md_applied: int              # how much MD reduced incoming damage
-    state: MentalEntangleState
-    audit: list[str] = field(default_factory=list)
-
-
-@dataclass
-class MentalEscapeResult:
-    target_id: str
-    method: str                  # "ego_contest"
-    roll: int
-    target_number: int
-    success: bool
-    body_reduced: int            # how much BODY removed from entangle
-    audit: list[str] = field(default_factory=list)
-
-
-def apply_mental_entangle(
+def roll_mental_paralysis(
     attacker: StatBlockCombatant,
     target: StatBlockCombatant,
     body_dice_values: list[int],
-) -> MentalEntangleResult:
+) -> MentalParalysisResult:
     if not attacker.is_mentalist:
         raise ValueError(
             f"Combatant {attacker.id} is not marked as mentalist; cannot use Mental Entangle"
         )
-    raw_body = sum(body_dice_values)
-    # Mental Entangle's BODY is reduced by Mental Defense per Works Against EGO advantage
-    body_after_md = max(0, raw_body - target.md)
-    state = MentalEntangleState(
-        target_id=target.id,
-        entangle_body=body_after_md,
-        initial_body=body_after_md,
-        blocks_mental_powers=True,
-        blocks_physical_powers=False,
+    body = counted_body(body_dice_values)
+    md = len(body_dice_values)
+    return MentalParalysisResult(
+        target_id=target.id, body=body, md=md,
+        audit=[f"Mental Paralysis: {len(body_dice_values)}d6 -> {body} BODY "
+               f"(Normal Damage count, 6E1 p.217), Mental Defense {md}; the "
+               f"target's own MD {target.md} does not apply (6E1 p.219)"],
     )
-    audit = [
-        f"Mental Entangle: BODY {raw_body} - MD {target.md} = {body_after_md}",
-        "State: paralysis blocks mental powers; physical powers still usable",
-    ]
-    return MentalEntangleResult(
-        target_id=target.id, body_dealt_to_entangle=body_after_md,
-        md_applied=target.md, state=state, audit=audit,
-    )
-
-
-def attempt_mental_escape(
-    target: StatBlockCombatant,
-    state: MentalEntangleState,
-    ego_roll_dice: list[int],
-) -> MentalEscapeResult:
-    """Target rolls 3d6 EGO Roll; success removes BODY equal to EGO/5 from entangle."""
-    if len(ego_roll_dice) != 3:
-        raise ValueError(f"EGO roll needs 3d6, got {len(ego_roll_dice)}")
-    roll = sum(ego_roll_dice)
-    from kirby_cost.engine.rolls import characteristic_roll
-    target_number = characteristic_roll(target.ego)
-    success = roll <= target_number
-    body_reduced = (target.ego // 5) if success else 0
-    audit = [
-        f"Mental Escape: EGO Roll TN={target_number} roll={roll} "
-        f"-> {'SUCCESS' if success else 'FAIL'}",
-    ]
-    if success:
-        audit.append(f"Removed {body_reduced} BODY from mental entangle")
-    return MentalEscapeResult(
-        target_id=target.id, method="ego_contest", roll=roll,
-        target_number=target_number, success=success,
-        body_reduced=body_reduced, audit=audit,
-    )
-
-
-def can_use_mental_powers(state: MentalEntangleState) -> bool:
-    """A mentally entangled combatant cannot use mental powers."""
-    return not state.blocks_mental_powers or state.entangle_body == 0
-
-
-def can_use_physical_powers(state: MentalEntangleState) -> bool:
-    """A mentally entangled combatant CAN still use physical powers (paralysis is mental)."""
-    return not state.blocks_physical_powers

@@ -436,15 +436,30 @@ def _resolve_mental_illusion(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A Mental Illusion, classified against EGO on the same degree ladder."""
+    """A Mental Illusion naming its illusion (6E1 p.250): MCV Attack Roll,
+    then the Effect Roll less Mental Defense against EGO + the illusion's
+    level. Established, it is a continuing effect (`mental/continuing.py`)
+    the target believes from the Phase he fails his first Breakout Roll.
+
+    An offer without an illusion is a defect in whoever built it, exactly as
+    a Mind Control offer without an order is: the book names it first.
+    """
+    from kirby_combat.enumeration import _src_id
+    from kirby_combat.mental.mental_illusion import illusion_named
     from kirby_combat.mental.recording import resolve_mental_illusion_in_session
 
+    if action.order is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    illusion = illusion_named(action.order)
     target = session.combatants[action.target_id]
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
     new_session, result = resolve_mental_illusion_in_session(
-        session, actor, target, _effect_dice(action, roller), to_hit=to_hit,
+        session, actor, target, _effect_dice(action, roller),
+        illusion=illusion,
+        power_active_points=int(float(getattr(action._attack_view, "active_cost", 0) or 0)),
+        source_id=_src_id(action._attack_view), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -846,25 +861,30 @@ def _resolve_entangle(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Entangle (6E1 p.216): trap the target in something with its own BODY.
+    """Entangle (6E1 p.217): trap the target in something with its own BODY.
 
-    ``Entangle.apply`` owns the escape ladder and the victim's DCV. The
-    entangle's PD/ED come off the power where present; both default to the
-    BODY rolled, which is the shape a plain Entangle takes.
+    "he rolls his Entangle dice and counts the Normal Damage BODY. The BODY
+    of the Entangle is the BODY rolled; the Entangle has 1 PD and 1 ED (both
+    Resistant) for each 1d6 of Entangle." This summed the pips for BODY and
+    gave the Entangle that sum as its PD and ED too.
     """
-    from kirby_combat.actions.entangle import Entangle
+    from kirby_combat.actions.entangle import (
+        Entangle, counted_body, entangle_default_defenses,
+    )
 
     power = action._attack_view
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    body = sum(roller.roll_dice(_levels(action)))
+    dice = _levels(action)
+    body = counted_body(roller.roll_dice(dice))
+    per_die_pd, per_die_ed = entangle_default_defenses(dice)
     new_session, result = Entangle.apply(
         session,
         attacker_id=actor.id, target_id=action.target_id,
         entangle_body=body,
-        entangle_pd=int(getattr(power, "entangle_pd", 0) or body),
-        entangle_ed=int(getattr(power, "entangle_ed", 0) or body),
+        entangle_pd=int(getattr(power, "entangle_pd", 0) or per_die_pd),
+        entangle_ed=int(getattr(power, "entangle_ed", 0) or per_die_ed),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -934,27 +954,34 @@ def _resolve_mental_entangle(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Mental Entangle — an ENTANGLE with Works Against EGO.
+    """Mental Entangle --- 6E1 p.219's Mental Paralysis, applied as an Entangle.
 
-    Its BODY is reduced by the target's Mental Defense rather than PD, and
-    escape is a 3d6 EGO Roll rather than a STR contest. Both live in
-    `mental/mental_entangle.py`; this only rolls the dice and records.
+    MCV Attack Roll (it is bought ACV), then the Entangle dice counted as
+    Normal Damage BODY with one point of Resistant Mental Defense per die
+    (`mental/mental_entangle.py`), bound through `Entangle.apply_mental_paralysis`
+    --- the same hold, escape ladder and DCV 0 a physical Entangle has, with
+    EGO for STR. The target's own Mental Defense takes nothing off it.
     """
-    from kirby_combat.mental.mental_entangle import apply_mental_entangle
-
+    from kirby_combat.actions.entangle import Entangle
+    from kirby_combat.mental.mental_entangle import roll_mental_paralysis
     from kirby_combat.mental.recording import to_hit_payload
 
     target = session.combatants[action.target_id]
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
-    result = apply_mental_entangle(actor, target, roller.roll_dice(_levels(action)))
+    result = roll_mental_paralysis(actor, target, roller.roll_dice(_levels(action)))
     new_session = _record_outcome(session, actor, action, {
         "kind": action.kind,
         "target_id": target.id,
         **to_hit_payload(to_hit),
-        "entangle_body": result.state.entangle_body,
+        "entangle_body": result.body,
+        "entangle_md": result.md,
     })
+    new_session, _held = Entangle.apply_mental_paralysis(
+        new_session, attacker_id=actor.id, target_id=target.id,
+        entangle_body=result.body, entangle_md=result.md,
+    )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -1122,6 +1149,10 @@ def _resolve_rapid_fire(
     """
     from kirby_combat.actions.rapid_fire import RapidFire
 
+    if getattr(action, "targets_construct", False):
+        return _rapid_fire_at_construct(
+            session, actor, action, template=template, roller=roller,
+        )
     target = session.combatants.get(action.target_id)
     if target is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -1151,6 +1182,75 @@ def _resolve_rapid_fire(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=results, events=_events_since(session, new_session),
     )
+
+
+def _rapid_fire_at_construct(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Rapid Fire at a wall, a door, a crate: the offer enumeration makes.
+
+    It was offered (`rapid_fire:<obj_id>:...:3`) and this resolver looked
+    the target up among the COMBATANTS, where no wall lives, so every one
+    raised: 34--46 skipped Phases per 20 random fights.
+
+    The SAME object rule as a single shot (`_resolve_attack_construct`,
+    6E2 p.172): each shot rolls its own BODY and the object's defense comes
+    off EACH shot, which is what makes a burst shred soft cover and barely
+    chip steel (`apply_autofire_to_construct`). Shots stop once it falls.
+
+    THE TO-HIT IS THE SINGLE SHOT'S, on purpose: `attack_construct`
+    auto-hits, a known divergence from 6E2 p.172's "a human-sized
+    inanimate object typically has a DCV of 3" documented in
+    `resolution/object_damage.py`. Rolling the OCV ladder here and not
+    there would put the rule at one door and not the other; the ladder is
+    recorded so the fix, when it lands, lands at both together.
+    """
+    from kirby_combat.actions.rapid_fire import RapidFire
+    from kirby_combat.constructs import constructs_in
+    from kirby_combat.models import DiceValues
+    from kirby_combat.resolution.object_damage import apply_autofire_to_construct
+
+    scene = session.scene
+    construct = next(
+        (c for c in (constructs_in(scene, session=session) if scene is not None else [])
+         if getattr(c, "obj_id", None) == action.target_id),
+        None,
+    )
+    power = action._attack_view
+    if construct is None or power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    outcome = RapidFire.compute(
+        base_ocv=int(actor.combat_stats().ocv),
+        num_shots=_offer_count(action, default=RAPID_FIRE_SHOTS),
+    )
+    dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
+    shots = apply_autofire_to_construct(
+        power,
+        [DiceValues(damage=roller.roll_dice(dice)) for _ in outcome.per_shot_ocv],
+        construct, template,
+    )
+    destroyed = bool(shots) and shots[-1].destroyed
+    caught: list = []
+    if destroyed:
+        from kirby_combat.collapse import bring_it_down
+
+        session, caught = bring_it_down(
+            session, construct, roller=roller, template=template,
+        )
+    return _recorded(session, actor, action, shots, {
+        "kind": action.kind, "target_id": action.target_id,
+        # Read by `constructs.damage_by_object`, which is how the next shot
+        # finds the wall already damaged.
+        "targets_construct": True,
+        "shot_ocvs": list(outcome.per_shot_ocv),
+        "shots": [{"body_rolled": s.body_rolled, "body_through": s.body_through}
+                  for s in shots],
+        "body_dealt": sum(s.body_through for s in shots),
+        "destroyed": destroyed,
+        "collapsed_onto": caught,
+    })
 
 
 @resolves("throw", "throw_object")
@@ -1557,12 +1657,22 @@ def _resolve_escape_str(
         return _resolve_grab_escape(
             session, actor, action, template=template, roller=roller,
         )
-    from kirby_combat.actions.entangle import Entangle, str_escape_dice
+    from kirby_combat.actions.entangle import (
+        Entangle, counted_body, escape_body, str_escape_dice,
+    )
 
-    dice = max(1, str_escape_dice(int(actor.combat_stats().str_)))
+    # COUNTED BODY, LESS THE ENTANGLE'S PD (6E1 p.218: enough BODY "to exceed
+    # the Entangle's defenses"; STR is Normal Damage, 6E2 p.100). This summed
+    # the pips and soaked nothing, and a Casual attempt rolled full STR.
+    hold = Entangle.held(session, actor.id, mental_paralysis=False)
+    if hold is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    casual = action.action_id.endswith("casual")
+    dice = str_escape_dice(int(actor.combat_stats().str_), casual=casual)
     new_session, result = Entangle.escape_attempt(
         session, target_id=actor.id,
-        damage_body=sum(roller.roll_dice(dice)), escape_type="full",
+        damage_body=escape_body(counted_body(roller.roll_dice(dice)) if dice else 0, hold.pd),
+        escape_type="casual" if casual else "full",
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -1575,14 +1685,65 @@ def _resolve_escape_attack(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Escape by attacking the Entangle with a power rather than with STR."""
-    from kirby_combat.actions.entangle import Entangle
+    """Escape by attacking the Entangle with a power rather than with STR.
+
+    No Attack Roll (6E1 p.218). The power's BODY --- rolled through the damage
+    resolver, so Killing and Normal both count right --- less the Entangle's
+    PD or ED as the power targets. Against a Mental Paralysis only a Mental
+    Blast works, its STUN-only dice counted "as if it were a Normal Damage
+    attack" against the paralysis's Mental Defense (6E1 p.219); the offer's
+    ``escape:paralysis:`` id says which Entangle is meant.
+    """
+    from kirby_combat.actions.entangle import Entangle, counted_body, escape_body
+    from kirby_combat.models import DiceValues
+    from kirby_combat.resolution.damage import compute_damage
 
     power = action._attack_view
-    dice = max(1, int(getattr(power, "damage_dice", 0) or 0)) if power else 1
-    new_session, result = Entangle.escape_attempt(
+    if power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    paralysis = action.action_id.startswith("escape:paralysis:")
+    hold = Entangle.held(session, actor.id, mental_paralysis=paralysis)
+    if hold is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    dice = roller.roll_dice(max(1, int(getattr(power, "damage_dice", 0) or 0)))
+    if paralysis:
+        new_session, result = Entangle.escape_paralysis_attempt(
+            session, target_id=actor.id,
+            damage_body=escape_body(counted_body(dice), hold.md), method="attack",
+        )
+    else:
+        body = compute_damage(power, DiceValues(damage=dice), template).body
+        defense = hold.ed if power.defense_type == "ed" else hold.pd
+        new_session, result = Entangle.escape_attempt(
+            session, target_id=actor.id,
+            damage_body=escape_body(body, defense), escape_type="full",
+        )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("escape_ego")
+def _resolve_escape_ego(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Break a Mental Paralysis with EGO (6E1 p.219): 1d6 per 5 EGO, counted
+    as Normal Damage BODY, against the paralysis's Mental Defense. His own
+    Mental Defense adds nothing."""
+    from kirby_combat.actions.entangle import (
+        Entangle, counted_body, ego_escape_dice, escape_body,
+    )
+
+    hold = Entangle.held(session, actor.id, mental_paralysis=True)
+    if hold is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    dice = ego_escape_dice(int(actor.combat_stats().ego))
+    body = counted_body(roller.roll_dice(dice)) if dice else 0
+    new_session, result = Entangle.escape_paralysis_attempt(
         session, target_id=actor.id,
-        damage_body=sum(roller.roll_dice(dice)), escape_type="full",
+        damage_body=escape_body(body, hold.md), method="full_ego",
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

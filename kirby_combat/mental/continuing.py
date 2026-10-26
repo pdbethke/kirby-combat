@@ -4,9 +4,9 @@
 "continuing-effect Mental Powers, since their effects continue beyond the
 Phase in which a character makes an attack with them"; a Mind Scan lock-on is
 broken out of "in the usual manner" (p.265). This module holds the two this
-engine gives a lasting effect: **Mind Control** (an order the target obeys)
-and a **Mind Scan lock** (mental line of sight to a mind the scanner cannot
-see).
+engine gives a lasting effect: **Mind Control** (an order the target obeys),
+a **Mental Illusion** (something he believes, 6E1 p.250) and a **Mind Scan
+lock** (mental line of sight to a mind the scanner cannot see).
 
 THE EFFECT IS THE ``ActionResolved`` THAT ESTABLISHED IT. Its payload already
 says who did what to whom with which order; a second "effect applied" event
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
 
 #: The kinds whose established result is a continuing effect.
-CONTINUING_KINDS = frozenset({"mind_control", "mind_scan"})
+CONTINUING_KINDS = frozenset({"mind_control", "mental_illusion", "mind_scan"})
 
 #: Segments in a Turn (6E2 p.18).
 _SEGMENTS_PER_TURN = 12
@@ -64,10 +64,11 @@ class BreakoutAttempt:
 class ContinuingEffect:
     """One continuing Mental Power in force on one target."""
     effect_id: str
-    kind: str                       # "mind_control" | "mind_scan"
+    kind: str                       # "mind_control" | "mental_illusion" | "mind_scan"
     attacker_id: str
     target_id: str
-    order: str | None               # Mind Control's order; None for a scan
+    order: str | None               # Mind Control's order; None otherwise
+    illusion: str | None            # a Mental Illusion's illusion; None otherwise
     reached: str | None             # a scan's highest level; None for Mind Control
     source_id: str                  # the power that established it
     breakout_modifier: int
@@ -115,7 +116,8 @@ def continuing_effects(session: "CombatSession") -> list[ContinuingEffect]:
                 live[evt.id] = ContinuingEffect(
                     effect_id=evt.id, kind=p["kind"],
                     attacker_id=p["attacker_id"], target_id=p["target_id"],
-                    order=p.get("order"), reached=p.get("reached"),
+                    order=p.get("order"), illusion=p.get("illusion"),
+                    reached=p.get("reached"),
                     source_id=p.get("source_id") or "",
                     breakout_modifier=int(p.get("breakout_modifier", 0)),
                 )
@@ -147,6 +149,23 @@ def mind_control_orders(session: "CombatSession", target_id: str) -> list[Contin
     """
     return [e for e in effects_on(session, target_id)
             if e.kind == "mind_control" and e.attempts]
+
+
+def illusions_believed(session: "CombatSession", target_id: str):
+    """The Mental Illusions ``target_id`` BELIEVES right now, as `Illusion`s
+    with the effect that carries each.
+
+    Read the same way as `mind_control_orders`: "Damage from Mental Illusions
+    doesn't apply until after the target fails his first Breakout Roll"
+    (6E1 p.253), and on his first Phase "he may attempt to see through ...
+    the illusion by making a Breakout Roll" (p.250) --- which `run_phase`
+    makes before he acts. So an illusion with no attempt yet has not reached
+    a Phase of his, and is left out.
+    """
+    from kirby_combat.mental.mental_illusion import illusion_named
+
+    return [(illusion_named(e.illusion), e) for e in effects_on(session, target_id)
+            if e.kind == "mental_illusion" and e.attempts]
 
 
 def mind_scan_locks(session: "CombatSession", observer_id: str) -> frozenset[str]:
@@ -209,15 +228,29 @@ def roll_breakouts(session: "CombatSession", target_id: str, roller) -> "CombatS
             continue
         number = characteristic_roll(target.ego) + effect.breakout_modifier + bonus
         roll = sum(roller.roll_dice(3))
+        broke_free = roll_succeeds(roll, number)
         session = apply_event(session, BreakoutRolled(
             id=str(uuid.uuid4()), session_id=session.id,
             sequence=len(session.event_log) + 1,
             timestamp=datetime.now(timezone.utc), author=make_author_engine(),
             target_id=target_id, effect_id=effect.effect_id,
             roll=roll, target_number=number, bonus=bonus,
-            broke_free=roll_succeeds(roll, number),
+            broke_free=broke_free,
             turn=int(session.timeline.turn), segment=int(session.timeline.segment),
         ))
+        # A HARMFUL ILLUSION STRIKES ONCE, when he first fails to see through
+        # it: "Damage from Mental Illusions doesn't apply until after the
+        # target fails his first Breakout Roll. Thereafter it applies in the
+        # Segment in which he suffers it", and "Illusory attacks should
+        # function like Instant Powers, doing damage once per Effect Roll"
+        # (6E1 p.253). RULING: no repeat damage --- that needs the mentalist
+        # to maintain it with END and a Half Phase each Phase (p.253), an
+        # action this engine does not have, the same reason Mind Control's
+        # END-to-maintain is not modelled (p.152).
+        if effect.kind == "mental_illusion" and not broke_free and not effect.attempts:
+            from kirby_combat.mental.recording import illusion_strikes
+
+            session = illusion_strikes(session, effect, roller)
     return session
 
 
@@ -231,16 +264,25 @@ WITHDRAW_KINDS = frozenset({
 })
 
 
+#: The `PhaseSpent.reason` for a Phase spent lost in an EGO+30 Mental
+#: Illusion: "In fact, in most situations he simply stands still" (6E1 p.251).
+ENTRANCED = "entranced"
+
+
 @dataclass(frozen=True)
 class Obedience:
-    """What the orders ``target`` is obeying make of his Phase."""
+    """What the orders ``target`` is obeying, and the illusions he believes,
+    make of his Phase."""
     enemies: list
     allies: list
     withdraw: bool
+    #: Lost in an EGO+30 Mental Illusion: he takes no action at all (6E1 p.251).
+    entranced: bool
 
 
 def obey(session: "CombatSession", actor, enemies: list, allies: list) -> Obedience:
-    """Bend the actor's view of the fight to the Mind Control he obeys.
+    """Bend the actor's view of the fight to the Mind Control he obeys and
+    the Mental Illusions he believes.
 
     * ``spare`` --- nobody on the controller's side is an enemy any more.
     * ``turn`` --- his own standing side-mates are his enemies, and he helps
@@ -254,6 +296,7 @@ def obey(session: "CombatSession", actor, enemies: list, allies: list) -> Obedie
     from kirby_combat.side import Side
 
     withdraw = False
+    entranced = False
     for effect in mind_control_orders(session, actor.id):
         controller = session.combatants.get(effect.attacker_id)
         if effect.order == "spare" and controller is not None:
@@ -264,4 +307,26 @@ def obey(session: "CombatSession", actor, enemies: list, allies: list) -> Obedie
             allies = []
         elif effect.order == "withdraw":
             withdraw = True
-    return Obedience(enemies=enemies, allies=allies, withdraw=withdraw)
+    # WHAT HE BELIEVES (6E1 p.250-251). For the first three levels "the victim
+    # still interacts with the real world", so he still fights --- at the
+    # people the illusion shows him. He chooses how with his own chooser,
+    # as a man under Mind Control does.
+    for illusion, effect in illusions_believed(session, actor.id):
+        if illusion.hides_caster:
+            enemies = [e for e in enemies if e.id != effect.attacker_id]
+        if illusion.allies_as_foes:
+            standing = [a for a in allies if not _is_down(a)]
+            enemies = enemies + [a for a in standing if a not in enemies]
+            allies = []
+        if illusion.no_foes:
+            enemies = []
+        if illusion.entranced:
+            entranced = True
+    return Obedience(enemies=enemies, allies=allies, withdraw=withdraw,
+                     entranced=entranced)
+
+
+def _is_down(combatant) -> bool:
+    from kirby_combat.enumeration import is_down
+
+    return is_down(combatant)

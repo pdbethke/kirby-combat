@@ -71,7 +71,8 @@ def _action(kind: str, target_id: str, levels: int = 10) -> LegalAction:
         action_id=f"{kind}:{target_id}:src", kind=kind, target_id=target_id,
         power_xmlid=power.xmlid, power_name=power.name,
         summary=f"{kind} on {target_id}", _attack_view=power,
-        order="withdraw" if kind == "mind_control" else None,
+        # Both name what they do before the roll (6E1 p.255, p.250).
+        order={"mind_control": "withdraw", "mental_illusion": "vanish"}.get(kind),
     )
 
 

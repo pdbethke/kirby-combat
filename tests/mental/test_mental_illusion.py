@@ -3,9 +3,12 @@ import pytest
 
 from kirby_combat.mental.mental_illusion import (
     resolve_mental_illusion, attempt_disbelief,
-    MentalIllusionResult, DisbeliefResult,
+    MentalIllusionResult, DisbeliefResult, illusion_named,
 )
 from fixtures.synthetic_hero import synthetic_combatant
+
+#: A harmless illusion: the degree ladder is what these tests read.
+_VANISH = dict(illusion=illusion_named("vanish"), power_active_points=0)
 
 
 def _mentalist(id_: str = "a") -> "HeroCombatant":
@@ -32,11 +35,11 @@ def _target(id_: str = "t", ego: int = 10, md: int = 0) -> "HeroCombatant":
 def test_mental_illusion_degree_ladder_simple_to_elaborate():
     a = _mentalist()
     t = _target(ego=10)
-    r = resolve_mental_illusion(a, t, [3] * 10)   # 30, margin 20 -> elaborate
+    r = resolve_mental_illusion(a, t, [3] * 10, **_VANISH)   # 30, margin 20 -> elaborate
     assert r.degree == "elaborate"
-    r_simple = resolve_mental_illusion(a, t, [4, 3, 3])  # 10, margin 0 -> simple
+    r_simple = resolve_mental_illusion(a, t, [4, 3, 3], **_VANISH)  # 10, margin 0 -> simple
     assert r_simple.degree == "simple"
-    r_perfect = resolve_mental_illusion(a, t, [4] * 10)  # 40, margin 30 -> perfect
+    r_perfect = resolve_mental_illusion(a, t, [4] * 10, **_VANISH)  # 40, margin 30 -> perfect
     assert r_perfect.degree == "perfect"
 
 
@@ -75,7 +78,7 @@ def test_mental_illusion_ends_on_disbelief_success():
 def test_mental_illusion_does_not_directly_damage():
     a = _mentalist()
     t = _target(ego=10)
-    r = resolve_mental_illusion(a, t, [4, 3, 3])
+    r = resolve_mental_illusion(a, t, [4, 3, 3], **_VANISH)
     assert not hasattr(r, "stun")
     assert not hasattr(r, "body")
 
@@ -83,5 +86,5 @@ def test_mental_illusion_does_not_directly_damage():
 def test_mental_defense_comes_off_the_effect_roll():
     """6E1 p.151. 30 on the dice is EGO+20 (elaborate) undefended, EGO+12
     (moderate) behind Mental Defense 8."""
-    r = resolve_mental_illusion(_mentalist(), _target(ego=10, md=8), [3] * 10)
+    r = resolve_mental_illusion(_mentalist(), _target(ego=10, md=8), [3] * 10, **_VANISH)
     assert (r.effect_total, r.degree) == (22, "moderate")

@@ -1190,6 +1190,9 @@
         "entangle_ed": {
           "type": "integer"
         },
+        "entangle_md": {
+          "type": "integer"
+        },
         "entangle_pd": {
           "type": "integer"
         },
@@ -1202,6 +1205,9 @@
             "EntangleApplied"
           ],
           "type": "string"
+        },
+        "mental_paralysis": {
+          "type": "boolean"
         },
         "no_teleport_levels": {
           "type": "integer"
@@ -1232,7 +1238,9 @@
         "entangle_body",
         "entangle_pd",
         "entangle_ed",
-        "no_teleport_levels"
+        "no_teleport_levels",
+        "mental_paralysis",
+        "entangle_md"
       ],
       "title": "EntangleApplied",
       "type": "object"
@@ -1266,6 +1274,9 @@
           ],
           "type": "string"
         },
+        "mental_paralysis": {
+          "type": "boolean"
+        },
         "method": {
           "type": "string"
         },
@@ -1294,7 +1305,8 @@
         "target_id",
         "method",
         "damage_to_entangle_body",
-        "escaped"
+        "escaped",
+        "mental_paralysis"
       ],
       "title": "EntangleEscape",
       "type": "object"

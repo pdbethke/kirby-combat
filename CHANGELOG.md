@@ -30,6 +30,57 @@ driver's `_resolve_maneuver` and corrected against the book:
 - `MartialManeuverView.damage_type` is now the decoded family
   (`ManeuverDamage`, a str Enum: Killing Strike reads `killing`, Nerve Strike
   `nnd`), and `dc_bonus` includes Extra DCs. `LegalAction._maneuver_view` is new.
+**Schema change: needs a MINOR bump (0.22.0).** `EntangleApplied` gains
+`mental_paralysis` and `entangle_md`, `EntangleEscape` gains
+`mental_paralysis` (`schema/events.json` regenerated). A new action kind,
+`escape_ego`. No new event kinds.
+
+**Rapid Fire at a construct resolves.** Offered as `rapid_fire:<wall>:…:3`
+and refused by its resolver (it looked the wall up among the combatants):
+34–46 skipped Phases per 20 random fights, now 0. Each shot rolls its own BODY
+and the object's defense comes off each (6E2 p.172,
+`apply_autofire_to_construct`), the damage folds into
+`constructs.damage_by_object`, and a destroyed wall collapses. The to-hit stays
+the single shot's (auto-hit, the documented 6E2 p.172 DCV 3 divergence), so
+the two doors cannot disagree.
+
+**Mental Illusions change what the victim does** (6E1 p.250–253). The illusion
+is named before the roll, one offer per (target × illusion × power) in
+`LegalAction.order`, from `mental.mental_illusion.ILLUSIONS`:
+`friends_as_foes` EGO+10, `vanish` EGO+10, `phantom_attack` EGO+20,
+`peaceful_meadow` EGO+20, `phantom_wound` EGO+30, `lost_in_illusion` EGO+30.
+`resolve_mental_illusion` takes `illusion=` and `power_active_points=`
+(required). An established illusion is a continuing effect with Breakout Rolls
+(`mental/continuing.py`), believed from the first failed one: the illusionist
+vanishes from his enemies, his friends join them, he has no enemies, or he
+stands still at ½ DCV (`PhaseSpent(reason="entranced")`). A harmful illusion
+strikes once at that first failed roll: min(Effect Roll, power AP)/5 d6 Normal
+Damage against ED, STUN only or STUN and BODY, recorded as `VitalsChanged` and
+an `ActionResolved` of kind `mental_illusion_damage`.
+
+**Mental Entangle is a real Entangle: Mental Paralysis** (6E1 p.219). BODY is
+the Normal Damage count of the dice (6E1 p.217), the target's Mental Defense
+takes nothing off it, and it has one point of Resistant Mental Defense per die.
+It binds through `Entangle.apply_mental_paralysis`: DCV 0, and the menu is the
+escape ladder — `escape_ego` (1d6 per 5 EGO) or the victim's own Mental Blast,
+both against its MD. No STR, physical attack or Teleport escape. It never
+stacks with a physical Entangle. `mental.mental_entangle` is rewritten
+(`roll_mental_paralysis`); the old `apply_mental_entangle` /
+`attempt_mental_escape` encoded rules the book does not have and are gone.
+
+**The physical Entangle binds in the loop, too.** `run_phase` never passed
+`physical_entangle`, so an Entangled man had his whole menu, and nothing put
+him at DCV 0. Both are wired now (`_entangle_holds`, a new CV source). The
+escape resolvers counted pips as BODY and soaked nothing. They now count
+Normal Damage BODY less the Entangle's PD/ED (6E1 p.218), and a Casual STR
+attempt uses half STR. An Entangle's own BODY is the counted BODY, with 1 PD/1
+ED per die (6E1 p.217). Before, it was the pip sum, used for BODY, PD and ED.
+
+Still open: `EntangleApplied` does not record Takes No Damage From Attacks, so
+a physical Entangle bought with it is still offered `escape_attack`. Casual
+escapes still cost the Phase (one action per Phase in the loop). The END for a
+breakout is not charged. `mental.attempt_disbelief` (a per-Phase roll at
+−margin) is not the RAW route and has no caller.
 
 ## 0.21.0 — 2026-10-26
 
