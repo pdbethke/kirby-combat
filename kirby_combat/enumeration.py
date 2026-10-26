@@ -291,6 +291,11 @@ class LegalAction:
     summary: str
     # Engine-side handle; only populated for attack/strike kinds.
     _attack_view: Any = None
+    # The ``MartialManeuverView`` a ``maneuver`` offer names --- the same kind
+    # of handle as ``_attack_view``, so the resolver acts on the maneuver the
+    # menu described rather than looking one up again. None for every other
+    # kind.
+    _maneuver_view: Any = None
     # Movement spec §3: the movement mode for move / move_strike kinds
     # (running | leaping | flight | teleportation | swimming | tunneling).
     # None for non-movement actions. Defaults to "running" for the bare
@@ -1174,14 +1179,30 @@ def enumerate_actions(
         maneuvers = list(actor.maneuver_view())
     except Exception:
         maneuvers = []
+    from kirby_combat.actions.maneuver_effects import (
+        UnbuildableManeuver, decode_maneuver, describe_effect,
+    )
+
     for mv in maneuvers:
         if not getattr(mv, "is_attack", False) or getattr(
             mv, "category_is_ranged", False
         ):
             continue
+        # ONLY WHAT THE ENGINE CAN RESOLVE. Every one of these used to be
+        # offered and every one raised `UnresolvableAction` (prod
+        # 2026-10-26: a 500 on /run). `decode_maneuver` refuses the HD
+        # elements with no faithful rule here (FMove, Must Follow ...,
+        # Crush, Bind, Shove, Grab Weapon ...), and a refused maneuver is
+        # not offered --- the menu does not promise what the resolver
+        # would have to approximate.
+        try:
+            effect = decode_maneuver(mv)
+        except UnbuildableManeuver:
+            continue
         mv_name = getattr(mv, "name", None) or "Maneuver"
         mv_ocv = getattr(mv, "ocv", 0)
         mv_dcv = getattr(mv, "dcv", 0)
+        mv_does = describe_effect(effect, strength=int(s.str_))
         for enemy in alive_enemies:
             gate = _melee_gate(enemy.id)
             if gate == "block":
@@ -1189,9 +1210,9 @@ def enumerate_actions(
             if gate == "close":
                 # NOT OFFERED. A maneuver at the end of a move was a
                 # `move_strike` with no attack on it, so the resolver moved
-                # and struck nobody --- and the `maneuver` resolver itself
-                # only declares (it never rolls the blow), so there is no
-                # resolution to compose with yet.
+                # and struck nobody. The `maneuver` resolver now rolls the
+                # blow, but `move_strike` does not yet compose with it, so a
+                # close-and-maneuver is still not on the menu.
                 continue
             actions.append(LegalAction(
                 action_id=f"maneuver:{enemy.id}:{mv.maneuver_id}",
@@ -1201,8 +1222,10 @@ def enumerate_actions(
                 power_name=mv_name,
                 summary=(
                     f"{mv_name} vs {_friendly(enemy)} "
-                    f"(OCV {mv_ocv:+d}/DCV {mv_dcv:+d})"
+                    f"(OCV {mv_ocv:+d}/DCV {mv_dcv:+d} until your next "
+                    f"phase; {mv_does})"
                 ),
+                _maneuver_view=mv,
             ))
 
     # Task 8: Multipower reallocate offer.  When the actor has a power

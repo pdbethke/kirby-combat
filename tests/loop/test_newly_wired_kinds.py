@@ -255,24 +255,20 @@ def test_rapid_fire_falls_back_to_the_book_count():
 
 
 
-def test_a_known_maneuver_is_declared_for_the_attack_to_read():
+def test_a_maneuver_offer_must_carry_the_maneuver_it_names():
+    """A static-table id is no longer a maneuver: the resolver used to
+    DECLARE one for a later attack to read, and nothing read it. A
+    ``maneuver`` offer now carries the character's own maneuver
+    (``_maneuver_view``) and resolves it as the attack; one without it is
+    refused rather than resolved as something else. The resolution itself
+    is covered in ``test_martial_maneuvers_resolve.py``."""
     from kirby_combat.actions.martial_arts import MARTIAL_MANEUVERS
-
-    known = sorted(MARTIAL_MANEUVERS)[0]
-    action = _action("maneuver")
-    object.__setattr__(action, "power_xmlid", known)
-    _, resolved = _resolve(action)
-    assert resolved.events
-
-
-def test_an_unknown_maneuver_refuses_rather_than_resolving_as_something_else():
-    """`MartialArts.declare` raises on an id it does not know, and that is
-    right: a maneuver the engine cannot model must not resolve as though it
-    could."""
     from kirby_combat.loop.registry import UnresolvableAction
 
+    action = _action("maneuver")
+    object.__setattr__(action, "power_xmlid", sorted(MARTIAL_MANEUVERS)[0])
     with pytest.raises(UnresolvableAction, match="maneuver"):
-        _resolve(_action("maneuver"))
+        _resolve(action)
 
 
 def test_holding_an_action_is_recorded_as_pending():

@@ -474,6 +474,13 @@ def _fold_session_cvs(
     # than as a `cv_modifiers` source because it is a flat bonus a
     # combatant DECLARED, not a condition he is under.
     dcv_delta = (effective - base_dcv) + Dodge.dcv_bonus(session, target_id)
+    # 6E2 p.68 / p.93: the DCV a martial maneuver left him at, until his
+    # next Phase. A flat modifier he CHOSE, like the Dodge above, and read
+    # here for the same reason: this is the one door every attack on him
+    # takes.
+    from kirby_combat.actions.martial_arts import maneuver_dcv_delta
+
+    dcv_delta += maneuver_dcv_delta(session, target_id)
 
     return replace(
         attack,

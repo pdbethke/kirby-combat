@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+**Martial maneuvers resolve.** Every `maneuver` the menu offered raised
+`UnresolvableAction` (a 500 on kirby-api's `/run`): the resolver looked the
+offer's `power_xmlid="MANEUVER"` up in the static table and refused it, and
+for a table id it only declared modifiers nothing read. A maneuver is now the
+attack itself, resolved in the Phase it is chosen, ported from the deleted api
+driver's `_resolve_maneuver` and corrected against the book:
+- **OCV** on its own Attack Roll; **DCV until the actor's next Phase**
+  (6E2 p.68), folded at the one CV door (`recording._fold_session_cvs`, via
+  `martial_arts.maneuver_dcv_delta`). The driver recorded the DCV and applied
+  it to nothing.
+- **Damage** (`actions/maneuver_effects.py`): STR + DCs as Normal Damage
+  (6E2 p.93, p.101); Killing Strike at 3 DC per die with STR added as to an
+  HKA (6E2 p.93, p.99; 6E1 p.244); NND at 1/2d6 per DC, no STR, STUN only,
+  defense Resistant PD / rigid armour (6E2 p.94, p.99, p.101). Extra DCs add
+  to every maneuver (+5 STR to a STR-bonus one, 6E2 p.94). END is the STR's
+  only (6E2 p.93).
+- **Effects**: Target Falls / You Fall set Prone (6E2 p.94; new `statuses.FELL`
+  payload key); Grab maneuvers write the Grab row `Grab.is_grabbed` folds, and
+  a Martial Grab's holding STR reaches the escape contest
+  (`Grab.holding_str_bonus`, 6E2 p.94); Martial Disarm rolls like Disarm and
+  records its contest STR.
+- **Not offered any more** — HD elements with no faithful rule here: FMove,
+  Must Follow Block/Grab, Crush, Bind, Shove, Grab Weapon, Disable, Flash,
+  Grab + Normal/Killing damage, free-text STR, custom maneuvers whose damage
+  type is NONE.
+- `MartialManeuverView.damage_type` is now the decoded family
+  (`ManeuverDamage`, a str Enum: Killing Strike reads `killing`, Nerve Strike
+  `nnd`), and `dc_bonus` includes Extra DCs. `LegalAction._maneuver_view` is new.
+
 ## 0.21.0 — 2026-10-26
 
 Prod fight 33bf8bee (five villains, a generated map) showed a mentalist whose

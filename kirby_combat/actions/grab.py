@@ -296,3 +296,35 @@ class Grab:
             ):
                 grabber = None
         return (grabber is not None, grabber)
+
+    # ------------------------------------------------------------------ holding
+    #: The grab row's key for a STR bonus that only helps hold on.
+    HOLDING_STR_BONUS = "holding_str_bonus"
+
+    @staticmethod
+    def holding_str_bonus(session: CombatSession, combatant_id: str) -> int:
+        """Extra STR the grab holding this combatant brings to his escape.
+
+        6E2 p.94, Martial Grab: "the character receives a bonus to his STR.
+        This bonus only helps the character hold the target; it does not add
+        to damage done by squeezing or throwing the victim." So it reaches
+        the break-out contest and nothing else. 0 for a plain Grab, and for
+        a man nobody is holding.
+
+        Read off the SAME row `is_grabbed` folds, so the two can never
+        disagree about which grab is current.
+        """
+        bonus = 0
+        for evt in session.event_log:
+            if evt.kind != "ActionResolved":
+                continue
+            payload = getattr(evt, "result_payload", None) or {}
+            ptype = payload.get("type")
+            if (ptype == "grab" and payload.get("target_id") == combatant_id
+                    and payload.get("success") is True):
+                bonus = int(payload.get(Grab.HOLDING_STR_BONUS) or 0)
+            elif (ptype == "grab_escape"
+                  and payload.get("escaper_id") == combatant_id
+                  and payload.get("success") is True):
+                bonus = 0
+        return bonus

@@ -259,3 +259,45 @@ def _compute_modifiers(params: dict[str, Any]) -> MartialArtsModifiers:
         target_falls=target_falls,
         is_block=is_block,
     )
+
+
+# ---------------------------------------------------------------------------
+# The maneuver's DCV, from the Phase it was thrown until his next Phase.
+# ---------------------------------------------------------------------------
+
+#: The payload key a resolved maneuver writes its user's DCV modifier under.
+#: The name the deleted kirby-api driver used for the same fact, so a reader
+#: of older fight logs and of new ones reads one key.
+MANEUVER_DCV_DELTA = "maneuver_dcv_delta"
+
+
+def maneuver_dcv_delta(session: CombatSession, combatant_id: str) -> int:
+    """The DCV modifier this combatant's last martial maneuver left him at.
+
+    6E2 p.93: a maneuver's DCV is "the maneuver's modification to the
+    attacker's DCV"; 6E2 p.68's Grab example gives its duration: "He misses.
+    He remains at DCV 6 until his next Phase." The deleted api driver
+    RECORDED this delta and applied it to nothing, so a Defensive Strike
+    (+3 DCV) defended no better than a Haymaker.
+
+    Folded forward out of the log like `cv_modifiers._took_a_multi_attack`:
+    set by the maneuver's own ``ActionResolved``, cleared by the next
+    ``SegmentAdvanced`` into one of this combatant's Phase Segments.
+    """
+    from kirby_combat.tables import segments_for_spd
+
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None:
+        return 0
+    phases = set(segments_for_spd(int(combatant.combat_stats().spd)))
+    delta = 0
+    for evt in session.event_log:
+        kind = getattr(evt, "kind", None)
+        if kind == "ActionResolved":
+            payload = getattr(evt, "result_payload", None) or {}
+            author = getattr(getattr(evt, "author", None), "id", None)
+            if author == combatant_id and payload.get(MANEUVER_DCV_DELTA) is not None:
+                delta = int(payload[MANEUVER_DCV_DELTA])
+        elif kind == "SegmentAdvanced" and delta and evt.to_segment in phases:
+            delta = 0
+    return delta

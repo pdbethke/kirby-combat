@@ -1290,28 +1290,108 @@ def _resolve_maneuver(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A martial maneuver (6E2 p.78): declare it, and the attack reads it.
+    """A martial maneuver the character bought (6E2 p.92-94), resolved now.
 
-    Like Set and Haymaker, the declaration IS this Phase. ``MartialArts``
-    computes the maneuver's CV and DC modifiers, and the attack that follows
-    reads them via ``modifiers_for_pending_attack``.
+    A Martial Maneuver IS the attack, a Half Phase action like the Strike it
+    improves on (6E2 p.93: "They function identically to the regular Combat
+    Maneuvers of similar name, but with different modifiers"). This used to
+    DECLARE a static-table id for a later attack to read through
+    ``modifiers_for_pending_attack`` --- which nothing read --- and refused
+    every per-character maneuver the menu actually offered, because their
+    ``power_xmlid`` is "MANEUVER". So a martial artist's first maneuver
+    raised ``UnresolvableAction`` (prod 2026-10-26).
+
+    Ported from the deleted kirby-api driver's ``_resolve_maneuver``, which
+    resolved these live as "a STR strike modified by the maneuver's
+    OCV/DCV/DC" through ``resolve_attack``, and set the target prone on
+    Target Falls. Checked against the book as it came across, three things
+    changed (see ``actions/maneuver_effects.py`` for each page):
+
+    - The DCV is APPLIED. The driver recorded it and applied it to nothing;
+      it now stands until his next Phase (6E2 p.68) through
+      ``recording._fold_session_cvs``, the door every attack on him takes.
+    - The damage is the maneuver's: Killing at 3 DC per die, NND at 1/2d6
+      per DC with no STR. The driver added every DC as Normal d6 to a STR
+      strike, so Ravel's Joint Lock/Throw (1d6 NND) hit for 4d6 Normal.
+    - Grab and Disarm maneuvers grab and disarm, through the same rows the
+      plain Grab and Disarm write.
+
+    The Attack Roll goes through ``_maneuver_attack`` ->
+    ``resolve_attack_in_session`` as Trip and Disarm do, so blindness,
+    Dodges, Surprise, Drains and cover reach it exactly as they reach a
+    punch.
     """
-    from kirby_combat.actions.martial_arts import MARTIAL_MANEUVERS, MartialArts
+    from kirby_combat.actions.grab import Grab
+    from kirby_combat.actions.maneuver_effects import (
+        UnbuildableManeuver, decode_maneuver, maneuver_power,
+    )
+    from kirby_combat.actions.martial_arts import MANEUVER_DCV_DELTA
+    from kirby_combat.statuses import FELL
 
-    # The offer names the maneuver in `power_xmlid`. `MartialArts.declare`
-    # raises on an id it does not know, which is the right behaviour -- a
-    # maneuver the engine cannot model must not resolve as though it did --
-    # so an unknown one is reported as unresolvable rather than swallowed.
-    maneuver_id = action.power_xmlid
-    if maneuver_id not in MARTIAL_MANEUVERS:
+    mv = action._maneuver_view
+    if mv is None or action.target_id not in session.combatants:
         raise UnresolvableAction(action.kind, action.action_id)
+    try:
+        effect = decode_maneuver(mv)
+    except UnbuildableManeuver as exc:
+        # Enumeration never offers one; a hand-built offer that names one is
+        # refused, never resolved as something nearby.
+        raise UnresolvableAction(action.kind, action.action_id) from exc
 
-    new_session, _event = MartialArts.declare(
-        session, actor.id, maneuver_id=maneuver_id,
+    strength = int(actor.combat_stats().str_)
+    target = session.combatants[action.target_id]
+    power = maneuver_power(mv, effect, strength=strength)
+
+    def _maneuver_payload(result) -> dict:
+        hit = bool(result.hit)
+        fell = []
+        if hit and effect.target_falls:
+            fell.append(target.id)
+        # JUDGEMENT: the thrower goes down when the throw is made. 6E2 p.94
+        # describes Sacrifice Throw's fall as part of the throw landing ("the
+        # victim ... must land within 2m of the Thrower - and the Thrower
+        # himself ends up prone"); it says nothing of a miss.
+        if hit and effect.actor_falls:
+            fell.append(actor.id)
+        payload = {
+            "maneuver_id": mv.maneuver_id,
+            "maneuver_ocv_delta": int(mv.ocv),
+            "maneuver_dc_bonus": effect.damage_classes,
+            "target_falls": effect.target_falls,
+            "is_prone_after": target.id in fell,
+            FELL: fell,
+            # 6E2 p.68: a Grab that lands puts the grabber at 1/2 DCV, which
+            # "replaces the -2 DCV penalty, it's not in addition to it".
+            MANEUVER_DCV_DELTA: (None if (effect.grab and hit) else int(mv.dcv)),
+        }
+        if effect.grab:
+            # THE ROW `Grab.is_grabbed` FOLDS, written on the attack's own
+            # row: one Attack Roll took hold, so there is one row.
+            payload.update({
+                "type": "grab", "success": hit,
+                "attacker_id": actor.id,
+                "attacker_str": strength + effect.str_bonus,
+                "target_str": int(target.combat_stats().str_),
+                Grab.HOLDING_STR_BONUS: effect.str_bonus,
+            })
+        if effect.disarm:
+            # As the plain Disarm (6E2 p.65): the Attack Roll is real and
+            # this engine tracks no weapons to take, so the hit and the STR
+            # the contest would be rolled with are what reach the log.
+            payload["disarm_str"] = strength + effect.str_bonus
+        return payload
+
+    new_session, result = _maneuver_attack(
+        session, actor, action, template=template, roller=roller,
+        power=power, ocv_modifier=int(mv.ocv),
+        # A half die is a die rolled (`compute_damage` reads the last one).
+        damage_dice=power.damage_dice + (1 if power.half_die else 0),
+        action_type="grab" if effect.grab else "strike",
+        payload_extras=_maneuver_payload,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
-        result=None, events=_events_since(session, new_session),
+        result=result, events=_events_since(session, new_session),
     )
 
 
@@ -1449,7 +1529,9 @@ def _resolve_grab_escape(
         session,
         escaper_id=actor.id,
         escaper_str=own_str // 2 if casual else own_str,
-        grabber_str=int(session.combatants[grabber_id].combat_stats().str_),
+        # A Martial Grab holds on with more than its STR (6E2 p.94).
+        grabber_str=(int(session.combatants[grabber_id].combat_stats().str_)
+                     + Grab.holding_str_bonus(session, actor.id)),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

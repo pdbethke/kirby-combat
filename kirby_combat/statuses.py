@@ -208,6 +208,11 @@ HOLDING = "holding"
 # matching HeldActionReleased).
 
 PRONE = "prone"
+
+#: The `ActionResolved` payload key naming every combatant a resolution put
+#: on the ground (a martial maneuver's Target Falls / You Fall). Folded by
+#: `_is_prone` beside Trip's own `is_prone_after`.
+FELL = "fell"
 # 6E2 p.67 TRIP -- knocked off your feet. Prone targets take +2 OCV from melee
 # attackers and suffer -2 to their own OCV.
 #
@@ -446,6 +451,12 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
                 and payload.get("target_id") == combatant_id
                 and payload.get("is_prone_after", payload.get("hit"))
             ):
+                prone = True
+            # A martial maneuver's falls (6E2 p.94: Legsweep and Martial
+            # Throw's "Target Falls", Sacrifice Throw's "You Fall"). Written
+            # by `loop/resolvers._resolve_maneuver` as the ids that went
+            # down, so this fold reads a fact rather than re-deriving it.
+            if combatant_id in (payload.get(FELL) or ()):
                 prone = True
         elif (
             kind == "StatusEffectsChanged"
