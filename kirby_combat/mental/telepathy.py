@@ -18,7 +18,7 @@ from kirby_combat.tables import telepathy_degree
 class TelepathyResult:
     target_id: str
     target_ego: int
-    effect_total: int
+    effect_total: int            # dice - Mental Defense, floored at 0 (6E1 p.151)
     margin: int
     degree: str                  # surface_thoughts | specific_memories | deep_thoughts | subconscious | none
     target_is_aware: bool
@@ -36,7 +36,10 @@ def resolve_telepathy(
         raise ValueError(
             f"Combatant {attacker.id} is not marked as mentalist; cannot use Telepathy"
         )
-    total = sum(effect_dice_values)
+    # 6E1 p.151: "Roll these dice, total them, and subtract the target's
+    # Mental Defense (if any)." This compared the bare dice with EGO.
+    rolled = sum(effect_dice_values)
+    total = max(0, rolled - int(target.md))
     margin = total - target.ego
     degree = telepathy_degree(total, target.ego)
 
@@ -45,7 +48,7 @@ def resolve_telepathy(
     target_is_aware = bool(target.is_mentalist or target_has_mental_awareness)
 
     audit = [
-        f"Telepathy: effect_dice sum={total} vs EGO={target.ego} -> "
+        f"Telepathy: effect_dice sum={rolled} - MD {target.md} = {total} vs EGO={target.ego} -> "
         f"margin={margin} -> degree={degree}; target_aware={target_is_aware}"
     ]
     return TelepathyResult(

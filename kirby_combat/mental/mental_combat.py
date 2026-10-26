@@ -48,7 +48,9 @@ def resolve_mental_to_hit(
     eff_ocv = attacker.omcv + ocv_modifier
     eff_dcv = target.dmcv + dcv_modifier
     target_number = 11 + eff_ocv - eff_dcv
-    hit = roll <= target_number
+    # 6E2 p.37: 3 always hits, 18 always misses --- the same rule the
+    # physical to-hit applies (`resolution/to_hit.py`).
+    hit = roll == 3 or (roll != 18 and roll <= target_number)
     margin = target_number - roll
 
     audit.append(

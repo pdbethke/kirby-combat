@@ -53,6 +53,14 @@ def _mentalist(id: str, side: str):
     return c
 
 
+class _Hits(RandomRoller):
+    """Every 3d6 roll is a 3, so the MCV Attack Roll always hits and these
+    tests reach the Effect Roll they are about; other dice are honest."""
+
+    def roll_dice(self, count, sides=6):
+        return [1, 1, 1] if count == 3 else super().roll_dice(count, sides)
+
+
 def _action(kind: str, target_id: str, levels: int = 10) -> LegalAction:
     power = _power(kind.upper().replace("_", ""), levels)
     try:
@@ -63,6 +71,7 @@ def _action(kind: str, target_id: str, levels: int = 10) -> LegalAction:
         action_id=f"{kind}:{target_id}:src", kind=kind, target_id=target_id,
         power_xmlid=power.xmlid, power_name=power.name,
         summary=f"{kind} on {target_id}", _attack_view=power,
+        order="withdraw" if kind == "mind_control" else None,
     )
 
 
@@ -87,7 +96,7 @@ def test_the_engine_resolves_the_kind_and_records_it(kind):
 
     resolved = resolve_chosen(
         session, actor, _action(kind, "mark"),
-        template=TEMPLATE, roller=RandomRoller(seed=4),
+        template=TEMPLATE, roller=_Hits(seed=4),
     )
 
     assert resolved.kind == kind
@@ -108,7 +117,7 @@ def test_the_outcome_is_a_degree_against_ego_not_damage(kind):
 
     resolved = resolve_chosen(
         session, session.combatants["psi"], _action(kind, "mark"),
-        template=TEMPLATE, roller=RandomRoller(seed=4),
+        template=TEMPLATE, roller=_Hits(seed=4),
     )
 
     assert resolved.result.degree is not None
@@ -126,7 +135,7 @@ def test_a_non_mentalist_is_refused_by_the_engines_own_rule(kind):
     with pytest.raises(ValueError, match="not marked as mentalist"):
         resolve_chosen(
             session, session.combatants["mundane"], _action(kind, "mark"),
-            template=TEMPLATE, roller=RandomRoller(seed=4),
+            template=TEMPLATE, roller=_Hits(seed=4),
         )
 
 
@@ -135,7 +144,7 @@ def test_each_declaration_is_paired_with_its_resolution():
     session = enc.sessions[0]
     resolved = resolve_chosen(
         session, session.combatants["psi"], _action("mind_control", "mark"),
-        template=TEMPLATE, roller=RandomRoller(seed=4),
+        template=TEMPLATE, roller=_Hits(seed=4),
     )
     declared, resolution = resolved.events[-2], resolved.events[-1]
     assert declared.kind == "ActionDeclared"

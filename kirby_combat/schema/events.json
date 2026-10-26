@@ -565,6 +565,84 @@
       "title": "BlockPriorityGained",
       "type": "object"
     },
+    "BreakoutRolled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "BreakoutRolled",
+          "enum": [
+            "BreakoutRolled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "bonus": {
+          "type": "integer"
+        },
+        "broke_free": {
+          "type": "boolean"
+        },
+        "effect_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "BreakoutRolled",
+          "enum": [
+            "BreakoutRolled"
+          ],
+          "type": "string"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "effect_id",
+        "roll",
+        "target_number",
+        "bonus",
+        "broke_free",
+        "turn",
+        "segment"
+      ],
+      "title": "BreakoutRolled",
+      "type": "object"
+    },
     "CombatantStateView": {
       "additionalProperties": false,
       "properties": {
@@ -2903,7 +2981,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.20.2",
+  "$id": "urn:kirby-combat:schema:events:0.21.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -2929,6 +3007,9 @@
     },
     {
       "$ref": "#/$defs/BlockPriorityGained"
+    },
+    {
+      "$ref": "#/$defs/BreakoutRolled"
     },
     {
       "$ref": "#/$defs/ConstructDamaged"
@@ -2995,5 +3076,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.20.2"
+  "x-kirby-combat-version": "0.21.0"
 }

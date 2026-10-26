@@ -7,7 +7,7 @@ the target's EGO rather than as STUN and BODY. This demo runs that track.
 Exercises:
   - resolve_mental_to_hit  (OMCV vs DMCV, and LOS is irrelevant)
   - resolve_mental_blast   (damage reduced by Mental Defense, not PD/ED)
-  - resolve_mind_control   (effect rolled against EGO breakpoints)
+  - resolve_mind_control   (an order's Effect Roll against EGO + its level)
 
 No dependencies beyond the package: the combatants are built here rather than
 loaded from a character file.
@@ -89,20 +89,20 @@ def main() -> None:
     print(f"     his PD {SOLDIER.pd} and ED {SOLDIER.ed} are irrelevant here")
     print(bar(SOLDIER, stun=SOLDIER.current_stun - blast.stun_dealt))
 
-    # ── 3. Mind Control — effect measured against EGO ────────────────────────
-    rule("3. Mind Control — the roll is measured against EGO, not STUN")
+    # ── 3. Mind Control — an order, measured against EGO ─────────────────────
+    rule("3. Mind Control — an order needs EGO + its level, after Mental Defense")
     for label, dice in (("a weak push", [2, 2, 3, 1]),
-                        ("a hard shove", [6, 6, 5, 6])):
-        mc = resolve_mind_control(TELEPATH, SOLDIER, dice)
-        total = sum(dice)
-        print(f"  {label:14} 4d6 → {total:>2}  vs EGO {SOLDIER.ego}"
-              f"   (EGO+10 = {SOLDIER.ego + 10}, EGO+20 = {SOLDIER.ego + 20})")
-        print(f"                 → margin {mc.margin:+d}  →  {mc.degree}")
+                        ("a hard shove", [6, 6, 5, 6, 5, 6])):
+        mc = resolve_mind_control(TELEPATH, SOLDIER, dice, order="spare")
+        print(f"  {label:14} {len(dice)}d6 → {mc.effect_rolled:>2} - MD {SOLDIER.md} = "
+              f"{mc.effect_total:>2}  vs  'spare' needs {mc.required_total}")
+        print(f"                 → {'he obeys (after one Breakout Roll)' if mc.established else 'no effect'}"
+              f"  (degree {mc.degree})")
 
     rule("END")
-    print("  Physical position never entered any of the above: the same three")
-    print("  calls resolve identically through a wall, in darkness, or across")
-    print("  a room — which is what makes mental combat its own pipeline.\n")
+    print("  Physical position never entered the ROLLS above. It decides who can")
+    print("  be targeted at all: a Mental Power needs line of sight through a")
+    print("  Targeting Sense, or a Mind Scan lock earned with its own roll.\n")
 
 
 if __name__ == "__main__":

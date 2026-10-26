@@ -677,6 +677,24 @@ def effective_dmcv_for(
                          combatant.combat_stats().dmcv, against, combat_type)
 
 
+def effective_omcv_for(
+    session: "CombatSession", combatant_id: str, *,
+    against: str | None = None, combat_type: str = "hth",
+) -> int:
+    """This combatant's OMCV as modified by every active condition.
+
+    The mental Attack Roll's own half of the fold. Nothing sets
+    ``omcv_factor`` today -- Stunned halves DCV and DMCV, not the offensive
+    values (6E2 p.106) -- so this returns the base OMCV with any Aid or
+    Drain applied. It exists so `mental/attack_roll.py` asks the same door
+    the physical to-hit asks, and the day a condition does touch OMCV it
+    lands in one place.
+    """
+    combatant = session.combatants[combatant_id]
+    return _effective_cv(session, combatant_id, "omcv",
+                         combatant.combat_stats().omcv, against, combat_type)
+
+
 def effective_ocv_for(
     session: "CombatSession", combatant_id: str, *,
     against: str | None = None, combat_type: str = "hth",

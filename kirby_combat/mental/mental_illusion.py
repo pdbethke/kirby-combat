@@ -20,7 +20,7 @@ from kirby_combat.tables import mental_illusion_degree
 class MentalIllusionResult:
     target_id: str
     target_ego: int
-    effect_total: int
+    effect_total: int            # dice - Mental Defense, floored at 0 (6E1 p.151)
     margin: int
     degree: str
     audit: list[str] = field(default_factory=list)
@@ -45,11 +45,14 @@ def resolve_mental_illusion(
         raise ValueError(
             f"Combatant {attacker.id} is not marked as mentalist; cannot use Mental Illusion"
         )
-    total = sum(effect_dice_values)
+    # 6E1 p.151: "Roll these dice, total them, and subtract the target's
+    # Mental Defense (if any)." This compared the bare dice with EGO.
+    rolled = sum(effect_dice_values)
+    total = max(0, rolled - int(target.md))
     margin = total - target.ego
     degree = mental_illusion_degree(total, target.ego)
     audit = [
-        f"Mental Illusion: effect_dice sum={total} vs EGO={target.ego} -> "
+        f"Mental Illusion: effect_dice sum={rolled} - MD {target.md} = {total} vs EGO={target.ego} -> "
         f"margin={margin} -> degree={degree}"
     ]
     return MentalIllusionResult(

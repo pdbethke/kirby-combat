@@ -16,11 +16,11 @@ def _mentalist(id_: str = "a"):
     )
 
 
-def _target(id_: str = "t", ego: int = 10, is_mentalist: bool = False):
+def _target(id_: str = "t", ego: int = 10, is_mentalist: bool = False, md: int = 0):
     return synthetic_combatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=5,
         spd=3, dex=12, ego=ego, str_=15, con=15, pre=10, rec=5,
-        pd=5, ed=5, rpd=0, red=0, md=3, power_defense=0, flash_defense=0,
+        pd=5, ed=5, rpd=0, red=0, md=md, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,
         is_mentalist=is_mentalist,
@@ -80,3 +80,12 @@ def test_telepathy_does_not_cause_stun_or_body_damage():
     # Result has no damage fields whatsoever
     assert not hasattr(r, "stun")
     assert not hasattr(r, "body")
+
+
+def test_mental_defense_comes_off_the_effect_roll():
+    """6E1 p.151: "Roll these dice, total them, and subtract the target's
+    Mental Defense (if any)." 20 on the dice against EGO 10 is EGO+10 with no
+    Mental Defense and only EGO+5 behind MD 5."""
+    a = _mentalist()
+    r = resolve_telepathy(a, _target(ego=10, md=5), [2] * 10)
+    assert (r.effect_total, r.margin, r.degree) == (15, 5, "surface_thoughts")

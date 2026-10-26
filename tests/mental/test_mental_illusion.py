@@ -19,11 +19,11 @@ def _mentalist(id_: str = "a") -> "HeroCombatant":
     )
 
 
-def _target(id_: str = "t", ego: int = 10) -> "HeroCombatant":
+def _target(id_: str = "t", ego: int = 10, md: int = 0) -> "HeroCombatant":
     return synthetic_combatant(
         id=id_, name=id_, ocv=8, dcv=8, omcv=3, dmcv=5,
         spd=3, dex=12, ego=ego, str_=15, con=15, pre=10, rec=5,
-        pd=5, ed=5, rpd=0, red=0, md=3, power_defense=0, flash_defense=0,
+        pd=5, ed=5, rpd=0, red=0, md=md, power_defense=0, flash_defense=0,
         max_stun=30, max_body=15, max_end=30,
         current_stun=30, current_body=15, current_end=30,
     )
@@ -78,3 +78,10 @@ def test_mental_illusion_does_not_directly_damage():
     r = resolve_mental_illusion(a, t, [4, 3, 3])
     assert not hasattr(r, "stun")
     assert not hasattr(r, "body")
+
+
+def test_mental_defense_comes_off_the_effect_roll():
+    """6E1 p.151. 30 on the dice is EGO+20 (elaborate) undefended, EGO+12
+    (moderate) behind Mental Defense 8."""
+    r = resolve_mental_illusion(_mentalist(), _target(ego=10, md=8), [3] * 10)
+    assert (r.effect_total, r.degree) == (22, "moderate")

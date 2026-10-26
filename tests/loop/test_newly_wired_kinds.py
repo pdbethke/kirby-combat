@@ -151,7 +151,8 @@ def test_presence_attack_produces_an_effect_not_damage():
 # ---- The count, and what it does not claim ----
 
 def test_every_kind_is_wired():
-    """62 now: `stabilize` joined them with 6E2 p.109's Paramedics roll.
+    """63 now: `mind_scan` joined them with 6E1 p.263's lock-on (62 was
+    `stabilize`, with 6E2 p.109's Paramedics roll).
 
     61, not 51, was the last count. Three offers build their kind from a
     variable, so an AST walk matching `kind="literal"` missed eight -- see
@@ -159,7 +160,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 62
+    assert len(registered_kinds()) == 63
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -191,6 +192,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "move_to_cover",           # test_move_to_cover
         "disengage",               # test_disengage
         "stabilize",               # test_doc_stops_the_bleeding
+        "mind_scan",               # test_mental_combat_bites
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

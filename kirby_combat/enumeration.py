@@ -183,8 +183,19 @@ _MENTAL_ATTACK_XMLIDS: frozenset[str] = frozenset(
 # everything else targeted at an enemy gates on ``targetable_physical``.
 _MENTAL_ACTION_KINDS: frozenset[str] = frozenset({
     "mental_blast", "mind_control", "mental_entangle",
-    "mental_illusion", "telepathy",
+    "mental_illusion", "telepathy", "mind_scan",
 })
+
+
+def _has_modifier(power: Any, xmlid: str) -> bool:
+    """Whether ``power`` carries the modifier ``xmlid`` (an Advantage or a
+    Limitation), on either load shape --- ``assigned_modifiers`` from the
+    loader, ``modifiers`` on a synthetic stub."""
+    for m in (getattr(power, "assigned_modifiers", None)
+              or getattr(power, "modifiers", None) or []):
+        if (getattr(m, "xmlid", None) or getattr(m, "XMLID", None) or "").upper() == xmlid:
+            return True
+    return False
 
 # Perception §2 (tier-2): targeted ``kind``s that are inherently HAND-TO-HAND
 # (require adjacency, no range). When an enemy is adjacent but unperceived, only
@@ -285,6 +296,11 @@ class LegalAction:
     # None for non-movement actions. Defaults to "running" for the bare
     # ``move:<enemy>`` / ``move_strike:<enemy>:<xmlid>`` running aliases.
     mode: str | None = None
+    # Mind Control's ORDER (`mental/mind_control.ORDERS`): the book names the
+    # order before the roll and the order sets the level needed (6E1 p.255),
+    # so it is part of the offer, not something chosen after. None for every
+    # other kind.
+    order: str | None = None
     # True when this action is aimed at TERRAIN (a wall/construct) rather than
     # a combatant. Terrain offers led the action list -- six of the first six
     # entries in a 21-action menu -- while "Flight toward <enemy>" sat at #18,
@@ -585,7 +601,7 @@ ALL_ACTION_KINDS = frozenset({
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_str",
     "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
     "hide", "hold", "image_decoy", "maneuver", "mental_blast",
-    "move_to_cover",
+    "mind_scan", "move_to_cover",
     "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
     "move_strike", "move_through", "multiple_attack", "persuasion",
     "pickup", "presence_attack", "presence_attack_group", "push",
@@ -678,6 +694,7 @@ def enumerate_actions(
     can_abort: bool = True,
     spent_charges: dict[str, int] | None = None,
     allies: list[HeroCombatant] | None = None,
+    mind_scan_locks: frozenset[str] | None = None,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -2395,23 +2412,86 @@ def enumerate_actions(
             p for p in (actor.hero.powers or [])
             if (getattr(p, "xmlid", "") or "").upper() in {"MINDCONTROL", "MIND_CONTROL"}
         ]
+    from kirby_combat.mental.mind_control import ORDERS as _MC_ORDERS
+    from kirby_combat.side import Side as _Side
+
+    def _avg_md_ego(enemy) -> tuple[int, int]:
+        return int(enemy.ego), int(enemy.md)
+
     for mc_power in mind_control_powers:
         # The dice count for a Mind Control power = levels (1d6 per
         # 5 Active Points, simplified to 1d6 per level for v1).
         mc_dice = getattr(mc_power, "levels", 0) or 0
         for enemy in alive_enemies:
+            ego, md = _avg_md_ego(enemy)
+            # WHO ELSE THE TARGET COULD FIGHT, and who his friends are, seen
+            # from here: the actor's enemies other than the target, split by
+            # the target's side. `spare` needs somebody else for him to
+            # fight (else it is "stop fighting", beyond EGO+10 --- 6E1
+            # p.256); `turn` needs friends for him to turn on.
+            others = [e for e in alive_enemies if e.id != enemy.id]
+            his_friends = [e for e in others if _Side.of(e) == _Side.of(enemy)]
+            his_foes = [e for e in others if _Side.of(e) != _Side.of(enemy)]
+            for order, level in _MC_ORDERS.items():
+                if order == "spare" and not his_foes:
+                    continue
+                if order == "turn" and not his_friends:
+                    continue
+                need = ego + level + md
+                what = {
+                    "spare": "leave you and yours alone and fight someone else",
+                    "withdraw": "stop attacking and get out of the fight",
+                    "turn": "attack his own allies",
+                }[order]
+                actions.append(LegalAction(
+                    action_id=f"{_power_action_id('mind_control', enemy.id, mc_power)}:{order}",
+                    kind="mind_control",
+                    target_id=enemy.id,
+                    power_xmlid=mc_power.xmlid,
+                    power_name=getattr(mc_power, "name", None) or "Mind Control",
+                    summary=(
+                        f"Mind Control {_friendly(enemy)}: order him to {what}. "
+                        f"OMCV {s.omcv} vs his DMCV to hit, then {mc_dice}d6 "
+                        f"(avg {mc_dice * 3.5:.0f}) must reach {need} "
+                        f"(EGO {ego} + {level} + Mental Defense {md}) or "
+                        f"nothing happens; he gets a Breakout Roll before "
+                        f"he obeys"
+                    ),
+                    _attack_view=mc_power,
+                    order=order,
+                ))
+    # Mind Scan (6E1 p.263): how a mentalist finds a mind he cannot see.
+    # Offered against each enemy he has NO mental line of sight to --- the
+    # perception gate below drops it again for anyone he can already reach,
+    # since scanning a mind in plain view buys nothing.
+    if block_mental_powers:
+        mind_scan_powers: list = []
+    else:
+        mind_scan_powers = [
+            p for p in (actor.hero.powers or [])
+            if (getattr(p, "xmlid", "") or "").upper() in {"MINDSCAN", "MIND_SCAN"}
+        ]
+    for ms_power in mind_scan_powers:
+        ms_dice = getattr(ms_power, "levels", 0) or 0
+        for enemy in alive_enemies:
+            if enemy.id in (mind_scan_locks or frozenset()):
+                continue
+            ego, md = _avg_md_ego(enemy)
             actions.append(LegalAction(
-                action_id=_power_action_id("mind_control", enemy.id, mc_power),
-                kind="mind_control",
+                action_id=_power_action_id("mind_scan", enemy.id, ms_power),
+                kind="mind_scan",
                 target_id=enemy.id,
-                power_xmlid=mc_power.xmlid,
-                power_name=getattr(mc_power, "name", None) or "Mind Control",
+                power_xmlid=ms_power.xmlid,
+                power_name=getattr(ms_power, "name", None) or "Mind Scan",
                 summary=(
-                    f"Mind Control {_friendly(enemy)} ({mc_dice}d6 "
-                    f"effect vs target EGO; degree ladder: simple → contrary "
-                    f"→ violent commands)"
+                    f"Mind Scan for {_friendly(enemy)}'s mind (you cannot "
+                    f"see him): OMCV {s.omcv} vs his DMCV, less a penalty "
+                    f"for the minds around, then {ms_dice}d6 must reach "
+                    f"{ego + 10 + md} to lock on. A lock lets your other "
+                    f"mental powers reach him from your next Phase --- and "
+                    f"lets his reach you"
                 ),
-                _attack_view=mc_power,
+                _attack_view=ms_power,
             ))
     # Sense-affecting §1 (Flash): a FLASH power blinds a target's Sense
     # Group(s) for ``max(0, BODY - Flash Defense)`` Segments. Like Mind
@@ -2941,8 +3021,22 @@ def enumerate_actions(
     def _gate_targeted(action: LegalAction, perc: Any, gate_band: str) -> LegalAction | None:  # noqa: E501
         """Return the (possibly ``blind``-marked) action to keep, or None to
         drop it, given the per-enemy ``perceive`` result + reach band."""
+        if action.kind == "mind_scan":
+            # A scan is how you GET mental line of sight; a mind already in
+            # reach has nothing to find (6E1 p.263).
+            return None if perc.targetable_mental else action
         if action.kind in _MENTAL_ACTION_KINDS:
-            return action if perc.targetable_mental else None
+            if not perc.targetable_mental:
+                return None
+            # Mind Control through a Mind Scan lock alone: "he must purchase
+            # the Telepathic Advantage for his Mind Control, simultaneously
+            # use Telepathy through the lock-on, or use some form of
+            # long-distance communication" (6E1 p.266). An order nobody can
+            # hear is not given.
+            if (action.kind == "mind_control" and perc.via == ("mindscan",)
+                    and not _has_modifier(action._attack_view, "TELEPATHIC")):
+                return None
+            return action
         # Physical offer.
         if perc.targetable_physical:
             return action
@@ -2963,6 +3057,7 @@ def enumerate_actions(
                     actor, enemy, scene,
                     target_invisible=bool(inv), target_hidden=bool(hid),
                     observer_flashed_groups=_flashed,
+                    mind_scan_locked=enemy.id in (mind_scan_locks or frozenset()),
                 )
             except Exception:
                 perc_by_enemy[enemy.id] = None  # fail open

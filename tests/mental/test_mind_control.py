@@ -51,15 +51,52 @@ def test_mind_control_below_ego_is_none():
 def test_mind_control_resolves_full_action_with_effect_and_degree():
     a = _mentalist()
     t = _target(ego=10)
-    # 10d6 mind control, dice sum to 35 -> EGO + 25 -> "contrary"
+    # 10d6 sum 35, less MD 3 = 32 -> EGO + 22 -> "contrary"; the order
+    # `withdraw` needs EGO+20 = 30, so it takes hold.
     result = resolve_mind_control(
         attacker=a, target=t,
         effect_dice_values=[4, 4, 4, 4, 3, 3, 4, 3, 3, 3],   # sums to 35
+        order="withdraw",
     )
     assert isinstance(result, MindControlResult)
-    assert result.effect_total == 35
+    assert (result.effect_rolled, result.effect_total) == (35, 32)
     assert result.degree == "contrary"
     assert result.target_ego == 10
+    assert (result.required_total, result.established) == (30, True)
+
+
+@pytest.mark.parametrize("order,level", [("spare", 10), ("withdraw", 20), ("turn", 30)])
+def test_each_order_needs_the_level_the_book_gives_its_combat_example(order, level):
+    """6E1 p.256: a poor choice of target at EGO+10, fleeing the combat at
+    EGO+20, attacking an ally beyond that. One short of the total is no
+    effect at all (p.255)."""
+    from kirby_combat.mental.mind_control import ORDERS
+
+    assert ORDERS[order] == level
+    t = _target(ego=10)          # MD 3
+    need = 10 + level + 3
+    hit = resolve_mind_control(_mentalist(), t, [need], order=order)
+    miss = resolve_mind_control(_mentalist(), t, [need - 1], order=order)
+    assert hit.established and not miss.established
+    assert miss.breakout_modifier == 0
+
+
+def test_the_breakout_roll_takes_minus_one_per_five_over_the_minimum():
+    """6E1 p.152's own example: aiming for EGO+20 and rolling EGO+30 puts
+    the Breakout Roll at -2."""
+    from kirby_combat.mental.mind_control import breakout_modifier
+
+    assert breakout_modifier(40, 30) == -2
+    assert breakout_modifier(34, 30) == 0
+    assert breakout_modifier(35, 30) == -1
+    t = _target(ego=10)          # needs 10 + 20 + 3 = 33 for withdraw
+    r = resolve_mind_control(_mentalist(), t, [43], order="withdraw")
+    assert r.breakout_modifier == -2
+
+
+def test_an_order_the_engine_does_not_know_is_refused():
+    with pytest.raises(ValueError, match="unknown Mind Control order"):
+        resolve_mind_control(_mentalist(), _target(), [30], order="obey")
 
 
 def test_mind_control_target_can_break_out_each_phase_with_ego_roll():

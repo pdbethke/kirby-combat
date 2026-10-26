@@ -457,6 +457,34 @@ class PresenceFaded(BaseEvent):
 
 
 @dataclass
+class BreakoutRolled(BaseEvent):
+    """A target's Breakout Roll against a continuing-effect Mental Power.
+
+    6E1 p.151: "Starting on the target's next Phase after being
+    successfully attacked with a continuing-effect Mental Power, he may
+    attempt to break free from the Power. These attempts are subconscious
+    and take no time". p.152 prices it: EGO Roll, -1 per 5 points the
+    effect beat its minimum, and later attempts at +1 after a Turn, +2
+    after a Minute and so on up the Time Chart.
+
+    ``effect_id`` is the id of the ``ActionResolved`` that established the
+    effect --- Mind Control or a Mind Scan lock --- which is where the
+    effect itself is recorded (see `kirby_combat/mental/continuing.py`).
+    ``turn``/``segment`` is when the roll was made: the Time Chart counts
+    from the FIRST attempt, so the fold needs the clock of each one.
+    """
+    kind: Literal["BreakoutRolled"] = field(default="BreakoutRolled", init=False)
+    target_id: str = ""
+    effect_id: str = ""
+    roll: int = 0
+    target_number: int = 0
+    bonus: int = 0
+    broke_free: bool = False
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
 class EnvironmentalTriggered(BaseEvent):
     kind: Literal["EnvironmentalTriggered"] = field(default="EnvironmentalTriggered", init=False)
     hazard_id: str = ""
@@ -544,6 +572,7 @@ CombatEvent = (
     # `_event_classes_the_module_defines`.
     | PresenceActionLost
     | PresenceFaded
+    | BreakoutRolled
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned

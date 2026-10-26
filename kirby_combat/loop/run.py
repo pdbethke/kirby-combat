@@ -35,6 +35,9 @@ from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
 from kirby_combat.statuses import stunned_or_recovering_for
+from kirby_combat.mental.continuing import (
+    WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
+)
 from kirby_combat.concealment import concealment_for
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
@@ -493,6 +496,16 @@ def run_phase(
 
     actor = session.combatants[actor_id]
 
+    # BREAKOUT ROLLS FIRST. 6E1 p.151: "Starting on the target's next Phase
+    # after being successfully attacked with a continuing-effect Mental
+    # Power, he may attempt to break free ... These attempts are
+    # subconscious and take no time --- whether he succeeds or fails, he may
+    # still act in that Phase." Before anything else about his Phase,
+    # because "a character always gets one (but only one) Breakout Roll
+    # before he suffers the effects".
+    session = roll_breakouts(session, actor_id, roller)
+    actor = session.combatants[actor_id]
+
     # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
     # upward, and `presence_effects.can_act` has said so all along --- it
     # was called NOWHERE outside its own module, so a man the rules had
@@ -518,7 +531,13 @@ def run_phase(
         )
 
     roster = Roster(session)
-    enemies = roster.enemies_of(actor)
+    # MIND CONTROL. The order he is obeying decides who his enemies are (and
+    # whether he may attack anybody at all); see `mental/continuing.obey`.
+    obeyed = obey(
+        session, actor, roster.enemies_of(actor),
+        roster.allies_of(actor) + roster.fallen_allies_of(actor),
+    )
+    enemies = obeyed.enemies
     _held = held_object(session, actor_id)
 
     # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
@@ -616,8 +635,14 @@ def run_phase(
         # which is right for "who can help me fight" and exactly wrong
         # for the man on the ground who needs somebody to kneel beside
         # him.
-        allies=roster.allies_of(actor) + roster.fallen_allies_of(actor),
+        allies=obeyed.allies,
+        # WHOSE MINDS HE CAN REACH WITHOUT SEEING THEM: the Mind Scan locks
+        # this fight has established, his and the ones on him (6E1 p.265's
+        # two-way circuit). Owning Mind Scan reaches nobody by itself.
+        mind_scan_locks=mind_scan_locks(session, actor_id),
     )
+    if obeyed.withdraw:
+        menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return _phase_result(
@@ -627,14 +652,14 @@ def run_phase(
 
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
-        allies=roster.allies_of(actor),
+        allies=[a for a in obeyed.allies if not is_down(a)],
         # THE MAN ON THE GROUND, kept in his own list. The menu above
         # already gets standing and fallen both; this object did not, so
         # the tactic layer could not see the ally it was supposed to
         # save and `stabilize` was offered 39 times and chosen never.
         # A separate field rather than a widened `allies` because three
         # tactics read that one as "who can help me fight".
-        fallen_allies=roster.fallen_allies_of(actor),
+        fallen_allies=[a for a in obeyed.allies if is_down(a)],
         # THE SAME DISTANCES THE MENU WAS BUILT FROM. Computed once above
         # for `enumerate_actions` and handed on rather than measured
         # twice, so a tactic and the offer it names cannot disagree about

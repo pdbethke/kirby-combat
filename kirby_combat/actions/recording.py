@@ -52,6 +52,7 @@ from kirby_combat.adjustments import adjusted_con, net_adjustment
 from kirby_combat.actions.reactive.abort import mark_aborting
 from kirby_combat.actions.reactive.block import Block, BlockResult
 from kirby_combat.mental.mental_blast import MentalBlastResult, resolve_mental_blast
+from kirby_combat.mental.mental_combat import MentalToHitResult
 from kirby_combat.models import AttackInput, AttackResult, StatBlockCombatant
 from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.session.combat_session import CombatSession
@@ -769,6 +770,7 @@ def resolve_mental_blast_in_session(
     target: StatBlockCombatant,
     damage_dice_values: list[int],
     *,
+    to_hit: "MentalToHitResult",
     declaration_event_id: str | None = None,
     action_type: str = "mental_blast",
 ) -> tuple[CombatSession, MentalBlastResult]:
@@ -873,8 +875,11 @@ def resolve_mental_blast_in_session(
         max_body=target.max_body,
     )
 
+    from kirby_combat.mental.recording import to_hit_payload
+
     result_payload: dict[str, Any] = {
         "kind": action_type,
+        **to_hit_payload(to_hit),
         "stun_dealt": result.stun_dealt,
         "body_dealt": result.body_dealt,
         "status_changes": status_changes,
