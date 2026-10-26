@@ -448,12 +448,18 @@ _FRINGE_RANGE_M = 2.0
 def perceive(observer, target, scene, *, target_invisible: bool = False,
              target_hidden: bool = False, stealth_movement_modifier: int = 0,
              observer_flashed_groups: frozenset[str] = frozenset(),
+             mind_scan_locked: bool = False,
              roller=None) -> Perception:
     """Per-sense perception (spec §1). Sight + bought Targeting senses resolve
     LoS/occlusion; per-Sense-Group Invisibility blocks the covered senses
     (with a ≤2m Fringe PER roll unless the power has No Fringe); a Hidden
     target runs an opposed Stealth-vs-PER contest against any clear Sight-group
-    sense. Mental senses give non-LOS mental targeting (a lock, not yet added).
+    sense. Mind Scan gives non-LOS mental targeting ONLY to a mind it has
+    locked on to (``mind_scan_locked``, folded from the fight by
+    `mental/continuing.mind_scan_locks`): owning the power finds nobody,
+    the lock is earned with an MCV Attack Roll and an Effect Roll (6E1
+    p.263-265). A lock is "a two-way circuit" (p.265), so the locked-on mind
+    has the same line of sight back even with no Mind Scan of its own.
     Pure: no DB, no mutation."""
     if roller is None:
         roller = RandomRoller()
@@ -474,6 +480,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         inv_groups = invisibility_groups(target.hero) or frozenset({SIGHT})
         inv_no_fringe = _invisibility_has_no_fringe(target.hero)
 
+    mental_blocked = False
     for sense in observer.senses():
         if not getattr(sense, "functional", True):
             continue
@@ -482,6 +489,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         # flash skips a mental sense (Mind Scan) too — checked before the mental
         # branch below so a flashed mental sense gives no mental LOS.
         if sense.group in observer_flashed_groups:
+            mental_blocked = mental_blocked or sense.mental
             continue
         # Darkness: a darkness_zone occluding this sense's group on the
         # observer→target ray blocks the sense entirely (sense-affecting §2).
@@ -490,6 +498,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         # (Nightvision) and a Mental-Darkness blocks Mind Scan. The creating
         # combatant with Personal Immunity is exempt for their own zone.
         if _darkness_blocks(observer, target, scene, sense):
+            mental_blocked = mental_blocked or sense.mental
             continue
         # Mental sense (Mind Scan / Mental Awareness): handle FIRST, before the
         # generic per-group Invisibility skip below. A mental sense perceives
@@ -501,7 +510,8 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
         # a Mind Scan). No Fringe applies to physical senses only, so a mental
         # sense gives no fringe perception.
         if sense.mental:
-            if MENTAL not in inv_groups:
+            # Owning Mind Scan is not seeing a mind: only a lock is.
+            if mind_scan_locked and MENTAL not in inv_groups:
                 via_mental.append(_via_token(sense.xmlid))
             continue
         # Invisibility: a non-mental sense whose group the target's Invisibility
@@ -551,6 +561,14 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
                 via_physical.append(_via_token(sense.xmlid))
             continue
         via_physical.append(_via_token(sense.xmlid))
+
+    # The far end of a lock: the scanned mind reaches back along it whether
+    # or not it owns a Mind Scan (6E1 p.265, "a two-way circuit") --- unless
+    # its own Mental senses are Flashed or Darkened, or the scanner's mind is
+    # Invisible to them.
+    if (mind_scan_locked and not via_mental and not mental_blocked
+            and MENTAL not in inv_groups and MENTAL not in observer_flashed_groups):
+        via_mental.append("mindscan")
 
     if via_physical:
         kind = "visible"

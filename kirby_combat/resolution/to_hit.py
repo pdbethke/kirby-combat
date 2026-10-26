@@ -240,7 +240,10 @@ def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult
     # ------------------------------------------------------------------
     # 10. Hit / miss
     # ------------------------------------------------------------------
-    hit = roll <= target_number
+    # 6E2 p.37: "a roll of 3 always hits and a roll of 18 always misses,
+    # regardless of relative CV". Absent until 2026-10-26, so a target
+    # number of 2 made a man unhittable and one of 18 made him unmissable.
+    hit = roll == 3 or (roll != 18 and roll <= target_number)
     # Margin is whole-valued by construction, but arrives as a float
     # when OCV/DCV flow from canon HDC imports (the cost engine's
     # characteristic_value() returns float). Normalize once so

@@ -94,6 +94,7 @@ def _menu(session, actor_id: str):
     return enumerate_actions(
         actor, enemies, has_scene=True, scene=session.scene,
         distances=distances_from(session.scene, actor, enemies),
+        movement=list(actor.movement_view()),
     )
 
 

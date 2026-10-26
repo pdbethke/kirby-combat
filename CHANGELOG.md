@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.21.0 — 2026-10-26
+
+Prod fight 33bf8bee (five villains, a generated map) showed a mentalist whose
+powers never missed, whose Mind Control changed nothing, who was offered mental
+attacks on four enemies he could not see, and who never flew; fighters who
+chose to close and strike and stood still; and Stunned fighters who acted.
+Spec: `kirby/docs/superpowers/specs/2026-10-26-mental-combat-design.md`.
+
+**Mental combat.**
+- Every Mental Power makes an **MCV Attack Roll** first (6E1 p.150), through
+  one door (`mental/attack_roll.py`) on the folded OMCV/DMCV — a Stunned mind
+  is at half DMCV (6E2 p.106). A miss rolls no Effect Roll.
+- **Mental Defense comes off** the Mind Control, Telepathy and Mental Illusion
+  Effect Rolls (6E1 p.151, p.255). Their results carry `effect_rolled` (the
+  dice) and `effect_total` (after MD).
+- **Mind Control carries an order.** `LegalAction.order` (new) is one of
+  `mental.mind_control.ORDERS`: `spare` EGO+10, `withdraw` EGO+20, `turn`
+  EGO+30, each from 6E1 p.256's own combat example; `resolve_mind_control`
+  takes `order=` (required) and reports `required_total` / `established` /
+  `breakout_modifier`. An established order is a **continuing effect**
+  (`mental/continuing.py`): the target makes one **Breakout Roll** at the top
+  of his first Phase (6E1 p.151), then rolls again only on the Time Chart
+  (+1 after a Turn, +2 after a Minute, p.152); failing it, he obeys — `spare`
+  removes the controller's side from his enemies, `turn` makes his own side
+  his enemies, `withdraw` cuts his menu to non-hostile kinds.
+- **Mind Scan is a lock, not a sense you own.** New kind `mind_scan`: an MCV
+  Attack Roll at the Mind Scan Modifiers Table penalty, then an Effect Roll for
+  a lock-on (6E1 p.263-266). `perceive(..., mind_scan_locked=)` gives mental
+  line of sight only through a lock (two-way, p.265); the lock breaks on a
+  Breakout, when the scanner goes down or switches the Multipower slot off.
+  Mind Control through a lock alone needs the TELEPATHIC Advantage (p.266).
+- New event **`BreakoutRolled`**; `cv_modifiers.effective_omcv_for`.
+
+**Rolls.** 3 always hits and 18 always misses on both to-hits (6E2 p.37); a
+Breakout Roll of 3 always succeeds (6E1 p.57).
+
+**Movement.** `run_phase` now passes the actor's `movement_view()` to
+enumeration. It never had, so the movement block — every mode a character owns
+through `movement_reach`, and the only `move_strike` that checks the path —
+never ran in a real fight: a flier was offered a run. `move_strike` is offered
+only from that block (the straight-line offers from the attack, maneuver and
+bare-STR blocks are gone), one per melee attack plus the bare-handed Strike,
+carrying its attack and the landing it checked (`reposition_dest`). A step
+toward an enemy is offered when it gets closer, not only when it arrives. A
+move whose strike could not follow reports its `MovementResolved`.
+
+**Stunned.** A Stunned or recovering man spends his next Phase recovering
+(6E2 p.106-107), recorded as `PhaseSpent(reason="stunned")` — which the Stun
+folds read, so a man Stunned before his DEX in the same Segment loses that
+Phase and only that one.
+
+**Not done, and named:** Mental Illusion and Mental Entangle still change
+nothing after the roll; Psychological Complication modifiers to Mind Control;
+the `maneuver` resolver only declares (real offers carry `power_xmlid
+"MANEUVER"` and raise `UnresolvableAction`), and `modifiers_for_pending_attack`
+has no reader; `rapid_fire` is offered at constructs its resolver refuses.
+
 ## 0.20.2 — 2026-10-26
 
 **Trip and Disarm roll with the character's bare-handed Strike.** Both are

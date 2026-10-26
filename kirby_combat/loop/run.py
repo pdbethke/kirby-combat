@@ -34,7 +34,10 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
-from kirby_combat.statuses import stunned_or_recovering_for
+from kirby_combat.statuses import STUN_RECOVERY, stunned_or_recovering_for
+from kirby_combat.mental.continuing import (
+    WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
+)
 from kirby_combat.concealment import concealment_for
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
@@ -493,6 +496,32 @@ def run_phase(
 
     actor = session.combatants[actor_id]
 
+    # BREAKOUT ROLLS FIRST. 6E1 p.151: "Starting on the target's next Phase
+    # after being successfully attacked with a continuing-effect Mental
+    # Power, he may attempt to break free ... These attempts are
+    # subconscious and take no time --- whether he succeeds or fails, he may
+    # still act in that Phase." Before anything else about his Phase,
+    # because "a character always gets one (but only one) Breakout Roll
+    # before he suffers the effects".
+    session = roll_breakouts(session, actor_id, roller)
+    actor = session.combatants[actor_id]
+
+    # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
+    # being Stunned can take no Actions"; p.107: "In the character's next
+    # full Phase after becoming Stunned, he recovers ... recovering from
+    # being Stunned is all he can do that Phase." `stunned_or_recovering_for`
+    # has folded that window for a long time and gated the CV penalty, the
+    # Abort and the move --- and NOTHING gated the Phase, so a Stunned man
+    # chose an action every time his Phase came round. In prod fight
+    # 33bf8bee a Stunned fighter chose a close-and-strike twice; the move
+    # was refused (he cannot move) and the menu offered it again.
+    if stunned_or_recovering_for(session, actor_id):
+        session, spent = _mark_acted(session, actor_id, reason=STUN_RECOVERY)
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
+            notes=[f"{actor_id} is Stunned and spends the Phase recovering"],
+        )
+
     # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
     # upward, and `presence_effects.can_act` has said so all along --- it
     # was called NOWHERE outside its own module, so a man the rules had
@@ -518,7 +547,13 @@ def run_phase(
         )
 
     roster = Roster(session)
-    enemies = roster.enemies_of(actor)
+    # MIND CONTROL. The order he is obeying decides who his enemies are (and
+    # whether he may attack anybody at all); see `mental/continuing.obey`.
+    obeyed = obey(
+        session, actor, roster.enemies_of(actor),
+        roster.allies_of(actor) + roster.fallen_allies_of(actor),
+    )
+    enemies = obeyed.enemies
     _held = held_object(session, actor_id)
 
     # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
@@ -558,6 +593,16 @@ def run_phase(
         constructs=((constructs_in(scene, session=session) or None)
                     if scene is not None else None),
         distances=distances,
+        # HOW HE CAN MOVE. `enumerate_actions` has a whole movement block ---
+        # every mode he owns (Flight, Leaping, Teleportation ...) walked
+        # through `movement_reach`, and the only `move_strike` offer that
+        # checks the path --- gated on this parameter, and this caller never
+        # passed it. So every fight ran the scene-without-movement fallback:
+        # an unchecked running half-move, whatever the man could do. A
+        # mentalist with 30 m of Flight was never offered a metre of it
+        # (prod fight 33bf8bee, 2026-10-26), and closing offers walked into
+        # walls. Same shape as `scene` and `concealment` above.
+        movement=list(actor.movement_view()),
         held_target_ids=held_by_actor or None,
         # AND WHO IS HOLDING HIM. 6E2 p.64 gives a grabbed man an
         # immediate Casual STR roll to break free; the ladder below was
@@ -616,8 +661,14 @@ def run_phase(
         # which is right for "who can help me fight" and exactly wrong
         # for the man on the ground who needs somebody to kneel beside
         # him.
-        allies=roster.allies_of(actor) + roster.fallen_allies_of(actor),
+        allies=obeyed.allies,
+        # WHOSE MINDS HE CAN REACH WITHOUT SEEING THEM: the Mind Scan locks
+        # this fight has established, his and the ones on him (6E1 p.265's
+        # two-way circuit). Owning Mind Scan reaches nobody by itself.
+        mind_scan_locks=mind_scan_locks(session, actor_id),
     )
+    if obeyed.withdraw:
+        menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return _phase_result(
@@ -627,14 +678,14 @@ def run_phase(
 
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
-        allies=roster.allies_of(actor),
+        allies=[a for a in obeyed.allies if not is_down(a)],
         # THE MAN ON THE GROUND, kept in his own list. The menu above
         # already gets standing and fallen both; this object did not, so
         # the tactic layer could not see the ally it was supposed to
         # save and `stabilize` was offered 39 times and chosen never.
         # A separate field rather than a widened `allies` because three
         # tactics read that one as "who can help me fight".
-        fallen_allies=roster.fallen_allies_of(actor),
+        fallen_allies=[a for a in obeyed.allies if is_down(a)],
         # THE SAME DISTANCES THE MENU WAS BUILT FROM. Computed once above
         # for `enumerate_actions` and handed on rather than measured
         # twice, so a tactic and the offer it names cannot disagree about

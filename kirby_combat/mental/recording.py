@@ -19,12 +19,14 @@ is the assertion that was never there.
 
 WHAT THESE ADD, AND WHAT THEY DELIBERATELY DO NOT. Each wrapper runs the
 pure resolver UNCHANGED and records an ``ActionResolved`` carrying its
-outcome, exactly as ``resolve_mental_blast_in_session`` does. None of them
-re-derives a rule, and none applies an effect to combatant state: Mind
-Control, Mental Illusion and Telepathy produce a DEGREE against EGO rather
-than damage, and the persistent consequences of a degree (a puppet acting
-against its allies, an illusion believed) are effect-state, which follows
-the house pattern in ``session/effects.py`` and is not smuggled in here.
+outcome --- and the MCV Attack Roll that let it through (`attack_roll.py`;
+a miss never reaches these, see `record_mental_miss`). None of them applies
+an effect to combatant state. Mind Control and Mind Scan record
+``established`` and the facts their lasting effect needs (who, the order,
+the lock's level, the Breakout modifier); `mental/continuing.py` folds those
+payloads forward, so the payload IS the effect rather than a second record
+of it. Mental Illusion and Telepathy still change nothing after the roll
+--- an illusion believed is effect-state nobody has modelled yet.
 """
 from __future__ import annotations
 
@@ -32,8 +34,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from kirby_combat.mental.mental_combat import MentalToHitResult
 from kirby_combat.mental.mental_illusion import resolve_mental_illusion
 from kirby_combat.mental.mind_control import resolve_mind_control
+from kirby_combat.mental.mind_scan import resolve_mind_scan
 from kirby_combat.mental.telepathy import resolve_telepathy
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import (
@@ -81,35 +85,104 @@ def _record(
     return apply_event(session, resolved)
 
 
-def resolve_mind_control_in_session(
-    session: "CombatSession", attacker, target, effect_dice_values: list[int],
-    *, declaration_event_id: str | None = None, action_type: str = "mind_control",
-):
-    """Resolve Mind Control and record the degree achieved.
+def to_hit_payload(to_hit: MentalToHitResult) -> dict[str, Any]:
+    """The MCV Attack Roll as it reaches a payload --- one shape for all."""
+    return {
+        "hit": to_hit.hit,
+        "roll": to_hit.roll,
+        "target_number": to_hit.target_number,
+        "omcv": to_hit.effective_ocv,
+        "dmcv": to_hit.effective_dcv,
+    }
 
-    The pure resolver classifies the effect roll against the target's EGO on
-    the degree ladder (ego_push / simple / contrary / violent). That degree
-    is what the payload carries: it is the whole outcome, since Mind Control
-    deals no STUN and no BODY.
+
+def record_mental_miss(
+    session: "CombatSession", attacker, target, to_hit: MentalToHitResult, *,
+    action_type: str,
+) -> "CombatSession":
+    """A Mental Power whose MCV Attack Roll missed: declared, rolled, nothing.
+
+    No Effect Roll is made (6E1 p.151: the Effect Roll follows "a successful
+    MCV Attack Roll"), so no effect dice are drawn either.
     """
     now = datetime.now(timezone.utc)
-    result = resolve_mind_control(attacker, target, effect_dice_values)
+    s, decl_id = _declare(session, attacker.id, target.id, action_type, None, now)
+    return _record(s, attacker.id, decl_id, {
+        "kind": action_type,
+        "target_id": target.id,
+        **to_hit_payload(to_hit),
+    }, now)
+
+
+def resolve_mind_control_in_session(
+    session: "CombatSession", attacker, target, effect_dice_values: list[int],
+    *, order: str, source_id: str, to_hit: MentalToHitResult,
+    declaration_event_id: str | None = None, action_type: str = "mind_control",
+):
+    """Resolve Mind Control for ``order`` and record whether it took hold.
+
+    An established payload is the effect itself: `continuing.py` reads its
+    ``attacker_id``, ``order`` and ``breakout_modifier`` forward until the
+    target breaks out.
+    """
+    now = datetime.now(timezone.utc)
+    result = resolve_mind_control(attacker, target, effect_dice_values, order=order)
     s, decl_id = _declare(
         session, attacker.id, target.id, action_type, declaration_event_id, now,
     )
     s = _record(s, attacker.id, decl_id, {
         "kind": action_type,
         "target_id": target.id,
+        "attacker_id": attacker.id,
+        **to_hit_payload(to_hit),
+        "order": result.order,
+        "required_total": result.required_total,
+        "effect_rolled": result.effect_rolled,
         "effect_total": result.effect_total,
         "degree": result.degree,
         "target_ego": result.target_ego,
+        "established": result.established,
+        "breakout_modifier": result.breakout_modifier,
+        "source_id": source_id,
+    }, now)
+    return s, result
+
+
+def resolve_mind_scan_in_session(
+    session: "CombatSession", attacker, target, effect_dice_values: list[int],
+    *, desired: str, source_id: str, to_hit: MentalToHitResult,
+    action_type: str = "mind_scan",
+):
+    """Resolve a Mind Scan's Effect Roll and record the lock, if one formed.
+
+    ``source_id`` is the Mind Scan power's own id, which is how
+    `continuing.py` tells that the scanner later switched it off.
+    """
+    now = datetime.now(timezone.utc)
+    result = resolve_mind_scan(attacker, target, effect_dice_values, desired=desired)
+    s, decl_id = _declare(session, attacker.id, target.id, action_type, None, now)
+    s = _record(s, attacker.id, decl_id, {
+        "kind": action_type,
+        "target_id": target.id,
+        "attacker_id": attacker.id,
+        **to_hit_payload(to_hit),
+        "desired": result.desired,
+        "required_total": result.required_total,
+        "effect_rolled": result.effect_rolled,
+        "effect_total": result.effect_total,
+        "reached": result.reached,
+        "target_ego": result.target_ego,
+        "established": result.established,
+        "breakout_modifier": result.breakout_modifier,
+        "source_id": source_id,
     }, now)
     return s, result
 
 
 def resolve_mental_illusion_in_session(
     session: "CombatSession", attacker, target, effect_dice_values: list[int],
-    *, declaration_event_id: str | None = None, action_type: str = "mental_illusion",
+    *, to_hit: MentalToHitResult,
+    declaration_event_id: str | None = None, action_type: str = "mental_illusion",
 ):
     """Resolve a Mental Illusion and record the degree achieved."""
     now = datetime.now(timezone.utc)
@@ -120,6 +193,7 @@ def resolve_mental_illusion_in_session(
     s = _record(s, attacker.id, decl_id, {
         "kind": action_type,
         "target_id": target.id,
+        **to_hit_payload(to_hit),
         "effect_total": result.effect_total,
         "degree": result.degree,
         "target_ego": result.target_ego,
@@ -129,7 +203,7 @@ def resolve_mental_illusion_in_session(
 
 def resolve_telepathy_in_session(
     session: "CombatSession", attacker, target, effect_dice_values: list[int],
-    *, target_has_mental_awareness: bool = False,
+    *, to_hit: MentalToHitResult, target_has_mental_awareness: bool = False,
     declaration_event_id: str | None = None, action_type: str = "telepathy",
 ):
     """Resolve Telepathy and record what was read.
@@ -148,6 +222,7 @@ def resolve_telepathy_in_session(
     s = _record(s, attacker.id, decl_id, {
         "kind": action_type,
         "target_id": target.id,
+        **to_hit_payload(to_hit),
         "effect_total": result.effect_total,
         "degree": result.degree,
         "target_ego": result.target_ego,

@@ -29,10 +29,6 @@ from kirby_combat.sense_penalties import HTH
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, _events_since, resolves,
 )
-from kirby_combat.mental.recording import (
-    resolve_mental_illusion_in_session, resolve_mind_control_in_session,
-    resolve_telepathy_in_session,
-)
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
@@ -298,17 +294,43 @@ def _resolve_attack(
     )
 
 
+def _mcv_roll(session, actor, target, roller, *, omcv_modifier: int = 0):
+    """The MCV Attack Roll every Mental Power makes first (6E1 p.150).
+
+    One call for all six kinds --- see `mental/attack_roll.py` for why it is
+    one door. Returns the roll; the caller records a miss and stops.
+    """
+    from kirby_combat.mental.attack_roll import mental_attack_roll
+
+    return mental_attack_roll(session, actor, target, roller, omcv_modifier=omcv_modifier)
+
+
+def _mental_miss(session, actor, target, action: LegalAction, to_hit) -> ResolvedAction:
+    """Record a Mental Power whose MCV Attack Roll missed. No Effect Roll."""
+    from kirby_combat.mental.recording import record_mental_miss
+
+    new_session = record_mental_miss(session, actor, target, to_hit, action_type=action.kind)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=to_hit, events=_events_since(session, new_session),
+    )
+
+
 @resolves("mental_blast")
 def _resolve_mental_blast(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A Mental Blast. 6E1 p.249: STUN only, no BODY, no Knockback."""
+    """A Mental Blast. 6E1 p.249: STUN only, no BODY, no Knockback --- once
+    the MCV Attack Roll has hit."""
     target = session.combatants[action.target_id]
+    to_hit = _mcv_roll(session, actor, target, roller)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
     power = action._attack_view
     dice = max(1, int(getattr(power, "damage_dice", 1) or 1))
     new_session, result = resolve_mental_blast_in_session(
-        session, actor, target, roller.roll_dice(dice),
+        session, actor, target, roller.roll_dice(dice), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -333,21 +355,80 @@ def _resolve_mind_control(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Mind Control. The outcome is a DEGREE against the target's EGO ---
-    ego_push / simple / contrary / violent --- not damage.
+    """Mind Control with an ORDER (6E1 p.255): MCV Attack Roll, then the
+    Effect Roll less Mental Defense against EGO + the order's level.
 
-    Reconnects ``kirby_combat.mental.mind_control``, which held a correct,
-    tested resolver that nothing in production ever called: the parked
-    driver wrote its own copy inside a 1,070-line dispatcher.
+    An established result is a continuing effect --- `mental/continuing.py`
+    folds it forward, and the target obeys from the Phase he fails his first
+    Breakout Roll. An offer without an order is a defect in whoever built
+    it: the book names the order BEFORE the roll.
     """
+    from kirby_combat.enumeration import _src_id
+    from kirby_combat.mental.recording import resolve_mind_control_in_session
+
+    if action.order is None:
+        raise UnresolvableAction(action.kind, action.action_id)
     target = session.combatants[action.target_id]
+    to_hit = _mcv_roll(session, actor, target, roller)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
     new_session, result = resolve_mind_control_in_session(
         session, actor, target, _effect_dice(action, roller),
+        order=action.order, source_id=_src_id(action._attack_view), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
     )
+
+
+@resolves("mind_scan")
+def _resolve_mind_scan(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """A Mind Scan for a mind the actor cannot see (6E1 p.263-266).
+
+    The MCV Attack Roll takes the number-of-minds penalty, counted as every
+    standing combatant on the field but the scanner. "After a character fails
+    a Mind Scan Effect Roll ... Since he now knows the 'general location and
+    presence' of the target mind, he's subject to the modifier two steps
+    better" (p.265) --- +4, once an earlier scan of this mind has hit.
+    """
+    from kirby_combat.enumeration import _src_id
+    from kirby_combat.mental.attack_roll import mind_scan_omcv_modifier
+    from kirby_combat.mental.mind_scan import COMBAT_SCAN_LEVEL
+    from kirby_combat.mental.recording import resolve_mind_scan_in_session
+
+    target = session.combatants[action.target_id]
+    minds = sum(1 for c in session.combatants.values()
+                if c.id != actor.id and not is_down(c))
+    modifier = mind_scan_omcv_modifier(max(1, minds))
+    if _scanned_before(session, actor.id, target.id):
+        modifier = min(0, modifier + 4)
+    to_hit = _mcv_roll(session, actor, target, roller, omcv_modifier=modifier)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
+    new_session, result = resolve_mind_scan_in_session(
+        session, actor, target, _effect_dice(action, roller),
+        desired=COMBAT_SCAN_LEVEL, source_id=_src_id(action._attack_view), to_hit=to_hit,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
+def _scanned_before(session, scanner_id: str, target_id: str) -> bool:
+    """Whether an earlier Mind Scan by this scanner found this mind."""
+    for evt in session.event_log:
+        if getattr(evt, "kind", None) != "ActionResolved":
+            continue
+        p = evt.result_payload or {}
+        if (p.get("kind") == "mind_scan" and p.get("hit")
+                and p.get("attacker_id") == scanner_id and p.get("target_id") == target_id):
+            return True
+    return False
 
 
 @resolves("mental_illusion")
@@ -356,9 +437,14 @@ def _resolve_mental_illusion(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """A Mental Illusion, classified against EGO on the same degree ladder."""
+    from kirby_combat.mental.recording import resolve_mental_illusion_in_session
+
     target = session.combatants[action.target_id]
+    to_hit = _mcv_roll(session, actor, target, roller)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
     new_session, result = resolve_mental_illusion_in_session(
-        session, actor, target, _effect_dice(action, roller),
+        session, actor, target, _effect_dice(action, roller), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -372,9 +458,14 @@ def _resolve_telepathy(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """Telepathy --- read the target's mind, and possibly be noticed doing it."""
+    from kirby_combat.mental.recording import resolve_telepathy_in_session
+
     target = session.combatants[action.target_id]
+    to_hit = _mcv_roll(session, actor, target, roller)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
     new_session, result = resolve_telepathy_in_session(
-        session, actor, target, _effect_dice(action, roller),
+        session, actor, target, _effect_dice(action, roller), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -851,11 +942,17 @@ def _resolve_mental_entangle(
     """
     from kirby_combat.mental.mental_entangle import apply_mental_entangle
 
+    from kirby_combat.mental.recording import to_hit_payload
+
     target = session.combatants[action.target_id]
+    to_hit = _mcv_roll(session, actor, target, roller)
+    if not to_hit.hit:
+        return _mental_miss(session, actor, target, action, to_hit)
     result = apply_mental_entangle(actor, target, roller.roll_dice(_levels(action)))
     new_session = _record_outcome(session, actor, action, {
         "kind": action.kind,
         "target_id": target.id,
+        **to_hit_payload(to_hit),
         "entangle_body": result.state.entangle_body,
     })
     return ResolvedAction(
@@ -1867,7 +1964,12 @@ def _reposition(session, actor, action, *, template, roller, then_attack: bool):
 
     power = action._attack_view
     if not (then_attack and power is not None and action.target_id):
-        return _recorded(new_session, actor, action, outcome, payload)
+        out = _recorded(new_session, actor, action, outcome, payload)
+        # THE MOVE IS PART OF THIS STEP. `_recorded` measures from the
+        # session it is handed, which is the one AFTER the move, so the
+        # step's events left out the `MovementResolved` the move had just
+        # written --- a consumer persisting what it is handed lost the walk.
+        return replace(out, events=_events_since(session, out.session))
 
     # The strike happens FROM the landing point, which is the whole reason
     # these are one action rather than two: the move buys the shot.

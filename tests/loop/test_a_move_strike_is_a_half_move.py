@@ -66,6 +66,7 @@ def _closing_on(apart_m: float):
     menu = enumerate_actions(
         actor, [enemy], has_scene=True, scene=session.scene,
         distances=distances_from(session.scene, actor, [enemy]),
+        movement=list(actor.movement_view()),
     )
     return session, actor, [m for m in menu if m.kind == "move_strike"]
 

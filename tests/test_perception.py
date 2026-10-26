@@ -379,15 +379,45 @@ def _hero_with_talent(xmlid: str) -> HeroCombatant:
 
 
 def test_mind_scan_perceives_through_a_wall_mentally():
+    """A LOCKED mind is reached through a wall and through sight-Invisibility
+    (6E1 p.263-265; Mind Scan is not a line-of-sight sense)."""
     obs = _hero_with_sense("MINDSCAN")
     tgt = _real_character()
     scene = _two_combatant_scene(obs, tgt, wall=True)   # sight blocked
     obs.id = "observer"
     scene.combatant_positions["observer"] = Position(0, 5, 1.5)
-    p = perceive(obs, tgt, scene, target_invisible=True)  # sight-invisible too
+    p = perceive(obs, tgt, scene, target_invisible=True,  # sight-invisible too
+                 mind_scan_locked=True)
     assert p.targetable_physical is False      # can't punch/shoot
-    assert p.targetable_mental is True         # mental LOS via Mind Scan
+    assert p.targetable_mental is True         # mental LOS via the lock
     assert "mindscan" in p.via
+
+
+def test_owning_mind_scan_finds_nobody_without_a_lock():
+    """The defect a prod fight showed (2026-10-26): a mentalist with NO line
+    of sight to anyone was offered mental attacks on all four enemies,
+    because owning MINDSCAN counted as perceiving every mind. RAW the lock
+    is earned with an MCV Attack Roll and an Effect Roll (6E1 p.265)."""
+    obs = _hero_with_sense("MINDSCAN")
+    tgt = _real_character()
+    scene = _two_combatant_scene(obs, tgt, wall=True)
+    obs.id = "observer"
+    scene.combatant_positions["observer"] = Position(0, 5, 1.5)
+    p = perceive(obs, tgt, scene)
+    assert p.targetable_mental is False
+    assert "mindscan" not in p.via
+
+
+def test_the_locked_mind_reaches_back_without_a_mind_scan_of_its_own():
+    """6E1 p.265: "a Mind Scan lock-on is a two-way circuit. If the character
+    can mentally attack his target, his target can mentally attack him."
+    """
+    tgt = _real_character()                     # the scanned mind: no Mind Scan
+    scanner = _hero_with_sense("MINDSCAN")
+    scene = _two_combatant_scene(tgt, scanner, wall=True)
+    assert perceive(tgt, scanner, scene).targetable_mental is False
+    back = perceive(tgt, scanner, scene, mind_scan_locked=True)
+    assert back.targetable_mental is True and back.via == ("mindscan",)
 
 
 def test_is_surprised_true_when_unperceived_and_no_danger_sense():

@@ -25,6 +25,13 @@ from kirby_combat.session import CombatSession
 from kirby_combat.statuses import statuses_for
 from kirby_combat.template import CombatTemplate
 
+#: An MCV Attack Roll that hit --- the wrapper records the roll it is handed
+#: and never rolls one itself (that is `mental/attack_roll.py`'s job).
+from kirby_combat.mental.mental_combat import MentalToHitResult as _MTH  # noqa: E402
+_HIT = _MTH(hit=True, roll=10, target_number=11, margin=1, effective_ocv=8,
+            effective_dcv=8, range_penalty=0)
+
+
 
 def _mentalist(id_: str = "attacker", omcv: int = 8, dmcv: int = 3) -> "HeroCombatant":
     return synthetic_combatant(
@@ -64,7 +71,7 @@ class TestEmitsExactlyOneActionResolved:
         session = _session(attacker, target)
 
         new_session, _ = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 4],  # 16 STUN, CON 15
+            session, attacker, target, [4, 4, 4, 4], to_hit=_HIT,  # 16 STUN, CON 15
         )
 
         resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"]
@@ -79,7 +86,7 @@ class TestPayloadCarriesKindDiscriminator:
         session = _session(attacker, target)
 
         new_session, _ = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 4],
+            session, attacker, target, [4, 4, 4, 4], to_hit=_HIT,
         )
 
         resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"][0]
@@ -97,7 +104,7 @@ class TestStatusChangesStunnedThreshold:
 
         # 16 STUN vs CON 15: 16 > 15 -> Stunned
         new_session, result = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 4],
+            session, attacker, target, [4, 4, 4, 4], to_hit=_HIT,
         )
 
         resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"][0]
@@ -111,7 +118,7 @@ class TestStatusChangesStunnedThreshold:
 
         # 15 STUN vs CON 15: 15 == 15 -> NOT Stunned (p.106 says "exceeds")
         new_session, result = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 3],
+            session, attacker, target, [4, 4, 4, 3], to_hit=_HIT,
         )
 
         resolved = [e for e in new_session.event_log if e.kind == "ActionResolved"][0]
@@ -130,7 +137,7 @@ class TestStatusesForReportsStunnedWithoutTouchingStatusesPy:
         session = _session(attacker, target)
 
         new_session, result = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 4],  # 16 > CON 15
+            session, attacker, target, [4, 4, 4, 4], to_hit=_HIT,  # 16 > CON 15
         )
 
         assert result.target_stunned is True
@@ -142,7 +149,7 @@ class TestStatusesForReportsStunnedWithoutTouchingStatusesPy:
         session = _session(attacker, target)
 
         new_session, result = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 3],  # 15 == CON 15
+            session, attacker, target, [4, 4, 4, 3], to_hit=_HIT,  # 15 == CON 15
         )
 
         assert result.target_stunned is False
@@ -161,7 +168,7 @@ class TestPureResolverUnaffected:
 
         session = _session(attacker, target)
         wrapped_session, wrapped_result = resolve_mental_blast_in_session(
-            session, attacker, target, [4, 4, 4, 4],
+            session, attacker, target, [4, 4, 4, 4], to_hit=_HIT,
         )
 
         assert wrapped_result == direct

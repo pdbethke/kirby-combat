@@ -29,6 +29,13 @@ from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate
 from kirby_dice import FakeRoller
 
+#: An MCV Attack Roll that hit --- the wrapper records the roll it is handed
+#: and never rolls one itself (that is `mental/attack_roll.py`'s job).
+from kirby_combat.mental.mental_combat import MentalToHitResult as _MTH  # noqa: E402
+_HIT = _MTH(hit=True, roll=10, target_number=11, margin=1, effective_ocv=8,
+            effective_dcv=8, range_penalty=0)
+
+
 
 def _attacker():
     return synthetic_combatant(
@@ -251,7 +258,7 @@ def test_the_recorded_payload_is_unchanged():
 def test_mental_blast_applies_stun_and_no_body():
     a, t = _attacker(), _target(stun=40, body=15)
     s = _session(a, t)
-    s2, result = resolve_mental_blast_in_session(s, a, t, [4, 4, 4, 4])
+    s2, result = resolve_mental_blast_in_session(s, a, t, [4, 4, 4, 4], to_hit=_HIT)
     assert result.stun_dealt == 16
     assert s2.combatants["target"].current_stun == 40 - 16
     assert s2.combatants["target"].current_body == 15, "6E1 p.249: STUN only"
@@ -261,4 +268,4 @@ def test_mental_blast_target_absent_from_session_raises():
     a, t = _attacker(), _target()
     s = _session(a)
     with pytest.raises(KeyError, match="target"):
-        resolve_mental_blast_in_session(s, a, t, [4, 4, 4, 4])
+        resolve_mental_blast_in_session(s, a, t, [4, 4, 4, 4], to_hit=_HIT)
