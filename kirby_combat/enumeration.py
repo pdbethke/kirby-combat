@@ -1092,19 +1092,12 @@ def enumerate_actions(
                 if gate == "block":
                     continue
                 if gate == "close":
-                    actions.append(LegalAction(
-                        action_id=_power_action_id("move_strike", enemy.id, ap),
-                        kind="move_strike",
-                        target_id=enemy.id,
-                        power_xmlid=ap.xmlid,
-                        power_name=ap.name or None,
-                        summary=(
-                            f"Close to within reach via Running, then strike "
-                            f"{_friendly(enemy)} with {pname} ({dmg_summary})"
-                            f"{limit_tag}"
-                        ),
-                        _attack_view=ap,
-                    ))
+                    # OFFERED BY THE MOVEMENT BLOCK, which walks the path.
+                    # This branch offered a close-and-strike on straight-line
+                    # distance alone, so a wall between the two men made an
+                    # offer the resolver then stopped at the wall: prod fight
+                    # 33bf8bee, three `move_strike`s in a row that left the
+                    # mover standing where he was.
                     continue
             # Task 8: Multipower reserve gate.  When ``slot_allocation``
             # is provided and this power belongs to a framework, skip
@@ -1194,18 +1187,11 @@ def enumerate_actions(
             if gate == "block":
                 continue
             if gate == "close":
-                actions.append(LegalAction(
-                    action_id=f"move_strike:maneuver:{enemy.id}:{mv.maneuver_id}",
-                    kind="move_strike",
-                    target_id=enemy.id,
-                    power_xmlid="MANEUVER",
-                    power_name=mv_name,
-                    summary=(
-                        f"Close to within reach via Running, then "
-                        f"{mv_name} {_friendly(enemy)} "
-                        f"(OCV {mv_ocv:+d}/DCV {mv_dcv:+d})"
-                    ),
-                ))
+                # NOT OFFERED. A maneuver at the end of a move was a
+                # `move_strike` with no attack on it, so the resolver moved
+                # and struck nobody --- and the `maneuver` resolver itself
+                # only declares (it never rolls the blow), so there is no
+                # resolution to compose with yet.
                 continue
             actions.append(LegalAction(
                 action_id=f"maneuver:{enemy.id}:{mv.maneuver_id}",
@@ -1706,22 +1692,7 @@ def enumerate_actions(
                 if gate == "block":
                     continue
                 if gate == "close":
-                    # Dedup: the synthesized-STR brawler path may already have
-                    # emitted this move_strike via the attack block above.
-                    msid = f"move_strike:{enemy.id}:STR"
-                    if not any(a.action_id == msid for a in actions):
-                        actions.append(LegalAction(
-                            action_id=msid,
-                            kind="move_strike",
-                            target_id=enemy.id,
-                            power_xmlid="STR",
-                            power_name="Strike",
-                            summary=(
-                                f"Close to within reach via Running, then "
-                                f"punch {_friendly(enemy)} (STR/5 = "
-                                f"{strike.damage_dice}d6N)"
-                            ),
-                        ))
+                    # Offered by the movement block, which walks the path.
                     continue
                 actions.append(LegalAction(
                     action_id=f"strike:{enemy.id}",
@@ -2867,10 +2838,21 @@ def enumerate_actions(
         # Best melee attack for the move_strike composite (highest dice). Mirrors
         # the RUNNING close+strike; None ⇒ no melee ⇒ no move_strike offered.
         melee_attacks = [ap for ap in attack_powers if _is_melee(ap)]
-        best_melee = (
-            max(melee_attacks, key=lambda ap: ap.damage_dice or 0)
-            if melee_attacks else None
-        )
+        # EVERY melee attack he has, and his bare hands --- the same set the
+        # reach-gated blocks above offer when he is already adjacent. This
+        # used to be the single best one, while three other blocks offered
+        # the rest on straight-line distance alone (see the attack block).
+        # The bare STR strike joins unless a Hand-to-Hand Attack power
+        # already stands for it, the same rule the STR block applies.
+        _close_with = list(melee_attacks)
+        if s.str_ >= 5 and not any(
+                (ap.xmlid or "").upper() in {"HANDTOHANDATTACK", "HA"}
+                for ap in melee_attacks):
+            try:
+                _close_with.append(actor.str_strike_view())
+            except Exception:
+                pass
+        best_melee = _close_with[0] if _close_with else None
 
         for enemy in alive_enemies:
             enemy_pos = positions.get(enemy.id)
@@ -2894,7 +2876,16 @@ def enumerate_actions(
                 # to striking range on a half-move even when a full reposition is
                 # blocked, so an enemy may get a move_strike offer without a move
                 # offer.
-                if repos.reachable:
+                # PROGRESS, NOT ARRIVAL. `reachable` means the move gets all
+                # the way there, so gating on it offered a step toward a man
+                # only when one move would reach him --- and twenty metres
+                # off on open ground, nobody could walk toward anybody. The
+                # move is worth offering when the landing `movement_reach`
+                # found is genuinely closer; where it stops (short, or at a
+                # wall) is the resolver's honest answer, the same call.
+                closer = (_xyz_dist(actor_pos, enemy_pos)
+                          - _xyz_dist(repos.landing, enemy_pos))
+                if repos.reachable or closer >= _SAME_SPACE_M:
                     aid = (
                         f"move:{enemy.id}" if is_running
                         else f"move:{mode}:{enemy.id}"
@@ -2930,6 +2921,7 @@ def enumerate_actions(
                     within = ms.reachable and within_reach(
                         _xyz_dist(ms.landing, enemy_pos), reach_m,
                     ).in_reach
+                    landing = ms.landing if within else None
                     if not within:
                         # Modes that must land on a supported surface (teleport)
                         # can't aim at a mid-air point reach_m short of an
@@ -2944,12 +2936,18 @@ def enumerate_actions(
                             _xyz_dist(ms2.landing, enemy_pos), reach_m,
                         ).in_reach:
                             within = True
-                    if within:
-                        ap = best_melee
+                            landing = ms2.landing
+                    # THE LANDING THE CHECK FOUND is where the resolver goes:
+                    # `reposition_dest`, the same contract the reposition
+                    # offers keep. The resolver used to re-derive its own
+                    # destination on a straight line, so the menu could
+                    # check one place and the engine walk to another.
+                    for ap in (_close_with if within else []):
                         pname = ap.name or (ap.xmlid or "").lower()
+                        src = _src_id(ap) or ap.xmlid
                         aid = (
-                            f"move_strike:{enemy.id}:{ap.xmlid}" if is_running
-                            else f"move_strike:{mode}:{enemy.id}:{ap.xmlid}"
+                            f"move_strike:{enemy.id}:{src}" if is_running
+                            else f"move_strike:{mode}:{enemy.id}:{src}"
                         )
                         summary = (
                             f"Close to within reach via Running, then strike "
@@ -2963,6 +2961,7 @@ def enumerate_actions(
                             target_id=enemy.id, power_xmlid=ap.xmlid,
                             power_name=ap.name or None, summary=summary,
                             _attack_view=ap, mode=mode,
+                            reposition_dest=(landing.x, landing.y, landing.z),
                         ))
 
     elif has_scene:

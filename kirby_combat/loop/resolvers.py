@@ -1964,7 +1964,12 @@ def _reposition(session, actor, action, *, template, roller, then_attack: bool):
 
     power = action._attack_view
     if not (then_attack and power is not None and action.target_id):
-        return _recorded(new_session, actor, action, outcome, payload)
+        out = _recorded(new_session, actor, action, outcome, payload)
+        # THE MOVE IS PART OF THIS STEP. `_recorded` measures from the
+        # session it is handed, which is the one AFTER the move, so the
+        # step's events left out the `MovementResolved` the move had just
+        # written --- a consumer persisting what it is handed lost the walk.
+        return replace(out, events=_events_since(session, out.session))
 
     # The strike happens FROM the landing point, which is the whole reason
     # these are one action rather than two: the move buys the shot.

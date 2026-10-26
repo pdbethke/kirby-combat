@@ -577,6 +577,16 @@ def run_phase(
         constructs=((constructs_in(scene, session=session) or None)
                     if scene is not None else None),
         distances=distances,
+        # HOW HE CAN MOVE. `enumerate_actions` has a whole movement block ---
+        # every mode he owns (Flight, Leaping, Teleportation ...) walked
+        # through `movement_reach`, and the only `move_strike` offer that
+        # checks the path --- gated on this parameter, and this caller never
+        # passed it. So every fight ran the scene-without-movement fallback:
+        # an unchecked running half-move, whatever the man could do. A
+        # mentalist with 30 m of Flight was never offered a metre of it
+        # (prod fight 33bf8bee, 2026-10-26), and closing offers walked into
+        # walls. Same shape as `scene` and `concealment` above.
+        movement=list(actor.movement_view()),
         held_target_ids=held_by_actor or None,
         # AND WHO IS HOLDING HIM. 6E2 p.64 gives a grabbed man an
         # immediate Casual STR roll to break free; the ladder below was
