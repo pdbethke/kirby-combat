@@ -39,7 +39,11 @@ def damage_by_object(session) -> dict[str, int]:
         if getattr(event, "kind", "") != "ActionResolved":
             continue
         payload = getattr(event, "result_payload", None) or {}
-        if payload.get("kind") not in ("attack_construct", "throw_object"):
+        # Rapid Fire is aimed at people too, so only its construct-targeted
+        # payload (which says so) is a hit on a thing.
+        if payload.get("kind") not in ("attack_construct", "throw_object") and not (
+            payload.get("kind") == "rapid_fire" and payload.get("targets_construct")
+        ):
             continue
         obj_id = payload.get("target_id")
         totals[obj_id] = totals.get(obj_id, 0) + int(payload.get("body_dealt", 0) or 0)

@@ -1122,6 +1122,10 @@ def _resolve_rapid_fire(
     """
     from kirby_combat.actions.rapid_fire import RapidFire
 
+    if getattr(action, "targets_construct", False):
+        return _rapid_fire_at_construct(
+            session, actor, action, template=template, roller=roller,
+        )
     target = session.combatants.get(action.target_id)
     if target is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -1151,6 +1155,75 @@ def _resolve_rapid_fire(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=results, events=_events_since(session, new_session),
     )
+
+
+def _rapid_fire_at_construct(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Rapid Fire at a wall, a door, a crate: the offer enumeration makes.
+
+    It was offered (`rapid_fire:<obj_id>:...:3`) and this resolver looked
+    the target up among the COMBATANTS, where no wall lives, so every one
+    raised: 34--46 skipped Phases per 20 random fights.
+
+    The SAME object rule as a single shot (`_resolve_attack_construct`,
+    6E2 p.172): each shot rolls its own BODY and the object's defense comes
+    off EACH shot, which is what makes a burst shred soft cover and barely
+    chip steel (`apply_autofire_to_construct`). Shots stop once it falls.
+
+    THE TO-HIT IS THE SINGLE SHOT'S, on purpose: `attack_construct`
+    auto-hits, a known divergence from 6E2 p.172's "a human-sized
+    inanimate object typically has a DCV of 3" documented in
+    `resolution/object_damage.py`. Rolling the OCV ladder here and not
+    there would put the rule at one door and not the other; the ladder is
+    recorded so the fix, when it lands, lands at both together.
+    """
+    from kirby_combat.actions.rapid_fire import RapidFire
+    from kirby_combat.constructs import constructs_in
+    from kirby_combat.models import DiceValues
+    from kirby_combat.resolution.object_damage import apply_autofire_to_construct
+
+    scene = session.scene
+    construct = next(
+        (c for c in (constructs_in(scene, session=session) if scene is not None else [])
+         if getattr(c, "obj_id", None) == action.target_id),
+        None,
+    )
+    power = action._attack_view
+    if construct is None or power is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    outcome = RapidFire.compute(
+        base_ocv=int(actor.combat_stats().ocv),
+        num_shots=_offer_count(action, default=RAPID_FIRE_SHOTS),
+    )
+    dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
+    shots = apply_autofire_to_construct(
+        power,
+        [DiceValues(damage=roller.roll_dice(dice)) for _ in outcome.per_shot_ocv],
+        construct, template,
+    )
+    destroyed = bool(shots) and shots[-1].destroyed
+    caught: list = []
+    if destroyed:
+        from kirby_combat.collapse import bring_it_down
+
+        session, caught = bring_it_down(
+            session, construct, roller=roller, template=template,
+        )
+    return _recorded(session, actor, action, shots, {
+        "kind": action.kind, "target_id": action.target_id,
+        # Read by `constructs.damage_by_object`, which is how the next shot
+        # finds the wall already damaged.
+        "targets_construct": True,
+        "shot_ocvs": list(outcome.per_shot_ocv),
+        "shots": [{"body_rolled": s.body_rolled, "body_through": s.body_through}
+                  for s in shots],
+        "body_dealt": sum(s.body_through for s in shots),
+        "destroyed": destroyed,
+        "collapsed_onto": caught,
+    })
 
 
 @resolves("throw", "throw_object")
