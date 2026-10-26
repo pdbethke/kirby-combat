@@ -151,7 +151,8 @@ def test_presence_attack_produces_an_effect_not_damage():
 # ---- The count, and what it does not claim ----
 
 def test_every_kind_is_wired():
-    """63 now: `mind_scan` joined them with 6E1 p.263's lock-on (62 was
+    """64 now: `escape_ego` joined them with 6E1 p.219's Mental Paralysis
+    (63 was `mind_scan`, which joined them with 6E1 p.263's lock-on (62 was
     `stabilize`, with 6E2 p.109's Paramedics roll).
 
     61, not 51, was the last count. Three offers build their kind from a
@@ -160,7 +161,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 63
+    assert len(registered_kinds()) == 64
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -193,6 +194,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "disengage",               # test_disengage
         "stabilize",               # test_doc_stops_the_bleeding
         "mind_scan",               # test_mental_combat_bites
+        "escape_ego",              # test_mental_paralysis_binds
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
@@ -349,9 +351,10 @@ def test_an_escape_attempt_is_resolved_against_the_entangle(kind):
     from kirby_combat.loop.registry import resolve_chosen
 
     session = _entangled_session()
+    # escape_attack's power is an AttackPower, as the ladder offers it.
     resolved = resolve_chosen(
         session, session.combatants["actor"],
-        _action(kind, target=None, power=_Power("BLAST", levels=4)),
+        _action(kind, target=None, power=blast("actor-eb", dice=4)),
         template=TEMPLATE, roller=RandomRoller(seed=9),
     )
     assert resolved.result is not None

@@ -552,6 +552,15 @@ class PhysicalEntangleState:
     takes_no_damage: bool
 
 
+@dataclass(frozen=True)
+class MentalParalysisState:
+    """The actor's own live Mental Paralysis (6E1 p.219), a separate Entangle
+    from any physical one. ``md`` is its Resistant Mental Defense, which an
+    EGO or Mental Blast escape must get through."""
+    body: int
+    md: int
+
+
 def _cover_midpoint(wall) -> tuple[float, float, float]:
     """The representative point of a cover feature --- its segment's middle.
 
@@ -604,7 +613,8 @@ ALL_ACTION_KINDS = frozenset({
     "aid", "attack", "attack_construct", "block", "charm", "climb",
     "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
     "disengage",
-    "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_str",
+    "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_ego",
+    "escape_str",
     "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
     "hide", "hold", "image_decoy", "maneuver", "mental_blast",
     "mind_scan", "move_to_cover",
@@ -697,6 +707,7 @@ def enumerate_actions(
     slot_allocation: dict[str, tuple[int, int, set[str], dict[str, int]]] | None = None,
     extra_attacks: list | None = None,
     physical_entangle: PhysicalEntangleState | None = None,
+    mental_paralysis: MentalParalysisState | None = None,
     can_abort: bool = True,
     spent_charges: dict[str, int] | None = None,
     allies: list[HeroCombatant] | None = None,
@@ -885,9 +896,10 @@ def enumerate_actions(
     # Spec 2026-08-31: an Entangled character must escape before doing
     # anything else (6E1 p217) — the menu IS the escape ladder. Fail-open:
     # no entangle state, no change.
+    ladder: list[LegalAction] = []
     if physical_entangle is not None and physical_entangle.body > 0:
         pe = physical_entangle
-        ladder: list[LegalAction] = [
+        ladder += [
             LegalAction(
                 action_id="escape:str_full", kind="escape_str",
                 target_id=None, power_xmlid=None, power_name=None,
@@ -925,6 +937,35 @@ def enumerate_actions(
                 target_id=None, power_xmlid="TELEPORTATION", power_name=None,
                 summary="Teleport out of the Entangle (6E1 p218)",
             ))
+    # MENTAL PARALYSIS (6E1 p.219): an Entangle he breaks with EGO, "1d6 per 5
+    # points of EGO", or with a Mental Blast ("Mental Blasts (but not other
+    # Mental Powers)" can affect it); "Attacks with a physical manifestation
+    # ... cannot damage a Mental Paralysis", and Teleporting leaves him still
+    # paralysed, so neither is offered. Its own ladder: the two Entangles
+    # never add to each other, and a man in both must break both.
+    if mental_paralysis is not None and mental_paralysis.body > 0:
+        mp = mental_paralysis
+        from kirby_combat.actions.entangle import ego_escape_dice
+
+        ladder.append(LegalAction(
+            action_id="escape:ego_full", kind="escape_ego",
+            target_id=None, power_xmlid=None, power_name=None,
+            summary=(f"Break the Mental Paralysis with EGO "
+                     f"({ego_escape_dice(int(s.ego))}d6 vs its BODY {mp.body}, "
+                     f"Mental Defense {mp.md}) — your action this phase (6E1 p219)"),
+        ))
+        for ap in attack_powers:
+            if (ap.xmlid or "").upper() != "MENTALBLAST" or (ap.damage_dice or 0) <= 0:
+                continue
+            ladder.append(LegalAction(
+                action_id=f"escape:paralysis:attack:{getattr(ap, 'source_id', None) or ap.xmlid}",
+                kind="escape_attack", target_id=None,
+                power_xmlid=ap.xmlid, power_name=ap.name,
+                summary=(f"Blast the Mental Paralysis apart with {ap.name or ap.xmlid} "
+                         f"(its dice count as Normal Damage BODY vs MD {mp.md}, 6E1 p219)"),
+                _attack_view=ap,
+            ))
+    if ladder:
         return ladder
 
     alive_enemies = [e for e in enemies if not is_down(e)]

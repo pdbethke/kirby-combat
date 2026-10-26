@@ -155,6 +155,54 @@ def str_escape_dice(str_value: int, *, casual: bool = False) -> int:
     return max(0, str_value // 5)
 
 
+def counted_body(dice_values) -> int:
+    """Normal Damage BODY of a roll: "a 1 is 0 BODY; a 2-5 is 1 BODY, and a 6
+    is 2 BODY" (6E2 p.100). An Entangle's own BODY is counted this way ("he
+    rolls his Entangle dice and counts the Normal Damage BODY", 6E1 p.217),
+    and so is the BODY a STR or EGO escape does. Delegates the per-die rule
+    to the damage resolver so the two cannot disagree."""
+    from kirby_combat.resolution.damage import _body_for_normal_die
+
+    return sum(_body_for_normal_die(v) for v in dice_values)
+
+
+def escape_body(body: int, defense: int) -> int:
+    """What an escape attempt does to the Entangle: its BODY less the
+    ENTANGLE's defense (6E1 p.218: enough BODY "to exceed the Entangle's
+    defenses"), never the victim's."""
+    return max(0, int(body) - int(defense))
+
+
+def ego_escape_dice(ego: int) -> int:
+    """Mental Paralysis (6E1 p.219): "The victim uses EGO, not STR, to escape
+    ... He rolls 1d6 per 5 points of EGO". Mental Defense adds nothing ("Mental
+    Defense neither adds to the character's EGO for purposes of breaking out
+    of, nor offers any other protection against, Mental Paralysis"), short of
+    the -1/2 Limitation Mental Defense Adds To EGO, which no build here reads.
+
+    The Casual EGO attempt (half EGO) p.219 also allows is not offered: like
+    a Casual STR attempt it is a Zero Phase extra (6E1 p.133-134), and the
+    loop gives a man one action a Phase.
+    """
+    return max(0, int(ego) // 5)
+
+
+@dataclass(frozen=True)
+class EntangleHold:
+    """One live Entangle on a man, as the log has left it.
+
+    ``mental_paralysis`` says which of the two separate Entangles a man can
+    be in this is (6E1 p.219). A physical Entangle defends with ``pd``/``ed``;
+    a Mental Paralysis with ``md``.
+    """
+    body: int
+    pd: int
+    ed: int
+    md: int
+    no_teleport: int
+    mental_paralysis: bool
+
+
 @dataclass(frozen=True)
 class EntangleResult:
     target_id: str
@@ -228,6 +276,8 @@ class Entangle:
             entangle_pd=entangle_pd,
             entangle_ed=entangle_ed,
             no_teleport_levels=no_teleport_levels,
+            mental_paralysis=False,
+            entangle_md=0,
         )
         s = apply_event(s, applied)
 
@@ -237,6 +287,53 @@ class Entangle:
             damage_to_entangle_body=0,
             body_remaining=entangle_body,
             escaped=False,
+        )
+
+    # ------------------------------------------------------------------ apply_mental_paralysis
+    @staticmethod
+    def apply_mental_paralysis(
+        session: CombatSession,
+        *,
+        attacker_id: str,
+        target_id: str,
+        entangle_body: int,
+        entangle_md: int,
+    ) -> tuple[CombatSession, EntangleResult]:
+        """Bind ``target_id`` in a Mental Paralysis (6E1 p.219).
+
+        Emits ONLY the `EntangleApplied` --- the MCV Attack Roll and Effect
+        Roll that put it there are the mental resolver's own `ActionResolved`.
+
+        "The normal rules for affecting a character with multiple Entangles
+        apply to Mental Paralysis, though physical Entangles don't add to
+        Mental Paralysis Entangles": a second paralysis stacks onto a live
+        one (`stacked_entangle`, 6E1 p.217), a physical one never does.
+        """
+        from kirby_combat.session.apply import apply_event
+
+        live = Entangle.held(session, target_id, mental_paralysis=True)
+        body, md, _ = stacked_entangle(
+            live.body if live else 0, live.md if live else 0, live.md if live else 0,
+            entangle_body, entangle_md, entangle_md,
+        )
+        applied = EntangleApplied(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_combatant(attacker_id),
+            target_id=target_id,
+            entangle_body=body,
+            entangle_pd=0,
+            entangle_ed=0,
+            no_teleport_levels=0,
+            mental_paralysis=True,
+            entangle_md=md,
+        )
+        s = apply_event(session, applied)
+        return s, EntangleResult(
+            target_id=target_id, method="applied", damage_to_entangle_body=0,
+            body_remaining=body, escaped=False,
         )
 
     # ------------------------------------------------------------------ escape_attempt
@@ -256,21 +353,43 @@ class Entangle:
         rule decides the outcome (``breakout``, 6E2 p126). escape_type:
         "full" = the Phase's action; "casual" = the 6E1 p133-134 Zero Phase
         half-STR attempt (the caller keeps its action either way -- phase
-        economy is the caller's job; this method only moves BODY)."""
-        from kirby_combat.session.apply import apply_event
+        economy is the caller's job; this method only moves BODY).
 
+        The PHYSICAL Entangle; a Mental Paralysis is
+        `escape_paralysis_attempt`."""
         if escape_type not in ("casual", "full"):
             raise ValueError(f"unknown escape_type: {escape_type!r}")
 
-        is_e, current_body = Entangle.is_entangled(session, target_id)
-        if not is_e:
+        method = "casual_str" if escape_type == "casual" else "full_str"
+        return Entangle._escape(session, target_id=target_id, damage_body=damage_body,
+                                method=method, mental_paralysis=False)
+
+    @staticmethod
+    def escape_paralysis_attempt(
+        session: CombatSession, *, target_id: str, damage_body: int, method: str,
+    ) -> tuple[CombatSession, EntangleResult]:
+        """Escape a Mental Paralysis with BODY the caller rolled and already
+        soaked against the paralysis's Mental Defense (6E1 p.219): EGO
+        (``method="full_ego"``) or a Mental Blast (``"attack"``)."""
+        return Entangle._escape(session, target_id=target_id, damage_body=damage_body,
+                                method=method, mental_paralysis=True)
+
+    @staticmethod
+    def _escape(
+        session: CombatSession, *, target_id: str, damage_body: int, method: str,
+        mental_paralysis: bool,
+    ) -> tuple[CombatSession, EntangleResult]:
+        from kirby_combat.session.apply import apply_event
+
+        hold = Entangle.held(session, target_id, mental_paralysis=mental_paralysis)
+        if hold is None:
             raise ValueError(f"{target_id} is not entangled; cannot escape")
+        current_body = hold.body
 
         damage = max(0, damage_body)
         res = breakout(damage, current_body or 0)
         escaped = res.escaped
         body_remaining = 0 if escaped else max(0, (current_body or 0) - damage)
-        method = "casual_str" if escape_type == "casual" else "full_str"
 
         evt = EntangleEscape(
             id=str(uuid.uuid4()),
@@ -282,6 +401,7 @@ class Entangle:
             method=method,
             damage_to_entangle_body=damage,
             escaped=escaped,
+            mental_paralysis=mental_paralysis,
         )
         s = apply_event(session, evt)
 
@@ -315,15 +435,14 @@ class Entangle:
         have offered it (gate with ``can_teleport_escape``)."""
         from kirby_combat.session.apply import apply_event
 
-        is_e, current_body = Entangle.is_entangled(session, target_id)
-        if not is_e:
+        # The PHYSICAL Entangle only: from a Mental Paralysis a man may
+        # Teleport, "but if so remains subject to the Mental Paralysis when
+        # he appears at his destination" (6E1 p.219).
+        hold = Entangle.held(session, target_id, mental_paralysis=False)
+        if hold is None:
             raise ValueError(f"{target_id} is not entangled; cannot escape")
-
-        ntl = 0
-        for evt in reversed(session.event_log):
-            if evt.kind == "EntangleApplied" and getattr(evt, "target_id", None) == target_id:
-                ntl = int(getattr(evt, "no_teleport_levels", 0) or 0)
-                break
+        current_body = hold.body
+        ntl = hold.no_teleport
 
         if ntl > teleport_ap_levels:
             return session, EntangleResult(
@@ -344,6 +463,7 @@ class Entangle:
             method="teleport",
             damage_to_entangle_body=0,
             escaped=True,
+            mental_paralysis=False,
         )
         s = apply_event(session, evt)
         return s, EntangleResult(
@@ -359,25 +479,52 @@ class Entangle:
     def is_entangled(
         session: CombatSession, combatant_id: str,
     ) -> tuple[bool, Optional[int]]:
-        """Walk event log accumulating entangle body for combatant_id.
+        """Whether ANY Entangle holds ``combatant_id`` --- physical or a Mental
+        Paralysis, both of which are Entangles (6E1 p.219) with the same
+        effects on him (DCV 0, escape first, p.217).
 
-        Returns (True, body_remaining) when entangled; (False, None) when not.
+        Returns (True, body_remaining) when entangled --- the physical
+        Entangle's BODY when there is one, else the paralysis's ---
+        and (False, None) when not. Ask `held` for one Entangle by kind.
         """
-        body: Optional[int] = None
+        for paralysis in (False, True):
+            hold = Entangle.held(session, combatant_id, mental_paralysis=paralysis)
+            if hold is not None:
+                return True, hold.body
+        return False, None
+
+    # ------------------------------------------------------------------ held
+    @staticmethod
+    def held(
+        session: CombatSession, combatant_id: str, *, mental_paralysis: bool,
+    ) -> Optional[EntangleHold]:
+        """The live Entangle of one kind on ``combatant_id``, or None.
+
+        Folded forward from `EntangleApplied` / `EntangleEscape`, each kind
+        on its own (6E1 p.219: the two never add to each other).
+        """
+        hold: Optional[EntangleHold] = None
         for evt in session.event_log:
             kind = evt.kind
-            if kind == "EntangleApplied" and getattr(evt, "target_id", None) == combatant_id:
-                body = evt.entangle_body
-            elif kind == "EntangleEscape" and getattr(evt, "target_id", None) == combatant_id:
-                if body is None:
-                    continue        # escape with no prior entangle (shouldn't happen)
-                if evt.escaped:
-                    body = None
-                else:
-                    body = max(0, body - evt.damage_to_entangle_body)
-                    if body == 0:
-                        body = None
-        return (body is not None, body)
+            if getattr(evt, "target_id", None) != combatant_id:
+                continue
+            if kind not in ("EntangleApplied", "EntangleEscape"):
+                continue
+            if bool(getattr(evt, "mental_paralysis", False)) != mental_paralysis:
+                continue
+            if kind == "EntangleApplied":
+                hold = EntangleHold(
+                    body=int(evt.entangle_body), pd=int(evt.entangle_pd),
+                    ed=int(evt.entangle_ed), md=int(getattr(evt, "entangle_md", 0)),
+                    no_teleport=int(getattr(evt, "no_teleport_levels", 0) or 0),
+                    mental_paralysis=mental_paralysis,
+                )
+            elif hold is not None:
+                body = 0 if evt.escaped else max(0, hold.body - evt.damage_to_entangle_body)
+                hold = EntangleHold(**{**hold.__dict__, "body": body})
+            if hold is not None and hold.body <= 0:
+                hold = None
+        return hold
 
     # ------------------------------------------------------------------ modifiers
     @staticmethod

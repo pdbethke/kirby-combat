@@ -17,9 +17,7 @@ from kirby_combat.mental.mental_blast import (
     MentalBlastResult, resolve_mental_blast,
 )
 from kirby_combat.mental.mental_entangle import (
-    MentalEntangleState, MentalEntangleResult, MentalEscapeResult,
-    apply_mental_entangle, attempt_mental_escape,
-    can_use_mental_powers, can_use_physical_powers,
+    MentalParalysisResult, roll_mental_paralysis,
 )
 
 __all__ = [
@@ -30,7 +28,5 @@ __all__ = [
     "MentalIllusionResult", "DisbeliefResult",
     "resolve_mental_illusion", "attempt_disbelief",
     "MentalBlastResult", "resolve_mental_blast",
-    "MentalEntangleState", "MentalEntangleResult", "MentalEscapeResult",
-    "apply_mental_entangle", "attempt_mental_escape",
-    "can_use_mental_powers", "can_use_physical_powers",
+    "MentalParalysisResult", "roll_mental_paralysis",
 ]

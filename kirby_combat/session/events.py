@@ -382,15 +382,28 @@ class EntangleApplied(BaseEvent):
     #: Levels of "Cannot Be Escaped With Teleportation" (+1/4 each) on the
     #: source Entangle (6E1 p220). 0 = teleport escape works normally.
     no_teleport_levels: int = 0
+    #: A Mental Paralysis (6E1 p.219): escaped with EGO not STR, defended by
+    #: ``entangle_md`` instead of PD/ED, and a separate Entangle from any
+    #: physical one ("physical Entangles don't add to Mental Paralysis
+    #: Entangles, and vice-versa"). The False default exists only so a log
+    #: written before 0.22 still reads; every emitter states it
+    #: (`Entangle.apply` / `Entangle.apply_mental_paralysis`).
+    mental_paralysis: bool = False
+    #: The Mental Paralysis's Resistant Mental Defense (6E1 p.219); 0 for a
+    #: physical Entangle, whose defenses are ``entangle_pd``/``entangle_ed``.
+    entangle_md: int = 0
 
 
 @dataclass
 class EntangleEscape(BaseEvent):
     kind: Literal["EntangleEscape"] = field(default="EntangleEscape", init=False)
     target_id: str = ""
-    method: str = ""                      # "casual_str" | "full_str" | "break_out"
+    method: str = ""                      # "casual_str" | "full_str" | "full_ego" | "teleport" | "attack"
     damage_to_entangle_body: int = 0
     escaped: bool = False
+    #: Which Entangle he is escaping: a Mental Paralysis (6E1 p.219) or the
+    #: physical one. Default as on `EntangleApplied`, for older logs only.
+    mental_paralysis: bool = False
 
 
 @dataclass

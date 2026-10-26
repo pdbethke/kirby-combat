@@ -12,7 +12,7 @@ damage must stay on the wall for the next shot.
 """
 from __future__ import annotations
 
-from conftest import fighter, encounter_of        # tests/loop/conftest.py
+from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.constructs import constructs_in, damage_taken
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop.run import run_phase

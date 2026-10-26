@@ -106,7 +106,11 @@ class EntangleState:
 
 
 def entangle_state(session: "CombatSession", combatant_id: str) -> EntangleState:
-    """Walk the log accumulating EntangleApplied / EntangleEscape pairs."""
+    """Walk the log accumulating EntangleApplied / EntangleEscape pairs.
+
+    The PHYSICAL Entangle: a Mental Paralysis is a separate Entangle that
+    never adds to this one (6E1 p.219) --- see `Entangle.held`.
+    """
     body: int | None = None
     pd = 0
     ed = 0
@@ -114,6 +118,8 @@ def entangle_state(session: "CombatSession", combatant_id: str) -> EntangleState
         kind = getattr(evt, "kind", None)
         target = getattr(evt, "target_id", None)
         if target != combatant_id:
+            continue
+        if getattr(evt, "mental_paralysis", False):
             continue
         if kind == "EntangleApplied":
             body = int(getattr(evt, "entangle_body", 0))

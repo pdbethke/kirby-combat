@@ -239,6 +239,20 @@ def _illusion_cv_modifiers(
     return {}
 
 
+def _entangle_cv_modifiers(
+    session: "CombatSession", combatant_id: str,
+) -> dict[str, float]:
+    """An Entangled man, physically or in a Mental Paralysis (an Entangle,
+    6E1 p.219): "his arms and legs are restrained, giving him a DCV of 0"
+    (6E1 p.217). `ENTANGLED_DCV_FACTOR` has said so since 0.7.2 and nothing
+    in the fight read it."""
+    from kirby_combat.actions.entangle import ENTANGLED_DCV_FACTOR, Entangle
+
+    if Entangle.is_entangled(session, combatant_id)[0]:
+        return {"dcv_factor": ENTANGLED_DCV_FACTOR}
+    return {}
+
+
 #: Ordered sources folded into ``cv_modifiers_for``. THIS tuple is the
 #: seam: add one more ``(session, combatant_id) -> dict`` entry here for a
 #: new CV-affecting condition (see the module docstring's sense-affecting-
@@ -250,6 +264,7 @@ _CV_MODIFIER_SOURCES: tuple[
     _presence_cv_modifiers,
     _multi_attack_cv_modifiers,
     _illusion_cv_modifiers,
+    _entangle_cv_modifiers,
 )
 
 

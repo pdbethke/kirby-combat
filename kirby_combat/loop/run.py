@@ -593,6 +593,7 @@ def run_phase(
         e.id for e in enemies
         if Grab.is_grabbed(session, e.id) == (True, actor_id)
     )
+    physical_hold, paralysis_hold = _entangle_holds(session, actor_id)
     menu = enumerate_actions(
         actor, enemies,
         has_scene=scene is not None,
@@ -677,6 +678,10 @@ def run_phase(
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.
         mind_scan_locks=mind_scan_locks(session, actor_id),
+        # ENTANGLED, PHYSICALLY OR MENTALLY: the menu is the escape ladder
+        # (6E1 p.217, p.219). See `_entangle_holds`.
+        physical_entangle=physical_hold,
+        mental_paralysis=paralysis_hold,
     )
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
@@ -865,6 +870,34 @@ _PROGRESS_IF_NONZERO = {
     "RecoveryTaken": ("stun_recovered", "end_recovered"),
     "BleedingSuffered": ("body_lost", "stun_lost"),
 }
+
+
+def _entangle_holds(session: "CombatSession", actor_id: str):
+    """The Entangles holding ``actor_id``, as enumeration's ladder wants them:
+    (physical, Mental Paralysis), each None when absent (6E1 p.219 keeps them
+    separate).
+
+    THE LADDER WAS NEVER FED. `enumerate_actions` has taken
+    `physical_entangle` since 0.7.2 and this loop never passed it --- the api
+    driver that did was deleted --- so an Entangled man got his whole menu
+    and shot people from inside the glue.
+
+    `takes_no_damage` is False because `EntangleApplied` does not record
+    Takes No Damage From Attacks (6E1 p.221) for a physical Entangle; one
+    bought with it is still offered `escape_attack`. Open, named in the
+    0.22 CHANGELOG.
+    """
+    from kirby_combat.actions.entangle import Entangle
+    from kirby_combat.enumeration import MentalParalysisState, PhysicalEntangleState
+
+    phys = Entangle.held(session, actor_id, mental_paralysis=False)
+    para = Entangle.held(session, actor_id, mental_paralysis=True)
+    return (
+        PhysicalEntangleState(body=phys.body, pd=phys.pd, ed=phys.ed,
+                              no_teleport=phys.no_teleport, takes_no_damage=False)
+        if phys is not None else None,
+        MentalParalysisState(body=para.body, md=para.md) if para is not None else None,
+    )
 
 
 def _something_happened(before: "CombatSession", after: "CombatSession") -> bool:
