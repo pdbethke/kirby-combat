@@ -161,6 +161,54 @@ def test_a_disarm_lands_but_takes_nothing_away():
     ), "nothing to remove -- and the test says so rather than pretending"
 
 
+# ---- Trip and Disarm roll with the bare-handed Strike ----
+#
+# Both are STR maneuvers (6E2 p.58's table; p.62: "To use Disarm, the
+# character makes an Attack Roll"), offered to anyone with STR >= 5 and no
+# attack power named on the offer. The Attack Roll is the character's own
+# hand-to-hand Strike. Before 0.20.2 the resolver borrowed the first entry of
+# `actor.attacks` -- so a man with no attack powers raised UnresolvableAction
+# for an action the menu had just offered him (prod fight 075ba1ca,
+# 2026-10-26), and a man whose only power was a blast rolled his Disarm
+# through the blast.
+
+
+def _offered(kind: str) -> LegalAction:
+    """The offer exactly as enumeration writes it: no attack view."""
+    return LegalAction(
+        action_id=f"{kind}:mark", kind=kind, target_id="mark",
+        power_xmlid=kind.upper(), power_name=kind.title(), summary=kind,
+    )
+
+
+def _resolve_by(actor, action, *, roller):
+    session = CombatSession.create(
+        id="s", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=4),
+        combatants=[actor, fighter("mark", side=Side.named("villains"), dex=10)],
+    ).start()
+    return resolve_chosen(
+        session, session.combatants[actor.id], action,
+        template=TEMPLATE, roller=roller,
+    )
+
+
+@pytest.mark.parametrize("kind", ["disarm", "trip"])
+def test_a_man_with_no_attack_powers_can_do_what_he_was_offered(kind):
+    unarmed = fighter("actor", side=Side.named("heroes"), dex=25, armed=False)
+    assert not list(unarmed.attacks)
+    resolved = _resolve_by(unarmed, _offered(kind), roller=_hits())
+    assert resolved.result.hit
+    assert resolved.result.power_xmlid == "STR"
+
+
+@pytest.mark.parametrize("kind", ["disarm", "trip"])
+def test_a_blaster_disarms_with_his_hands_not_his_blast(kind):
+    blaster = fighter("actor", side=Side.named("heroes"), dex=25)
+    assert [a.xmlid for a in blaster.attacks] != ["STR"]
+    resolved = _resolve_by(blaster, _offered(kind), roller=_hits())
+    assert resolved.result.power_xmlid == "STR"
+
+
 # ---- Spread: a symmetrical trade ----
 
 def test_spread_trades_dice_for_ocv_one_for_one():

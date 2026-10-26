@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.20.2 — 2026-10-26
+
+**Trip and Disarm roll with the character's bare-handed Strike.** Both are
+STR maneuvers (6E2 p.58's maneuver table; p.62: "To use Disarm, the character
+makes an Attack Roll"), and enumeration offers them to anyone with STR 5+.
+The resolver instead borrowed the first entry of `actor.attacks`, so:
+
+- a fighter with no attack powers raised `UnresolvableAction` for a Disarm or
+  Trip the menu had just offered him (prod fight 075ba1ca, 2026-10-26: the
+  whole `/run` answered 500), and
+- a fighter whose only power was a blast rolled the maneuver through the blast.
+
+`_maneuver_attack` now takes the power from its caller (`power=` is
+required): Trip and Disarm pass `str_strike_view()`, Spread passes the power
+on its offer as before. `StatBlockCombatant` gains `str_strike_view()` (STR
+through kirby-cost's `strike_dice`, base 1 m reach), so stat blocks can roll
+them too — and enumeration, which already asked every combatant for that view
+and swallowed the AttributeError, now offers a stat block its bare-handed
+Strike. `BASE_REACH_M` moves to `kirby_combat.models` so both combatant types
+share the one value.
+
+Disarm's STR Versus STR contest (p.62) is still not rolled: the engine tracks
+no weapons to knock loose, as before.
+
 ## 0.20.1 — 2026-10-20
 
 **The event registry is on the front door.** `BaseEvent` (was the private

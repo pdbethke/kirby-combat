@@ -2014,9 +2014,9 @@ def _resolve_pickup(
 
 
 def _maneuver_attack(
-    session, actor, action: LegalAction, *, template, roller, ocv_modifier: int,
-    damage_dice: int | None = None, action_type: str = "strike",
-    payload_extras=None,
+    session, actor, action: LegalAction, *, template, roller, power,
+    ocv_modifier: int, damage_dice: int | None = None,
+    action_type: str = "strike", payload_extras=None,
 ):
     """An Attack Roll at a maneuver's CV penalty.
 
@@ -2032,12 +2032,14 @@ def _maneuver_attack(
     takes, along with the Dodge, the Surprise and any Drained CV. They were
     asked here for a week and at one other resolver, which is how a rule
     ends up at two doors out of seven.
+
+    THE CALLER NAMES THE POWER. Trip and Disarm are STR maneuvers and roll
+    with the bare-handed Strike; Spread trades dice off the power on its
+    offer. This used to pick `action._attack_view or actor.attacks[0]`
+    itself, so a man with no attack powers could not Disarm (the menu had
+    offered it: prod 2026-10-26) and a blaster Disarmed through his blast.
     """
     from kirby_combat.models import AttackInput, DiceValues
-
-    power = action._attack_view or next(iter(actor.attacks or []), None)
-    if power is None:
-        raise UnresolvableAction(action.kind, action.action_id)
 
     target = session.combatants[action.target_id]
     dice = damage_dice if damage_dice is not None else int(power.damage_dice or 0)
@@ -2179,7 +2181,8 @@ def _resolve_trip(
         }
 
     new_session, result = _maneuver_attack(
-        session, actor, action, template=template, roller=roller, ocv_modifier=-1, damage_dice=0,
+        session, actor, action, template=template, roller=roller,
+        power=actor.str_strike_view(), ocv_modifier=-1, damage_dice=0,
         payload_extras=_trip_payload,
     )
 
@@ -2206,7 +2209,8 @@ def _resolve_disarm(
     off.
     """
     new_session, result = _maneuver_attack(
-        session, actor, action, template=template, roller=roller, ocv_modifier=-2, damage_dice=0,
+        session, actor, action, template=template, roller=roller,
+        power=actor.str_strike_view(), ocv_modifier=-2, damage_dice=0,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -2244,7 +2248,7 @@ def _resolve_spread(
         raise UnresolvableAction(action.kind, action.action_id)
 
     new_session, result = _maneuver_attack(
-        session, actor, action, template=template, roller=roller,
+        session, actor, action, template=template, roller=roller, power=power,
         ocv_modifier=+spread, damage_dice=base - spread, action_type="attack",
     )
     return ResolvedAction(

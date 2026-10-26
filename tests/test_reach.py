@@ -2,7 +2,7 @@
 
 Stretching factor verified against Main6E.hdt: LVLCOST="1" LVLVAL="1"
 → 1 CP per 1 metre of Stretching → LEVELS = metres of stretch.
-Total combat reach = _BASE_REACH_M (1m, 6E2 p56 / 6E2 p40 / 6E1 p231)
+Total combat reach = BASE_REACH_M (1m, 6E2 p56 / 6E2 p40 / 6E1 p231)
 + LEVELS * 1.0 m/level.
 Evidence: Ravel.hdc LEVELS="8" → 8m stretch + 1m base = 9m total reach.
 """
