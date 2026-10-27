@@ -67,6 +67,23 @@ def _range_to(session, actor, target) -> float | None:
     return distance_3d(here, there)
 
 
+def _with_half_die(power, full_dice: int) -> int:
+    """How many dice to ROLL for ``full_dice`` whole dice of ``power``.
+
+    `compute_damage` reads the LAST die of `DiceValues.damage` as the
+    power's ½d6 whenever `power.half_die` is set (6E2 p.100: "Roll the half
+    die separately"). Every site here rolled `damage_dice` dice -- the whole
+    dice only -- so a 4½d6 attack rolled four, `compute_damage` took the
+    fourth as the half die, and the attack did 3½d6. One whole die short on
+    every half-die attack in the engine: every 1½d6 HKA, every STR 15
+    punch (2½d6), every half-die Blast.
+
+    Asked of the power rather than passed as a flag so no site can forget
+    it; a missile built here with `half_die=False` gets nothing added.
+    """
+    return int(full_dice) + (1 if getattr(power, "half_die", False) else 0)
+
+
 def _attack_dice(roller, dice_count: int) -> DiceValues:
     """Every die one attack on a PERSON needs, rolled in one place.
 
@@ -151,7 +168,7 @@ def _maybe_stray(session, actor, action, result, *, template, roller):
     stray = AttackInput(
         attacker=actor, target=bystander, power=power,
         distance_m=_range_to(session, actor, bystander), aim=None,
-        dice=_attack_dice(roller, max(1, int(power.damage_dice))),
+        dice=_attack_dice(roller, _with_half_die(power, max(1, int(power.damage_dice)))),
         # BASE OCV ONLY, as this resolver BUILDS it: no Set and no Grab
         # factor, because the page strips "Combat Skill Levels, Combat
         # Maneuvers, or the like".
@@ -278,7 +295,7 @@ def _resolve_attack(
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=_attack_dice(roller, max(1, int(power.damage_dice))),
+        dice=_attack_dice(roller, _with_half_die(power, max(1, int(power.damage_dice)))),
         # A SET THAT BOUGHT NOTHING. `Set.ocv_bonus` existed, was correct,
         # and was read by nothing but its own unit test -- so a man could
         # spend a Full Phase drawing a bead (6E2 p.81) and be no more
@@ -1232,7 +1249,8 @@ def _rapid_fire_at_construct(
     dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
     shots = apply_autofire_to_construct(
         power,
-        [DiceValues(damage=roller.roll_dice(dice)) for _ in outcome.per_shot_ocv],
+        [DiceValues(damage=roller.roll_dice(_with_half_die(power, dice)))
+         for _ in outcome.per_shot_ocv],
         construct, template,
     )
     destroyed = bool(shots) and shots[-1].destroyed
@@ -1504,7 +1522,7 @@ def _resolve_throw(
         attack = AttackInput(
             attacker=actor, target=target, power=missile,
             distance_m=None, aim=None,
-            dice=_attack_dice(roller, dice),
+            dice=_attack_dice(roller, _with_half_die(missile, dice)),
         )
         new_session, result = resolve_attack_in_session(
             session, attack, template, action_type="throw_object",
@@ -1842,7 +1860,11 @@ def _resolve_escape_attack(
     hold = Entangle.held(session, actor.id, mental_paralysis=paralysis)
     if hold is None:
         raise UnresolvableAction(action.kind, action.action_id)
-    dice = roller.roll_dice(max(1, int(getattr(power, "damage_dice", 0) or 0)))
+    whole = max(1, int(getattr(power, "damage_dice", 0) or 0))
+    # The physical branch goes through `compute_damage`, which reads the last
+    # die as the ½d6; `counted_body` counts every die it is handed as whole,
+    # so the paralysis branch rolls the whole dice only.
+    dice = roller.roll_dice(whole if paralysis else _with_half_die(power, whole))
     if paralysis:
         new_session, result = Entangle.escape_paralysis_attempt(
             session, target_id=actor.id,
@@ -1959,7 +1981,8 @@ def _resolve_attack_construct(
 
     dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
     outcome = apply_attack_to_construct(
-        power, DiceValues(damage=roller.roll_dice(dice)), construct, template,
+        power, DiceValues(damage=roller.roll_dice(_with_half_die(power, dice))),
+        construct, template,
     )
     caught: list = []
     if outcome.destroyed:
@@ -2073,7 +2096,7 @@ def _resolve_push(
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=_attack_dice(roller, dice),
+        dice=_attack_dice(roller, _with_half_die(power, dice)),
     )
     new_session, result = resolve_attack_in_session(
         session, attack, template, action_type="attack", roller=roller,
@@ -2365,7 +2388,7 @@ def _reposition(session, actor, action, *, template, roller, then_attack: bool):
         # one the shot is actually taken at.
         distance_m=_range_to(new_session, new_session.combatants[actor.id], target),
         aim=None,
-        dice=_attack_dice(roller, max(1, int(power.damage_dice or 0))),
+        dice=_attack_dice(roller, _with_half_die(power, max(1, int(power.damage_dice or 0)))),
     )
     after, result = resolve_attack_in_session(
         new_session, attack, template, action_type="attack",
@@ -2528,7 +2551,9 @@ def _maneuver_attack(
     from kirby_combat.models import AttackInput, DiceValues
 
     target = session.combatants[action.target_id]
-    dice = damage_dice if damage_dice is not None else int(power.damage_dice or 0)
+    # `damage_dice` is the count ROLLED, half die included (see `_with_half_die`).
+    dice = (damage_dice if damage_dice is not None
+            else _with_half_die(power, int(power.damage_dice or 0)))
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
@@ -2735,7 +2760,11 @@ def _resolve_spread(
 
     new_session, result = _maneuver_attack(
         session, actor, action, template=template, roller=roller, power=power,
-        ocv_modifier=+spread, damage_dice=base - spread, action_type="attack",
+        # The dice ROLLED: the whole dice left after the trade, and the ½d6
+        # still on top of them --- Spread sells whole dice (6E2 p.52), and
+        # `_maneuver_attack` rolls exactly the count it is handed.
+        ocv_modifier=+spread, damage_dice=_with_half_die(power, base - spread),
+        action_type="attack",
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -2950,7 +2979,7 @@ def _resolve_shots(session, actor, action: LegalAction, *, template, roller,
             # usual modifiers). This was `None`, so a Multiple Attack at
             # 64 m rolled at OCV 18 where a single shot rolled at 14.
             distance_m=_range_to(session, actor, current), aim=None,
-            dice=_attack_dice(roller, dice),
+            dice=_attack_dice(roller, _with_half_die(power, dice)),
             ocv_modifier=ocv - base_ocv,
         )
         session, result = resolve_attack_in_session(

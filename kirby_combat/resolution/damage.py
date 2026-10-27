@@ -7,15 +7,18 @@ Normal damage
 - STUN = sum of all full dice values
 - BODY per full die: 1 → 0, 2-5 → 1, 6 → 2
 - Half die (power.half_die=True): consume next dice value as half-die.
-    STUN += value // 2
-    BODY += 1 if value >= 5 else 0
+    STUN += ceil(value / 2)            (6E2 p.100: "multiplied by one-half
+                                        and rounded up")
+    BODY += 1 if value >= 4 else 0     (6E2 p.100: "1 BODY if the roll is
+                                        a 4, 5, or 6")
 - Plus one (power.plus_one=True): STUN += 1, no BODY change
 - Minus one pip (power.minus_one=True): STUN -= 1, floored at 0
 
 Killing damage
 --------------
 - BODY = sum of all full dice values
-    (half_die: BODY += value // 2)
+    (half_die: BODY += ceil(value / 2), the same 1-3 a ½d6 gives
+     everywhere else -- see `half_die_face`)
     (plus_one: BODY += 1)
     (minus_one: BODY -= 1, floored at 0, before the STUN multiplier)
 - STUN multiplier (per 6E2 p100 §Killing Damage Attacks):
@@ -32,6 +35,33 @@ from __future__ import annotations
 
 from kirby_combat.models import AttackPower, DamageResult, DiceValues
 from kirby_combat.template import CombatTemplate
+
+
+# ---------------------------------------------------------------------------
+# The half die
+# ---------------------------------------------------------------------------
+
+def half_die_face(value: int) -> int:
+    """What a ½d6 reads as: the d6 face halved and ROUNDED UP, 1-3.
+
+    6E2 p.100: "The face value of the die is multiplied by one-half and
+    rounded up to get the number of STUN done." This was ``value // 2``,
+    which rounds DOWN: a 1 did no STUN at all, a 5 did 2, and every half
+    die in the engine was worth half a point less than the book's on
+    average. The STUN Multiplier's ½d6 (same page) was always read this
+    way, round-up, so the two half dice in one killing attack disagreed.
+
+    A killing attack's ½d6 of BODY uses the same reading: its dice total
+    IS the BODY (p.100), and a half die totals 1-3 there as it does for
+    the STUN Multiplier.
+    """
+    return (int(value) + 1) // 2
+
+
+def half_die_body(value: int) -> int:
+    """A normal attack's ½d6 BODY: "1 BODY if the roll is a 4, 5, or 6"
+    (6E2 p.100). This said ``>= 5``, so a 4 did none."""
+    return 1 if int(value) >= 4 else 0
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +172,8 @@ def _compute_normal(
 
     # Half-die contribution
     if half_die_value is not None:
-        hd_stun = half_die_value // 2
-        hd_body = 1 if half_die_value >= 5 else 0
+        hd_stun = half_die_face(half_die_value)
+        hd_body = half_die_body(half_die_value)
         stun += hd_stun
         body += hd_body
         audit.append(
@@ -181,9 +211,9 @@ def _compute_killing(
     body = sum(full_dice)
     audit.append(f"Killing BODY from full dice: {body}")
 
-    # Half-die adds value // 2 to BODY
+    # Half-die adds its 1-3 to BODY (6E2 p.100, round up)
     if half_die_value is not None:
-        hd_body = half_die_value // 2
+        hd_body = half_die_face(half_die_value)
         body += hd_body
         audit.append(f"Half-die value={half_die_value}: BODY +{hd_body}")
 
