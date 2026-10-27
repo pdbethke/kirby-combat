@@ -135,6 +135,41 @@ def last_attacker_of(session: Any, target_id: str) -> str | None:
     return last
 
 
+def last_attacker_perceived(
+    session: Any, target_id: str, *, observer_id: str, roller: Any,
+) -> str | None:
+    """`last_attacker_of`, as ``observer_id`` may act on it; or None.
+
+    PERCEPTION GOVERNS COMBAT (PeterB: an AI may not target what it cannot
+    perceive, and neither may a player's standing order). So this is the
+    last attacker of ``target_id`` IF the observer perceives him now, from
+    where he stands, judged at the menu's own gate --- `concealment.perceives`
+    (concealment, Invisibility, the observer's Flash) with the menu's Mind
+    Scan locks (`mental.continuing.mind_scan_locks`). If he does not, the
+    answer is None: NOT an earlier attacker he did see, which would be acting
+    on knowledge of who really did it.
+
+    ``roller`` is required, as at `perceives`: an Invisible man within 2 m
+    (Fringe) and a Hidden one (Stealth) are rolled for, and a replayed Phase
+    must roll them the same.
+    """
+    from kirby_combat.concealment import perceives
+    from kirby_combat.mental.continuing import mind_scan_locks
+
+    attacker_id = last_attacker_of(session, target_id)
+    if attacker_id is None:
+        return None
+    observer = session.combatants.get(observer_id)
+    attacker = session.combatants.get(attacker_id)
+    if observer is None or attacker is None:
+        return None
+    locked = attacker_id in (mind_scan_locks(session, observer_id) or frozenset())
+    if not perceives(session, observer, attacker, roller=roller,
+                     mind_scan_locked=locked):
+        return None
+    return attacker_id
+
+
 def threat_map(enemies: list, session: Any = None) -> dict[str, float]:
     """`enemy id -> how much of a problem that one is`.
 
