@@ -62,9 +62,11 @@ def roll_profile(actor) -> tuple[str, int]:
     for a character with neither --- anyone can try to time a blow, just
     not well. A Characteristic-based Skill Roll is 9 + CHAR/5 (6E1 p.58).
     """
+    from kirby_combat.identity import build_in_play
+
     skills = {
         (getattr(s, "xmlid", "") or "").upper()
-        for s in (getattr(actor.hero, "skills", None) or [])
+        for s in (getattr(build_in_play(actor), "skills", None) or [])
     }
     stats = actor.combat_stats()
     if "TEAMWORK" in skills:

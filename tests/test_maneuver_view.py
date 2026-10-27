@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from kirby_combat.hero_view import HeroCombatant, MartialManeuverView
+from kirby_combat.hero_view import HeroCombatant, HeroCombatState, MartialManeuverView
 
 from tests.corpus import require_authored
 
@@ -48,6 +48,9 @@ class _StubMartialHero:
 def _view_of(*maneuvers) -> list[MartialManeuverView]:
     hc = HeroCombatant.__new__(HeroCombatant)
     object.__setattr__(hc, "hero", _StubMartialHero(*maneuvers))
+    # In his Hero identity: what he owns depends on it (6E1 p.388).
+    object.__setattr__(hc, "state", HeroCombatState(
+        current_stun=0, current_body=0, current_end=0))
     return hc.maneuver_view()
 
 
@@ -136,6 +139,9 @@ def test_hero_with_no_maneuvers_returns_empty_list():
 
     hc = HeroCombatant.__new__(HeroCombatant)
     object.__setattr__(hc, "hero", _Bare())
+    # In his Hero identity: what he owns depends on it (6E1 p.388).
+    object.__setattr__(hc, "state", HeroCombatState(
+        current_stun=0, current_body=0, current_end=0))
     assert hc.maneuver_view() == []
 
 

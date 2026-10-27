@@ -35,7 +35,7 @@ class StubPower:
     level_value: float = 1.0
     base_cost: float = 0.0
     active_cost: float | None = None
-    input_value: str | None = None
+    input: str | None = None
     assigned_modifiers: list = field(default_factory=list)
     sub_powers: list = field(default_factory=list)
     assigned_adders: list = field(default_factory=list)
@@ -102,7 +102,7 @@ def test_naked_resistant_promotes_pd_to_rpd() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 45 PD/45 ED",
+            input="for 45 PD/45 ED",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -121,7 +121,7 @@ def test_naked_resistant_capped_at_pd_total() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Overzealous", levels=200,
-            input_value="for 100 PD",
+            input="for 100 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -137,7 +137,7 @@ def test_naked_resistant_without_resistant_modifier_does_nothing() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Just Hardened", levels=90,
-            input_value="for 45 PD/45 ED",
+            input="for 45 PD/45 ED",
             assigned_modifiers=[StubModifier(xmlid="HARDENED")],
         ),
     ]
@@ -172,7 +172,7 @@ def test_drain_on_pd_caps_rpd_real_time() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 45 PD",
+            input="for 45 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -189,7 +189,7 @@ def test_aid_on_rpd_persists_through_compute() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 30 PD",
+            input="for 30 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -216,7 +216,7 @@ def test_aid_on_pd_widens_the_rpd_cap_up_to_the_naked_modifier() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 45 PD",
+            input="for 45 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -238,7 +238,7 @@ def test_the_naked_modifier_still_bounds_an_aided_pd() -> None:
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 45 PD",
+            input="for 45 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]
@@ -267,7 +267,7 @@ def test_drain_on_pd_shrinks_rpd_even_when_an_aid_on_rpd_skips_the_cap() -> None
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Tough As Granite", levels=90,
-            input_value="for 45 PD",
+            input="for 45 PD",
             assigned_modifiers=[StubModifier(xmlid="RESISTANT")],
         ),
     ]

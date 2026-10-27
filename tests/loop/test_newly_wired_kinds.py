@@ -157,7 +157,7 @@ def test_presence_attack_produces_an_effect_not_damage():
 # ---- The count, and what it does not claim ----
 
 def test_every_kind_is_wired():
-    """65 now: `stand_up` joined them with 6E2 p.51's Half Phase to get up
+    """67 now: `change_identity` and `change_identity_instant` (6E1 p.389, p.272) joined `stand_up` (6E2 p.51)
     (64 was `escape_ego`, which joined them with 6E1 p.219's Mental Paralysis
     (63 was `mind_scan`, which joined them with 6E1 p.263's lock-on (62 was
     `stabilize`, with 6E2 p.109's Paramedics roll)).
@@ -168,7 +168,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 65
+    assert len(registered_kinds()) == 67
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -203,6 +203,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "mind_scan",               # test_mental_combat_bites
         "escape_ego",              # test_mental_paralysis_binds
         "stand_up",                # test_bodies_moving
+        "change_identity", "change_identity_instant",  # test_identity_change
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

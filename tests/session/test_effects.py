@@ -138,7 +138,10 @@ def test_apply_entangle_escape_clears_entangle_when_escaped_true():
 # Flash tests
 # ---------------------------------------------------------------------------
 
-def test_apply_flash_applied_stacks_segments_on_existing_flash():
+def test_a_second_flash_on_a_flashed_group_has_no_further_effect():
+    """6E1 p.228: "he can't suffer any further effect from other Flashes of
+    the same Sense Group ... until the first Flash wears off." This test
+    used to assert the two STACKED to 5."""
     s = _session()
     # First flash for sight: 3 segments
     s = _emit(s, FlashApplied(
@@ -155,7 +158,7 @@ def test_apply_flash_applied_stacks_segments_on_existing_flash():
         target_id="alice", sense_group="sight", segments=2,
     ))
     state = flash_state(s, "alice")
-    assert state.segments_by_sense["sight"] == 5
+    assert state.segments_by_sense["sight"] == 3
     assert state.is_flashed
 
 

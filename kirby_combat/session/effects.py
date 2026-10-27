@@ -161,9 +161,15 @@ class FlashState:
 def flash_state(session: "CombatSession", combatant_id: str) -> FlashState:
     """Walk the log accumulating FlashApplied / FlashRecovered events.
 
-    FlashApplied with the same sense_group as an existing entry STACKS
-    (per 6E2 §Flash — concurrent flashes accumulate segments). FlashRecovered
-    sets the explicit remaining count for that sense group.
+    A FlashApplied on a Sense Group already Flashed changes NOTHING. 6E1
+    p.228: "If a character's affected by a Flash, generally he can't suffer
+    any further effect from other Flashes of the same Sense Group ... until
+    the first Flash wears off." This fold used to ADD the second Flash's
+    Segments (citing "6E2 §Flash", which says no such thing) while
+    ``Flash.is_flashed`` overwrote with them: two folds, two answers, neither
+    the book's. ``Flash.apply`` no longer emits one, and this fold agrees
+    with the rule for a log that has one. FlashRecovered sets the explicit
+    remaining count for that sense group.
     """
     segments: dict[str, int] = {}
     for evt in session.event_log:
@@ -174,7 +180,8 @@ def flash_state(session: "CombatSession", combatant_id: str) -> FlashState:
         if kind == "FlashApplied":
             sg = getattr(evt, "sense_group", "")
             seg = int(getattr(evt, "segments", 0))
-            segments[sg] = segments.get(sg, 0) + seg
+            if segments.get(sg, 0) <= 0:
+                segments[sg] = seg
         elif kind == "FlashRecovered":
             sg = getattr(evt, "sense_group", "")
             segments[sg] = int(getattr(evt, "segments_remaining", 0))

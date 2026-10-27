@@ -212,7 +212,11 @@ def _hero_combatant_from_dict(data: dict) -> Any:
     # Inline minimal stub hero (avoids importing the test fixture from
     # production code).
     class _SnapshotHero:
-        def __init__(self, name: str, char_values: dict[str, int]) -> None:
+        def __init__(self, name: str, char_values: dict[str, int],
+                     in_hero_id: bool,
+                     other_char_values: dict[str, int] | None) -> None:
+            self._in_hero_id = in_hero_id
+            self._other_char_values = other_char_values
             self.name = name
             self.template_name = "snapshot"
             self.powers: list = []
@@ -227,6 +231,13 @@ def _hero_combatant_from_dict(data: dict) -> Any:
             return self._char_values.get(xmlid.upper(), 0)
 
         def temporal_characteristic(self, xmlid: str, ctx=None) -> int:
+            # A man recorded in BOTH identities (``other_identity``) answers
+            # for the one he is in now: the values above are the identity he
+            # was recorded in, and the other identity's are recorded beside
+            # them (6E1 p.388).
+            if (ctx is not None and self._other_char_values is not None
+                    and bool(ctx.in_hero_id) != self._in_hero_id):
+                return self._other_char_values.get(xmlid.upper(), 0)
             # A snapshot has no purchase list to walk (self.powers is
             # empty above), so there is nothing conditional left to
             # apply — the snapshotted value already IS the temporal
@@ -277,7 +288,13 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         "STUN": data["max_stun"], "BODY": data["max_body"],
         "END": data["max_end"],
     }
-    hero = _SnapshotHero(name=data["name"], char_values=char_values)
+    other_record = data.get("other_identity")
+    hero = _SnapshotHero(
+        name=data["name"], char_values=char_values,
+        in_hero_id=bool(data.get("in_hero_id", True)),
+        other_char_values=(None if other_record is None
+                           else dict(other_record["characteristics"])),
+    )
     state = HeroCombatState(
         current_stun=int(data["current_stun"]),
         current_body=int(data["current_body"]),
@@ -335,6 +352,28 @@ def _snapshot_from_dict(data: dict) -> Any:
             f"Levels and so could not fight. Re-record it from the "
             f"canonical character with HeroCombatant.from_build(...)."
         )
+    from kirby_combat.hero_view import IdentityRecord
+
+    # A recording made before `other_identity` existed recorded one identity,
+    # which is what None says; a current one always writes the key.
+    other = data.get("other_identity")
+    return _views_from_dict(
+        data, CombatantSnapshot,
+        in_hero_id=bool(data.get("in_hero_id", True)),
+        other_identity=None if other is None else IdentityRecord(
+            views=_views_from_dict(
+                other, CombatantSnapshot,
+                in_hero_id=bool(other["in_hero_id"]), other_identity=None),
+            characteristics={str(k): int(v)
+                             for k, v in other["characteristics"].items()},
+            instant_change=bool(other["instant_change"]),
+        ),
+    )
+
+
+def _views_from_dict(data: dict, CombatantSnapshot, *, in_hero_id: bool,
+                     other_identity) -> Any:
+    """One identity's recorded views."""
     return CombatantSnapshot(
         rpd=int(data["rpd"]),
         red=int(data["red"]),
@@ -357,6 +396,8 @@ def _snapshot_from_dict(data: dict) -> Any:
         has_self_contained_breathing=bool(
             data["has_self_contained_breathing"]),
         skill_rolls={str(k): int(v) for k, v in data["skill_rolls"].items()},
+        in_hero_id=in_hero_id,
+        other_identity=other_identity,
     )
 
 

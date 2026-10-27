@@ -170,6 +170,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
             stun=event.stun, body=event.body, end=event.end,
         )
 
+    if kind == "IdentityChanged":
+        return _fold_identity(session, new_log, now, event)
+
     if kind == "RecoveryTaken":
         assert isinstance(event, RecoveryTaken)
         # 6E2 p.130's Recovery and p.131's free Post-Segment 12 Recovery,
@@ -359,6 +362,35 @@ def _fold_barrier(session: CombatSession, new_log, now, event) -> CombatSession:
     )
     scene = replace(session.scene, walls=[*session.scene.walls, wall])
     return replace(session, event_log=new_log, scene=scene, updated_at=now)
+
+
+def _fold_identity(session: CombatSession, new_log, now, event) -> CombatSession:
+    """THE ONE WRITER of which identity a combatant is in (6E1 p.388).
+
+    `HeroCombatState.in_hero_id` is what every view reads (see
+    `kirby_combat/identity.py`); it changes here and nowhere else, so a
+    fight rebuilt from its rows is in the same identity as the fight that
+    ran. A combatant the session does not know, or one with no identity (a
+    flat stat block), RAISES --- the refusal `_fold_vitals` makes.
+    """
+    combatant = session.combatants.get(event.combatant_id)
+    if combatant is None:
+        raise ValueError(
+            f"{event.combatant_id!r} is not a combatant in session "
+            f"{session.id!r}: known combatants are {sorted(session.combatants)}"
+        )
+    state = getattr(combatant, "state", None)
+    if state is None or not hasattr(state, "in_hero_id"):
+        raise TypeError(
+            f"{event.combatant_id!r} is a {type(combatant).__name__}, which has "
+            "no identity to change"
+        )
+    new_combatants = dict(session.combatants)
+    new_combatants[event.combatant_id] = replace(
+        combatant, state=replace(state, in_hero_id=bool(event.in_hero_id)))
+    return replace(
+        session, event_log=new_log, combatants=new_combatants, updated_at=now,
+    )
 
 
 def _fold_position(

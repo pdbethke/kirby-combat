@@ -438,6 +438,23 @@ class FlashRecovered(BaseEvent):
 
 
 @dataclass
+class IdentityChanged(BaseEvent):
+    """He changed identity (6E1 p.388-389; see ``kirby_combat/identity.py``).
+
+    ``in_hero_id`` is the identity he is in AFTER the change --- absolute,
+    not a toggle, for the same reason ``FlashRecovered`` carries the
+    remaining value: a replay that missed one row would otherwise come out
+    in the wrong costume for the rest of the fight. ``zero_phase`` records
+    whether it took No Time (Instant Change, 6E1 p.272) or the Full Phase
+    p.389 requires.
+    """
+    kind: Literal["IdentityChanged"] = field(default="IdentityChanged", init=False)
+    combatant_id: str = ""
+    in_hero_id: bool = True
+    zero_phase: bool = False
+
+
+@dataclass
 class PresenceApplied(BaseEvent):
     """A Presence Attack tier landing on a target (6E2 p.139).
 
@@ -753,6 +770,7 @@ CombatEvent = (
     | EntangleEscape
     | FlashApplied
     | FlashRecovered
+    | IdentityChanged
     | PresenceApplied
     # `PresenceActionLost` was declared beside the others, emitted by
     # `pre_attacks/presence_effects.py` and folded by `apply_event` --- and

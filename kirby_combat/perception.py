@@ -477,8 +477,11 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
     inv_groups = frozenset()
     inv_no_fringe = False
     if target_invisible:
-        inv_groups = invisibility_groups(target.hero) or frozenset({SIGHT})
-        inv_no_fringe = _invisibility_has_no_fringe(target.hero)
+        # What he owns in the identity he is in (6E1 p.388).
+        from kirby_combat.identity import build_in_play
+
+        inv_groups = invisibility_groups(build_in_play(target)) or frozenset({SIGHT})
+        inv_no_fringe = _invisibility_has_no_fringe(build_in_play(target))
 
     mental_blocked = False
     for sense in observer.senses():
@@ -633,7 +636,9 @@ def is_surprised(*, observer, attacker, scene, roller=None,
     The "observer is not already expecting attacks" gate (turn/awareness state)
     is applied by the driver, which knows the combat clock — this function only
     answers the pure perception question."""
-    if _has_talent(observer.hero, "DANGER_SENSE"):
+    from kirby_combat.identity import build_in_play
+
+    if _has_talent(build_in_play(observer), "DANGER_SENSE"):
         return False
     p = perceive(observer, attacker, scene,
                  target_invisible=attacker_invisible,

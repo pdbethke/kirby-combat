@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+**Flash, Damage Reduction class, and the Hero ID flip (the lift-and-shift port, batch H).**
+- **A Flash ends.** Nothing called `Flash.recover`, so a Flashed man was blind
+  for the rest of the fight. 6E1 p.228 counts a Flash in Segments, starting in
+  the Segment it lands, so `Encounter.advance_segment` now winds
+  `Flash.tick_all` on both branches beside the Presence clock: a 3-Segment
+  Flash in Segment 12 blinds through 12, 1 and 2 and is gone in 3. The
+  module docstring's "1 segment recovers per phase" was wrong and is corrected.
+- **A second Flash on a Flashed Sense Group has no further effect** (6E1
+  p.228). `Flash.is_flashed` overwrote with the second count and
+  `effects.flash_state` added it (citing a "6E2 §Flash" that says no such
+  thing); both now keep the first until it wears off.
+- **The Flash narrows the menu.** `run_phase` now passes
+  `observer_flashed_groups` to `enumerate_actions`, so a Sight-Flashed man is
+  offered only adjacent HtH against an opponent he cannot perceive (6E2 p.9,
+  p.127).
+- **Damage Reduction and Damage Negation stop only their class.** Both read
+  `power.input_value` (the api column) where a loaded power carries `input`,
+  so every one applied to every attack: Ravel's Physical and Energy DR halved
+  Mental Blasts. DR's class is the INPUT, or Mental on HD's `LVLnnMENTAL`
+  options; an unknown class raises. Damage Negation is one `DefenseItem` per
+  PHYSICAL / ENERGY / MENTAL Adder with its own DCs (it took DCs from OPTIONID
+  digits DN does not have), Resistant unless it carries NONRESISTANT (6E1
+  p.185). NAKEDMODIFIER's "for X PD/ED" read the same wrong field. The Brief
+  says "vs Physical attacks" rather than "vs any class".
+- **Only In Alternate Identity respects the identity** (6E1 p.388). New
+  `kirby_combat/identity.py`: `build_in_play(combatant)` is the build as it
+  stands in his identity, and every reader of purchases goes through it ---
+  attacks, defenses, the power-derived defenses and reach in `combat_stats`,
+  movement, senses, maneuvers, frameworks, skills/CSLs, mentalist status,
+  the menu's power offers (Flash, Darkness, Images, Force Wall, Aid, Drain,
+  Healing, Dispel ...), Invisibility and Danger Sense in perception,
+  coordination's skills, and Dispel's targets. A civilian Ravel has no String
+  Storm, no Force Field, no DR and no Flight.
+- **Changing identity is an action.** New kinds `change_identity` (Full
+  Phase, 6E1 p.389; excluded from a Half Phase) and `change_identity_instant`
+  (Zero Phase, Instant Change, 6E1 p.272/p.281/p.307: the Phase goes on, once
+  per Phase). Offered both ways to a character with an OIHID purchase.
+  **New event kind `IdentityChanged`** (`combatant_id`, `in_hero_id` absolute,
+  `zero_phase`), folded by `apply_event` onto `state.in_hero_id`;
+  `schema/events.json` regenerated.
+- **A snapshot records both identities.** `CombatantSnapshot` gains
+  `in_hero_id` and `other_identity` (`IdentityRecord`: the other identity's
+  views, its characteristics and whether the change is instant); `to_dict`
+  writes `other_identity` (null for one identity), so a combatant rebuilt from
+  a snapshot changes costume the way the live one did. A recording made
+  before this has one identity and is not offered the change.
+- **Out-of-turn pages say so.** The Brief a chooser reads for an Abort names
+  the incoming attack (attacker, power, kind, OCV/OMCV, whether he can
+  perceive the attacker) and what the Abort costs (his next Phase, or his
+  Held Action, 6E2 p.23-24); for a Held Action it says whose Phase is starting
+  and what he is holding for (6E2 p.22).
+
 **Adjustment powers and loose ends (the lift-and-shift port, batch E).**
 - **Aid, Drain and Healing change the stat they are bought against.** Every
   Adjustment was recorded as `stat="STUN"` and divided by 5; Aid and Healing

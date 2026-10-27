@@ -379,9 +379,39 @@ class CombatantSnapshot:
     #: absent from here --- which is exactly what it answers live for a skill
     #: the character does not have.
     skill_rolls: dict[str, int]
+    #: The identity these views were recorded in (6E1 p.388). Read off the
+    #: combatant's own state at record time, never assumed.
+    in_hero_id: bool
+    #: The same views in his OTHER identity, for a character who has two ---
+    #: or ``None`` for one who has not, or a recording made before this
+    #: field existed. See ``IdentityRecord``.
+    other_identity: "IdentityRecord | None"
 
     @classmethod
     def of(cls, combatant: "HeroCombatant") -> "CombatantSnapshot":
+        """Every recorded view, in BOTH identities when he has two.
+
+        A combatant rebuilt from a snapshot changes identity through the
+        same ``IdentityChanged`` row the live one did (``apply_event``), and
+        a snapshot holding only the identity he started in could not say
+        what he owns in the other. So the other is recorded beside it.
+        """
+        from dataclasses import replace as _replace
+
+        other = None
+        if combatant.has_alternate_identity():
+            flipped = _replace(combatant, state=_replace(
+                combatant.state, in_hero_id=not combatant.state.in_hero_id))
+            other = IdentityRecord(
+                views=cls._one(flipped, other_identity=None),
+                characteristics=characteristic_values(flipped),
+                instant_change=combatant.has_instant_change(),
+            )
+        return cls._one(combatant, other_identity=other)
+
+    @classmethod
+    def _one(cls, combatant: "HeroCombatant", *,
+             other_identity: "IdentityRecord | None") -> "CombatantSnapshot":
         """Read every recorded view off a LIVE combatant.
 
         The only constructor ``to_dict`` uses, and it takes no arguments
@@ -420,7 +450,44 @@ class CombatantSnapshot:
             has_self_contained_breathing=(
                 combatant.has_self_contained_breathing()),
             skill_rolls=combatant.skill_rolls(),
+            in_hero_id=combatant.state.in_hero_id,
+            other_identity=other_identity,
         )
+
+
+@dataclass
+class IdentityRecord:
+    """What a two-identity character is in the identity he is NOT in.
+
+    ``views`` is that identity's ``CombatantSnapshot`` (its own
+    ``other_identity`` is ``None``: two identities, not a chain).
+    ``characteristics`` is its stat block before any Drain or Aid, keyed as
+    the snapshot hero reads them (``characteristic_values``), because the
+    characteristics bought Only In Alternate Identity move with it.
+    ``instant_change`` is whether the change takes No Time (``identity.py``).
+    """
+
+    views: CombatantSnapshot
+    characteristics: dict[str, int]
+    instant_change: bool
+
+
+#: The characteristics a snapshot hero answers for, keyed as kirby-cost
+#: names them, and the ``HeroCombatStats`` field each is read off.
+_SNAPSHOT_CHARACTERISTICS = {
+    "OCV": "ocv", "DCV": "dcv", "OMCV": "omcv", "DMCV": "dmcv", "SPD": "spd",
+    "DEX": "dex", "EGO": "ego", "INT": "int_", "STR": "str_", "CON": "con",
+    "PRE": "pre", "REC": "rec", "PD": "pd", "ED": "ed", "STUN": "max_stun",
+    "BODY": "max_body", "END": "max_end",
+}
+
+
+def characteristic_values(combatant: "HeroCombatant") -> dict[str, int]:
+    """His characteristics in his current identity, before Drains and Aids."""
+    stats = _compute_stats_from_hero(
+        combatant._build(),
+        ActivationContext(in_hero_id=combatant.state.in_hero_id))
+    return {k: int(getattr(stats, f)) for k, f in _SNAPSHOT_CHARACTERISTICS.items()}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -506,6 +573,70 @@ class HeroCombatant(Stunnable, CombatParticipant):
     #: combatant on every vitals change. The instance-attribute version of
     #: this lost a rebuilt combatant's defenses the first time it spent END.
     snapshot: "CombatantSnapshot | None" = None
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Identity (6E1 p.388): what he owns in the identity he is in
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _build(self):
+        """His build as it stands in his current identity.
+
+        See ``kirby_combat.identity.build_in_play``: the build itself in his
+        Hero identity, and otherwise a view that leaves out everything bought
+        Only In Alternate Identity. Every view below walks this, not
+        ``self.hero``, so one predicate decides what he owns this Phase.
+        Private so the rebuilt-combatant gate does not compare a build with a
+        snapshot's stub.
+        """
+        from kirby_combat.identity import build_in_play
+
+        return build_in_play(self)
+
+    def _in_play(self, purchase) -> bool:
+        """The same predicate, for a walk that descends into a purchase."""
+        from kirby_combat.identity import in_play
+
+        return in_play(purchase, in_hero_id=self.state.in_hero_id)
+
+    def _recorded(self) -> "CombatantSnapshot":
+        """The snapshot's views for the identity he is in NOW.
+
+        A snapshot records both identities of a character who has two
+        (``CombatantSnapshot.of``), so a combatant rebuilt from one changes
+        costume the way the live one did. One recorded in a single identity
+        cannot answer for the other, and says so rather than answering for
+        the wrong one.
+        """
+        snap = self.snapshot
+        if snap is None:
+            raise ValueError(f"{self.id!r} has no snapshot; it reads its build")
+        if snap.in_hero_id == self.state.in_hero_id:
+            return snap
+        if snap.other_identity is not None:
+            return snap.other_identity.views
+        raise ValueError(
+            f"{self.id!r} was recorded "
+            f"{'in' if snap.in_hero_id else 'out of'} his Hero identity only "
+            f"and is now {'in' if self.state.in_hero_id else 'out of'} it; "
+            "re-record him with HeroCombatant.from_build(...)"
+        )
+
+    def has_alternate_identity(self) -> bool:
+        """Does anything he owns depend on which identity he is in (6E1 p.388)?"""
+        from kirby_combat.identity import build_has_alternate_identity
+
+        if self.snapshot is not None:
+            return self.snapshot.other_identity is not None
+        return build_has_alternate_identity(self.hero)
+
+    def has_instant_change(self) -> bool:
+        """Can he change identity as a Zero Phase Action? (``identity.py`` ruling)"""
+        from kirby_combat.identity import build_has_instant_change
+
+        if self.snapshot is not None:
+            record = self.snapshot.other_identity
+            return record is not None and record.instant_change
+        return build_has_instant_change(self.hero)
 
     # ─────────────────────────────────────────────────────────────────────
     # Stat-block-shaped read API
@@ -632,6 +763,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if pid in seen_ids:
                     continue
                 seen_ids.add(pid)
+                if not self._in_play(p):
+                    continue        # one part of a Compound Power, OIAID
                 x = (getattr(p, "xmlid", None) or "").upper()
                 if x in attack_xmlids:
                     try:
@@ -644,14 +777,14 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if sub:
                     _walk(sub)
         if self.snapshot is not None:
-            return _with_adjusted_dice(self.snapshot.attacks, self.state.adjusted_dice)
+            return _with_adjusted_dice(self._recorded().attacks, self.state.adjusted_dice)
 
-        _walk(self.hero.powers)
+        _walk(self._build().powers)
         # Carried weapons. Second, so an innate power keeps its position in
         # the list -- `attack_view` returns the first match for an xmlid,
         # and a character with both heat vision and a pistol should not have
         # the pistol shadow the power they were built around.
-        _walk(getattr(self.hero, "equipment", None))
+        _walk(getattr(self._build(), "equipment", None))
         return _with_adjusted_dice(out, self.state.adjusted_dice)
 
     def unadjusted_attacks(self) -> list[AttackPower]:
@@ -673,7 +806,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         is_npc flag through HeroCombatState. Override per-callsite if
         the legacy path was reading this."""
         if self.snapshot is not None:
-            return self.snapshot.is_npc
+            return self._recorded().is_npc
         return False
 
     @property
@@ -698,6 +831,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """
         def _any_mental(powers) -> bool:
             for p in powers or ():
+                if not self._in_play(p):
+                    continue
                 if (getattr(p, "xmlid", None) or "").upper() in MENTAL_POWER_XMLIDS:
                     return True
                 if _any_mental(getattr(p, "sub_powers", None)):
@@ -705,8 +840,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
             return False
 
         if self.snapshot is not None:
-            return self.snapshot.is_mentalist
-        return _any_mental(getattr(self.hero, "powers", None))
+            return self._recorded().is_mentalist
+        return _any_mental(getattr(self._build(), "powers", None))
 
     @property
     def csls(self) -> list:
@@ -746,10 +881,10 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from kirby_combat.models import CombatSkillLevel
 
         if self.snapshot is not None:
-            return self.snapshot.csls
+            return self._recorded().csls
 
         out: list[CombatSkillLevel] = []
-        for skill in _csl_skills(self.hero):
+        for skill in _csl_skills(self._build()):
             try:
                 levels = int(getattr(skill, "levels", 0) or 0)
             except (TypeError, ValueError):
@@ -881,7 +1016,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # floor off, then once more with every adjustment in place.
         adjustments: list[Contribution] = []
         if self.state.drains:
-            undrained = _compute_stats_from_hero(self.hero, ctx)
+            undrained = _compute_stats_from_hero(self._build(), ctx)
             for stat, delta in self.state.drains.items():
                 xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
                 if xmlid is None:
@@ -899,7 +1034,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
             adjustments.append(Contribution(
                 xmlid=xmlid, delta=float(delta), source_label="Aided"))
 
-        stats = _compute_stats_from_hero(self.hero, ctx, adjustments)
+        stats = _compute_stats_from_hero(self._build(), ctx, adjustments)
 
         # What is left: Drains and Aids on the power-derived defenses, which
         # have no characteristic to be a contribution to.
@@ -936,14 +1071,15 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # post-cap ones, and applying the cap to them again would shrink a
         # rebuilt man's armour on every read.
         if self.snapshot is not None:
-            stats.rpd = self.snapshot.rpd
-            stats.red = self.snapshot.red
-            stats.md = self.snapshot.md
-            stats.power_defense = self.snapshot.power_defense
-            stats.flash_defense = self.snapshot.flash_defense
-            stats.reach_m = self.snapshot.reach_m
+            recorded = self._recorded()
+            stats.rpd = recorded.rpd
+            stats.red = recorded.red
+            stats.md = recorded.md
+            stats.power_defense = recorded.power_defense
+            stats.flash_defense = recorded.flash_defense
+            stats.reach_m = recorded.reach_m
         else:
-            stats.reach_m = _base_reach_m(self.hero)
+            stats.reach_m = _base_reach_m(self._build())
         return stats
 
     def attack_view(
@@ -978,7 +1114,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
             # xmlid is only how it was reached.
             want = (slot_xmlid or power_xmlid).upper()
             want_name = None if name is None else name.strip().lower()
-            for recorded in self.snapshot.attacks:
+            for recorded in self._recorded().attacks:
                 if (recorded.xmlid or "").upper() != want:
                     continue
                 if (want_name is not None
@@ -1007,7 +1143,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                             return found
                 return None
 
-            power = _walk_named(self.hero.powers)
+            power = _walk_named(self._build().powers)
             if power is None:
                 raise ValueError(
                     f"power xmlid={power_xmlid!r} name={name!r} not found "
@@ -1015,17 +1151,17 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 )
             return _build_attack_power(
                 power, str_for_augmentation=self.combat_stats().str_,
-                hero=self.hero,
+                hero=self._build(),
             )
 
-        power = _find_power(self.hero, power_xmlid, slot_xmlid=slot_xmlid)
+        power = _find_power(self._build(), power_xmlid, slot_xmlid=slot_xmlid)
         if power is None:
             raise ValueError(
                 f"power xmlid={power_xmlid!r} not found on {self.id!r}"
             )
         return _build_attack_power(
             power, str_for_augmentation=self.combat_stats().str_,
-            hero=self.hero,
+            hero=self._build(),
         )
 
     def str_strike_view(self) -> AttackPower:
@@ -1083,7 +1219,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from ``combat_stats().reach_m``. Only the id has to be carried.
         """
         if self.snapshot is not None:
-            return self.snapshot.str_source_id
+            return self._recorded().str_source_id
         str_obj = next(
             (c for c in (getattr(self.hero, "characteristics", None) or [])
              if (getattr(c, "xmlid", "") or "").upper() == "STR"),
@@ -1108,7 +1244,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         just the parent.
         """
         if self.snapshot is not None:
-            return self.snapshot.defenses
+            return self._recorded().defenses
 
         items: list[DefenseItem] = []
         seen: set[int] = set()
@@ -1119,13 +1255,13 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if pid in seen:
                     continue
                 seen.add(pid)
+                if not self._in_play(power):
+                    continue
                 xmlid = (getattr(power, "xmlid", None) or "").upper()
-                item = _power_to_defense_item(power, xmlid)
-                if item is not None:
-                    items.append(item)
+                items.extend(_power_to_defense_items(power, xmlid))
                 _walk(getattr(power, "sub_powers", None))
 
-        _walk(self.hero.powers)
+        _walk(self._build().powers)
         return items
 
     def movement_view(self) -> list[MovementCapability]:
@@ -1140,26 +1276,26 @@ class HeroCombatant(Stunnable, CombatParticipant):
         levels → metres. Zero-distance entries are suppressed.
         """
         if self.snapshot is not None:
-            return self.snapshot.movement
-        return _movement_capabilities(self.hero)
+            return self._recorded().movement
+        return _movement_capabilities(self._build())
 
     def senses(self) -> list["SenseCapability"]:
         """The character's Targeting Senses (spec §1a). Normal Sight always
         present; bought sense powers (IR, Radar, Mind Scan, …) added from
         hero.powers. Mirrors movement_view()."""
         if self.snapshot is not None:
-            return self.snapshot.senses
+            return self._recorded().senses
         from kirby_combat.perception import _sense_capabilities
-        return _sense_capabilities(self.hero)
+        return _sense_capabilities(self._build())
 
     def has_combat_sense(self) -> bool:
         """True if this combatant has the Combat Sense Talent (spec §1a).
         The seam Plan 2 reads to negate the HtH-blind penalty; mirrors
         ``senses()``. The HtH negation lives in Plan 2."""
         if self.snapshot is not None:
-            return self.snapshot.has_combat_sense
+            return self._recorded().has_combat_sense
         from kirby_combat.perception import has_combat_sense
-        return has_combat_sense(self.hero)
+        return has_combat_sense(self._build())
 
     def skill_roll_value(self, xmlid: str) -> int | None:
         """The 3d6 roll target for a skill the character has (e.g. STEALTH),
@@ -1192,11 +1328,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
         quietly start answering for it.
         """
         if self.snapshot is not None:
-            return dict(self.snapshot.skill_rolls)
+            return dict(self._recorded().skill_rolls)
 
         rolls: dict[str, int] = {}
         seen: set[str] = set()
-        for sk in getattr(self.hero, "skills", None) or []:
+        for sk in getattr(self._build(), "skills", None) or []:
             xmlid = (getattr(sk, "xmlid", None) or "").upper()
             if not xmlid or xmlid in seen:
                 continue
@@ -1234,11 +1370,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from kirby_combat.actions.maneuver_effects import damage_family
 
         if self.snapshot is not None:
-            return self.snapshot.maneuvers
+            return self._recorded().maneuvers
 
         out: list[MartialManeuverView] = []
-        reach = _base_reach_m(self.hero)
-        section = list(getattr(self.hero, "martial_arts", None) or [])
+        reach = _base_reach_m(self._build())
+        section = list(getattr(self._build(), "martial_arts", None) or [])
         # EXTRA DAMAGE CLASSES. 6E2 p.94: each adds one DC to every Martial
         # Maneuver. kirby-cost sums them in `Maneuver.total_dc_no_str`, which
         # reads the engine's global active hero and so cannot be asked about
@@ -1312,18 +1448,18 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from kirby_combat.models import FrameworkView, SlotView
 
         if self.snapshot is not None:
-            return self.snapshot.frameworks
+            return self._recorded().frameworks
 
         attack_by_slot: dict[str, "AttackPower"] = {
             a.slot_id: a for a in self.attacks if a.slot_id
         }
         out: list[FrameworkView] = []
-        for p in (self.hero.powers or []):
+        for p in (self._build().powers or []):
             kind = framework_kind(p)
             if kind is None:
                 continue
             slots: list[SlotView] = []
-            for child in framework_slots(self.hero, p):
+            for child in framework_slots(self._build(), p):
                 cx = (getattr(child, "xmlid", "") or "").upper()
                 # Exact same formula as _build_attack_power so attack_by_slot links.
                 raw_id = str(getattr(child, "id", "") or "")
@@ -1363,8 +1499,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # Multipower/Framework slot is missed (matches attack_view's first-pass
         # behavior; revisit if a framework-housed Life Support character appears).
         if self.snapshot is not None:
-            return self.snapshot.has_self_contained_breathing
-        for p in getattr(self.hero, "powers", []) or []:
+            return self._recorded().has_self_contained_breathing
+        for p in getattr(self._build(), "powers", []) or []:
             if (getattr(p, "xmlid", "") or "").upper() != "LIFESUPPORT":
                 continue
             blob = " ".join([
@@ -1394,7 +1530,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         rebuilt combatant a no-op in one direction.
         """
         if self.snapshot is not None:
-            return self.snapshot.swimming_m
+            return self._recorded().swimming_m
         try:
             return float(self.hero.characteristic_value("SWIMMING")) or 4.0  # 6E base swimming
         except Exception:
@@ -2005,7 +2141,11 @@ def _compute_stats_from_hero(
         elif xmlid == "NAKEDMODIFIER":
             # Defensive naked advantages: carry a RESISTANT or
             # HARDENED advantage targeting "for X PD/X ED/...".
-            input_str = getattr(p, "input_value", None)
+            # `input`, the loaded power's field (kirby-cost GenericObject).
+            # This read `input_value`, the api's COLUMN name, which no
+            # loaded power has: every naked Resistant/Hardened advantage on
+            # a real character parsed as nothing.
+            input_str = getattr(p, "input", None)
             parsed = _parse_input_for_defenses(input_str)
             if not parsed:
                 continue
@@ -2071,6 +2211,72 @@ def _compute_stats_from_hero(
     )
 
 
+#: The damage classes Damage Reduction and Damage Negation are bought
+#: against (6E1 p.185-186; Main6E.hdt's DAMAGEREDUCTION examples and
+#: DAMAGENEGATION adders): Physical, Energy, Mental.
+_DAMAGE_CLASSES = ("physical", "energy", "mental")
+
+
+def _damage_reduction_class(power, option_id: str) -> str:
+    """Which class of attack a Damage Reduction stops.
+
+    THE FIELD WAS WRONG. This read ``power.input_value`` --- the name of the
+    api's relational COLUMN --- and a loaded power carries ``input``
+    (kirby-cost ``GenericObject``). So every class came back empty, and
+    `resolution/defense.py` applies an empty class to EVERY attack: Ravel's
+    50% Physical and 50% Energy Damage Reduction also halved Mental Blasts.
+
+    HD's three ``LVLnnMENTAL`` options are Mental Damage Reduction whatever
+    the INPUT says (three corpus rows read "Energy" on a Mental option);
+    otherwise INPUT names the class. Anything else RAISES naming the power:
+    an unknown class applied to everything is the defect this replaces.
+    """
+    if "MENTAL" in option_id:
+        return "mental"
+    raw = (getattr(power, "input", None) or "").strip().lower()
+    if raw in _DAMAGE_CLASSES:
+        return raw
+    raise ValueError(
+        f"Damage Reduction {getattr(power, 'name', None) or getattr(power, 'id', '')!r} "
+        f"names no damage class: INPUT is {getattr(power, 'input', None)!r} and "
+        f"OPTIONID {option_id!r}; 6E1 p.185 buys it against Physical, Energy "
+        "or Mental attacks")
+
+
+def _power_to_defense_items(power, xmlid: str) -> list[DefenseItem]:
+    """Every DefenseItem one power contributes --- one for most, and one
+    per damage class for Damage Negation.
+
+    Damage Negation's DCs are bought per class on the PHYSICAL / ENERGY /
+    MENTAL Adders (Main6E.hdt; 5 CP per DC, 6E1 p.185), so "-2 DC Physical,
+    -1 DC Energy" is one power and two defenses. This also read
+    ``input_value`` (always empty, so every DN applied to every class) and
+    took its DCs from the OPTIONID digits, which DN does not have.
+    Nonresistant (6E1 p.185: "only functions against Normal Damage attacks
+    and AVADs") is its Limitation, not the default.
+    """
+    if xmlid != "DAMAGENEGATION":
+        item = _power_to_defense_item(power, xmlid)
+        return [] if item is None else [item]
+    name = (getattr(power, "name", None) or "").strip() or xmlid
+    resistant = not _has_assigned_modifier(power, "NONRESISTANT")
+    adders = (getattr(power, "assigned_adders", None)
+              or getattr(power, "adders", None) or [])
+    out: list[DefenseItem] = []
+    for adder in adders:
+        cls = (getattr(adder, "xmlid", "") or "").lower()
+        if cls not in _DAMAGE_CLASSES:
+            continue
+        dcs = int(getattr(adder, "levels", 0) or 0)
+        if dcs <= 0:
+            continue
+        out.append(DefenseItem(
+            name=name, damage_negation=dcs, damage_class=cls,
+            dr_resistant=resistant,
+        ))
+    return out
+
+
 def _power_to_defense_item(power, xmlid: str) -> DefenseItem | None:
     """Convert a defense-type HD power to a DefenseItem record.
 
@@ -2103,12 +2309,7 @@ def _power_to_defense_item(power, xmlid: str) -> DefenseItem | None:
         elif "LVL50" in opt: pct = 50
         elif "LVL25" in opt: pct = 25
         resistant = "RESISTANT" in opt
-        cls = (getattr(power, "input_value", "") or "").strip().lower()
-        # Normalise common aliases
-        if cls in ("phys", "physical"): cls = "physical"
-        elif cls in ("energy",): cls = "energy"
-        elif cls in ("mental",): cls = "mental"
-        else: cls = ""
+        cls = _damage_reduction_class(power, opt)
         return DefenseItem(
             name=name,
             damage_reduction_pct=pct,
@@ -2117,27 +2318,12 @@ def _power_to_defense_item(power, xmlid: str) -> DefenseItem | None:
             is_resistant=resistant,
         )
     if xmlid == "DAMAGENEGATION":
-        # 5 CP per -1 DC (6E1 p185); HD encodes the DC count in
-        # OPTIONID ("DCx" where x is the DC count) or in levels.
-        # Class via INPUT.
-        opt = (getattr(power, "option_id", "") or "").upper()
-        dcs = levels
-        if opt:
-            # Common HD shapes: "DC1", "DC2", "MINUS5DC", etc.
-            digits = re.findall(r"\d+", opt)
-            if digits:
-                dcs = max(dcs, int(digits[0]))
-        cls = (getattr(power, "input_value", "") or "").strip().lower()
-        if cls in ("phys", "physical"): cls = "physical"
-        elif cls in ("energy",): cls = "energy"
-        elif cls in ("mental",): cls = "mental"
-        else: cls = ""
-        return DefenseItem(
-            name=name,
-            damage_negation=dcs,
-            damage_class=cls,
-            dr_resistant=True,  # default per 6E1 p185 unless Nonresistant Lim
-        )
+        # One power, up to three classes: HD buys the DCs per class as the
+        # PHYSICAL / ENERGY / MENTAL Adders (Main6E.hdt), so it is not one
+        # item -- see `_power_to_defense_items`.
+        raise ValueError(
+            "Damage Negation is one DefenseItem per damage class; read it "
+            "through _power_to_defense_items")
     if xmlid == "MENTALDEFENSE":
         return DefenseItem(name=name, md=levels, hardened=hardened)
     if xmlid == "POWERDEFENSE":

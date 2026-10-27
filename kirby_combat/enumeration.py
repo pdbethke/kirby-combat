@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
 from kirby_world.cover import cover_ocv_modifier
+from kirby_combat.identity import build_in_play, identity_change_offer
 from kirby_combat.resolution.bleeding import (
     EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
     stabilize_target as _stabilize_target,
@@ -626,6 +627,7 @@ ALL_ACTION_KINDS = frozenset({
     "stabilize", "stand_up",
     "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
     "throw", "throw_object", "trading", "trip",
+    "change_identity", "change_identity_instant",
 })
 
 #: Kinds that mean "this offer hits somebody". Used to tell a fighter who
@@ -827,8 +829,8 @@ def enumerate_actions(
                     return found
             return None
 
-        return (_find(getattr(actor.hero, "powers", None))
-                or _find(getattr(actor.hero, "equipment", None)))
+        return (_find(getattr(build_in_play(actor), "powers", None))
+                or _find(getattr(build_in_play(actor), "equipment", None)))
 
     def _has_ammunition(ap: Any) -> bool:
         """Is there anything left in it? 6E1 p.334: Charges are uses.
@@ -928,7 +930,7 @@ def enumerate_actions(
                 ))
         from kirby_combat import armor_piercing_levels
         _tp = next(
-            (pw for pw in (getattr(actor.hero, "powers", None) or [])
+            (pw for pw in (getattr(build_in_play(actor), "powers", None) or [])
              if (getattr(pw, "xmlid", "") or "").upper() == "TELEPORTATION"),
             None,
         )
@@ -1053,8 +1055,8 @@ def enumerate_actions(
                     return found
             return None
 
-        src = (_find(getattr(actor.hero, "powers", None))
-               or _find(getattr(actor.hero, "equipment", None)))
+        src = (_find(getattr(build_in_play(actor), "powers", None))
+               or _find(getattr(build_in_play(actor), "equipment", None)))
         if src is None:
             return costs_end(ap)
         return bool(getattr(src, "uses_end", True))
@@ -1077,7 +1079,7 @@ def enumerate_actions(
             # unrestricted attack could be labelled with its twin's
             # limitation — worse than no label, because the AI believes it.
             target_src = _src_id(ap)
-            for src in (actor.hero.powers or []):
+            for src in (build_in_play(actor).powers or []):
                 if not target_src or str(getattr(src, "id", "")) != target_src:
                     continue
                 modifiers = list(
@@ -1542,7 +1544,7 @@ def enumerate_actions(
     # Uses has_live_own_force_wall + forcewall_power (shared helpers, above).
     if has_scene:
         if not has_live_own_force_wall(actor.id, constructs):
-            fw_power = forcewall_power(actor.hero)
+            fw_power = forcewall_power(build_in_play(actor))
             if fw_power is not None:
                 actions.append(LegalAction(
                     action_id=f"force_wall:{_src_id(fw_power)}",
@@ -1572,7 +1574,7 @@ def enumerate_actions(
     # blocks this actor's offer (source_combatant_id differs).
     if has_scene:
         if not has_live_own_darkness(actor.id, constructs):
-            dk_power = darkness_power(actor.hero)
+            dk_power = darkness_power(build_in_play(actor))
             if dk_power is not None:
                 actions.append(LegalAction(
                     action_id=f"darkness_zone:{_src_id(dk_power)}",
@@ -1595,7 +1597,7 @@ def enumerate_actions(
     # Stacking guard: suppress when the actor already has a live OWN decoy
     # (``own_decoy_live``, computed driver-side from the decoy table).
     if has_scene and not own_decoy_live:
-        img_power = images_power(actor.hero)
+        img_power = images_power(build_in_play(actor))
         if img_power is not None:
             actions.append(LegalAction(
                 action_id=f"image_decoy:{_src_id(img_power)}",
@@ -1950,7 +1952,7 @@ def enumerate_actions(
     }
     actor_skills = {
         (getattr(s, "xmlid", "") or "").upper()
-        for s in (getattr(actor.hero, "skills", []) or [])
+        for s in (getattr(build_in_play(actor), "skills", []) or [])
     }
     for sx, (kind, label) in _INTERACTION_SKILL_XMLIDS.items():
         if sx not in actor_skills:
@@ -2373,7 +2375,7 @@ def enumerate_actions(
         mind_control_powers: list = []
     else:
         mind_control_powers = [
-            p for p in (actor.hero.powers or [])
+            p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() in {"MINDCONTROL", "MIND_CONTROL"}
         ]
     from kirby_combat.mental.mind_control import ORDERS as _MC_ORDERS
@@ -2432,7 +2434,7 @@ def enumerate_actions(
         mind_scan_powers: list = []
     else:
         mind_scan_powers = [
-            p for p in (actor.hero.powers or [])
+            p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() in {"MINDSCAN", "MIND_SCAN"}
         ]
     for ms_power in mind_scan_powers:
@@ -2466,7 +2468,7 @@ def enumerate_actions(
     # it), and the dedicated resolver (_resolve_flash) rolls Flash BODY vs
     # the target's Flash Defense and persists per-Sense-Group flashed rows.
     flash_powers = [
-        p for p in (actor.hero.powers or [])
+        p for p in (build_in_play(actor).powers or [])
         if (getattr(p, "xmlid", "") or "").upper() == "FLASH"
     ]
     for fl_power in flash_powers:
@@ -2503,14 +2505,14 @@ def enumerate_actions(
         mental_entangle_powers: list = []
     else:
         mental_entangle_powers = [
-            p for p in (actor.hero.powers or [])
+            p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() == "ENTANGLE"
             and _has_versus_ego(p)
         ]
     # PR-63: physical Entangle (6E1 p102). ENTANGLE without VERSUSEGO.
     # Persisted separately on the row; escape via STR contest.
     physical_entangle_powers = [
-        p for p in (actor.hero.powers or [])
+        p for p in (build_in_play(actor).powers or [])
         if (getattr(p, "xmlid", "") or "").upper() == "ENTANGLE"
         and not _has_versus_ego(p)
     ]
@@ -2554,7 +2556,7 @@ def enumerate_actions(
         mental_illusion_powers: list = []
     else:
         mental_illusion_powers = [
-            p for p in (actor.hero.powers or [])
+            p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() in {"MENTALILLUSION", "MENTAL_ILLUSION"}
         ]
     # PR-44: Telepathy — read thoughts. Effect roll vs target EGO →
@@ -2566,7 +2568,7 @@ def enumerate_actions(
         telepathy_powers: list = []
     else:
         telepathy_powers = [
-            p for p in (actor.hero.powers or [])
+            p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() == "TELEPATHY"
         ]
     for tp_power in telepathy_powers:
@@ -3748,7 +3750,7 @@ def enumerate_actions(
         # This module already reads skills this way at :1296.
         _has_climbing = any(
             (getattr(s, "xmlid", "") or "").upper() == "CLIMBING"
-            for s in (getattr(actor.hero, "skills", []) or [])
+            for s in (getattr(build_in_play(actor), "skills", []) or [])
         )
         for wall in (scene.walls or []):
             if not is_climbable(wall):
@@ -3858,6 +3860,13 @@ def enumerate_actions(
                 ),
                 _attack_view=ap,
             ))
+
+    # CHANGING IDENTITY (6E1 p.388-389). Whatever he bought Only In Alternate
+    # Identity works only in it, so the change is an action of its own: a
+    # Full Phase, or a Zero Phase with Instant Change. See `identity.py`.
+    change = identity_change_offer(actor)
+    if change is not None:
+        actions.append(change)
 
     return _interleaved_by_kind(actions)
 

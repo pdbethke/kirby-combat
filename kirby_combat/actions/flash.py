@@ -1,10 +1,17 @@
-"""Flash attack — sense-group blinding with per-phase recovery.
+"""Flash attack — sense-group blinding, counted in Segments.
 
-per HERO 6E1:
+per HERO 6E1 p.228:
 - Flash targets a specific sense group (sight, hearing, smell/taste, mental, radio)
-- Segments flashed = max(0, body_dealt - flash_defense)
-- While flashed in any sense, target suffers -½ OCV and -½ DCV
-- 1 segment recovers per phase
+- Segments flashed = max(0, body_dealt - flash_defense): "the number of
+  Segments the target's Sense(s) is (are) disabled"
+- "Begin counting the Segments in the Segment in which the character uses
+  the Flash attack", so the count falls by one each Segment the clock
+  leaves (``Flash.tick_all``, wound by ``Encounter.advance_segment``). This
+  docstring used to say "1 segment recovers per phase", and nothing called
+  ``recover`` at all, so a Flash never ended.
+- A man already Flashed in a Sense Group "can't suffer any further effect
+  from other Flashes of the same Sense Group" until the first wears off
+- The CV penalties are 6E2 p.9's, folded by ``kirby_combat.sense_penalties``
 
 Multi-sense tracking: a combatant can be flashed in multiple groups
 simultaneously; each tracked independently via the event log.
@@ -48,6 +55,13 @@ class Flash:
         from kirby_combat.session.apply import apply_event
 
         segments = max(0, body_dealt - flash_defense)
+        # 6E1 p.228: "If a character's affected by a Flash, generally he
+        # can't suffer any further effect from other Flashes of the same
+        # Sense Group ... until the first Flash wears off." The roll is
+        # still recorded; the blinding it would have caused is not, so the
+        # first Flash's count is not reset by the second.
+        already, _ = Flash.is_flashed(session, target_id, sense_group)
+        landed = 0 if already else segments
         now = datetime.now(timezone.utc)
 
         declared = ActionDeclared(
@@ -78,10 +92,18 @@ class Flash:
                 "type": "flash_attack",
                 "target_id": target_id,
                 "sense_group": sense_group,
-                "segments": segments,
+                "segments": landed,
+                "already_flashed": already,
             },
         )
         s = apply_event(s, resolved)
+        if already:
+            return s, FlashResult(
+                target_id=target_id, sense_group=sense_group,
+                method="applied", segments_remaining=Flash.is_flashed(
+                    s, target_id, sense_group)[1][sense_group],
+                cleared=False,
+            )
 
         applied = FlashApplied(
             id=str(uuid.uuid4()),
@@ -144,6 +166,26 @@ class Flash:
             cleared=cleared,
         )
 
+    # ------------------------------------------------------------------ tick_all
+    @staticmethod
+    def tick_all(session: CombatSession) -> CombatSession:
+        """One Segment off every live Flash in this session (6E1 p.228).
+
+        What ``Encounter.advance_segment`` calls on both of its branches,
+        beside ``PresenceEffects.tick_all``: a Flash is counted in
+        Segments, and the Segment it landed in is the first one counted, so
+        leaving that Segment is the first recovery. A 3-Segment Flash used
+        in Segment 5 blinds through Segments 5, 6 and 7 and is gone in 8.
+        """
+        for combatant_id in list(session.combatants):
+            _, groups = Flash.is_flashed(session, combatant_id)
+            for sense_group in sorted(groups):
+                session, _ = Flash.recover(
+                    session, target_id=combatant_id, sense_group=sense_group,
+                    segments_to_recover=1,
+                )
+        return session
+
     # ------------------------------------------------------------------ is_flashed
     @staticmethod
     def is_flashed(
@@ -157,7 +199,9 @@ class Flash:
             if getattr(evt, "target_id", None) != combatant_id:
                 continue
             if evt.kind == "FlashApplied":
-                groups[evt.sense_group] = evt.segments
+                # 6E1 p.228: no further effect while the first one lasts.
+                if groups.get(evt.sense_group, 0) <= 0:
+                    groups[evt.sense_group] = evt.segments
             elif evt.kind == "FlashRecovered":
                 groups[evt.sense_group] = evt.segments_remaining
 
