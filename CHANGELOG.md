@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.22.1 — unreleased
+
+**Four findings from kirby-app's 0.22.0 demo recording (Drago vs GORGON), two of them defects.**
+Each one is pinned by a seam test through `run_phase`.
+
+- **BODY that gets through costs STUN** (6E2 p.105: "1 STUN for every 1 point of BODY damage
+  that gets through his defenses"). Nothing applied this floor. A killing attack against a man
+  with no resistant defense took his BODY and left his STUN alone: in the demo, GORGON (ED 35,
+  rED 0) went to -1 BODY having lost 1 STUN. `resolution.damage.stun_for_body_taken` is now
+  applied last at every door that subtracts defenses: the attack pipeline (`actions/base.py`),
+  lingering doses, impact/fall damage, and collapse. The payload's `stun_dealt` and
+  `VitalsChanged` always agreed with each other; both were below the rule.
+  `test_dr_50_normal_does_not_apply_to_killing` had asserted the defect (STUN 0 with 4 BODY
+  through) and is corrected.
+- **A repeated Presence Attack rolls a die less each time** (6E2 p.140: "-1d6 on the second
+  attack, -2d6 on the third attack, and so forth"), counted per target from the fight's log
+  (`pre_attacks.landing.repeats_against`), so a group roll is judged on each target's own dice.
+  A shout down to 0d6 is no longer offered (`without_spent_shouts`), since it can affect nobody.
+  GORGON rolled 4d6 in all eight Phases; the repeats now fall 4, 3, 2, 1 and then the offer is
+  gone. His eight "no effect" results were correct (every total was under Drago's PRE 20; 6E2
+  p.139). The one-free-Presence-Attack-a-Phase ruling already stopped a chooser from spending a
+  Phase on shouts alone; that is now pinned too.
+- **Not defects, now pinned:** GORGON's "Abort to Dodge" right after his own action was a Dodge
+  taken in his own Phase, after a No-Time Presence Attack (6E2 p.20, p.25, p.56). The engine
+  records every Dodge through the Abort door, so the row is `AbortDeclared`, but the Phase it
+  gives up is that Phase (T1 S12). So acting again at T2 S3 was right, and the +3 DCV ran until
+  then. The Abort question out of turn is still asked only of a man with an attack coming at
+  him. The demo's run of Holds is the recorder's first-offer chooser, not the engine.
+
 ## 0.22.0 — 2026-10-27
 
 **The lift-and-shift the harness refactor skipped.** kirby-api's `70ad60f`
