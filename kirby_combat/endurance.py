@@ -72,4 +72,25 @@ def end_cost(power: Any) -> int:
     # a cost, so the half rounds DOWN -- which is the book's own 15 -> 1.
     whole, remainder = divmod(active, ACTIVE_POINTS_PER_END)
     cost = whole + (1 if remainder * 2 > ACTIVE_POINTS_PER_END else 0)
-    return max(MINIMUM_END, cost)
+    return max(MINIMUM_END, cost) * end_multiplier(power)
+
+
+def end_multiplier(power: Any) -> int:
+    """Increased Endurance Cost's multiple, or 1 (6E1 p.376).
+
+    "A power with this Limitation is so strenuous to use that it costs a
+    character more than the normal 1 END per 10 Active Points." The book
+    multiplies the ROUNDED cost: Pulsar's 4d6 bought at x2 END costs 4 END
+    (6E1 p.368: "4+4+6+10 = 24 END" for 8d6 normal, 4d6 x2, 4d6 x3, 4d6
+    x5). The deleted api driver charged x2 whatever the build said.
+    """
+    spec = getattr(power, "increased_end", None)
+    if spec is None:
+        return 1
+    if spec.multiplier < 1:
+        raise ValueError(
+            f"power {getattr(power, 'name', '?')!r} carries an Increased "
+            f"Endurance Cost the engine cannot read ({spec.unbuilt}); it "
+            "should not have been offered"
+        )
+    return int(spec.multiplier)

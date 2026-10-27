@@ -73,6 +73,16 @@ def _ensure_registry() -> None:
         MartialManeuverView, SenseCapability, Side,
     ]:
         _register(cls)
+    # The shaped-attack modifiers an AttackPower carries
+    # (`kirby_combat.power_modifiers`), so a rebuilt combatant still has
+    # its Area, Damage Over Time, Side Effects and Increased END.
+    from kirby_combat.power_modifiers import (
+        AreaShape, AreaSpec, AreaTargeting, DamageOverTimeSpec, IncreasedEnd,
+        SideEffectSeverity, SideEffectsSpec,
+    )
+    for cls in (AreaSpec, DamageOverTimeSpec, SideEffectsSpec, IncreasedEnd,
+                AreaShape, AreaTargeting, SideEffectSeverity):
+        _TYPE_REGISTRY[cls.__name__] = cls  # type: ignore[assignment]
     # Enums register too so we can rehydrate enum-valued fields if needed.
     _TYPE_REGISTRY["UnitMorale"] = UnitMorale  # type: ignore[assignment]
     _TYPE_REGISTRY["TieRule"] = TieRule  # type: ignore[assignment]

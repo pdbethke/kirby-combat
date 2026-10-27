@@ -2403,6 +2403,19 @@ def _build_attack_power(
     # off a power for an Activation Roll fired it at will and kept the
     # discount.
     activation_roll = _activation_roll(power)
+    # THE MODIFIERS THAT CHANGE AN ATTACK'S SHAPE. Detected by the deleted
+    # kirby-api driver and read by nothing in the engine since it went
+    # (kirby-api 70ad60f); see `kirby_combat.power_modifiers`.
+    from kirby_combat.power_modifiers import (
+        area_spec_of, damage_over_time_of, increased_end_of, is_constant,
+        side_effects_of,
+    )
+
+    area = area_spec_of(power)
+    constant = is_constant(power)
+    damage_over_time = damage_over_time_of(power)
+    side_effects = side_effects_of(power)
+    increased_end = increased_end_of(power)
     from kirby_combat.charges import charges_on
 
     charges = charges_on(power)
@@ -2456,6 +2469,11 @@ def _build_attack_power(
         no_range_modifier=no_range_modifier,
         beam=beam,
         no_knockback=no_knockback,
+        area=area,
+        constant=constant,
+        damage_over_time=damage_over_time,
+        side_effects=side_effects,
+        increased_end=increased_end,
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,
