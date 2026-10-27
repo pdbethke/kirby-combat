@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from kirby_combat import within_reach
 from kirby_world.cover import cover_ocv_modifier
+from kirby_combat.placing import has_a_place_near_an_enemy
 from kirby_combat.identity import build_in_play, identity_change_offer
 from kirby_combat.resolution.bleeding import (
     EVERYMAN_PARAMEDICS as _EVERYMAN_PARAMEDICS,
@@ -638,6 +639,8 @@ ALL_ACTION_KINDS = frozenset({
     "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
     "throw", "throw_object", "trading", "trip",
     "change_identity", "change_identity_instant",
+    # Offered by `autofire_offers.autofire_offers` (6E2 p.44-45).
+    "autofire", "autofire_spray",
     # Offered by `standing_areas.standing_offers` (6E1 p.323), which the
     # loop runs over this menu.
     "raise_damage_shield",
@@ -650,6 +653,7 @@ _ATTACKING_KINDS = frozenset({
     "attack", "strike", "move_strike", "move_by", "move_through",
     "multiple_attack", "rapid_fire", "sweep", "haymaker", "push",
     "mental_blast", "maneuver", "throw", "throw_object",
+    "autofire", "autofire_spray",
 })
 
 
@@ -1496,9 +1500,12 @@ def enumerate_actions(
         # barely chipping hard cover (steel). Same capability test as the
         # PR-61 combatant rapid_fire enumeration: a ranged power
         # (range_m > 0); mental attacks already filtered out of `damaging`.
+        # 6E2 p.77: not an Autofire power (see the combatant offer).
+        rf_candidates = [ap for ap in ranged_damaging
+                         if getattr(ap, "autofire", None) is None]
         rf_primary = (
-            max(ranged_damaging, key=lambda ap: ap.damage_dice or 0)
-            if ranged_damaging else None
+            max(rf_candidates, key=lambda ap: ap.damage_dice or 0)
+            if rf_candidates else None
         )
         if rf_primary is not None:
             rf_pname = rf_primary.name or (rf_primary.xmlid or "").lower()
@@ -1536,7 +1543,15 @@ def enumerate_actions(
     # actor is free to raise a new one. Another caster's wall never blocks
     # this actor's offer (source_combatant_id differs).
     # Uses has_live_own_force_wall + forcewall_power (shared helpers, above).
-    if has_scene:
+    #
+    # AND ONLY WHERE IT CAN STAND. The resolver puts the wall short of the
+    # nearest enemy ON THE MAP and refuses when the map cannot say where that
+    # is; this offered on `has_scene` alone, and without the power on the
+    # offer at all, so every one it made raised (99 of 99 in a 20-fight
+    # sweep). `placing.has_a_place_near_an_enemy` is the resolver's question.
+    _placeable = has_scene and has_a_place_near_an_enemy(
+        scene, actor.id, [e.id for e in enemies if not is_down(e)])
+    if _placeable:
         if not has_live_own_force_wall(actor.id, constructs):
             fw_power = forcewall_power(build_in_play(actor))
             if fw_power is not None:
@@ -1551,6 +1566,7 @@ def enumerate_actions(
                         "enemy (blocks LoS and movement; can be attacked "
                         "down)"
                     ),
+                    _attack_view=fw_power,
                 ))
 
     # Sense-affecting §2 (Darkness): a DARKNESS-capable actor can drop a
@@ -1566,7 +1582,8 @@ def enumerate_actions(
     # Stacking guard: suppress the offer when the actor already has a live OWN
     # darkness_zone up (has_live_own_darkness). Another caster's darkness never
     # blocks this actor's offer (source_combatant_id differs).
-    if has_scene:
+    # Placed the force wall's way, so offered only where it can be placed.
+    if _placeable:
         if not has_live_own_darkness(actor.id, constructs):
             dk_power = darkness_power(build_in_play(actor))
             if dk_power is not None:
@@ -1590,7 +1607,7 @@ def enumerate_actions(
     # resolved driver-side (_resolve_create_image_decoy); needs a scene.
     # Stacking guard: suppress when the actor already has a live OWN decoy
     # (``own_decoy_live``, computed driver-side from the decoy table).
-    if has_scene and not own_decoy_live:
+    if _placeable and not own_decoy_live:
         img_power = images_power(build_in_play(actor))
         if img_power is not None:
             actions.append(LegalAction(
@@ -2140,6 +2157,12 @@ def enumerate_actions(
             for ap in attack_powers:
                 if not (ap.range_m and ap.range_m > 0):
                     continue
+                # 6E2 p.77: "A character cannot use an Autofire attack as
+                # part of a Multiple Attack sequence unless he knows the
+                # Rapid Autofire Skill" (not modelled). Its own burst is the
+                # `autofire` offer (`autofire_offers.py`).
+                if getattr(ap, "autofire", None) is not None:
+                    continue
                 xmlid_upper = (ap.xmlid or "").upper()
                 if xmlid_upper in {"MENTALBLAST", "EGO_ATTACK", "EGOATTACK"}:
                     continue
@@ -2177,6 +2200,10 @@ def enumerate_actions(
         for ap in attack_powers:
             xmlid_upper = (ap.xmlid or "").upper()
             if xmlid_upper in {"MENTALBLAST", "EGO_ATTACK", "EGOATTACK"}:
+                continue
+            # 6E2 p.77, as Rapid Fire above: no Autofire attack in a
+            # Multiple Attack sequence without Rapid Autofire.
+            if getattr(ap, "autofire", None) is not None:
                 continue
             pname = ap.name or ap.xmlid.lower()
             is_hth = not (ap.range_m and ap.range_m > 0)
@@ -3816,6 +3843,17 @@ def enumerate_actions(
                     reposition_dest=(dest.x, dest.y, dest.z),
                     climb_wall_id=str(wall.id),
                 ))
+
+    # AUTOFIRE (6E1 p.329, 6E2 p.44-45): a burst at a man, a spray along
+    # several, built from the `attack` offers that survived the perception
+    # gate just above, so a burst goes only where one shot could. See
+    # `autofire_offers.py`.
+    from kirby_combat.autofire_offers import autofire_offers
+
+    actions.extend(autofire_offers(
+        actor, actions, enemies=alive_enemies, scene=scene,
+        spent_charges=spent_charges,
+    ))
 
     # Sense-affecting §3 (Images): attack offers against Image DECOYS the actor
     # perceives and has NOT disbelieved (the driver supplies the filtered

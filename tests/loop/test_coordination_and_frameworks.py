@@ -114,7 +114,7 @@ def test_every_enumerable_kind_is_registered():
         f"registered but never offered: "
         f"{sorted(registered_kinds() - ALL_ACTION_KINDS)}"
     )
-    assert len(ALL_ACTION_KINDS) == 69     # pick_up_weapon (6E2 p.62), raise_damage_shield (6E1 p.323), 2026-10-27
+    assert len(ALL_ACTION_KINDS) == 71     # autofire, autofire_spray (6E2 p.44-45), 2026-10-27
 
 
 def test_the_declared_kinds_cover_every_literal_in_enumeration():

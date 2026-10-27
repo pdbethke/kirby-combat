@@ -60,7 +60,7 @@ REVEALING_KINDS = frozenset({
     "presence_attack", "presence_attack_group", "attack_construct",
     "mental_blast", "mind_control", "mental_illusion", "entangle",
     "mental_entangle", "telepathy", "drain", "dispel", "flash",
-    "reposition_strike",
+    "reposition_strike", "autofire", "autofire_spray",
 })
 
 

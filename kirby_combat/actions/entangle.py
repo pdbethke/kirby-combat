@@ -226,8 +226,14 @@ class Entangle:
         entangle_pd: int,
         entangle_ed: int,
         no_teleport_levels: int = 0,
+        attack_roll: "dict | None" = None,
     ) -> tuple[CombatSession, EntangleResult]:
-        """Apply an entangle to target. Emits ActionDeclared + ActionResolved + EntangleApplied."""
+        """Apply an entangle to target. Emits ActionDeclared + ActionResolved + EntangleApplied.
+
+        ``attack_roll`` is the Attack Roll that landed it (6E1 p.217), as
+        ``targeted_effects.roll_record`` writes it, merged into the row. None
+        from a caller whose roll is recorded on a row of its own (an Area's
+        use)."""
         from kirby_combat.session.apply import apply_event
 
         now = datetime.now(timezone.utc)
@@ -261,6 +267,7 @@ class Entangle:
                 "type": "entangle_attack",
                 "success": True,
                 "target_id": target_id,
+                **(attack_roll or {}),
             },
         )
         s = apply_event(s, resolved)

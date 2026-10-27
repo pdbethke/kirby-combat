@@ -51,7 +51,12 @@ class Flash:
         sense_group: str,
         body_dealt: int,
         flash_defense: int,
+        attack_roll: "dict | None" = None,
     ) -> tuple[CombatSession, FlashResult]:
+        """``attack_roll`` is the Attack Roll that landed it, as
+        ``targeted_effects.roll_record`` writes it, merged into the row so the
+        log shows what hit. None from a caller whose roll is recorded on a row
+        of its own (an Area's use, a Martial Flash's maneuver)."""
         from kirby_combat.session.apply import apply_event
 
         segments = max(0, body_dealt - flash_defense)
@@ -94,6 +99,7 @@ class Flash:
                 "sense_group": sense_group,
                 "segments": landed,
                 "already_flashed": already,
+                **(attack_roll or {}),
             },
         )
         s = apply_event(s, resolved)

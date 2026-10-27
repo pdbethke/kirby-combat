@@ -140,6 +140,24 @@ class SideEffectsSpec:
 
 
 @dataclass(frozen=True)
+class AutofireSpec:
+    """Autofire as bought (6E1 p.329): the most shots a Phase may fire.
+
+    HD's options are ``TWO`` / ``THREE`` / ``FIVE``; ``FIVE`` takes a
+    ``DOUBLE`` adder whose LEVELS doubles the five that many times (the
+    template's ``LVLPOWER="2"``; 6E1 p.329: "You can up to double this 5
+    shot maximum for each additional +1/2 Advantage"). ``ODDPOWER`` is the
+    +1 surcharge (6E1 p.329), a price and nothing the fight reads.
+    """
+
+    shots: int
+    unbuilt: tuple[str, ...]
+
+
+_AUTOFIRE_SHOTS = {"TWO": 2, "THREE": 3, "FIVE": 5}
+
+
+@dataclass(frozen=True)
 class IncreasedEnd:
     """Increased Endurance Cost (6E1 p.376): "x2 END" ... "x10 END"."""
 
@@ -219,8 +237,9 @@ def area_spec_of(power: Any) -> AreaSpec | None:
         unbuilt.append("Mobile Area Of Effect")
     if _find(power, "HOLEINTHEMIDDLE") is not None:
         unbuilt.append("Hole In The Middle")
-    if _find(power, "AUTOFIRE") is not None:
-        unbuilt.append("Autofire Area Of Effect (6E1 p.321)")
+    # AUTOFIRE ON AN AREA IS BUILT for one target point (6E1 p.321; 6E2
+    # p.45, `actions/autofire_attack.py`); `unbuilt_reasons` refuses only the
+    # combinations nothing resolves.
 
     if "ACCURATE" in adders:
         targeting = AreaTargeting.ACCURATE
@@ -327,6 +346,22 @@ def side_effects_of(power: Any) -> SideEffectsSpec | None:
     )
 
 
+def autofire_of(power: Any) -> AutofireSpec | None:
+    """The power's Autofire, or None."""
+    mod = _find(power, "AUTOFIRE")
+    if mod is None:
+        return None
+    option = _option(mod)
+    shots = _AUTOFIRE_SHOTS.get(option, 0)
+    unbuilt: list[str] = []
+    if shots <= 0:
+        unbuilt.append(f"Autofire option {option!r}")
+    doubled = _adders(mod).get("DOUBLE")
+    if doubled is not None and shots:
+        shots *= 2 ** max(0, int(_levels(doubled)))
+    return AutofireSpec(shots=shots, unbuilt=tuple(unbuilt))
+
+
 def increased_end_of(power: Any) -> IncreasedEnd | None:
     """The power's Increased Endurance Cost, or None."""
     mod = _find(power, "INCREASEDEND")
@@ -360,10 +395,20 @@ def unbuilt_reasons(power: Any) -> list[str]:
     area = getattr(power, "area", None)
     dot = getattr(power, "damage_over_time", None)
     constant = bool(getattr(power, "constant", False))
+    autofire = getattr(power, "autofire", None)
     for spec in (area, dot, getattr(power, "side_effects", None),
-                 getattr(power, "increased_end", None)):
+                 getattr(power, "increased_end", None), autofire):
         if spec is not None:
             out.extend(spec.unbuilt)
+    if autofire is not None and (constant or dot is not None):
+        # 6E2 p.44: an Autofire Constant attack "continues to affect the
+        # target with the same number of shots that hit him the first time";
+        # a maintained use here is one shot, and a lingering dose has no
+        # shot count at all.
+        out.append("Autofire on a Constant or Damage Over Time attack (6E2 p.44)")
+    if (autofire is not None and area is not None
+            and area.shape is AreaShape.SURFACE):
+        out.append("Autofire Surface")
     if (constant or dot is not None) and getattr(power, "uncontrolled", False):
         # 6E1 p.354: "the character feeds as much END as he desires into the
         # power to create a pool of END to fuel it", and it runs until "a

@@ -56,3 +56,26 @@ def constructs_in(scene, session=None) -> list[Construct]:
     the constructs as authored. See `kirby_world.construct.constructs_in`."""
     damage = None if session is None else damage_by_object(session)
     return _place_constructs(scene, damage=damage)
+
+
+def already_destroyed(scene, session, obj_id: str) -> bool:
+    """Was ``obj_id`` in this place, and has this fight knocked it down?
+
+    `constructs_in(scene, session)` drops rubble, so a resolver looking up a
+    wall that fell earlier in the same Segment finds nothing --- the same
+    nothing it finds for an id that was never there. The two are different
+    answers: one is an offer that never made sense, the other a Held Action
+    (6E2 p.22) whose wall somebody else brought down first. See
+    `loop/resolvers._fired_into_rubble`.
+
+    The ledger is the proof it was there: a construct this fight has hit
+    (`damage_by_object`) and that no longer stands. Asked of the log rather
+    than of the authored Scene, because a fallen building leaves the live
+    Scene and a Force Wall was never in the authored one.
+    """
+    if obj_id not in damage_by_object(session):
+        return False
+    if scene is None:
+        return True
+    return all(getattr(c, "obj_id", None) != obj_id
+               for c in constructs_in(scene, session=session))

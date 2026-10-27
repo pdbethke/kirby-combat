@@ -169,11 +169,13 @@ def test_autofire_multi_target_first_target_no_penalty():
 
 
 def test_autofire_multi_target_line_penalty_minus_1_per_2m():
-    """Per 6E2 p44: -1 OCV per 2m of line connecting consecutive targets."""
+    """Per 6E2 p44: "counts the line of meters 'connecting' all the targets.
+    He suffers a -1 OCV penalty for each 2m in the line" --- the WHOLE line,
+    on every roll. 4m + 6m = 10m: -5 OCV on all three (this used to charge
+    each man only the line up to him: 0, -2, -5)."""
     from kirby_combat.actions.autofire import (
         resolve_autofire_multi_target, MultiTargetSpec,
     )
-    # t1 → t2: 4m → -2 OCV. t2 → t3: 6m → cumulative 10m → -5 OCV.
     targets = [
         MultiTargetSpec(target_id="t1", target_dcv=5, distance_to_prev_m=0),
         MultiTargetSpec(target_id="t2", target_dcv=5, distance_to_prev_m=4),
@@ -182,12 +184,24 @@ def test_autofire_multi_target_line_penalty_minus_1_per_2m():
     results = resolve_autofire_multi_target(
         attacker_ocv=10, targets=targets, attacker_rolls=[10, 10, 10], autofire_shots=5,
     )
-    assert results[0].line_penalty == 0
-    assert results[0].effective_ocv == 10
-    assert results[1].line_penalty == -2
-    assert results[1].effective_ocv == 8
-    assert results[2].line_penalty == -5
-    assert results[2].effective_ocv == 5
+    assert [r.line_penalty for r in results] == [-5, -5, -5]
+    assert [r.effective_ocv for r in results] == [5, 5, 5]
+
+
+def test_autofire_multi_target_needs_a_shot_per_2m_of_line():
+    """6E2 p44: "He must fire a minimum of one shot into each 2m 'area' of
+    the line ... a character with a 5-shot Autofire weapon could affect a
+    maximum of 10m". Two men 12m apart need six shots."""
+    from kirby_combat.actions.autofire import (
+        resolve_autofire_multi_target, MultiTargetSpec, shots_for_line,
+    )
+    assert shots_for_line(2, 10.0) == 5 and shots_for_line(2, 12.0) == 6
+    assert shots_for_line(3, 1.0) == 3
+    with pytest.raises(ValueError, match="cannot fire"):
+        resolve_autofire_multi_target(
+            attacker_ocv=10, attacker_rolls=[10, 10], autofire_shots=5,
+            targets=[MultiTargetSpec("a", 5), MultiTargetSpec("b", 5, 12.0)],
+        )
 
 
 def test_autofire_multi_target_more_targets_than_shots_raises():
