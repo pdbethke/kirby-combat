@@ -108,6 +108,26 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         )
         return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
 
+    if kind == "PresenceYielded":
+        # 6E2 p.139: the impressed man "hesitates enough so that the
+        # attacker may act before him that Phase". His first unspent slot
+        # goes to just behind the attacker's first unspent slot; nobody
+        # else's place changes. A yield that no longer fits (the attacker
+        # has no later unspent slot) changes no order --- the loop only
+        # emits one that fits, and a replay must not invent a different one.
+        order = list(session.timeline.acting_order)
+        mine = next((i for i, slot in enumerate(order)
+                     if not slot.has_acted
+                     and slot.combatant_id == event.target_id), None)
+        theirs = next((i for i, slot in enumerate(order)
+                       if mine is not None and i > mine and not slot.has_acted
+                       and slot.combatant_id == event.attacker_id), None)
+        if mine is not None and theirs is not None:
+            slot = order.pop(mine)
+            order.insert(theirs, slot)   # `theirs` shifted down by the pop
+        new_timeline = replace(session.timeline, acting_order=order)
+        return replace(session, event_log=new_log, timeline=new_timeline, updated_at=now)
+
     if kind == "PhaseSpent":
         assert isinstance(event, PhaseSpent)
         # The FIRST unspent slot for this combatant, which is exactly what
@@ -238,7 +258,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
-        "BreakoutRolled",
+        "BreakoutRolled", "RageRolled", "RageTargeted",
         "EnvironmentalTriggered", "GMOverride",
         "ConstructDamaged", "ConstructSpawned",
     }:

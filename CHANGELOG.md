@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+**Presence Attacks land, take No Time, and are felt.** Ported from the
+deleted api driver and checked against the book.
+- A chosen `presence_attack` / `presence_attack_group` is now APPLIED
+  (`PresenceEffects.apply`, via the new `pre_attacks/landing.py`), so
+  `can_act`, the half/zero DCV and the rules below read it. Dice are PRE/5
+  with "In combat -1d6" (6E2 p.137-138); a Stunned target is immune
+  (6E2 p.106). The driver's invented bonus dice (outnumbering, a PRE ratio,
+  a recent takedown) are not on 6E2 p.138's table and were not ported.
+- **No Time** (6E2 p.25, p.20): a Presence Attack does not spend the Phase;
+  the next `run_phase` hands the same man the same Phase. RULING: one per
+  Phase (the book says "as often as he wishes").
+- **Impressed** (6E2 p.139): at his next Phase the target steps behind the
+  attacker if the attacker still has a Phase this Segment (`PresenceYielded`).
+  **Very impressed**: that Phase is a Half Phase Action only
+  (`pre_attacks/in_the_phase.HALF_PHASE_EXCLUDED`, each kind cited).
+- **PRE Defense corrected.** `resolve_presence_attack(target_pre_defense=)`
+  used to subtract dice 1-for-1, which is not a 6E rule; it now raises the PRE
+  the roll is judged against (6E2 p.137; 6E1 p.178 "Presence Defense" is
+  "+20 PRE, Only To Protect Against Presence Attacks"). `PresenceAttackResult`
+  gains `resisting_pre`; `effective_dice` is now every die rolled.
+
+**Enraged / Berserk roll and bite** (`kirby_combat/rage.py`, 6E1 p.424-425).
+The go roll is made every Phase the character's own circumstance holds; the
+engine reads three circumstance classes it can observe (in combat, he took
+BODY, he was attacked) and leaves every other text to the GM. Raging, he
+fights only his target (Berserk: the nearest combatant, friend or foe),
+helps nobody, and has no Dodge, Block, Hide, Disengage, cover move, defensive
+reposition or Abort. He rolls to recover when his target is down, when he is
+out of END, and free in Post-Segment 12 if he has not tried that Turn. The
+driver rolled to go on any wound whatever the sheet said, rolled to recover
+every Phase, and defaulted missing rolls to 11-; all three are corrected.
+
+**Schema change: needs a MINOR bump.** New event kinds `PresenceYielded`,
+`RageRolled`, `RageTargeted` (`schema/events.json` regenerated).
+
 **Martial maneuvers resolve.** Every `maneuver` the menu offered raised
 `UnresolvableAction` (a 500 on kirby-api's `/run`): the resolver looked the
 offer's `power_xmlid="MANEUVER"` up in the static table and refused it, and
