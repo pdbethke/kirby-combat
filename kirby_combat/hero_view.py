@@ -2398,6 +2398,9 @@ def _build_attack_power(
     # 6E1 p.147, No Knockback (-1/4). HD writes it NOKB; until this line a
     # power bought with it knocked people about like any other.
     no_knockback = _has_modifier(power, "NOKB")
+    # 6E1 p.388. Parsed beside BEAM for the same reason: the limitation
+    # reaches the menu only if the view carries it (`kirby_combat.lockout`).
+    lockout = _has_modifier(power, "LOCKOUT")
     # 6E1 p.375. The commonest Limitation in any bestiary, and this view
     # carried no field for it -- so every character who had taken points
     # off a power for an Activation Roll fired it at will and kept the
@@ -2474,6 +2477,7 @@ def _build_attack_power(
         damage_over_time=damage_over_time,
         side_effects=side_effects,
         increased_end=increased_end,
+        lockout=lockout,
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,

@@ -91,6 +91,16 @@ class AttackPower:
     #: impact itself never knocks anybody further. Defaults False, the same
     #: reading as `beam`: a power that does not declare it does Knockback.
     no_knockback: bool = False
+    #: Lockout (6E1 p.388): "A power with this Limitation prevents the
+    #: character from using some or all of his other powers when it's in
+    #: use. It's most commonly taken for a slot in a Power Framework that
+    #: prevents the character from using other slots in the Framework."
+    #: Carried on the view, like `beam`, so a rebuilt combatant (whose
+    #: snapshot keeps its attacks but has no build to read modifiers off)
+    #: still knows. What it blocks is `kirby_combat.lockout`'s business.
+    #: Defaults False so a power that does not declare the limitation does
+    #: not acquire one.
+    lockout: bool = False
     #: The cost engine's Active Points for this power. 6E1 p.132 prices END
     #: at 1 per 10 Active Points, and this is the only place that figure
     #: was available -- `SlotView` carried one and a bare AttackPower did

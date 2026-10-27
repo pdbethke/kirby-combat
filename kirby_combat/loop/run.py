@@ -52,6 +52,7 @@ from kirby_combat.loop.reactions import (
 )
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
+from kirby_combat.lockout import blocked_lockout_ids
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
@@ -570,6 +571,11 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.
         mind_scan_locks=mind_scan_locks(session, actor_id),
+        # LOCKOUT (6E1 p.388): a framework slot bought with it shuts its
+        # siblings out while it is in use. The parameter has existed since
+        # the driver's PR-96 and this caller never passed it, so the
+        # limitation cost nothing. Folded from the log; see `lockout.py`.
+        blocked_lockout_ids=blocked_lockout_ids(session, actor) or None,
         # IMAGES HE TAKES FOR MEN (6E1 p.238-239), and whether he has one of
         # his own standing. Both parameters existed and this caller passed
         # neither, so no Image ever drew a shot and a caster could conjure
