@@ -30,7 +30,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
-from kirby_combat.enumeration import LegalAction, is_down
+from kirby_combat.enumeration import LegalAction, _friendly, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 from kirby_combat.loop.chooser import (
     Chooser, IncomingAttack, OutOfTurn, OutOfTurnReason, PhaseSituation,
@@ -179,11 +179,14 @@ def reaction_menu(
         return []
     defender = session.combatants[defender_id]
     dodge = dodge_maneuver(defender)
+    # His name, as the rest of the menu and the Brief name him: a player
+    # reads these offers as his question (kirby-api), and an id is a uuid.
+    who = _friendly(attacker)
     menu = [
         LegalAction(
             action_id=Reaction.NONE.value, kind=Reaction.NONE.value,
             target_id=None, power_xmlid=None, power_name=None,
-            summary=(f"Don't Abort: take {attacker.id}'s attack on your "
+            summary=(f"Don't Abort: take {who}'s attack on your "
                      "ordinary DCV and keep your next Phase"),
         ),
         LegalAction(
@@ -200,7 +203,7 @@ def reaction_menu(
             action_id=Reaction.BLOCK.value, kind=Reaction.BLOCK.value,
             target_id=attacker.id, power_xmlid=None, power_name=None,
             summary=(f"Abort to {block.name or 'Block'}: roll OCV"
-                     f"{block.ocv:+d} against {attacker.id}'s OCV; a success "
+                     f"{block.ocv:+d} against {who}'s OCV; a success "
                      "stops the blow (6E2 p59). You give up your next Phase"),
         ))
     return menu

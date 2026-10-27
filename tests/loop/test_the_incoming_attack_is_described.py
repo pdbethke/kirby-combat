@@ -118,3 +118,28 @@ def test_a_held_action_question_carries_no_attack():
     held = [o for o in seen if o.reason is OutOfTurnReason.HELD_ACTION]
     assert held, "nobody was asked about a Held Action"
     assert all(o.attack is None and o.incoming is None for o in held)
+
+
+def test_the_abort_offers_name_the_attacker_not_his_id():
+    """The offers are read by a person when the defender is a player
+    (kirby-api shows them as the question). They named the attacker by his
+    combatant id --- a uuid in a real fight --- where the Brief beside them
+    names him. Same name the menu uses everywhere else (`_friendly`)."""
+    a = fighter("a-id", side=HEROES, dex=30)
+    a.attacks[:] = [blast("a-fist", dice=6, range_m=0)]
+    a.hero.name = "Grond"
+    d = fighter("d", side=VILLAINS, dex=10)
+    shown = []
+
+    class Watch(Recorder):
+        def choose(self, situation):
+            if situation.out_of_turn is not None:
+                shown.append(situation)
+            return super().choose(situation)
+
+    run_phase(encounter_of(a, d), Watch(), roller=RandomRoller(seed=3),
+              on_unresolvable="raise")
+    abort = next(s for s in shown if s.out_of_turn.reason is OutOfTurnReason.ABORT)
+    summaries = {o.kind: o.summary for o in abort.menu}
+    assert "Grond" in summaries["no_abort"] and "a-id" not in summaries["no_abort"]
+    assert "Grond" in summaries["block"] and "a-id" not in summaries["block"]
