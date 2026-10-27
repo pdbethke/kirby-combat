@@ -406,6 +406,14 @@ def _resolve_mind_control(
 
     if action.order is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    from kirby_combat.actions.area_effects import (
+        is_area_effect, resolve_area_mind_control,
+    )
+
+    if is_area_effect(action._attack_view):
+        # One order on everyone in the Area, OMCV against DMCV 3 (6E1 p.154).
+        return resolve_area_mind_control(session, actor, action,
+                                         template=template, roller=roller)
     target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:

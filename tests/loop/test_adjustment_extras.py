@@ -15,6 +15,9 @@ from test_adjustment_powers_bite import (                # tests/loop/
 )
 
 from kirby_combat.encounter import Encounter
+from kirby_combat.template import CombatTemplate
+
+TEMPLATE_ = CombatTemplate.default_6e_superheroic()
 
 
 def _wrap(session, turns: int = 1):
@@ -85,3 +88,83 @@ def test_healing_is_offered_on_a_man_whose_only_loss_is_a_drain():
     session = _session(_drainer("BODY"), _healer(), fighter("patient", side=HEROES))
     drained = _use(session, "leech", "drain", "patient", [HIT, [6, 6, 6]]).session
     assert _offer(drained, "doc", "heal", "patient")
+
+
+# ── An Area Drain (6E1 p.143, p.197, p.321) ──────────────────────────────────
+
+def _area_drain(*adders, input="DEX"):
+    from test_area_flash_and_entangle import _Power as _AreaPower, _area
+
+    power = _AreaPower("DRAIN", "Weakening Cloud", 3,
+                       assigned_modifiers=[_area(7, *adders)])
+    power.input = input
+    power.range, power.range_value = "Yes", 300
+    return power
+
+
+def test_an_area_drain_drains_everyone_in_it_from_one_roll():
+    """6E1 p.143: "it affects everyone in the area equally". 3d6 of 3s hits
+    the target point (DCV 3); the 3d6 Drain of 3s is 9 points, 4 DEX off b,
+    c and a's own e (the Area does not know sides); d, 12m off, keeps his."""
+    from test_area_flash_and_entangle import _fight, _offer as _area_offer
+    from shaped import Dice
+
+    from kirby_combat.attack_shapes import offer_is_buildable
+    from kirby_combat.loop.registry import resolve_chosen
+
+    cloud = _area_drain()
+    enc = _fight()
+    s = enc.sessions[0]
+    before = {c: s.combatants[c].combat_stats().dex for c in "bced"}
+    offer = _area_offer("drain", cloud)
+    assert offer_is_buildable(s, "a", offer)
+    out = resolve_chosen(s, s.combatants["a"], offer, template=TEMPLATE_,
+                         roller=Dice(face=3)).session
+    for who in "bce":
+        assert out.combatants[who].combat_stats().dex == before[who] - 4, who
+    assert out.combatants["d"].combat_stats().dex == before["d"]
+    uses = [e for e in out.event_log if e.kind == "ActionResolved"
+            and (e.result_payload or {}).get("area_use")]
+    assert len(uses) == 1
+
+
+def test_an_explosion_drain_is_not_offered():
+    from test_area_flash_and_entangle import _fight, _offer as _area_offer
+
+    from kirby_combat.attack_shapes import offer_is_buildable
+
+    s = _fight().sessions[0]
+    assert not offer_is_buildable(s, "a", _area_offer("drain", _area_drain("EXPLOSION")))
+
+
+# ── An Area Mind Control (6E1 p.154) ─────────────────────────────────────────
+
+def test_an_area_mind_control_gives_everyone_in_it_the_same_order():
+    """6E1 p.154: "Characters target Area Of Effect Mental Powers using OMCV
+    against DMCV 3", "the effect must be the same for everyone in the Area".
+    12d6 of 3s (36) against EGO + 10 for "spare" takes hold on b, c and e;
+    d is outside the 7m Radius."""
+    from test_area_flash_and_entangle import POSITIONS, _Power as _AreaPower, _area
+    from shaped import Dice, armed, encounter_on, scene_with
+
+    from kirby_combat.attack_shapes import offer_is_buildable
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.loop.registry import resolve_chosen
+
+    siren = _AreaPower("MINDCONTROL", "Siren Song", 12, assigned_modifiers=[_area(7)])
+    offer = LegalAction(action_id=f"mind_control:b:{siren.id}:spare", kind="mind_control",
+                        target_id="b", power_xmlid="MINDCONTROL", power_name=siren.name,
+                        summary="", _attack_view=siren, order="spare")
+    people = [armed("a", None, side=VILLAINS, dex=30, is_mentalist=True),
+              armed("b", None, side=HEROES), armed("c", None, side=HEROES),
+              armed("e", None, side=VILLAINS), armed("d", None, side=HEROES)]
+    s = encounter_on(scene_with(POSITIONS), *people).sessions[0]
+    assert offer_is_buildable(s, "a", offer)
+    out = resolve_chosen(s, s.combatants["a"], offer, template=TEMPLATE_,
+                         roller=Dice(face=3))
+    held = {e.result_payload["target_id"] for e in out.session.event_log
+            if e.kind == "ActionResolved" and e.result_payload.get("established")}
+    assert held == {"b", "c", "e"}
+    use = [e.result_payload for e in out.session.event_log if e.kind == "ActionResolved"
+           and e.result_payload.get("area_use")]
+    assert use[0]["target_dcv"] == 3

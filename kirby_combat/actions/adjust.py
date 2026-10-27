@@ -276,6 +276,14 @@ def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template
     if action.target_id is None:
         raise ValueError(f"{action.action_id!r}: an Adjustment names its target")
     power = action._attack_view
+    from kirby_combat.actions.area_effects import is_area_effect
+
+    if which == DRAIN and is_area_effect(power):
+        # Everyone in the Area (6E1 p.143), from one roll.
+        from kirby_combat.actions.area_effects import resolve_area_drain
+
+        return resolve_area_drain(session, actor, action, template=template,
+                                  roller=roller)
     target = session.combatants[action.target_id]
     adjusted = targets_for(action, power, target)
 
