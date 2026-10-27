@@ -41,6 +41,7 @@ from kirby_combat.rage import RageMenu, rage_menu, rage_phase_start, rage_post_s
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
 from kirby_combat.statuses import STUN_RECOVERY, stunned_or_recovering_for
+from kirby_combat.standing import breakfall_to_feet, is_prone
 from kirby_combat.mental.continuing import (
     ENTRANCED, WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
 )
@@ -524,6 +525,10 @@ def run_phase(
     continuing = phase_already_begun(session, actor_id)
     if not continuing:
         session = roll_breakouts(session, actor_id, roller)
+        # BREAKFALL TO HIS FEET, also taking no time (6E1 p.68: "gets to
+        # his feet as a Zero Phase Action"), so it comes before anything
+        # else he does with the Phase. See `standing.breakfall_to_feet`.
+        session = breakfall_to_feet(session, actor_id, roller)
     actor = session.combatants[actor_id]
 
     # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
@@ -729,6 +734,9 @@ def run_phase(
         # (6E1 p.217, p.219). See `_entangle_holds`.
         physical_entangle=physical_hold,
         mental_paralysis=paralysis_hold,
+        # ON THE GROUND. Prone had sources and no way out; the menu now
+        # offers getting up (6E2 p.51).
+        prone=is_prone(session, actor_id),
     )
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]

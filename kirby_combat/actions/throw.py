@@ -121,3 +121,52 @@ def resolve_object_throw(
     str_dice = max(0, int(thrower_str) // 5)
     cap = max(0, int(pd) + int(body))
     return (min(str_dice, cap), damage_type)
+
+
+# ---------------------------------------------------------------------------
+# Throwing a CHARACTER (6E2 p.83-85)
+# ---------------------------------------------------------------------------
+
+#: 6E2 p.83's Throwing Table, the STANDING THROW column: extra STR -> metres.
+#: Read off the page row by row. A Grab-and-Throw "is a Standing Throw,
+#: unless the Grabber begins a Phase with a Grabbed victim and the GM lets
+#: him move before making the Throw" (6E2 p.64).
+STANDING_THROW_M: tuple[tuple[int, float], ...] = (
+    (1, 1.0), (2, 1.5), (3, 2.0), (4, 3.0), (5, 4.0), (6, 5.0), (7, 5.5),
+    (8, 6.0), (9, 7.0), (10, 8.0), (11, 9.0), (12, 9.5), (13, 10.0),
+    (14, 11.0), (15, 12.0), (16, 13.0), (17, 13.5), (18, 14.0), (19, 15.0),
+    (20, 16.0), (23, 18.0), (25, 20.0), (28, 22.0), (30, 24.0), (35, 28.0),
+    (40, 32.0), (45, 36.0), (50, 40.0), (55, 44.0), (60, 48.0), (65, 52.0),
+    (70, 56.0), (75, 60.0), (80, 64.0), (85, 68.0), (90, 72.0), (100, 80.0),
+)
+
+#: The STR it takes to lift a man. 6E2 p.119 takes "'normal' being 100
+#: kilograms", and the Strength Table (6E1 p.43) lifts 100kg at STR 10.
+#: RULING: every character weighs the normal 100kg -- the engine carries no
+#: mass (Density Increase, Growth and Shrinking are not read here).
+STR_TO_LIFT_A_MAN = 10
+
+
+def standing_throw_distance_m(thrower_str: int) -> float:
+    """How far a man of ``thrower_str`` throws another man (6E2 p.83).
+
+    "Compare the character's STR to the STR necessary for the character to
+    pick up the object ... the result is the 'Extra Strength' used with the
+    accompanying Throwing Table." A row between two of the table's is read
+    at the lower one (RULING: the page lists rows, not a formula). Above
+    100 extra STR the table's own step from 45 upward, +4m per +5 STR, is
+    continued (RULING). No extra STR is no distance: he is thrown down where
+    he stands.
+    """
+    extra = int(thrower_str) - STR_TO_LIFT_A_MAN
+    if extra < 1:
+        return 0.0
+    if extra > 100:
+        return 80.0 + ((extra - 100) // 5) * 4.0
+    best = 0.0
+    for row, metres in STANDING_THROW_M:
+        if extra >= row:
+            best = metres
+        else:
+            break
+    return best

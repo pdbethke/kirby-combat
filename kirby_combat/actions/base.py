@@ -9,7 +9,7 @@ from kirby_combat.resolution.hit_location import (
 )
 from kirby_combat.resolution.damage import compute_damage
 from kirby_combat.resolution.defense import compute_defense
-from kirby_combat.resolution.knockback import compute_knockback
+from kirby_combat.resolution.knockback import compute_knockback, does_knockback
 from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.resolution.to_hit import resolve_to_hit
 from kirby_combat.template import CombatTemplate
@@ -262,6 +262,21 @@ class AttackAction:
             stun_dealt = stun_after_dr
             body_dealt = body_after_dr
 
+        # A SAVE THAT HALVES THE DAMAGE TAKEN (6E2 p.85, the Thrown
+        # character's Breakfall). After defenses and Damage Reduction,
+        # because that is what "taken" means.
+        factor = getattr(attack, "damage_taken_factor", 1.0)
+        if factor not in (1.0, 0.5):
+            raise ValueError(
+                f"damage_taken_factor must be 1.0 or 0.5 (6E2 p.85 halves), "
+                f"got {factor!r}")
+        if factor == 0.5:
+            audit_trail.append(
+                f"Damage taken halved (6E2 p85): STUN {stun_dealt}→"
+                f"{stun_dealt // 2}, BODY {body_dealt}→{body_dealt // 2}")
+            stun_dealt //= 2
+            body_dealt //= 2
+
         audit_trail.append(
             f"Damage applied: STUN dealt={stun_dealt}, BODY dealt={body_dealt}"
         )
@@ -274,13 +289,27 @@ class AttackAction:
         # 5. Knockback
         # ------------------------------------------------------------------
         knockback: KnockbackResult | None = None
-        if template.use_knockback and body_dealt > 0:
+        # 6E2 p.116: "Use the total amount of BODY ROLLED on the attack
+        # dice, regardless of the target's defenses". This used BODY DEALT
+        # -- after defenses -- so a punch that a brick's PD stopped cold
+        # never moved him, and one that got through moved him by what got
+        # through. And it ran on an EMPTY knockback pool, because nothing
+        # rolled one: BODY minus a 0 roll, every hit, twice as far as the
+        # book. The pool is now rolled at the session door
+        # (`impact.knockback_dice_for`) and an attack resolved without one
+        # does no Knockback rather than the maximum.
+        knockback_owed = bool(
+            template.use_knockback and damage.body > 0
+            and does_knockback(power)
+            # The shot that found the cover (6E2 p.45) never touched him.
+            and not blocked_by_cover)
+        if knockback_owed and attack.dice.knockback:
             # Per 6E2 p116, the attacker rolls 2d6 (+ modifier dice) to
             # subtract from BODY rolled. We pass attack.dice.knockback as the
             # caller-rolled pool (caller is responsible for adding/removing
             # dice per the modifiers table).
             knockback = compute_knockback(
-                body=body_dealt,
+                body=damage.body,
                 knockback_dice=list(attack.dice.knockback),
                 kb_resistance_m=defense.knockback_resistance,
                 knockback_multiplier=template.knockback_multiplier,
@@ -329,4 +358,5 @@ class AttackAction:
             status_changes=status_changes,
             power_xmlid=power.xmlid,
             audit_trail=audit_trail,
+            knockback_owed=knockback_owed and knockback is None,
         )

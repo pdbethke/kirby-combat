@@ -213,8 +213,11 @@ PRONE = "prone"
 #: on the ground (a martial maneuver's Target Falls / You Fall). Folded by
 #: `_is_prone` beside Trip's own `is_prone_after`.
 FELL = "fell"
-# 6E2 p.67 TRIP -- knocked off your feet. Prone targets take +2 OCV from melee
-# attackers and suffer -2 to their own OCV.
+# 6E2 p.67 TRIP -- knocked off your feet. A prone man is at 1/2 DCV against
+# anybody standing and at -2 OCV himself (6E2 p.51, p.129), applied by
+# `cv_modifiers._ground_cv_modifiers`. (This note used to say "+2 OCV from
+# melee attackers", which no page says.) Set by Trip, a martial Target Falls,
+# Knockback, a Throw and a fall (`statuses.FELL`, `kirby_combat.impact`).
 #
 # THIS USED TO BE A DOCUMENTED GAP, and the note it replaces read: "It is not
 # stored as a per-combatant status anywhere in this engine: it appears only as
@@ -227,13 +230,12 @@ FELL = "fell"
 # source (`loop/resolvers.py`), and `_is_prone` below folds it out of the log
 # the same way Stunned and Knocked Out are folded.
 #
-# WHAT IS NOT IMPLEMENTED, and is not invented here: WHEN IT CLEARS. Getting
-# up costs a Half Phase, and this engine has no stand-up action among the 51
-# kinds enumeration offers -- so nothing can signal it yet. A
-# `StatusEffectsChanged` naming this combatant with PRONE among its `removed`
-# ids clears the flag, which makes standing up a consumer's explicit act
-# rather than a duration this module guessed at. Inventing a clearing rule
-# would be worse than saying it is absent.
+# WHEN IT CLEARS: when he gets up. A `StatusEffectsChanged` naming this
+# combatant with PRONE among its `removed` ids clears the flag, and two things
+# write one (`kirby_combat.standing`): the `stand_up` action (6E2 p.51's Half
+# Phase) and a Breakfall roll at the top of his Phase (6E1 p.68's Zero Phase
+# stand-up). There is no clearing by duration -- a man knocked down stays down
+# until he gets up.
 #
 # (It used to be a `StatusChanged` -- a second event shape for the same fact,
 # with no producer anywhere in the engine. One door now; see that event's
@@ -437,9 +439,8 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
     CLEAR: a ``StatusEffectsChanged`` naming this combatant with ``PRONE``
     among its ``removed`` ids -- the one door a condition goes through.
     There is no automatic clear, deliberately -- see the module NOTE
-    beside ``PRONE``. Getting up costs a Half Phase and nothing in this
-    engine can declare that yet, so standing up is an explicit act rather
-    than a duration guessed at here.
+    beside ``PRONE``. Standing up is an explicit act
+    (`kirby_combat.standing`), not a duration guessed at here.
     """
     prone = False
     for evt in session.event_log:

@@ -133,15 +133,13 @@ def test_sweep_and_multiple_attack_share_their_arithmetic():
 # ---- Climbing ----
 
 @pytest.mark.parametrize("kind", ["climb", "climb_fast"])
-def test_climbing_reports_the_6e2_modifiers(kind):
-    """6E1 p.70 halves OCV *and* DCV; 6E2 p.48-49 halves DCV only and takes
-    -2 DC. `climbing.py` resolves that contradiction in favour of 6E2, and
-    this reads it rather than restating it."""
-    resolved = _resolve(_act(kind, action_id=f"{kind}:wall-1", target_id=None))
-    payload = resolved.session.event_log[-1].result_payload
-    assert payload["wall_id"] == "wall-1"
-    assert payload["dcv_delta"] == -1
-    assert payload["hurried"] is (kind == "climb_fast")
+def test_climbing_off_the_map_refuses(kind):
+    """A climb is a move up a wall on a Scene (6E1 p.70); with no Scene and
+    no destination there is nothing to climb, and it says so rather than
+    recording a status nothing reads. The climb itself is in
+    tests/loop/test_bodies_moving.py."""
+    with pytest.raises(UnresolvableAction, match="climb"):
+        _resolve(_act(kind, action_id=f"{kind}:wall-1", target_id=None))
 
 
 def test_climbing_without_a_wall_refuses():

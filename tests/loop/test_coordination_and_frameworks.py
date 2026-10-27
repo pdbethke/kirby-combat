@@ -114,7 +114,7 @@ def test_every_enumerable_kind_is_registered():
         f"registered but never offered: "
         f"{sorted(registered_kinds() - ALL_ACTION_KINDS)}"
     )
-    assert len(ALL_ACTION_KINDS) == 64     # escape_ego (6E1 p.219), 2026-10-26
+    assert len(ALL_ACTION_KINDS) == 65     # stand_up (6E2 p.51), 2026-10-26
 
 
 def test_the_declared_kinds_cover_every_literal_in_enumeration():

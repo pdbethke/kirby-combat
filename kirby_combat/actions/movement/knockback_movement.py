@@ -28,6 +28,13 @@ class WallCollision:
     wall_id: str
     impact_position: Position
     distance_into_wall_m: float        # KB distance "lost" to the wall (target took collision damage from full KB)
+    #: The structure's PD and BODY, which cap the impact dice (6E2 p.118:
+    #: "the most dice of Knockback damage a character can take when he hits
+    #: a structure equals the PD + BODY of the structure"). ``pd is None``
+    #: is a wall authored with no DEF -- an indestructible one -- and the
+    #: caller must decide what that caps at; it is not zero.
+    pd: int | None
+    body: int
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,28 @@ class KnockbackMovementResult:
     collision_damage_dice: int            # Phase 1's damage_dice — caller applies if there's a wall hit
 
 
+@dataclass(frozen=True)
+class ForcedMovement:
+    """Where a body pushed ``distance_m`` along ``direction_xy`` ends up.
+
+    The geometry knockback and a Throw share (6E2 p.118, p.84): the path
+    stops at the first wall that blocks it, and a body that ends over
+    nothing falls. ``travel_end`` is where the horizontal travel stopped,
+    BEFORE any fall; ``fall`` is None when he is still standing on
+    something (or is airborne and stays so).
+    """
+    start_position: Position
+    travel_end: Position
+    distance_traveled_m: float
+    wall_collision: WallCollision | None
+    fall: FallingResult | None
+    hazard_triggers: list[HazardTriggerResult]
+
+    @property
+    def final_position(self) -> Position:
+        return self.fall.landed_at if self.fall is not None else self.travel_end
+
+
 def _unit_xy(from_pos: Position, to_pos: Position) -> tuple[float, float]:
     dx = to_pos.x - from_pos.x
     dy = to_pos.y - from_pos.y
@@ -51,6 +80,106 @@ def _unit_xy(from_pos: Position, to_pos: Position) -> tuple[float, float]:
     if mag < 1e-9:
         return (1.0, 0.0)            # default east when no direction available
     return (dx / mag, dy / mag)
+
+
+def away_from(source: Position, body: Position) -> tuple[float, float]:
+    """The unit direction straight away from ``source`` (6E2 p.118: "opposite
+    the direction from which the attack came")."""
+    return _unit_xy(source, body)
+
+
+def resolve_forced_movement(
+    *,
+    combatant_id: str,
+    start: Position,
+    direction_xy: tuple[float, float],
+    distance_m: float,
+    scene: Scene,
+    gravity_scale: float,
+    airborne: bool,
+) -> ForcedMovement:
+    """Push a body ``distance_m`` along ``direction_xy`` through ``scene``.
+
+    Walls and impermeable constructs stop it at the impact point. A body
+    that ends unsupported FALLS -- unless it was ``airborne`` to begin
+    with (a flyer), who is moved through the air and stays there: 6E2
+    p.118, "If the character's so high up in the air that he hits nothing
+    ... he takes no damage at all", and a flyer is able "to right himself
+    and fly under his own power".
+    """
+    tentative_end = Position(
+        x=start.x + direction_xy[0] * distance_m,
+        y=start.y + direction_xy[1] * distance_m,
+        z=start.z,
+        facing=start.facing,
+    )
+    wall_collision: WallCollision | None = None
+    actual_end = tentative_end
+    actual_distance = distance_m
+
+    _impermeable = [
+        Wall(id=c.obj_id, name=c.obj_id, segment=c.segment, height_m=c.height_m,
+             blocks_los=c.blocks_los, blocks_movement=True, cover_level=c.cover_level,
+             body=(c.body if c.body is not None else 6),
+             def_value=c.def_value)
+        for c in (getattr(scene, "constructs", []) or [])
+        if c.permeability == "impermeable" and c.segment is not None
+    ]
+    collision_walls = list(scene.walls) + _impermeable
+
+    closest_dist = math.inf
+    if distance_m > 0:
+        for wall in collision_walls:
+            if not wall.blocks_movement:
+                continue
+            if not wall_height_blocks(start.z, wall):
+                continue
+            wa = (wall.segment[0].x, wall.segment[0].y)
+            wb = (wall.segment[1].x, wall.segment[1].y)
+            if not segments_intersect_xy(
+                (start.x, start.y), (tentative_end.x, tentative_end.y), wa, wb,
+            ):
+                continue
+            impact = segment_intersection_xy(
+                (start.x, start.y), (tentative_end.x, tentative_end.y), wa, wb,
+            )
+            if impact is None:
+                continue
+            d = math.hypot(impact[0] - start.x, impact[1] - start.y)
+            if d < closest_dist:
+                closest_dist = d
+                actual_end = Position(
+                    x=impact[0], y=impact[1], z=start.z, facing=start.facing,
+                )
+                actual_distance = d
+                wall_collision = WallCollision(
+                    wall_id=wall.id,
+                    impact_position=actual_end,
+                    distance_into_wall_m=distance_m - d,
+                    pd=wall.pd,
+                    body=int(wall.body),
+                )
+
+    hazards = compute_hazard_triggers(
+        scene=scene,
+        combatant_positions_before={combatant_id: start},
+        combatant_positions_after={combatant_id: actual_end},
+        phase="movement",
+    )
+
+    fall: FallingResult | None = None
+    if not airborne and not is_supported_at(actual_end, scene):
+        fall = resolve_fall(
+            combatant_id=combatant_id,
+            from_pos=actual_end,
+            scene=scene,
+            gravity_scale=gravity_scale,
+        )
+    return ForcedMovement(
+        start_position=start, travel_end=actual_end,
+        distance_traveled_m=actual_distance, wall_collision=wall_collision,
+        fall=fall, hazard_triggers=hazards,
+    )
 
 
 def resolve_knockback_movement(
@@ -95,81 +224,17 @@ def resolve_knockback_movement(
             collision_damage_dice=collision_damage,
         )
 
-    # 4. Tentative end (xy at target_pos.z)
-    tentative_end = Position(
-        x=target_pos.x + direction[0] * intended,
-        y=target_pos.y + direction[1] * intended,
-        z=target_pos.z,
-        facing=target_pos.facing,
+    # 4-7. Walls, hazards and the edge: the geometry a Throw shares.
+    moved = resolve_forced_movement(
+        combatant_id=combatant_id, start=target_pos, direction_xy=direction,
+        distance_m=intended, scene=scene, gravity_scale=gravity_scale,
+        airborne=False,
     )
-
-    # 5. Wall collisions — find the nearest wall that blocks the KB path
-    wall_collision: WallCollision | None = None
-    actual_end = tentative_end
-    actual_distance = intended
-
-    _impermeable = [
-        Wall(id=c.obj_id, name=c.obj_id, segment=c.segment, height_m=c.height_m,
-             blocks_los=c.blocks_los, blocks_movement=True, cover_level=c.cover_level,
-             body=(c.body if c.body is not None else 6))
-        for c in (getattr(scene, "constructs", []) or [])
-        if c.permeability == "impermeable" and c.segment is not None
-    ]
-    collision_walls = list(scene.walls) + _impermeable
-
-    closest_dist = math.inf
-    for wall in collision_walls:
-        if not wall.blocks_movement:
-            continue
-        if not wall_height_blocks(target_pos.z, wall):
-            continue
-        wa = (wall.segment[0].x, wall.segment[0].y)
-        wb = (wall.segment[1].x, wall.segment[1].y)
-        if not segments_intersect_xy(
-            (target_pos.x, target_pos.y),
-            (tentative_end.x, tentative_end.y),
-            wa, wb,
-        ):
-            continue
-        impact = segment_intersection_xy(
-            (target_pos.x, target_pos.y),
-            (tentative_end.x, tentative_end.y),
-            wa, wb,
-        )
-        if impact is None:
-            continue
-        d = math.hypot(impact[0] - target_pos.x, impact[1] - target_pos.y)
-        if d < closest_dist:
-            closest_dist = d
-            actual_end = Position(
-                x=impact[0], y=impact[1], z=target_pos.z, facing=target_pos.facing,
-            )
-            actual_distance = d
-            wall_collision = WallCollision(
-                wall_id=wall.id,
-                impact_position=actual_end,
-                distance_into_wall_m=intended - d,
-            )
-
-    # 6. Hazard triggers along the path (target_pos → actual_end)
-    hazards = compute_hazard_triggers(
-        scene=scene,
-        combatant_positions_before={combatant_id: target_pos},
-        combatant_positions_after={combatant_id: actual_end},
-        phase="movement",
-    )
-
-    # 7. Fall check — if final position lacks support, resolve_fall.
-    fall: FallingResult | None = None
-    final_pos = actual_end
-    if not is_supported_at(actual_end, scene):
-        fall = resolve_fall(
-            combatant_id=combatant_id,
-            from_pos=actual_end,
-            scene=scene,
-            gravity_scale=gravity_scale,
-        )
-        final_pos = fall.landed_at
+    wall_collision = moved.wall_collision
+    actual_distance = moved.distance_traveled_m
+    fall = moved.fall
+    final_pos = moved.final_position
+    hazards = moved.hazard_triggers
 
     return KnockbackMovementResult(
         combatant_id=combatant_id,

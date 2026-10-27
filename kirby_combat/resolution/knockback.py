@@ -9,10 +9,18 @@ Per 6E2 p116 §DETERMINING KNOCKBACK:
       NOT from BODY before the calculation.
 
 Per 6E2 p118 §Knockback Damage, the impact damage dice depend on what the
-target slams into:
+target slams into (the page's own three-line table):
     - Open ground: ¼ × meters in d6.
-    - Breakable object/wall (KB ≤ 2 × (PD + BODY)): ½ × meters in d6, target passes through.
-    - Immovable object/wall (KB > 2 × (PD + BODY)): PD + BODY dice, target stops.
+    - A structure, KB ≤ 2 × (PD + BODY): ½ × meters in d6, capped at PD + BODY,
+      and the target STOPS.
+    - A structure, KB > 2 × (PD + BODY): PD + BODY dice; the structure shatters
+      and the target continues through the hole.
+
+CORRECTED 2026-10-26. This module had the comparison inverted: it compared
+HALF the meters against the threshold and let a SMALL knockback pass through
+a wall while a large one stopped dead. The book's Mechanon example (22m into
+a 6 PD / 2 BODY wall -> 8d6 and through; into 6 PD / 6 BODY -> 11d6 and
+stops) is the regression test.
 """
 from __future__ import annotations
 
@@ -24,53 +32,68 @@ from kirby_combat.template import CombatTemplate
 
 @dataclass(frozen=True)
 class ImpactTarget:
-    """An object the target may slam into. None means open ground.
+    """A structure the target may slam into. None means open ground.
 
-    Per 6E2 p118:
-        - breakable=True + (KB ≤ 2×(PD+BODY)): the target breaks through; impact
-          damage = ½ × meters in d6.
-        - breakable=False (immovable wall): target stops at the object;
-          impact damage = PD + BODY dice.
-        - breakable=True but KB > 2×(PD+BODY): treated as immovable for damage
-          purposes (the object resists the full force).
+    6E2 p118: "Regardless of the amount of Knockback rolled, the most dice of
+    Knockback damage a character can take when he hits a structure equals the
+    PD + BODY of the structure. If he's Knocked Back for more meters than two
+    times (2x) the structure's PD + BODY, he takes PD + BODY dice of damage,
+    the structure (or part thereof) shatters, and he continues through the
+    hole (otherwise, he stops)."
+
+    ``breakable=False`` is a structure that cannot shatter (an authored
+    indestructible wall): the cap still applies, and he always stops.
     """
     pd: int           # object's resistant PD
     body: int         # object's resistant BODY
-    breakable: bool = True   # if False, target hits an immovable wall
+    breakable: bool = True   # if False, the structure never shatters
 
     @property
-    def threshold_dice(self) -> int:
-        """Dice count above which the breakable object is overwhelmed (RAW: 2*(PD+BODY))."""
+    def threshold_m(self) -> int:
+        """Meters of knockback above which the structure shatters: 2*(PD+BODY)."""
         return 2 * (self.pd + self.body)
+
+
+def does_knockback(power) -> bool:
+    """Can this power knock anybody back at all (6E2 p.116)?
+
+    "You should limit Knockback to attacks that do damage by directly
+    striking the target - for example, punches, Blasts, Killing Attacks"
+    -- so physical and energy damage against PD or ED. "Attacks that don't
+    inflict BODY damage (such as Mental Blasts and Attack Powers bought
+    with the AVAD Advantage) usually don't cause Knockback." And No
+    Knockback (6E1 p.147) "never does Knockback".
+
+    NOT BUILT: Does Knockback (+1/4, HD's DOESKB), which lets a power
+    outside this set count its Normal Damage BODY. Such a power does none.
+    """
+    if getattr(power, "no_knockback", False):
+        return False
+    if (getattr(power, "defense_type", "") or "").lower() not in ("pd", "ed"):
+        return False
+    if getattr(power, "avad", False) and not getattr(power, "avad_does_body", False):
+        return False
+    return True
 
 
 def compute_impact_damage_dice(distance_m: float, impact_target: ImpactTarget | None) -> tuple[int, bool]:
     """Compute (impact damage dice, target_passed_through) per 6E2 p118.
 
-    Args:
-        distance_m: The knockback distance (post-resistance) in meters.
-        impact_target: The surface/object the target slams into. None = open ground.
-
-    Returns:
-        (damage_dice, target_passed_through).
-        target_passed_through is True iff the target broke through a breakable
-        object; False for ground impacts and for immovable walls.
+    Distance travelled before the impact does not matter (6E2 p.118: "there's
+    no 'deceleration'"): ``distance_m`` is the whole knockback rolled.
     """
     if distance_m <= 0:
         return (0, False)
 
     if impact_target is None:
-        # Ground impact: ¼ × meters
+        # Ground impact: 1d6 per 4m.
         return (int(distance_m) // 4, False)
 
-    half_meters = int(distance_m) // 2
-    if impact_target.breakable and half_meters <= impact_target.threshold_dice:
-        # Breakable object: ½ × meters in d6, target passes through.
-        return (half_meters, True)
-
-    # Immovable object (or breakable but the KB is too small to break through):
-    # PD + BODY dice, target stops.
-    return (impact_target.pd + impact_target.body, False)
+    cap = impact_target.pd + impact_target.body
+    if impact_target.breakable and distance_m > impact_target.threshold_m:
+        return (cap, True)
+    # "1d6 Normal Damage for every full 2m of Knockback taken", capped.
+    return (min(int(distance_m) // 2, cap), False)
 
 
 def compute_knockback(
@@ -134,13 +157,22 @@ def compute_knockback(
     )
 
     if distance <= 0:
-        audit.append("Knockback fully resisted (distance ≤ 0).")
+        # 6E2 p.116: "If the result is 0, the defender is Knocked Down."
+        # RULING: only a BODY-minus-roll of exactly 0 knocks him down. A
+        # positive result that Knockback Resistance cancels leaves him
+        # standing -- the Power exists to keep a man on his feet, and the
+        # page's Knockdown sentence is about the roll, not the remainder.
+        knocked_down = body - kb_roll == 0
+        audit.append(
+            "Knocked Down (BODY - KB roll = 0, 6E2 p116)." if knocked_down
+            else "Knockback fully resisted (distance ≤ 0).")
         return KnockbackResult(
             dice=len(knockback_dice),
             distance_m=0.0,
             damage_dice=0,
             resisted=True,
             target_passed_through=False,
+            knocked_down=knocked_down,
             audit=audit,
         )
 
@@ -150,15 +182,16 @@ def compute_knockback(
         audit.append(
             f"Impact damage (open ground, ¼ × m per 6E2 p118): {int(distance)}//4 = {damage_dice}d6"
         )
-    elif impact_target.breakable and (int(distance) // 2) <= impact_target.threshold_dice:
+    elif passed_through:
         audit.append(
-            f"Impact damage (breakable object, ½ × m): {int(distance)}//2 = {damage_dice}d6; "
-            f"target passes through"
+            f"Impact damage (structure shattered: {int(distance)}m > 2x(PD+BODY)"
+            f" = {impact_target.threshold_m}m): PD+BODY = {damage_dice}d6; target "
+            f"continues through"
         )
     else:
         audit.append(
-            f"Impact damage (immovable object, PD+BODY = {impact_target.pd}+{impact_target.body}"
-            f" = {damage_dice}d6); target stops"
+            f"Impact damage (structure, ½ × m capped at PD+BODY "
+            f"{impact_target.pd}+{impact_target.body}): {damage_dice}d6; target stops"
         )
 
     return KnockbackResult(
