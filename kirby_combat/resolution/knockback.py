@@ -64,16 +64,35 @@ def does_knockback(power) -> bool:
     with the AVAD Advantage) usually don't cause Knockback." And No
     Knockback (6E1 p.147) "never does Knockback".
 
-    NOT BUILT: Does Knockback (+1/4, HD's DOESKB), which lets a power
-    outside this set count its Normal Damage BODY. Such a power does none.
+    Does Knockback (+1/4, HD's DOESKB; 6E1 p.335) "enables an Attack Power
+    that normally doesn't do Knockback to do Knockback. The attacker should
+    count the Normal Damage BODY on the effect dice (even if the attack
+    doesn't do BODY damage)" -- which is the BODY `compute_damage` counts
+    for every normal attack, AVAD included.
     """
     if getattr(power, "no_knockback", False):
         return False
+    if getattr(power, "does_knockback", False):
+        return True
     if (getattr(power, "defense_type", "") or "").lower() not in ("pd", "ed"):
         return False
     if getattr(power, "avad", False) and not getattr(power, "avad_does_body", False):
         return False
     return True
+
+
+def knockback_body(power, body_rolled: int, bonus: int) -> int:
+    """The BODY the Knockback roll is subtracted from (6E2 p.116).
+
+    The BODY rolled plus any BODY added for Knockback purposes (an Autofire
+    burst's +1 per further hit, 6E1 p.329), doubled for Double Knockback:
+    6E1 p.336, "the amount of BODY is doubled for the purposes of
+    determining Knockback before the Knockback Roll is made (If the Power
+    ... allows the character to add points of BODY for Knockback purposes,
+    add those points of BODY before applying the doubling ...)".
+    """
+    total = int(body_rolled) + int(bonus)
+    return total * 2 if getattr(power, "double_knockback", False) else total
 
 
 def compute_impact_damage_dice(distance_m: float, impact_target: ImpactTarget | None) -> tuple[int, bool]:

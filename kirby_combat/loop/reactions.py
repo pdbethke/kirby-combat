@@ -51,6 +51,10 @@ class Reaction(str, Enum):
     DODGE = "dodge"
     #: 6E2 p.59: roll to stop this hand-to-hand attack outright.
     BLOCK = "block"
+    #: 6E2 p.90: if the blow lands, roll to take half of it (and fly further).
+    #: Conditional: nothing is spent unless it lands
+    #: (`actions/reactive/roll_with_punch.py`).
+    ROLL_WITH_PUNCH = "roll_with_punch"
 
 
 #: The answer to "his Phase is starting --- do you use your Held Action?".
@@ -279,6 +283,21 @@ def reaction_menu(
                      f"{block.ocv:+d} against {who}'s OCV; a success "
                      "stops the blow (6E2 p59). You give up your next Phase"),
         ))
+    from kirby_combat.actions.reactive.roll_with_punch import (
+        OCV_PENALTY, OFFERED_AGAINST,
+    )
+
+    if _is_hth(incoming) and incoming.kind in OFFERED_AGAINST:
+        menu.append(LegalAction(
+            action_id=Reaction.ROLL_WITH_PUNCH.value,
+            kind=Reaction.ROLL_WITH_PUNCH.value,
+            target_id=attacker.id, power_xmlid=None, power_name=None,
+            summary=(f"Roll With The Punch if {who}'s blow lands: roll OCV"
+                     f"{OCV_PENALTY:+d} against his OCV; a success halves the "
+                     "STUN and BODY you take, and you are knocked back further "
+                     "(6E2 p90). Only if it lands do you give up your next "
+                     "Phase"),
+        ))
     return menu
 
 
@@ -330,6 +349,13 @@ def react_to_attack(
         chosen = Reaction(validate_choice(chooser.choose(situation), menu).kind)
         taken.append((defender_id, chosen))
         if chosen is Reaction.NONE:
+            continue
+        if chosen is Reaction.ROLL_WITH_PUNCH:
+            # Conditional: the Abort is declared at the attack door, and
+            # only if the blow lands (6E2 p.90; `actions/reactive/roll_with_punch.py`).
+            from kirby_combat.actions.reactive.roll_with_punch import declare_ready
+
+            session = declare_ready(session, defender.id, attacker.id)
             continue
         held = usable_hold(session, defender.id)
         if held is not None:

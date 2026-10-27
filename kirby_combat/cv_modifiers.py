@@ -341,11 +341,25 @@ def _ground_cv_modifiers(
     return out
 
 
+def _climbing_cv_modifiers(
+    session: "CombatSession", combatant_id: str, opponent_id: str,
+    combat_type: str,
+) -> dict[str, float]:
+    """A man on a wall (6E2 p.48-49): -1 DCV on an easy face, half DCV on a
+    difficult one. Per-opponent only because the -1 is a flat delta, which
+    only this seam carries; it is the same against everybody. See
+    `climbing_state`."""
+    from kirby_combat.climbing_state import climbing_cv_modifiers
+
+    return climbing_cv_modifiers(session, combatant_id, opponent_id, combat_type)
+
+
 _PER_OPPONENT_CV_MODIFIER_SOURCES: tuple[
     Callable[["CombatSession", str, str, str], dict[str, float]], ...
 ] = (
     _sense_penalty_cv_modifiers,
     _ground_cv_modifiers,
+    _climbing_cv_modifiers,
 )
 
 

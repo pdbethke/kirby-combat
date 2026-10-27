@@ -876,10 +876,21 @@ class Encounter:
             else self.carried_block_priority()
         )
 
+        # A THROWER ACTS FIRST in the Segment both men's next Phases share
+        # (6E2 p.84; `throw_effects`). Folded off the Throw rows for THIS
+        # Segment only, and merged into the order without being carried:
+        # the book's rule is about those two next Phases, so a priority
+        # that does not fall in this Segment lapses rather than waits.
+        from kirby_combat.throw_effects import thrower_first_in
+
+        throws: dict[str, str] = {}
+        for session in self.sessions:
+            throws.update(thrower_first_in(session, self.turn, self.segment))
+
         provisional = build_provisional_order_for_segment(all_combatants, self.segment)
         resolved = resolve_acting_order(
             provisional, intents, tie_rule=template.tie_rule, roller=roller,
-            acts_first=acts_first_used,
+            acts_first={**acts_first_used, **throws},
         )
         remaining_acts_first = consume_block_priority(
             acts_first_used, all_combatants, self.segment,
