@@ -49,8 +49,10 @@ def _shoot(damage: list[int]):
         power_xmlid=power.xmlid, power_name=power.name, summary="attack",
         _attack_view=power,
     )
-    # to-hit 3 (always hits), damage, hit location, STUN multiplier.
-    roller = FakeRoller([[1, 1, 1], damage, [3, 3, 3], [1]])
+    # to-hit 3 (always hits), damage, hit location, STUN multiplier, and the
+    # Knockback roll a blow with BODY on it makes (6E2 p.116; 12 on 2d6
+    # knocks nobody anywhere).
+    roller = FakeRoller([[1, 1, 1], damage, [3, 3, 3], [1], [6, 6]])
     resolved = resolve_chosen(
         session, session.combatants["brute"], action,
         template=TEMPLATE, roller=roller,

@@ -131,7 +131,7 @@ def test_a_drain_con_is_half_effect_and_makes_the_next_blow_stun():
                        power_xmlid=power.xmlid, power_name=power.name,
                        summary="attack", _attack_view=power, )
     hit = resolve_chosen(after, after.combatants["leech"], shot, template=TEMPLATE,
-                         roller=FakeRoller([HIT, [6, 6, 6], [3, 3, 3], [1]]))
+                         roller=FakeRoller([HIT, [6, 6, 6], [3, 3, 3], [1], [6, 6]]))
     # 18 STUN less ED 4 = 14 through: over a Drained CON of 9, not over 18.
     assert "Stunned" in hit.result.status_changes
 
