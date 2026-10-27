@@ -138,13 +138,17 @@ def test_adjustments_do_not_bleed_between_combatants():
     assert adjustment_delta(session, "bob", "STUN") == 15
 
 
-def test_two_aids_on_one_stat_fade_as_their_sum():
-    """`adjustments_for` reports one entry per stat, so the fade applies to
-    the net -- not once per application."""
+def test_two_aids_on_one_stat_fade_separately():
+    """CORRECTED (K2b). This asserted the two fade as their sum. 6E1 p.139:
+    "each one affects a character separately for purposes of determining
+    when the character recovers lost points - they don't all lump together
+    ... The character recovers 5 points per Turn from each Drain
+    separately", and "You should also apply this rule to positive Adjustment
+    Powers". +6 and +6 each lose 5: 1 + 1."""
     session = _apply(_apply(_session(), "alice", +6), "alice", +6)
     assert adjustment_delta(session, "alice", "STUN") == 12
     session = _wrap_turn(session)
-    assert adjustment_delta(session, "alice", "STUN") == 7
+    assert adjustment_delta(session, "alice", "STUN") == 2
 
 
 def test_nothing_is_emitted_for_a_combatant_with_no_adjustment():

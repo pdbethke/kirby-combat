@@ -23,7 +23,7 @@ from test_bodies_moving import (  # tests/loop/test_bodies_moving.py
     _close, _climb_offer, _climber, _ground, _held, _moves, _resolve, _scene,
     _session, _target, _where,
 )
-from test_reactions_and_concealment import Script, _duel  # tests/loop/
+from test_reactions_and_concealment import Script  # tests/loop/
 
 from kirby_combat.constructs import damage_by_object
 from kirby_combat.cv_modifiers import effective_dcv_for
