@@ -68,16 +68,45 @@ class OutOfTurnReason(str, Enum):
 
 
 @dataclass(frozen=True)
+class IncomingAttack:
+    """The attack a defender is asked to Abort against, as the rules see it.
+
+    A seat that answers the Abort from a STANDING ORDER ("Dodge when a
+    Killing attack comes at me", "Block his punches") has to test the
+    attack against the order, and the two facts it tests are rules: whether
+    the attack is hand-to-hand, which is what puts Block on the menu (6E2
+    p.59, `reactions._is_hth`), and whether it does Killing Damage (6E1
+    p.98). Handed over here so no seat above the engine re-derives either
+    from a summary string or from the offer's private handles.
+
+    ``killing`` reads the damage family of the power or maneuver the offer
+    carries. An offer that carries neither (Trip, Disarm, Push, a thrown
+    object) does no Killing Damage, so it is False, not unknown.
+    """
+
+    attacker_id: str
+    action_id: str
+    kind: str
+    power_name: str | None
+    summary: str
+    hand_to_hand: bool
+    killing: bool
+
+
+@dataclass(frozen=True)
 class OutOfTurn:
     """Why a chooser is being asked outside the actor's own Phase.
 
     ``by_id`` is the man whose Phase it is, and ``incoming`` his chosen
     offer when the question is "he is attacking you --- do you Abort?".
+    ``attack`` is that offer described as the rules see it
+    (`IncomingAttack`); None exactly when ``incoming`` is.
     """
 
     reason: OutOfTurnReason
     by_id: str
     incoming: LegalAction | None
+    attack: IncomingAttack | None
 
 
 @dataclass

@@ -33,7 +33,8 @@ from typing import TYPE_CHECKING, Callable
 from kirby_combat.enumeration import LegalAction, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 from kirby_combat.loop.chooser import (
-    Chooser, OutOfTurn, OutOfTurnReason, PhaseSituation, validate_choice,
+    Chooser, IncomingAttack, OutOfTurn, OutOfTurnReason, PhaseSituation,
+    validate_choice,
 )
 
 if TYPE_CHECKING:
@@ -76,6 +77,32 @@ def _is_hth(action: LegalAction) -> bool:
     if power is None:
         return False
     return not getattr(power, "is_ranged", (getattr(power, "range_m", 0) or 0) > 0)
+
+
+def _killing(action: LegalAction) -> bool:
+    """6E1 p.98: does this offer do Killing Damage? Read off the power or
+    the maneuver it carries; an offer with neither does none."""
+    for view in (action._attack_view, action._maneuver_view):
+        if view is not None:
+            return str(getattr(view, "damage_type", "")) == "killing"
+    return False
+
+
+def describe_incoming(attacker_id: str, incoming: LegalAction) -> IncomingAttack:
+    """The attack ``incoming`` as a defender's seat is told about it.
+
+    ``hand_to_hand`` is `_is_hth`, the same test that puts Block on the
+    menu, so a seat reading it can never disagree with the menu it is
+    shown."""
+    return IncomingAttack(
+        attacker_id=str(attacker_id),
+        action_id=incoming.action_id,
+        kind=incoming.kind,
+        power_name=incoming.power_name,
+        summary=incoming.summary,
+        hand_to_hand=_is_hth(incoming),
+        killing=_killing(incoming),
+    )
 
 
 def _used_his_phase_this_segment(session: "CombatSession", combatant_id: str) -> bool:
@@ -189,7 +216,11 @@ def _situation(session, actor, menu, *, reason, by_id, incoming) -> PhaseSituati
         allies=roster.allies_of(actor),
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
-        out_of_turn=OutOfTurn(reason=reason, by_id=by_id, incoming=incoming),
+        out_of_turn=OutOfTurn(
+            reason=reason, by_id=by_id, incoming=incoming,
+            attack=(describe_incoming(by_id, incoming)
+                    if incoming is not None else None),
+        ),
     )
 
 
@@ -374,7 +405,7 @@ def ask_holders(
             session=session, segment=base.segment, turn=base.turn,
             out_of_turn=OutOfTurn(
                 reason=OutOfTurnReason.HELD_ACTION, by_id=actor_id,
-                incoming=None,
+                incoming=None, attack=None,
             ),
         )
         chosen = validate_choice(chooser.choose(situation), menu)
