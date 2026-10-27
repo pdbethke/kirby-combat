@@ -199,3 +199,27 @@ def validate_allocation(actor, framework_id: str, slot_ids) -> int:
             continue
         drawn += min(int(slot.active_points or 0), max(0, reserve - drawn))
     return drawn
+
+
+#: The menu kind that changes a Multipower's allocation.
+REALLOCATE_KIND = "reallocate"
+
+
+def reallocated_this_phase(session: "CombatSession", combatant_id: str) -> bool:
+    """Has he already reallocated a Multipower in this Phase?
+
+    6E1 p.410: "A character can change the way his Multipower reserve
+    points are distributed or allocated as a Zero Phase Action. However,
+    unless the GM permits otherwise, he may not distribute or allocate
+    reserve points more than once in a Phase." The loop reads this to keep
+    the Phase his after a reallocation and to take the offer off the menu
+    when the same Phase comes back to him.
+    """
+    from kirby_combat.pre_attacks.in_the_phase import _in_this_phase
+
+    return any(
+        getattr(evt, "kind", None) == "ActionDeclared"
+        and getattr(evt, "combatant_id", None) == combatant_id
+        and getattr(evt, "action_type", None) == REALLOCATE_KIND
+        for evt in _in_this_phase(session, combatant_id)
+    )
