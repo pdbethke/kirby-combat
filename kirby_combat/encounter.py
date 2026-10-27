@@ -400,6 +400,18 @@ def _tick_presence(session):
 
     return PresenceEffects.tick_all(session, segments=1)
 
+
+def _tick_flash(session):
+    """One Segment off every Flash in this session (6E1 p.228).
+
+    `Flash.recover` existed and NOTHING CALLED IT, so a Flashed man stayed
+    blind for the rest of the fight. Wound here, on both branches, for the
+    reason `_tick_presence` is: a Flash is counted in Segments.
+    """
+    from kirby_combat.actions.flash import Flash
+
+    return Flash.tick_all(session)
+
 def _record_segment_advanced(
     session: "CombatSession", from_segment: int, to_segment: int, to_turn: int,
 ) -> "CombatSession":
@@ -684,7 +696,7 @@ class Encounter:
             # RecoveryTaken ordering note above requires.
             new_sessions = [
                 _record_segment_advanced(
-                    _tick_presence(
+                    _tick_flash(_tick_presence(
                         _apply_adjustment_fade(
                             # 6E2 p.109's bleeding to death goes here, on
                             # the same end-of-Segment-12 hook the free
@@ -706,7 +718,7 @@ class Encounter:
                                 template,
                             ),
                         ),
-                    ),
+                    )),
                     from_segment=self.segment, to_segment=1, to_turn=to_turn,
                 )
                 for session in self.sessions
@@ -716,7 +728,7 @@ class Encounter:
             )
         new_sessions = [
             _record_segment_advanced(
-                _tick_presence(session),
+                _tick_flash(_tick_presence(session)),
                 from_segment=self.segment, to_segment=self.segment + 1,
                 to_turn=self.turn,
             )

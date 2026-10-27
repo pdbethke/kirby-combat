@@ -322,10 +322,14 @@ def reductions(combatant) -> list[str]:
     roll reads (6E1 p.185, p.186)."""
     out: list[str] = []
     for d in combatant.defense_view() if hasattr(combatant, "defense_view") else []:
-        # An empty class is what `resolution/defense.py` applies to EVERY
-        # class, so the page says so rather than guessing which one the
-        # sheet meant.
-        cls = getattr(d, "damage_class", "") or "any class"
+        # THE CLASS THE BUILD NAMES (Physical / Energy / Mental, 6E1
+        # p.185). Every one read "any class" until `hero_view` read the
+        # power's `input` rather than the api column `input_value`. Only a
+        # hand-built DefenseItem (a synthetic stat block) still carries no
+        # class, and `resolution/defense.py` applies that one to every
+        # attack, which is what the page says.
+        cls = (f"{d.damage_class.capitalize()} attacks"
+               if getattr(d, "damage_class", "") else "every damage class")
         if getattr(d, "damage_reduction_pct", 0):
             resistant = "resistant" if getattr(d, "dr_resistant", True) else "normal"
             line = f"Damage Reduction {d.damage_reduction_pct}% vs {cls} ({resistant})"
@@ -897,3 +901,83 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
         out.append("Rebuilding a pool is on the menu (reconfigure_vpp).")
     return out
 
+
+
+def out_of_turn_lines(situation: "PhaseSituation") -> list[str]:
+    """Why he is being asked when it is NOT his Phase, and what it costs.
+
+    `loop/reactions.py` asks a chooser two questions outside his own Phase
+    --- Abort to a defence against an attack coming at him (6E2 p.23-24), or
+    use his Held Action before somebody else's Phase (6E2 p.22) --- and hands
+    over a `PhaseSituation` whose `out_of_turn` says which. The page said
+    neither, so a reader saw "Turn 1, Segment 3" and a menu of Dodge and
+    Block with nothing to say an attack was coming, from whom, or that the
+    answer costs his next Phase. Facts, not advice: whether to Abort is the
+    reader's call.
+    """
+    from kirby_combat.loop.chooser import OutOfTurnReason
+
+    why = getattr(situation, "out_of_turn", None)
+    if why is None:
+        return []
+    session = situation.session
+    by = session.combatants.get(why.by_id) if session is not None else None
+    by_name = (getattr(by, "name", None) or why.by_id) if by is not None else why.by_id
+    if why.reason is OutOfTurnReason.ABORT:
+        return _abort_lines(situation, why, by, by_name)
+    if why.reason is OutOfTurnReason.HELD_ACTION:
+        return _held_lines(situation, by_name)
+    raise ValueError(f"no page for an out-of-turn question of kind {why.reason!r}")
+
+
+def _abort_lines(situation, why, attacker, attacker_name: str) -> list[str]:
+    from kirby_combat.enumeration import _MENTAL_ACTION_KINDS
+    from kirby_combat.loop.reactions import _is_hth, usable_hold
+    from kirby_combat.sense_penalties import cannot_perceive
+
+    incoming = why.incoming
+    out = [
+        "OUT OF TURN: this is not your Phase. An attack is coming at you and "
+        "you may Abort to a defensive Action before it is rolled (6E2 p.23-24).",
+    ]
+    if incoming is not None:
+        power = incoming._attack_view
+        what = (incoming.power_name or getattr(power, "name", None)
+                or incoming.kind.replace("_", " "))
+        mental = incoming.kind in _MENTAL_ACTION_KINDS
+        reach = "mental" if mental else ("hand-to-hand" if _is_hth(incoming) else "ranged")
+        cv_name = "OMCV" if mental else "OCV"
+        stats = attacker.combat_stats() if attacker is not None else None
+        cv = (getattr(stats, "omcv" if mental else "ocv", None)
+              if stats is not None else None)
+        cv_text = f", {cv_name} {cv}" if cv is not None else ""
+        out.append(f"Incoming: {attacker_name}, {what} ({incoming.kind}, "
+                   f"{reach}{cv_text}).")
+        if attacker is not None and situation.session is not None:
+            blind = cannot_perceive(situation.session, situation.actor, attacker)
+            out.append(f"You {'cannot' if blind else 'can'} perceive "
+                       f"{attacker_name} with a Targeting Sense.")
+    if (situation.session is not None
+            and usable_hold(situation.session, situation.actor.id) is not None):
+        out.append("An Abort spends your Held Action instead of your next "
+                   "Phase (6E2 p.24).")
+    else:
+        out.append("An Abort costs your next Phase (6E2 p.23-24).")
+    return out
+
+
+def _held_lines(situation, by_name: str) -> list[str]:
+    from kirby_combat.loop.reactions import usable_hold
+
+    out = [
+        f"OUT OF TURN: this is not your Phase. {by_name}'s Phase is about to "
+        "start and you are Holding an Action, which you may use now or keep "
+        "holding (6E2 p.22).",
+    ]
+    held = (usable_hold(situation.session, situation.actor.id)
+            if situation.session is not None else None)
+    if held is not None:
+        for_what = (held.for_action or held.trigger_condition or "").strip()
+        if for_what:
+            out.append(f"You are holding for: {for_what}")
+    return out

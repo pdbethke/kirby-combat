@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from kirby_combat.identity import build_in_play
 from kirby_combat.models import DiceValues
 from kirby_combat.actions.recording import (
     resolve_attack_in_session, resolve_mental_blast_in_session,
@@ -656,7 +657,7 @@ def _resolve_image_decoy(
     from kirby_combat.enumeration import images_power
     from kirby_combat.perception import images_groups
 
-    power = images_power(actor.hero)
+    power = images_power(build_in_play(actor))
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
@@ -752,6 +753,27 @@ def _resolve_dodge(
     from kirby_combat.actions.reactive.dodge import Dodge
 
     new_session, _event = Dodge.declare(session, actor.id)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
+@resolves("change_identity", "change_identity_instant")
+def _resolve_change_identity(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Change identity (6E1 p.388-389): a Full Phase, or a Zero Phase with
+    Instant Change (6E1 p.272). The `IdentityChanged` row is the whole
+    effect: `apply_event` flips the combatant, and every view reads what
+    he owns in the identity he is in (`kirby_combat/identity.py`)."""
+    from kirby_combat.identity import CHANGE_IDENTITY_INSTANT, change_identity
+
+    new_session = change_identity(
+        session, actor.id,
+        zero_phase=action.kind == CHANGE_IDENTITY_INSTANT,
+    )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=None, events=_events_since(session, new_session),
@@ -1705,7 +1727,7 @@ def _resolve_darkness_zone(
     from kirby_combat.enumeration import darkness_power
     from kirby_combat.perception import darkness_groups, darkness_personal_immunity
 
-    power = action._attack_view or darkness_power(actor.hero)
+    power = action._attack_view or darkness_power(build_in_play(actor))
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 

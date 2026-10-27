@@ -2002,6 +2002,64 @@
       "title": "HeldActionReleased",
       "type": "object"
     },
+    "IdentityChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "IdentityChanged",
+          "enum": [
+            "IdentityChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "in_hero_id": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "IdentityChanged",
+          "enum": [
+            "IdentityChanged"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "zero_phase": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "in_hero_id",
+        "zero_phase"
+      ],
+      "title": "IdentityChanged",
+      "type": "object"
+    },
     "LingeringAttackApplied": {
       "additionalProperties": false,
       "properties": {
@@ -3623,6 +3681,9 @@
     },
     {
       "$ref": "#/$defs/HeldActionReleased"
+    },
+    {
+      "$ref": "#/$defs/IdentityChanged"
     },
     {
       "$ref": "#/$defs/LingeringAttackApplied"

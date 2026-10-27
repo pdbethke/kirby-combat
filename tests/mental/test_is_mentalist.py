@@ -24,7 +24,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from kirby_combat.hero_view import MENTAL_POWER_XMLIDS, HeroCombatant
+from kirby_combat.hero_view import MENTAL_POWER_XMLIDS, HeroCombatant, HeroCombatState
 
 
 def _hero(*xmlids, nested=()):
@@ -41,6 +41,9 @@ def _hero(*xmlids, nested=()):
 def _combatant(hero):
     c = HeroCombatant.__new__(HeroCombatant)
     object.__setattr__(c, "hero", hero)
+    # In his Hero identity: which purchases he owns depends on it (6E1 p.388).
+    object.__setattr__(c, "state", HeroCombatState(
+        current_stun=0, current_body=0, current_end=0))
     return c
 
 

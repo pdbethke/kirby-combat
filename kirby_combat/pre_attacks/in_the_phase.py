@@ -82,6 +82,8 @@ HALF_PHASE_EXCLUDED: dict[str, str] = {
     "climb": "climbing is rated per Phase (6E1 p.70); ruled a Full Phase",
     "climb_fast": "climbing is rated per Phase (6E1 p.70); ruled a Full "
                   "Phase",
+    "change_identity": "an Only In Alternate Identity change takes at least "
+                       "a Full Phase (6E1 p.389)",
 }
 
 
@@ -136,6 +138,12 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
     owed twice.
     """
     if presence_attack_made_this_phase(session, combatant_id):
+        return True
+    # A Zero Phase change of identity (Instant Change, 6E1 p.272) leaves
+    # the Phase his in the same way; see `kirby_combat/identity.py`.
+    if any(getattr(evt, "kind", None) == "IdentityChanged"
+           and getattr(evt, "combatant_id", None) == combatant_id
+           for evt in _since_his_last_phase(session, combatant_id)):
         return True
     return any(
         getattr(evt, "kind", None) == "PresenceYielded"

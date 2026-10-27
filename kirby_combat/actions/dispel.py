@@ -135,9 +135,14 @@ def dispellable_on(dispel, target) -> list:
     wanted = _key(getattr(dispel, "input", None) or "")
     if not wanted or wanted in _CHARACTERISTICS:
         return []
+    from kirby_combat.identity import in_play
+
+    # A power he bought Only In Alternate Identity is not running while he
+    # is out of it (6E1 p.388), so there is nothing there to Dispel.
     return [
         p for p in (original_hero(target.hero).powers or [])
         if _key(getattr(p, "xmlid", "")) == wanted and getattr(p, "id", None)
+        and in_play(p, in_hero_id=target.state.in_hero_id)
     ]
 
 

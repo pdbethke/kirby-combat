@@ -38,6 +38,34 @@ _NOT_ON_THE_WIRE: dict[str, frozenset[str]] = {
 }
 
 
+def _identity_record(record) -> dict[str, Any]:
+    """An ``IdentityRecord`` on the wire: the same view keys as the
+    combatant's own, plus that identity's characteristics."""
+    v = record.views
+    return {
+        "characteristics": dict(record.characteristics),
+        "instant_change": record.instant_change,
+        "in_hero_id": v.in_hero_id,
+        "rpd": v.rpd, "red": v.red, "md": v.md,
+        "power_defense": v.power_defense, "flash_defense": v.flash_defense,
+        "attacks": [to_dict(a) for a in v.attacks],
+        "defenses": [to_dict(d) for d in v.defenses],
+        "csls": [to_dict(c) for c in v.csls],
+        "senses": [to_dict(x) for x in v.senses],
+        "movement": [to_dict(m) for m in v.movement],
+        "maneuvers": [to_dict(m) for m in v.maneuvers],
+        "frameworks": [to_dict(f) for f in v.frameworks],
+        "str_source_id": v.str_source_id,
+        "reach_m": v.reach_m,
+        "swimming_m": v.swimming_m,
+        "is_npc": v.is_npc,
+        "is_mentalist": v.is_mentalist,
+        "has_combat_sense": v.has_combat_sense,
+        "has_self_contained_breathing": v.has_self_contained_breathing,
+        "skill_rolls": dict(v.skill_rolls),
+    }
+
+
 def to_dict(obj: Any) -> Any:
     """Recursively convert to JSON-safe shape."""
     if obj is None or isinstance(obj, (int, float, str, bool)):
@@ -120,6 +148,12 @@ def to_dict(obj: Any) -> Any:
             "has_combat_sense": view.has_combat_sense,
             "has_self_contained_breathing": view.has_self_contained_breathing,
             "skill_rolls": dict(view.skill_rolls),
+            # HIS OTHER IDENTITY (6E1 p.388), so a rebuilt man who changes
+            # costume owns what the live one did. Always written: null for a
+            # man with one identity.
+            "other_identity": (
+                None if view.other_identity is None
+                else _identity_record(view.other_identity)),
         }
         # The stat keys above are CURRENT — drains and aids already in them.
         # The drains/aids dicts are recorded too, and combat_stats() applies

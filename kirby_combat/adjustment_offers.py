@@ -34,7 +34,10 @@ _EPS_M = 1e-6
 
 
 def _powers(actor, xmlid: str) -> list:
-    return [p for p in (actor.hero.powers or [])
+    # What he owns in the identity he is in (6E1 p.388; `identity.py`).
+    from kirby_combat.identity import build_in_play
+
+    return [p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() == xmlid]
 
 

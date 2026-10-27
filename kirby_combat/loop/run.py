@@ -37,6 +37,10 @@ from kirby_combat.pre_attacks.in_the_phase import (
     limit_to_half_phase, phase_already_begun, presence_attack_made_this_phase,
     yield_phase,
 )
+from kirby_combat.actions.flash import Flash
+from kirby_combat.identity import (
+    CHANGE_IDENTITY_INSTANT, IDENTITY_KINDS, identity_changed_this_phase,
+)
 from kirby_combat.rage import RageMenu, rage_menu, rage_phase_start, rage_post_segment_12
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
@@ -591,6 +595,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # ON THE GROUND. Prone had sources and no way out; the menu now
         # offers getting up (6E2 p.51).
         prone=is_prone(session, actor_id),
+        # WHAT HE CANNOT SENSE. `enumerate_actions` has taken his Flashed
+        # Sense Groups since Flash was built and this caller never passed
+        # them, so a man blinded by a Sight Flash was offered every shot
+        # that needs sight. A Flashed sense is skipped by `perceive`, so he
+        # drops to the blind tier: adjacent HtH only (6E2 p.9, p.127).
+        observer_flashed_groups=frozenset(
+            Flash.is_flashed(session, actor_id)[1]),
     )
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
@@ -599,6 +610,11 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
     if presence_attack_made_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind not in PRESENCE_KINDS]
+    # ONE CHANGE OF IDENTITY A PHASE. After a Zero Phase change the same
+    # Phase comes back to him (below, in `run_phase`), and offering the
+    # change again would let him flicker in and out of costume for ever.
+    if identity_changed_this_phase(session, actor_id):
+        menu = [a for a in menu if a.kind not in IDENTITY_KINDS]
     # VERY IMPRESSED. 6E2 p.139: he "only performs a Half Phase Action
     # during his next Phase". `PresenceTier.half_phase` was never read.
     if half_phase_only(session, actor_id):
@@ -928,6 +944,16 @@ def run_phase(
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
+    if action.kind == CHANGE_IDENTITY_INSTANT:
+        # ZERO PHASE. Instant Change (6E1 p.272) makes the change a Zero
+        # Phase Action, so the slot is NOT spent and the next `run_phase`
+        # hands him the same Phase, in his new identity, without the offer.
+        return _done(
+            resolved.session, action_id=action.action_id, kind=action.kind,
+            result=resolved.result,
+            notes=[f"{actor_id} changed identity with Instant Change, a Zero "
+                   f"Phase Action (6E1 p.272); his Phase goes on"],
+        )
     if action.kind in PRESENCE_KINDS:
         # NO TIME. 6E2 p.25 rates a Presence Attack "No Time", and p.20 lets
         # one be made beside a Full Phase Action. So the slot is NOT spent:
