@@ -170,7 +170,7 @@ def impact_damage(session, target_id: str, dice: int, *, roller, template,
     (6E1 p.68's Breakfall against a fall), applied after defenses.
     """
     from kirby_combat.adjustments import adjusted_con
-    from kirby_combat.resolution.damage import compute_damage
+    from kirby_combat.resolution.damage import compute_damage, stun_for_body_taken
     from kirby_combat.resolution.defense import compute_defense
     from kirby_combat.vitals import record_vitals_change
 
@@ -192,6 +192,7 @@ def impact_damage(session, target_id: str, dice: int, *, roller, template,
     if halved:
         stun_dealt //= 2
         body_dealt //= 2
+    stun_dealt = stun_for_body_taken(stun_dealt, body_dealt)   # 6E2 p.105
     session, _ = record_vitals_change(
         session, target_id, stun=-stun_dealt, body=-body_dealt, reason=reason,
     )

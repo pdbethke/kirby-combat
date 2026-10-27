@@ -38,6 +38,32 @@ from kirby_combat.template import CombatTemplate
 
 
 # ---------------------------------------------------------------------------
+# BODY taken costs STUN
+# ---------------------------------------------------------------------------
+
+def stun_for_body_taken(stun_taken: int, body_taken: int) -> int:
+    """The STUN a man takes once his defenses are done: never less than
+    the BODY that got through.
+
+    6E2 p.105: "Regardless of whether an attack does Normal Damage or
+    Killing Damage, a character automatically takes 1 STUN for every 1
+    point of BODY damage that gets through his defenses." Ogre (PD 40, 5
+    of it Resistant) takes "5 BODY, 0 STUN" from a .44 and so "takes 5
+    STUN regardless of his defenses".
+
+    A FLOOR, NOT AN ADDITION: STUN that already got through is not added
+    to. Applied LAST, to the damage TAKEN (after defenses, Damage
+    Reduction and any halving save), because "gets through his defenses"
+    is about what reached him. Every door that subtracts defenses from a
+    hit calls this, so a killing attack against a brick with no resistant
+    defense cannot drop him to negative BODY without touching his STUN ---
+    which it did in kirby-app's 0.22.0 demo (GORGON, -1 BODY, 1 STUN lost).
+    """
+    stun_taken, body_taken = int(stun_taken), int(body_taken)
+    return max(stun_taken, body_taken) if body_taken > 0 else stun_taken
+
+
+# ---------------------------------------------------------------------------
 # The half die
 # ---------------------------------------------------------------------------
 
