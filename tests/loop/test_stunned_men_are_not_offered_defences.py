@@ -81,6 +81,9 @@ def test_the_driver_asks_the_engine_whether_he_may_abort():
 
     from kirby_combat.loop import run
 
-    source = inspect.getsource(run.run_phase)
+    # The menu is built by `_situation_for` since a man can be offered one
+    # outside his own Phase (a Held Action, 6E2 p.22); `run_phase` calls it.
+    source = inspect.getsource(run._situation_for)
+    assert "_situation_for(" in inspect.getsource(run.run_phase)
     assert "can_abort=" in source, "the driver does not answer the gate"
     assert "stunned_or_recovering_for" in inspect.getsource(run), source[:0]

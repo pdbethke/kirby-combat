@@ -256,12 +256,24 @@ def _resolve_attack(
     `_activation_check`), and what is left here is what only this resolver
     knows: the Set bonus and the Grab, both asked with THIS target.
     """
+    from kirby_combat.actions.decoys import attack_decoy, is_decoy
     from kirby_combat.models import AttackInput, DiceValues
 
-    target = session.combatants[action.target_id]
     power = action._attack_view
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    # AN IMAGE OF A MAN, NOT THE MAN (6E1 p.238-239): the shot is spent on
+    # nothing and the shooter rolls to see through it. See `actions/decoys`.
+    if is_decoy(session, action.target_id):
+        new_session, payload = attack_decoy(
+            session, actor, image_id=action.target_id, power=power,
+            action_kind=action.kind, template=template, roller=roller,
+        )
+        return ResolvedAction(
+            session=new_session, kind=action.kind, action_id=action.action_id,
+            result=payload, events=_events_since(session, new_session),
+        )
+    target = session.combatants[action.target_id]
 
     attack = AttackInput(
         attacker=actor, target=target, power=power,
@@ -927,25 +939,27 @@ def _resolve_block(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Block (6E2 p.51): abort to intercept an incoming attack.
+    """Block (6E2 p.59): raise a Block that stands until his next Phase.
 
-    ``resolve_block_in_session`` already existed in `actions/recording.py`
-    and was one of the six session-aware entry points the engine had --- and
-    nothing called it either.
+    A DECLARATION, like Dodge. This used to roll the contest here, in his
+    own Phase, against the named enemy's bare OCV --- with no attack in the
+    air, so the roll was made against nothing and the attack path never
+    read it. 6E2 p.59 rolls a Block "against his opponent's OCV as modified
+    by the attack the opponent is making", which only exists when the blow
+    arrives: `actions/reactive/blocking.try_block` makes that roll from the
+    attack door, against whoever swings at him (6E2 p.60 lets one Block
+    meet "additional attacks made against him (by the same or different
+    characters)"), and a success stops the blow.
+
+    The offer still names the enemy it was offered against --- the man in
+    Reach he expects to swing --- and that is presentation only.
     """
-    from kirby_combat.actions.recording import resolve_block_in_session
+    from kirby_combat.actions.reactive.block import Block
 
-    target = session.combatants[action.target_id]
-    new_session, result, _ids = resolve_block_in_session(
-        session,
-        blocker_id=actor.id, attacker_id=target.id,
-        blocker_ocv=int(actor.combat_stats().ocv),
-        blocker_dice=roller.roll_dice(3),
-        attacker_ocv=int(target.combat_stats().ocv),
-    )
+    new_session, event = Block.declare(session, actor.id)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
-        result=result, events=_events_since(session, new_session),
+        result=event, events=_events_since(session, new_session),
     )
 
 

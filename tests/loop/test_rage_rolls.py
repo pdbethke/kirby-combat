@@ -83,6 +83,10 @@ class Picks:
         self.menus = []
 
     def choose(self, situation):
+        # Out of turn (an Abort, a Held Action: `loop/reactions.py`) is not
+        # his Phase menu: decline, and do not record it.
+        if situation.out_of_turn is not None:
+            return situation.menu[0].action_id
         self.menus.append((situation.actor.id, list(situation.menu)))
         for kind in self.kinds:
             for offer in situation.menu:

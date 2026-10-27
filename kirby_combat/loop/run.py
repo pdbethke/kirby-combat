@@ -45,7 +45,11 @@ from kirby_combat.standing import breakfall_to_feet, is_prone
 from kirby_combat.mental.continuing import (
     ENTRANCED, WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
 )
-from kirby_combat.concealment import concealment_for
+from kirby_combat.concealment import break_hide, concealment_for
+from kirby_combat.actions.decoys import decoy_targets_for, own_decoy_live
+from kirby_combat.loop.reactions import (
+    Reaction, ask_holders, expire_lapsed_holds, react_to_attack,
+)
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
@@ -397,200 +401,20 @@ def _phase_result(
     )
 
 
-def run_phase(
-    encounter: "Encounter",
-    chooser: Chooser,
-    *,
-    roller,
-    on_unresolvable: str = "raise",
-    campaign: Any = None,
-    until: StopCondition | None = None,
-) -> PhaseResult:
-    """Step the WHOLE fight by one Phase --- the clock included.
+def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
+    """What ``actor_id`` would be offered if it were his Phase now.
 
-    THE ONE STEP DOOR. This used to take a session and stop dead at the
-    end of a Segment: once the order was spent it returned
-    ``actor_id=None`` for ever, and only ``Encounter.run_segment`` /
-    ``advance_segment`` could move on. ``run_encounter`` knew that and
-    held the advance logic itself, so a consumer that steps a fight one
-    Phase at a time --- which is exactly what a networked consumer does
-    --- could not finish one, and the only alternative was a second copy
-    of the advance.
-
-    So the advance lives here, in the one place, and ``run_encounter`` is
-    a loop over this function plus its guards. When the current Segment's
-    order is spent (or none has been resolved yet) this resolves the next
-    one, advancing the Segment and the Turn through
-    ``Encounter.advance_segment`` --- which is what fires 6E2 p.131's
-    free Post-Segment 12 Recovery, p.109's bleeding, the Adjustment fade
-    and ``SegmentAdvanced`` --- until it finds a Segment somebody can act
-    in.
-
-    THE SIGNATURE, for a consumer: ``run_phase(encounter, chooser, *,
-    roller, on_unresolvable="raise", campaign=None, until=None)``. It
-    takes the ``Encounter`` because that is where the clock is; the
-    template is resolved from the Encounter and the campaign exactly as
-    ``advance_segment`` and ``run_segment`` resolve it, rather than being
-    passed in beside them where the two could disagree. The result
-    carries the new ``Encounter``; ``result.session`` is a view of it.
-
-    ``actor_id`` is ``None`` in exactly ONE case now: the fight is
-    already decided by ``until`` (default: last side standing). Nothing
-    is emitted in that case. Every other return has an actor.
-
-    ``roller`` serves both contracts. Resolvers want a dice object; 6E2
-    p.21's tie-break wants a zero-argument callable, because it is a
-    contested DEX Roll. The adaptation is here rather than in every
-    caller --- and here rather than in ``run_encounter``, so a fight
-    stepped one Phase at a time draws the same dice in the same order as
-    one driven by ``run_encounter``.
-
-    ``on_unresolvable`` governs a chosen kind the registry cannot execute.
-    ``"raise"`` (the default) surfaces ``UnresolvableAction`` naming the
-    kind. ``"skip"`` records it on the result and spends the Phase, for a
-    caller who wants a long fight to make progress while the registry is
-    still filling --- 52 kinds are enumerable and 4 are resolvable today.
-    A skip is never silent.
+    The whole of `run_phase`'s menu-building, in one place, because a man
+    may now act when it is NOT his Phase: a Held Action is used before
+    somebody else's (6E2 p.22, `loop/reactions.py`), and it is "any action
+    he could have taken" --- the same menu, built the same way, or the two
+    would drift. So every narrowing lives here and binds a holder too:
+    Mind Control's withdraw, Rage (6E1 p.424-425), the one free Presence
+    Attack and the very-impressed Half Phase (6E2 p.139). The situation
+    carries the menu; an empty menu is returned as one, and the caller
+    decides what that means.
     """
-    _require_one_fight(encounter)
-    if on_unresolvable not in ("raise", "skip"):
-        raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
-
-    stop: StopCondition = until or LastSideStanding()
-    template = encounter._resolve_template(campaign)
-
-    # EVERYTHING THIS CALL WRITES DOWN, measured rather than assembled.
-    # `PhaseResult.events` used to be built piecewise from the sub-calls
-    # -- the skips, the resolver's own events, the spend -- and the
-    # clock's events were simply not among them: `run_segment`'s
-    # `ActingOrderResolved`, `advance_segment`'s `SegmentAdvanced` and the
-    # free Post-Segment 12 `RecoveryTaken` went into the log and were
-    # never handed back. Measured by a consumer over eight Phases: four
-    # steps lost events outright and one returned three of its nine, so a
-    # consumer persisting what it is handed raised `event sequence
-    # mismatch: expected 2, got 3` on its second step.
-    #
-    # A list assembled from the parts is a second statement of "what
-    # happened this Phase", and it disagreed with the log. The log is the
-    # record; this is the tail of it.
-    log_before = len(encounter.sessions[0].event_log)
-
-    # TWO ROLLER CONTRACTS, RECONCILED HERE --- see the docstring. Passing
-    # the dice object straight into the tie-break raises `'RandomRoller'
-    # object is not callable`, which reads like a bad argument and is
-    # really this mismatch.
-    def tie_roller() -> list[int]:
-        return roller.roll_dice(3)
-
-    # A FIGHT THAT IS OVER EMITS NOTHING FURTHER. Asked before the clock
-    # is touched, so a decided fight cannot be advanced a Segment by
-    # somebody asking it for one more Phase.
-    if Roster(encounter.sessions[0]).decide(stop):
-        return PhaseResult(
-            encounter=encounter, notes=["the fight is already decided"],
-        )
-
-    encounter, actor_id = _advance_to_an_actor(
-        encounter, campaign=campaign, tie_roller=tie_roller, roller=roller,
-    )
-    session = encounter.sessions[0]
-    if actor_id is None:
-        # `_advance_to_an_actor` exhausts a whole Turn before giving up,
-        # and every combatant with a SPD of at least 1 has a Phase
-        # somewhere in a Turn -- so this is not "wait for the next
-        # Segment", it is "nobody in this fight can ever act again", and
-        # the fight is not decided either (that was asked above). Saying
-        # so is the only honest answer; returning a quiet `actor_id=None`
-        # is what let a consumer spin.
-        raise ValueError(
-            f"no combatant in session {session.id!r} could act in a whole "
-            f"Turn (Segment {session.timeline.segment}, Turn "
-            f"{session.timeline.turn}) and the fight is not decided"
-        )
-
     actor = session.combatants[actor_id]
-
-    # BREAKOUT ROLLS FIRST. 6E1 p.151: "Starting on the target's next Phase
-    # after being successfully attacked with a continuing-effect Mental
-    # Power, he may attempt to break free ... These attempts are
-    # subconscious and take no time --- whether he succeeds or fails, he may
-    # still act in that Phase." Before anything else about his Phase,
-    # because "a character always gets one (but only one) Breakout Roll
-    # before he suffers the effects".
-    #
-    # NOT TWICE IN ONE PHASE. A Phase can come back to the same man: after a
-    # free Presence Attack (No Time, 6E2 p.25) or after he hesitated behind
-    # the man who impressed him (6E2 p.139). What is owed "at the top of his
-    # Phase" was settled the first time.
-    continuing = phase_already_begun(session, actor_id)
-    if not continuing:
-        session = roll_breakouts(session, actor_id, roller)
-        # BREAKFALL TO HIS FEET, also taking no time (6E1 p.68: "gets to
-        # his feet as a Zero Phase Action"), so it comes before anything
-        # else he does with the Phase. See `standing.breakfall_to_feet`.
-        session = breakfall_to_feet(session, actor_id, roller)
-    actor = session.combatants[actor_id]
-
-    # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
-    # being Stunned can take no Actions"; p.107: "In the character's next
-    # full Phase after becoming Stunned, he recovers ... recovering from
-    # being Stunned is all he can do that Phase." `stunned_or_recovering_for`
-    # has folded that window for a long time and gated the CV penalty, the
-    # Abort and the move --- and NOTHING gated the Phase, so a Stunned man
-    # chose an action every time his Phase came round. In prod fight
-    # 33bf8bee a Stunned fighter chose a close-and-strike twice; the move
-    # was refused (he cannot move) and the menu offered it again.
-    if stunned_or_recovering_for(session, actor_id):
-        session, spent = _mark_acted(session, actor_id, reason=STUN_RECOVERY)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
-            notes=[f"{actor_id} is Stunned and spends the Phase recovering"],
-        )
-
-    # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
-    # upward, and `presence_effects.can_act` has said so all along --- it
-    # was called NOWHERE outside its own module, so a man the rules had
-    # frozen took his Phase and shot somebody. Only the half-DCV half of
-    # the result was wired in (through the CV seam); the "takes no Action"
-    # half did nothing at all.
-    #
-    # He forfeits ONE Full Phase, not the tier's whole duration: `awed` is
-    # five minutes and `overwhelmed` an hour, and gating every Phase would
-    # delete a combatant from the fight on one good shout. `forfeit_phase`
-    # records the spend so the next Phase is his again.
-    #
-    # Consumed silently, the same way `next_actor_id` consumes the slot of
-    # someone unconscious or gone: they had a Phase and were in no
-    # condition to use it.
-    if not can_act(session, actor_id):
-        session = PresenceEffects.forfeit_phase(session, actor_id)
-        session, spent = _mark_acted(session, actor_id)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
-            notes=[f"{actor_id} is held by a Presence Attack and forfeits "
-                   f"the Phase"],
-        )
-
-    # RAGE. 6E1 p.424: "Every Phase a character is in a situation where he
-    # can become Enraged, he should roll his chance"; and a raging man rolls
-    # to recover when he has finished with his target or run out of END.
-    # Only a man who will actually act this Phase rolls.
-    if not continuing:
-        session = rage_phase_start(session, actor_id, roller)
-        actor = session.combatants[actor_id]
-
-    # IMPRESSED. 6E2 p.139: "He hesitates enough so that the attacker may
-    # act before him that Phase." `presence_state` folded who he yields to
-    # and nothing read it. If that man still has a Phase to come in this
-    # Segment, this one steps back behind it and the Phase is not spent.
-    owed = hesitation_owed(session, actor_id)
-    if owed is not None and can_yield_to(session, actor_id, owed):
-        session = yield_phase(session, actor_id, owed)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
-            notes=[f"{actor_id} hesitates; {owed} acts first (6E2 p.139)"],
-        )
-
     roster = Roster(session)
     # MIND CONTROL. The order he is obeying decides who his enemies are (and
     # whether he may attack anybody at all); see `mental/continuing.obey`.
@@ -599,16 +423,14 @@ def run_phase(
         roster.allies_of(actor) + roster.fallen_allies_of(actor),
     )
     enemies = obeyed.enemies
-    # LOST IN A MENTAL ILLUSION (6E1 p.251, EGO+30): "the victim no longer
-    # interacts with his environment ... he only thinks he is, for example,
-    # walking forward or striking an opponent; he won't actually perform
-    # these actions." Nothing he could choose would happen, so he chooses
-    # nothing and the Phase is spent, saying why.
+    # LOST IN A MENTAL ILLUSION (6E1 p.251, EGO+30): nothing he could choose
+    # would happen. Asked again by `run_phase`, which spends his Phase
+    # saying why; here it empties the menu, so a man lost in an Illusion
+    # who is Holding an Action is offered nothing but to keep holding it.
     if obeyed.entranced:
-        session, spent = _mark_acted(session, actor_id, reason=ENTRANCED)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
-            notes=[f"{actor_id} is lost in a Mental Illusion and stands still"],
+        return PhaseSituation(
+            actor=actor, menu=[], enemies=enemies, session=session,
+            segment=session.timeline.segment, turn=session.timeline.turn,
         )
     allies = obeyed.allies
     # ENRAGED / BERSERK (6E1 p.424-425): he fights only his target ---
@@ -730,6 +552,13 @@ def run_phase(
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.
         mind_scan_locks=mind_scan_locks(session, actor_id),
+        # IMAGES HE TAKES FOR MEN (6E1 p.238-239), and whether he has one of
+        # his own standing. Both parameters existed and this caller passed
+        # neither, so no Image ever drew a shot and a caster could conjure
+        # them without end. See `actions/decoys.py`.
+        decoy_targets=decoy_targets_for(
+            session, actor_id, {e.id for e in enemies}) or None,
+        own_decoy_live=own_decoy_live(session, actor_id),
         # ENTANGLED, PHYSICALLY OR MENTALLY: the menu is the escape ladder
         # (6E1 p.217, p.219). See `_entangle_holds`.
         physical_entangle=physical_hold,
@@ -749,13 +578,6 @@ def run_phase(
     # during his next Phase". `PresenceTier.half_phase` was never read.
     if half_phase_only(session, actor_id):
         menu = limit_to_half_phase(menu)
-    if not menu:
-        session, spent = _mark_acted(session, actor_id)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
-            notes=[f"{actor_id} had no legal action"],
-        )
-
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
         allies=[a for a in allies if not is_down(a)],
@@ -775,7 +597,269 @@ def run_phase(
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
     )
+    return situation
+
+
+def run_phase(
+    encounter: "Encounter",
+    chooser: Chooser,
+    *,
+    roller,
+    on_unresolvable: str = "raise",
+    campaign: Any = None,
+    until: StopCondition | None = None,
+) -> PhaseResult:
+    """Step the WHOLE fight by one Phase --- the clock included.
+
+    THE ONE STEP DOOR. This used to take a session and stop dead at the
+    end of a Segment: once the order was spent it returned
+    ``actor_id=None`` for ever, and only ``Encounter.run_segment`` /
+    ``advance_segment`` could move on. ``run_encounter`` knew that and
+    held the advance logic itself, so a consumer that steps a fight one
+    Phase at a time --- which is exactly what a networked consumer does
+    --- could not finish one, and the only alternative was a second copy
+    of the advance.
+
+    So the advance lives here, in the one place, and ``run_encounter`` is
+    a loop over this function plus its guards. When the current Segment's
+    order is spent (or none has been resolved yet) this resolves the next
+    one, advancing the Segment and the Turn through
+    ``Encounter.advance_segment`` --- which is what fires 6E2 p.131's
+    free Post-Segment 12 Recovery, p.109's bleeding, the Adjustment fade
+    and ``SegmentAdvanced`` --- until it finds a Segment somebody can act
+    in.
+
+    THE SIGNATURE, for a consumer: ``run_phase(encounter, chooser, *,
+    roller, on_unresolvable="raise", campaign=None, until=None)``. It
+    takes the ``Encounter`` because that is where the clock is; the
+    template is resolved from the Encounter and the campaign exactly as
+    ``advance_segment`` and ``run_segment`` resolve it, rather than being
+    passed in beside them where the two could disagree. The result
+    carries the new ``Encounter``; ``result.session`` is a view of it.
+
+    ``actor_id`` is ``None`` in exactly ONE case now: the fight is
+    already decided by ``until`` (default: last side standing). Nothing
+    is emitted in that case. Every other return has an actor.
+
+    ``roller`` serves both contracts. Resolvers want a dice object; 6E2
+    p.21's tie-break wants a zero-argument callable, because it is a
+    contested DEX Roll. The adaptation is here rather than in every
+    caller --- and here rather than in ``run_encounter``, so a fight
+    stepped one Phase at a time draws the same dice in the same order as
+    one driven by ``run_encounter``.
+
+    ``on_unresolvable`` governs a chosen kind the registry cannot execute.
+    ``"raise"`` (the default) surfaces ``UnresolvableAction`` naming the
+    kind. ``"skip"`` records it on the result and spends the Phase, for a
+    caller who wants a long fight to make progress while the registry is
+    still filling --- 52 kinds are enumerable and 4 are resolvable today.
+    A skip is never silent.
+    """
+    _require_one_fight(encounter)
+    if on_unresolvable not in ("raise", "skip"):
+        raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
+
+    stop: StopCondition = until or LastSideStanding()
+    template = encounter._resolve_template(campaign)
+
+    # EVERYTHING THIS CALL WRITES DOWN, measured rather than assembled.
+    # `PhaseResult.events` used to be built piecewise from the sub-calls
+    # -- the skips, the resolver's own events, the spend -- and the
+    # clock's events were simply not among them: `run_segment`'s
+    # `ActingOrderResolved`, `advance_segment`'s `SegmentAdvanced` and the
+    # free Post-Segment 12 `RecoveryTaken` went into the log and were
+    # never handed back. Measured by a consumer over eight Phases: four
+    # steps lost events outright and one returned three of its nine, so a
+    # consumer persisting what it is handed raised `event sequence
+    # mismatch: expected 2, got 3` on its second step.
+    #
+    # A list assembled from the parts is a second statement of "what
+    # happened this Phase", and it disagreed with the log. The log is the
+    # record; this is the tail of it.
+    log_before = len(encounter.sessions[0].event_log)
+
+    # TWO ROLLER CONTRACTS, RECONCILED HERE --- see the docstring. Passing
+    # the dice object straight into the tie-break raises `'RandomRoller'
+    # object is not callable`, which reads like a bad argument and is
+    # really this mismatch.
+    def tie_roller() -> list[int]:
+        return roller.roll_dice(3)
+
+    # A FIGHT THAT IS OVER EMITS NOTHING FURTHER. Asked before the clock
+    # is touched, so a decided fight cannot be advanced a Segment by
+    # somebody asking it for one more Phase.
+    if Roster(encounter.sessions[0]).decide(stop):
+        return PhaseResult(
+            encounter=encounter, notes=["the fight is already decided"],
+        )
+
+    encounter, actor_id = _advance_to_an_actor(
+        encounter, campaign=campaign, tie_roller=tie_roller, roller=roller,
+    )
+    session = encounter.sessions[0]
+    if actor_id is None:
+        # `_advance_to_an_actor` exhausts a whole Turn before giving up,
+        # and every combatant with a SPD of at least 1 has a Phase
+        # somewhere in a Turn -- so this is not "wait for the next
+        # Segment", it is "nobody in this fight can ever act again", and
+        # the fight is not decided either (that was asked above). Saying
+        # so is the only honest answer; returning a quiet `actor_id=None`
+        # is what let a consumer spin.
+        raise ValueError(
+            f"no combatant in session {session.id!r} could act in a whole "
+            f"Turn (Segment {session.timeline.segment}, Turn "
+            f"{session.timeline.turn}) and the fight is not decided"
+        )
+
+    # HELD ACTIONS, before anything about his Phase (6E2 p.22): a hold whose
+    # holder's next Phase Segment has begun is lost, and everyone still
+    # Holding is asked whether he acts before this man does. See
+    # `loop/reactions.py`.
+    session = expire_lapsed_holds(session)
+    session, held_before, held_after = ask_holders(
+        session, actor_id, chooser, situation_for=_situation_for, roller=roller,
+    )
+    notes: list[str] = []
+    for holder_id, held_action, note in held_before:
+        session, note_out = _resolve_out_of_turn(
+            session, holder_id, held_action, template=template, roller=roller,
+            on_unresolvable=on_unresolvable, note=note,
+        )
+        notes.append(note_out)
+
+    def _done(session, **fields) -> PhaseResult:
+        """Every exit from here on: the Held Actions that lost 6E2 p.22's
+        DEX contest go straight after his, whatever his Phase came to."""
+        session = _resolve_held_after(
+            session, held_after, notes, template=template, roller=roller,
+            on_unresolvable=on_unresolvable,
+        )
+        fields["notes"] = notes + list(fields.get("notes") or [])
+        return _phase_result(encounter, session, log_before,
+                             actor_id=actor_id, **fields)
+
+    if is_down(session.combatants[actor_id]):
+        # A Held Action used before his Phase put him down: he had a Phase
+        # and is in no condition to use it, as `resolve_next_actor` rules.
+        session, spent = _mark_acted(session, actor_id, reason="down")
+        return _done(session, notes=[f"{actor_id} went down before his Phase"])
+
+    actor = session.combatants[actor_id]
+
+    # BREAKOUT ROLLS FIRST. 6E1 p.151: "Starting on the target's next Phase
+    # after being successfully attacked with a continuing-effect Mental
+    # Power, he may attempt to break free ... These attempts are
+    # subconscious and take no time --- whether he succeeds or fails, he may
+    # still act in that Phase." Before anything else about his Phase,
+    # because "a character always gets one (but only one) Breakout Roll
+    # before he suffers the effects".
+    #
+    # NOT TWICE IN ONE PHASE. A Phase can come back to the same man: after a
+    # free Presence Attack (No Time, 6E2 p.25) or after he hesitated behind
+    # the man who impressed him (6E2 p.139). What is owed "at the top of his
+    # Phase" was settled the first time.
+    continuing = phase_already_begun(session, actor_id)
+    if not continuing:
+        session = roll_breakouts(session, actor_id, roller)
+        # BREAKFALL TO HIS FEET, also taking no time (6E1 p.68: "gets to
+        # his feet as a Zero Phase Action"), so it comes before anything
+        # else he does with the Phase. See `standing.breakfall_to_feet`.
+        session = breakfall_to_feet(session, actor_id, roller)
+    actor = session.combatants[actor_id]
+
+    # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
+    # being Stunned can take no Actions"; p.107: "In the character's next
+    # full Phase after becoming Stunned, he recovers ... recovering from
+    # being Stunned is all he can do that Phase." `stunned_or_recovering_for`
+    # has folded that window for a long time and gated the CV penalty, the
+    # Abort and the move --- and NOTHING gated the Phase, so a Stunned man
+    # chose an action every time his Phase came round. In prod fight
+    # 33bf8bee a Stunned fighter chose a close-and-strike twice; the move
+    # was refused (he cannot move) and the menu offered it again.
+    if stunned_or_recovering_for(session, actor_id):
+        session, spent = _mark_acted(session, actor_id, reason=STUN_RECOVERY)
+        return _done(
+            session,
+            notes=[f"{actor_id} is Stunned and spends the Phase recovering"],
+        )
+
+    # HELD BY TERROR. 6E2 p.139 stops the target outright from `awed`
+    # upward, and `presence_effects.can_act` has said so all along --- it
+    # was called NOWHERE outside its own module, so a man the rules had
+    # frozen took his Phase and shot somebody. Only the half-DCV half of
+    # the result was wired in (through the CV seam); the "takes no Action"
+    # half did nothing at all.
+    #
+    # He forfeits ONE Full Phase, not the tier's whole duration: `awed` is
+    # five minutes and `overwhelmed` an hour, and gating every Phase would
+    # delete a combatant from the fight on one good shout. `forfeit_phase`
+    # records the spend so the next Phase is his again.
+    #
+    # Consumed silently, the same way `next_actor_id` consumes the slot of
+    # someone unconscious or gone: they had a Phase and were in no
+    # condition to use it.
+    if not can_act(session, actor_id):
+        session = PresenceEffects.forfeit_phase(session, actor_id)
+        session, spent = _mark_acted(session, actor_id)
+        return _done(
+            session,
+            notes=[f"{actor_id} is held by a Presence Attack and forfeits "
+                   f"the Phase"],
+        )
+
+    # RAGE. 6E1 p.424: "Every Phase a character is in a situation where he
+    # can become Enraged, he should roll his chance"; and a raging man rolls
+    # to recover when he has finished with his target or run out of END.
+    # Only a man who will actually act this Phase rolls.
+    if not continuing:
+        session = rage_phase_start(session, actor_id, roller)
+        actor = session.combatants[actor_id]
+
+    # IMPRESSED. 6E2 p.139: "He hesitates enough so that the attacker may
+    # act before him that Phase." `presence_state` folded who he yields to
+    # and nothing read it. If that man still has a Phase to come in this
+    # Segment, this one steps back behind it and the Phase is not spent.
+    owed = hesitation_owed(session, actor_id)
+    if owed is not None and can_yield_to(session, actor_id, owed):
+        session = yield_phase(session, actor_id, owed)
+        return _done(
+            session,
+            notes=[f"{actor_id} hesitates; {owed} acts first (6E2 p.139)"],
+        )
+
+    # LOST IN A MENTAL ILLUSION (6E1 p.251, EGO+30): "the victim no longer
+    # interacts with his environment ... he won't actually perform these
+    # actions." See `_situation_for`, which builds an empty menu for him.
+    _roster = Roster(session)
+    if obey(
+        session, actor, _roster.enemies_of(actor),
+        _roster.allies_of(actor) + _roster.fallen_allies_of(actor),
+    ).entranced:
+        session, spent = _mark_acted(session, actor_id, reason=ENTRANCED)
+        return _done(
+            session,
+            notes=[f"{actor_id} is lost in a Mental Illusion and stands still"],
+        )
+
+    situation = _situation_for(session, actor_id)
+    menu = situation.menu
+    if not menu:
+        session, spent = _mark_acted(session, actor_id)
+        return _done(
+            session,
+            notes=[f"{actor_id} had no legal action"],
+        )
+
     action = validate_choice(chooser.choose(situation), menu)
+
+    # THE TARGET MAY ABORT, NOW: "when an attacker announces he's attacking
+    # that character, but before any rolls are made" (6E2 p.24). His own
+    # chooser decides; the Dodge or Block he takes is read at the attack
+    # door. See `loop/reactions.react_to_attack`.
+    session, reaction = react_to_attack(session, actor, action, chooser)
+    if reaction is not None and reaction is not Reaction.NONE:
+        notes.append(f"{action.target_id} Aborted to {reaction.value} "
+                     f"against {actor_id}")
 
     try:
         resolved: ResolvedAction = resolve_chosen(
@@ -785,8 +869,8 @@ def run_phase(
         if on_unresolvable == "raise":
             raise
         session, spent = _mark_acted(session, actor_id)
-        return _phase_result(
-            encounter, session, log_before, actor_id=actor_id,
+        return _done(
+            session,
             action_id=action.action_id,
             kind=action.kind, skipped_kind=action.kind,
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
@@ -797,19 +881,68 @@ def run_phase(
         # one be made beside a Full Phase Action. So the slot is NOT spent:
         # the next `run_phase` hands the same man the same Phase, with the
         # Presence offers gone from his menu.
-        return _phase_result(
-            encounter, resolved.session, log_before, actor_id=actor_id,
+        return _done(
+            break_hide(resolved.session, actor_id, by_kind=action.kind),
             action_id=action.action_id, kind=action.kind,
             result=resolved.result,
             notes=[f"{actor_id} made a Presence Attack; it takes No Time "
                    f"(6E2 p.25) and his Phase goes on"],
         )
-    session, spent = _mark_acted(resolved.session, actor_id)
-    return _phase_result(
-        encounter, session, log_before, actor_id=actor_id,
-        action_id=action.action_id, kind=action.kind,
+    # AN ATTACK OUT OF HIDING GIVES HIM AWAY --- after it lands, so the
+    # attack itself is still Surprised. See `concealment.REVEALING_KINDS`.
+    session = break_hide(resolved.session, actor_id, by_kind=action.kind)
+    session, spent = _mark_acted(session, actor_id)
+    return _done(
+        session, action_id=action.action_id, kind=action.kind,
         result=resolved.result,
     )
+
+
+def _resolve_out_of_turn(
+    session: "CombatSession", holder_id: str, action, *,
+    template, roller, on_unresolvable: str, note: str,
+) -> tuple["CombatSession", str]:
+    """Resolve one Held Action used outside the holder's own Phase.
+
+    His Phase was spent when he declared the Hold, so nothing is spent
+    here. A defence taken from a Hold is an Abort that costs no further
+    Phase (6E2 p.24), so it opens its window through
+    `mark_aborting_with_held` rather than the `dodge`/`block` resolvers,
+    which would give up his next Phase as well.
+    """
+    from kirby_combat.actions.reactive.abort import mark_aborting_with_held
+
+    if action.kind in (Reaction.DODGE.value, Reaction.BLOCK.value):
+        session, _ = mark_aborting_with_held(
+            session, holder_id, to_action=action.kind)
+        return session, f"{holder_id} used his Held Action to {action.kind} ({note})"
+    holder = session.combatants[holder_id]
+    if is_down(holder):
+        return session, f"{holder_id} went down before his Held Action"
+    try:
+        resolved = resolve_chosen(
+            session, holder, action, template=template, roller=roller,
+        )
+    except UnresolvableAction:
+        if on_unresolvable == "raise":
+            raise
+        return session, f"no resolver for {action.kind!r}; {holder_id}'s Held Action lost"
+    session = break_hide(resolved.session, holder_id, by_kind=action.kind)
+    return session, f"{holder_id} used his Held Action: {action.kind} ({note})"
+
+
+def _resolve_held_after(
+    session: "CombatSession", held_after, notes: list[str], *,
+    template, roller, on_unresolvable: str,
+) -> "CombatSession":
+    """The Held Actions that lost 6E2 p.22's DEX contest go straight after."""
+    for holder_id, held_action, note in held_after:
+        session, note_out = _resolve_out_of_turn(
+            session, holder_id, held_action, template=template, roller=roller,
+            on_unresolvable=on_unresolvable, note=note,
+        )
+        notes.append(note_out)
+    return session
 
 
 def run_encounter(

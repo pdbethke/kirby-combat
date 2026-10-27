@@ -96,6 +96,24 @@ def _since_his_last_phase(session: "CombatSession", combatant_id: str) -> list:
     return list(log)
 
 
+def _in_this_phase(session: "CombatSession", combatant_id: str) -> list:
+    """The log since his last Phase AND within this Segment.
+
+    A Phase never spans Segments (6E2 p.18). A man Holding his Action can
+    make a No-Time Presence Attack out of turn (`loop/reactions.ask_holders`)
+    without spending anything, and reading back only to his last
+    `PhaseSpent` would count that attack as made in his NEXT Phase ---
+    taking its Presence offer away and treating that Phase as already
+    begun. What LANDED on him since his last Phase (`_owed_tiers`) is a
+    different question and keeps the wider window.
+    """
+    log = _since_his_last_phase(session, combatant_id)
+    for index in range(len(log) - 1, -1, -1):
+        if getattr(log[index], "kind", None) == "SegmentAdvanced":
+            return log[index + 1:]
+    return log
+
+
 def presence_attack_made_this_phase(
     session: "CombatSession", combatant_id: str,
 ) -> bool:
@@ -104,7 +122,7 @@ def presence_attack_made_this_phase(
         getattr(evt, "kind", None) == "ActionDeclared"
         and getattr(evt, "combatant_id", None) == combatant_id
         and getattr(evt, "action_type", None) in PRESENCE_KINDS
-        for evt in _since_his_last_phase(session, combatant_id)
+        for evt in _in_this_phase(session, combatant_id)
     )
 
 
@@ -122,7 +140,7 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
     return any(
         getattr(evt, "kind", None) == "PresenceYielded"
         and getattr(evt, "target_id", None) == combatant_id
-        for evt in _since_his_last_phase(session, combatant_id)
+        for evt in _in_this_phase(session, combatant_id)
     )
 
 

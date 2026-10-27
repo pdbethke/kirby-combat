@@ -1813,13 +1813,18 @@ def enumerate_actions(
     # Passed in rather than read: enumeration holds no session, exactly as
     # `actor_holding` and the lockout ids are computed by the caller.
     if can_abort:
+        # A BOUGHT MARTIAL DODGE FEEDS THIS OFFER (6E2 p.93): the summary
+        # states the number `Dodge.dcv_bonus` will actually apply.
+        from kirby_combat.actions.reactive.martial import dodge_maneuver
+
+        _dodge = dodge_maneuver(actor)
         actions.append(LegalAction(
             action_id="dodge",
             kind="dodge",
             target_id=None, power_xmlid=None, power_name=None,
             summary=(
-                "Dodge — +3 DCV until your next phase "
-                "(full DCV bonus, but no attack)"
+                f"{_dodge.name or 'Dodge'} — +{_dodge.dcv} DCV against all "
+                "attacks until your next phase (no attack)"
             ),
         ))
     # DRAWING A BEAD, at a MAN, with a GUN. 6E2 p.81: "Set does not work
@@ -1982,6 +1987,9 @@ def enumerate_actions(
     # the same gate. Gating one defence and not the others is how this
     # class of defect survived its first fix.
     if alive_enemies and can_abort:
+        from kirby_combat.actions.reactive.martial import block_maneuver
+
+        _block = block_maneuver(actor)
         for enemy in alive_enemies:
             # YOU CANNOT BLOCK A BULLET. 6E2 p.59: "Blocks only affect
             # Ranged attacks with the GM's permission, according to
@@ -2008,9 +2016,12 @@ def enumerate_actions(
                 target_id=enemy.id,
                 power_xmlid=None, power_name=None,
                 summary=(
-                    f"Block {_friendly(enemy)}'s expected attack: "
-                    f"OCV vs OCV contest. Success → +1 OCV initiative "
-                    f"vs them next phase (6E1 p373)"
+                    f"{_block.name or 'Block'} — ready for "
+                    f"{_friendly(enemy)}'s attack: until your next phase, "
+                    f"roll OCV{_block.ocv:+d} against the OCV of each "
+                    f"hand-to-hand attack made at you; a success stops it "
+                    f"(6E2 p59), each later Block at a further -2 (6E2 p60). "
+                    f"{_block.dcv:+d} DCV meanwhile"
                 ),
             ))
     # PR-50: Interaction skills as social-combat actions per APG p34.

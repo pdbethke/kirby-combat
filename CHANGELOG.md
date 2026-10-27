@@ -131,6 +131,58 @@ rules already use:
   last), the order both shipped choosers already read. `Brief.menu` follows.
 No new event kinds, no schema change.
 
+**Acting out of turn, Blocks that stop blows, Hides that end, Images that draw
+fire.** Ported from the deleted api driver (`_maybe_abort`, `_resolve_block`,
+`_resolve_release_held`, `_break_hide_on_attack`, `_decoy_targets_for`,
+`_resolve_attack_decoy`) onto the live path, and checked against the book:
+- **The out-of-turn Abort** (`loop/reactions.py`): when a man is attacked,
+  `run_phase` asks HIS chooser, before anything is rolled, whether he Aborts to
+  Dodge or (against hand-to-hand) Block (6E2 p.24). The first offer is always
+  `no_abort`, so a first-legal chooser behaves as before. Refused while down,
+  inside an Abort's lockout, Stunned (6E2 p.106), after using his Phase this
+  Segment, or Surprised (6E2 p.24). A man Holding an Action Aborts with it and
+  loses no further Phase (6E2 p.24, `mark_aborting_with_held`). The driver
+  gated the Abort on an INT Roll and decided it with an expected-damage
+  picker; neither is a rule, so both are gone and the chooser decides.
+- **A Block stops the blow** (`actions/reactive/blocking.py`): a standing
+  Block is rolled at the attack door against the attacker's OCV as modified by
+  the attack (6E2 p.59); a success records the attack as `blocked` with no
+  damage and no Knockback, the attacker still paying END. Hand-to-hand only,
+  not against an attacker he cannot perceive, further Blocks at a cumulative
+  -2, none after a miss (6E2 p.60). The own-Phase `block` resolver now
+  declares the Block instead of rolling a contest against nothing.
+- **Martial Dodge and Martial Block feed the plain maneuvers**
+  (`actions/reactive/martial.py`): +5 DCV for a Martial Dodge, OCV +2 on the
+  Block roll and +2 DCV for a Martial Block (6E2 p.93). Block's DCV is general
+  (6E2 p.59) and folded at the CV door. Corrects the driver, which put a Martial
+  Block's DCV into the Block roll.
+- **Held Actions are used** (`loop/reactions.py`): before every Phase, anyone
+  Holding is asked (out of turn) whether he acts first; his choices are his
+  ordinary menu. A contested DEX Roll decides who goes first (6E2 p.22;
+  RULING: a tie goes to the man whose Phase it is); a defensive Action goes
+  first without a roll. A Held Action lapses when the holder's next Phase
+  Segment begins (6E2 p.22), through the existing
+  `HeldAction.expire_for_combatant_next_phase`.
+- **Hide ends when the hider attacks** (`concealment.break_hide`,
+  `REVEALING_KINDS`): RULING, recorded in code, grounded in 6E2 p.52 and 6E1
+  p.127. The attack out of hiding is still Surprised; the break is recorded
+  after it.
+- **Images draw fire** (`actions/decoys.py`): an enemy's standing Image that a
+  man still believes is offered to him as a target; shooting it spends the
+  attack on nothing and he rolls to see through it (6E1 p.238-239). A caster
+  with an Image standing is not offered another.
+- `PhaseSituation.out_of_turn` (`OutOfTurn`, `OutOfTurnReason`) tells a
+  chooser why it is being asked outside the actor's Phase. A chooser that
+  calls a model is now asked once more per attack on a man who may Abort.
+- With the Presence/Rage line: the Rage and very-impressed narrowings bind a
+  holder's menu too (all menu narrowing is in `run._situation_for`); a raging
+  man is not offered an Abort (6E1 p.424-425, 6E2 p.23); a No-Time Presence
+  Attack made from a Hold does not use the Held Action (6E2 p.25), and the
+  one-free-PA window (`in_the_phase._in_this_phase`) is bounded by the
+  Segment so it does not leak into his next Phase.
+- No new event kinds. New `ActionResolved` payload kinds: `hide_broken`; an
+  attack payload may carry `blocked: true`.
+
 **Martial maneuvers resolve.** Every `maneuver` the menu offered raised
 `UnresolvableAction` (a 500 on kirby-api's `/run`): the resolver looked the
 offer's `power_xmlid="MANEUVER"` up in the static table and refused it, and
