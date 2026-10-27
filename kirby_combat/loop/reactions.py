@@ -60,13 +60,17 @@ KEEP_HOLDING = "keep_holding"
 #: (`actions/recording.resolve_attack_in_session`), where a Dodge's DCV and a
 #: Block's roll are read. A defence against a kind that does not reach it
 #: would be a Phase given up for nothing, so it is not offered: Grab,
-#: Entangle, Flash, Move By and Move Through resolve elsewhere today.
+#: Move By and Move Through resolve elsewhere today. Since kirby-combat #22
+#: an Autofire burst and spray roll at the attack door, and a one-target
+#: Flash or Entangle rolls to hit (6E1 p.228, p.217) through the same CV
+#: fold, where a Dodge is read; so all four are Abortable.
 #: Mental Powers are absent on purpose: they roll OMCV against DMCV, and
 #: neither Dodge nor Block touches DMCV (6E1 p.150).
 REACTABLE_KINDS = frozenset({
     "attack", "strike", "maneuver", "trip", "disarm", "push",
     "throw_object", "move_strike", "reposition_strike",
     "rapid_fire", "multiple_attack", "sweep",
+    "autofire", "autofire_spray", "flash", "entangle",
 })
 
 
@@ -206,10 +210,27 @@ def may_abort(session: "CombatSession", defender_id: str, attacker) -> bool:
     return True
 
 
+def defenders_of(incoming: LegalAction) -> tuple[str, ...]:
+    """Every man ``incoming`` is announced against, in shot order.
+
+    A Sweep, a Multiple Attack and an Autofire spray name their men in
+    ``target_ids`` (an Autofire spray carries no single ``target_id`` at
+    all), and 6E2 p.24 gives each man an attacker "announces he's attacking"
+    the Abort, not only the first."""
+    named = tuple(incoming.target_ids) or (
+        (incoming.target_id,) if incoming.target_id else ())
+    out: list[str] = []
+    for who in named:
+        if who not in out:
+            out.append(who)
+    return tuple(out)
+
+
 def reaction_menu(
-    session: "CombatSession", attacker, incoming: LegalAction,
+    session: "CombatSession", attacker, incoming: LegalAction, defender_id: str,
 ) -> list[LegalAction]:
-    """What the target of ``incoming`` may Abort to, or [] when he may not.
+    """What ``defender_id``, one of the men ``incoming`` is announced
+    against, may Abort to, or [] when he may not.
 
     No Abort at all for a kind that is not an attack on a man
     (`REACTABLE_KINDS`), or for a target that is not a combatant (an Image).
@@ -218,7 +239,6 @@ def reaction_menu(
     """
     from kirby_combat.actions.reactive.martial import block_maneuver, dodge_maneuver
 
-    defender_id = incoming.target_id
     if incoming.kind not in REACTABLE_KINDS or defender_id not in session.combatants:
         return []
     if not may_abort(session, defender_id, attacker):
@@ -275,45 +295,47 @@ def _situation(session, actor, menu, *, reason, by_id, incoming) -> PhaseSituati
 
 def react_to_attack(
     session: "CombatSession", attacker, incoming: LegalAction, chooser: Chooser,
-) -> tuple["CombatSession", Reaction | None]:
-    """Ask the target of ``incoming`` whether he Aborts, and record it.
+) -> tuple["CombatSession", list[tuple[str, Reaction]]]:
+    """Ask each man ``incoming`` is announced against whether he Aborts.
 
     Called by `run_phase` after the attacker has chosen and before anything
-    is rolled --- the moment 6E2 p.24 fixes. Returns the new session and the
-    reaction taken (None when he was not entitled to one).
+    is rolled --- the moment 6E2 p.24 fixes. Each target is asked in shot
+    order (`defenders_of`). Returns the new session and ``(defender,
+    reaction)`` for every man who was entitled to be asked.
 
     A man Holding his Action Aborts with it: 6E2 p.24, "If he's Holding a
     Phase or Half Phase, he may Abort to use his Held Action to perform a
     defensive Action; in that case he doesn't lose any more Phases."
     """
-    menu = reaction_menu(session, attacker, incoming)
-    if not menu:
-        return session, None
-    defender = session.combatants[incoming.target_id]
-    situation = _situation(
-        session, defender, menu, reason=OutOfTurnReason.ABORT,
-        by_id=attacker.id, incoming=incoming,
-    )
-    chosen = Reaction(validate_choice(chooser.choose(situation), menu).kind)
-    if chosen is Reaction.NONE:
-        return session, chosen
-
+    from kirby_combat.actions.held_action import HeldAction
     from kirby_combat.actions.reactive.abort import mark_aborting, mark_aborting_with_held
 
-    from kirby_combat.actions.held_action import HeldAction
-
-    held = usable_hold(session, defender.id)
-    if held is not None:
-        session, _ = HeldAction.release(
-            session, held.id,
-            trigger_observed=f"Aborted to {chosen.value} against {attacker.id}",
+    taken: list[tuple[str, Reaction]] = []
+    for defender_id in defenders_of(incoming):
+        menu = reaction_menu(session, attacker, incoming, defender_id)
+        if not menu:
+            continue
+        defender = session.combatants[defender_id]
+        situation = _situation(
+            session, defender, menu, reason=OutOfTurnReason.ABORT,
+            by_id=attacker.id, incoming=incoming,
         )
-        session, _ = mark_aborting_with_held(
-            session, defender.id, to_action=chosen.value,
-        )
-    else:
-        session, _ = mark_aborting(session, defender.id, to_action=chosen.value)
-    return session, chosen
+        chosen = Reaction(validate_choice(chooser.choose(situation), menu).kind)
+        taken.append((defender_id, chosen))
+        if chosen is Reaction.NONE:
+            continue
+        held = usable_hold(session, defender.id)
+        if held is not None:
+            session, _ = HeldAction.release(
+                session, held.id,
+                trigger_observed=f"Aborted to {chosen.value} against {attacker.id}",
+            )
+            session, _ = mark_aborting_with_held(
+                session, defender.id, to_action=chosen.value,
+            )
+        else:
+            session, _ = mark_aborting(session, defender.id, to_action=chosen.value)
+    return session, taken
 
 
 # ---------------------------------------------------------------------------
