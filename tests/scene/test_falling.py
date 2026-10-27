@@ -54,9 +54,12 @@ def test_falling_damage_formula_6e_one_d6_per_2m():
     assert compute_falling_damage(fall_distance_m=1) == 0   # less than 2m — no damage
 
 
-def test_falling_damage_capped_at_20d6_for_terminal_velocity():
+def test_long_falls_take_velocity_at_impact_to_30d6():
+    # 6E2 p.142 (kirby-world 0.1.1): a Long Fall is 1d6 per 2m/Segment of
+    # velocity at impact, to 60m/Segment.
     assert compute_falling_damage(fall_distance_m=100) == 20
-    assert compute_falling_damage(fall_distance_m=1000) == 20
+    assert compute_falling_damage(fall_distance_m=150) == 25
+    assert compute_falling_damage(fall_distance_m=1000) == 30
 
 
 def test_resolve_fall_from_rooftop_to_ground():
