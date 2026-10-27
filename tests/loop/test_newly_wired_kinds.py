@@ -131,10 +131,16 @@ def test_grab_resolves_a_contest():
     assert resolved.events
 
 
-def test_block_resolves_a_contest():
+def test_block_raises_a_block_and_rolls_nothing_yet():
+    """6E2 p.59 rolls a Block "against his opponent's OCV as modified by the
+    attack the opponent is making" --- so the roll waits for the attack (see
+    `actions/reactive/blocking.py`). This used to assert a contest rolled
+    here, in the blocker's own Phase, against nothing."""
     _, resolved = _resolve(_action("block"))
-    assert resolved.result is not None
-    assert resolved.events
+    assert resolved.result.kind == "AbortDeclared"
+    assert resolved.result.to_action == "block"
+    assert not [e for e in resolved.events
+                if getattr(e, "result_payload", {}).get("kind") == "block"]
 
 
 def test_presence_attack_produces_an_effect_not_damage():

@@ -58,6 +58,10 @@ class _Reads:
         self.situation = None
 
     def choose(self, situation):
+        # Out of turn (an Abort, a Held Action: `loop/reactions.py`) is not
+        # the Phase page these tests read: decline, and do not keep it.
+        if situation.out_of_turn is not None:
+            return situation.menu[0].action_id
         self.situation = situation
         self.page = situation.brief().render()
         return situation.ordered_menu[0].action_id

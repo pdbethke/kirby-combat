@@ -33,19 +33,91 @@ from typing import Any
 #: What `_resolve_hide` writes, and the key nothing read.
 UNSEEN_BY = "unseen_by"
 
+#: The payload kind that ends a man's Hide: he attacked out of it.
+HIDE_BROKEN = "hide_broken"
+
+#: Every action kind that is an OVERT ATTACK and so gives a hider away.
+#:
+#: RULING (6E2 leaves this to the GM, and so it is recorded rather than
+#: cited as RAW): a Hide ends when the hider attacks. 6E2 p.52 names "a
+#: heretofore unseen sniper fires at the character" as the Surprise a hidden
+#: man earns --- the shot is what makes him seen, and the same page has a
+#: man revealing his powers spend his Surprise in the revealing. 6E1 p.127
+#: charges a hider -1 to his Stealth roll per 10 Active Points of an Obvious
+#: Power he uses, which no attack this engine resolves survives for long.
+#: The one attack out of hiding is still Surprised (the break is recorded
+#: AFTER it resolves); hiding again is a new Hide.
+#:
+#: The list is the parked kirby-api driver's overt-attack list
+#: (deleted in kirby-api 70ad60f): damaging attacks and offensive
+#: maneuvers, movement-strikes, Presence and mental attacks. Movement,
+#: Dodge, Block, Set, Recover, Hold, Haymaker (a declaration), Hide itself
+#: and social or utility actions leave a Hide intact.
+REVEALING_KINDS = frozenset({
+    "attack", "strike", "grab", "trip", "disarm", "push", "spread",
+    "throw", "throw_object", "maneuver", "move_strike", "move_by",
+    "move_through", "rapid_fire", "multiple_attack", "sweep",
+    "presence_attack", "presence_attack_group", "attack_construct",
+    "mental_blast", "mind_control", "mental_illusion", "entangle",
+    "mental_entangle", "telepathy", "drain", "dispel", "flash",
+    "reposition_strike",
+})
+
 
 def _hide_results(session) -> list[tuple[str, set[str]]]:
-    """Every resolved Hide in this fight, oldest first: (hider, watchers)."""
+    """Every resolved Hide in this fight, oldest first: (hider, watchers).
+
+    A broken Hide is an entry with no watchers: from then on nobody has
+    lost him, until he Hides again.
+    """
     out: list[tuple[str, set[str]]] = []
     for event in getattr(session, "event_log", None) or []:
         payload = getattr(event, "result_payload", None)
-        if not isinstance(payload, dict) or payload.get("kind") != "hide":
+        if not isinstance(payload, dict):
+            continue
+        kind = payload.get("kind")
+        if kind not in ("hide", HIDE_BROKEN):
             continue
         author = getattr(getattr(event, "author", None), "id", None)
         if author is None:
             continue
-        out.append((author, set(payload.get(UNSEEN_BY) or ())))
+        unseen = set(payload.get(UNSEEN_BY) or ()) if kind == "hide" else set()
+        out.append((author, unseen))
     return out
+
+
+def is_hidden_from_anyone(session, combatant_id: str) -> bool:
+    """Whether any watcher has lost track of this man right now."""
+    latest: set[str] = set()
+    for hider, unseen in _hide_results(session):
+        if hider == combatant_id:
+            latest = unseen
+    return bool(latest)
+
+
+def break_hide(session, combatant_id: str, *, by_kind: str):
+    """End his Hide if ``by_kind`` is an overt attack. See `REVEALING_KINDS`.
+
+    Recorded as its own row, authored by the hider, so a fight rebuilt from
+    its log un-hides him at the same moment the fight that ran did.
+    Returns the session untouched when there is nothing to break.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import ActionResolved, make_author_combatant
+
+    if by_kind not in REVEALING_KINDS or not is_hidden_from_anyone(session, combatant_id):
+        return session
+    return apply_event(session, ActionResolved(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(combatant_id),
+        declaration_event_id="",
+        result_payload={"kind": HIDE_BROKEN, "by_kind": by_kind},
+    ))
 
 
 def hidden_from(session, observer_id: str) -> set[str]:

@@ -32,6 +32,7 @@ up spending phases doing nothing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from kirby_combat.enumeration import LegalAction
@@ -55,6 +56,28 @@ class InvalidChoice(Exception):
             f"the menu held {len(offered)} actions: {offered[:8]}"
             + (" ..." if len(offered) > 8 else "")
         )
+
+
+class OutOfTurnReason(str, Enum):
+    """The two questions the engine asks a man outside his own Phase."""
+
+    #: He is being attacked: Abort his next Phase to a defence? (6E2 p.24)
+    ABORT = "abort"
+    #: Somebody else's Phase is starting: use his Held Action? (6E2 p.22)
+    HELD_ACTION = "held_action"
+
+
+@dataclass(frozen=True)
+class OutOfTurn:
+    """Why a chooser is being asked outside the actor's own Phase.
+
+    ``by_id`` is the man whose Phase it is, and ``incoming`` his chosen
+    offer when the question is "he is attacking you --- do you Abort?".
+    """
+
+    reason: OutOfTurnReason
+    by_id: str
+    incoming: LegalAction | None
 
 
 @dataclass
@@ -82,6 +105,12 @@ class PhaseSituation:
     session: "CombatSession | None" = None
     segment: int = 0
     turn: int = 1
+    #: Set when this is NOT his Phase: the engine is asking him to react to
+    #: something out of turn --- to Abort to a defence against an attack
+    #: coming at him (6E2 p.24), or to use a Held Action before somebody
+    #: else's Phase (6E2 p.22). See `loop/reactions.py`. None on his own
+    #: Phase, which is what every chooser has always been shown.
+    out_of_turn: "OutOfTurn | None" = None
 
     @property
     def action_ids(self) -> list[str]:

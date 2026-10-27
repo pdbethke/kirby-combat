@@ -383,6 +383,82 @@ def _record_failed_activation(
     )
 
 
+def _record_blocked_attack(
+    session: CombatSession, attack: AttackInput, template: CombatTemplate,
+    block: BlockResult, *, declaration_event_id: str | None, action_type: str,
+) -> tuple[CombatSession, AttackResult]:
+    """Log an attack a Block stopped, and return a null result.
+
+    6E2 p.59: the blocker "takes no damage (and no Knockdown or
+    Knockback)". The attack WAS made, so it is declared and resolved like
+    any other --- ``hit: False``, no damage, the Block's numbers beside it
+    --- and the attacker pays its END and its Charge: he swung, and the
+    swing was turned aside. ``to_hit`` is None and the three CV keys are
+    None, the same "no roll that counts" shape `_record_failed_activation`
+    writes, because the attacker's roll never decided anything.
+    """
+    from kirby_combat.session.apply import apply_event
+
+    now = datetime.now(timezone.utc)
+    attacker_id = attack.attacker.id
+    target_id = attack.target.id
+    # What the swing cost, from the same pure resolver every attack is
+    # priced by; its dice were rolled into `attack.dice` already, so asking
+    # draws nothing.
+    end_spent = int(resolve_attack(attack, template).end_spent or 0)
+    s = _spend_attack_end(session, attack.attacker, end_spent, template)
+    decl_id = declaration_event_id
+    if decl_id is None:
+        declared = ActionDeclared(
+            id=str(uuid.uuid4()), session_id=s.id,
+            sequence=len(s.event_log) + 1, timestamp=now,
+            author=make_author_combatant(attacker_id),
+            combatant_id=attacker_id, action_type=action_type,
+            targets=[target_id],
+            parameters={"power_xmlid": attack.power.xmlid},
+        )
+        s = apply_event(s, declared)
+        decl_id = declared.id
+    resolved = ActionResolved(
+        id=str(uuid.uuid4()), session_id=s.id,
+        sequence=len(s.event_log) + 1, timestamp=now,
+        author=make_author_combatant(attacker_id),
+        declaration_event_id=decl_id,
+        result_payload={
+            "kind": action_type,
+            "hit": False,
+            "stun_dealt": 0,
+            "body_dealt": 0,
+            "status_changes": [],
+            "target_id": target_id,
+            "power_xmlid": attack.power.xmlid,
+            "power_source_id": getattr(attack.power, "source_id", None),
+            "power_name": getattr(attack.power, "name", None),
+            "damage_type": getattr(attack.power, "damage_type", None),
+            "is_ranged": bool(getattr(attack.power, "is_ranged", False)),
+            "segment": s.timeline.segment,
+            "effective_ocv": None,
+            "target_dcv": None,
+            "margin": None,
+            "blocked": True,
+            "blocker_roll": block.blocker_roll,
+            "attacker_ocv": block.attacker_ocv,
+            "blocker_ocv": block.blocker_ocv,
+        },
+    )
+    s = apply_event(s, resolved)
+    return s, AttackResult(
+        hit=False, to_hit=None, damage=None, defense=None,
+        stun_dealt=0, body_dealt=0, end_spent=end_spent, knockback=None,
+        status_changes=[], power_xmlid=attack.power.xmlid,
+        audit_trail=[
+            f"Blocked (6E2 p59): {target_id} rolled {block.blocker_roll} "
+            f"with OCV {block.blocker_ocv} against OCV {block.attacker_ocv} "
+            "--- no damage, no Knockback"
+        ],
+    )
+
+
 def _fold_session_cvs(
     session: CombatSession, attack: AttackInput, combat_type: str | None = None,
 ) -> AttackInput:
@@ -481,7 +557,13 @@ def _fold_session_cvs(
     # gave up his next Phase for a bonus nothing read. Added here rather
     # than as a `cv_modifiers` source because it is a flat bonus a
     # combatant DECLARED, not a condition he is under.
-    dcv_delta = (effective - base_dcv) + Dodge.dcv_bonus(session, target_id)
+    # And a standing Block's DCV: "The CV bonuses obtained from Block are
+    # general ones; they apply against all characters" (6E2 p.59). +0 for
+    # the plain maneuver, a Martial Block's +2 (6E2 p.93).
+    from kirby_combat.actions.reactive.blocking import block_dcv_bonus
+
+    dcv_delta = ((effective - base_dcv) + Dodge.dcv_bonus(session, target_id)
+                 + block_dcv_bonus(session, target_id))
     # 6E2 p.68 / p.93: the DCV a martial maneuver left him at, until his
     # next Phase. A flat modifier he CHOSE, like the Dodge above, and read
     # here for the same reason: this is the one door every attack on him
@@ -582,6 +664,28 @@ def resolve_attack_in_session(
     # behind (6E2 p.45).
     if cover_level:
         attack = replace(attack, target_cover_level=cover_level)
+
+    # A STANDING BLOCK MEETS THE BLOW HERE, before the blow is rolled ---
+    # 6E2 p.59: "If he succeeds, he Blocks the attack and takes no damage".
+    # Asked at the door every hand-to-hand attack reaches, against the
+    # attack as it will be rolled (folded and covered just above). See
+    # `actions/reactive/blocking.py`.
+    from kirby_combat.actions.reactive.blocking import try_block
+    from kirby_combat.sense_penalties import HTH, RANGED
+
+    s, block = try_block(
+        session, attack, template,
+        combat_type=combat_type or (
+            RANGED if getattr(attack.power, "is_ranged", False) else HTH),
+        roller=roller or session.dice_roller,
+    )
+    if block is not None and block.success:
+        return _record_blocked_attack(
+            s, attack, template, block,
+            declaration_event_id=declaration_event_id,
+            action_type=action_type,
+        )
+    session = s
 
     result = resolve_attack(attack, template)
 

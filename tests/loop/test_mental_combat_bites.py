@@ -151,13 +151,20 @@ def _controlled(order: str, *, extra=()):
 
 
 class _Records:
-    """A chooser that takes the first offer and keeps the menu it was shown."""
+    """A chooser that takes the first offer and keeps the menu it was shown
+    on the actor's OWN Phase.
+
+    The loop now also asks a man out of turn --- whether he Aborts when he is
+    attacked, whether he uses a Held Action (`loop/reactions.py`) --- and those
+    menus are not the Phase menu these tests read, so they are not kept.
+    """
 
     def __init__(self):
         self.menu: list[LegalAction] = []
 
     def choose(self, situation):
-        self.menu = list(situation.menu)
+        if situation.out_of_turn is None:
+            self.menu = list(situation.menu)
         return situation.menu[0].action_id
 
 

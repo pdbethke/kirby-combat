@@ -6,7 +6,6 @@ from kirby_combat.session.events import AbortDeclared
 from kirby_combat.actions.reactive.abort import mark_aborting
 
 
-_DODGE_DCV_BONUS = 3
 
 
 class Dodge:
@@ -32,4 +31,9 @@ class Dodge:
         window = session.timeline.aborts.get(combatant_id)
         if window is None or window.to_action != "dodge":
             return 0
-        return _DODGE_DCV_BONUS
+        # MARTIAL DODGE FEEDS THE PLAIN DODGE (6E2 p.93: +5 against the
+        # plain maneuver's +3). Read off his own sheet at the moment the
+        # bonus is asked for; see `actions/reactive/martial.py`.
+        from kirby_combat.actions.reactive.martial import dodge_maneuver
+
+        return dodge_maneuver(session.combatants[combatant_id]).dcv

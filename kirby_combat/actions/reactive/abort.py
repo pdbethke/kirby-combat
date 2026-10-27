@@ -117,3 +117,58 @@ def mark_aborting(
         bonus_until_segment=bonus_segment,
     )
     return apply_event(session, evt), evt
+
+
+def mark_aborting_with_held(
+    session: CombatSession,
+    combatant_id: str,
+    *,
+    to_action: str,
+) -> tuple[CombatSession, AbortDeclared]:
+    """Abort using a HELD Action rather than his next Phase (6E2 p.24).
+
+    "If he's Holding a Phase or Half Phase, he may Abort to use his Held
+    Action to perform a defensive Action; in that case he doesn't lose any
+    more Phases." The Phase he gives up is the one he was already Holding,
+    so the window records NOW as the Phase used (he cannot Abort again in
+    this Segment) and his next Phase, which he keeps, as the end of the
+    bonus. The caller releases the Held Action itself
+    (`HeldAction.release`); this only opens the window.
+
+    Same refusals as `mark_aborting`: one Abort at a time, and not while
+    Stunned (6E2 p.106).
+    """
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.timeline import next_phase
+    from kirby_combat.statuses import stunned_or_recovering_for
+    from kirby_combat.tables import segments_for_spd
+
+    if is_aborting(session, combatant_id):
+        raise ValueError(
+            f"combatant {combatant_id!r} has already aborted this phase"
+        )
+    if stunned_or_recovering_for(session, combatant_id):
+        raise ValueError(
+            f"combatant {combatant_id!r} is Stunned (or recovering from "
+            "being Stunned) and cannot Abort to a defensive Action "
+            "(6E2 p.106)"
+        )
+    timeline = session.timeline
+    phases = segments_for_spd(
+        session.combatants[combatant_id].combat_stats().spd)
+    bonus_turn, bonus_segment = next_phase(
+        phases, timeline.turn, timeline.segment, inclusive=False)
+    evt = AbortDeclared(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(combatant_id),
+        combatant_id=combatant_id,
+        to_action=to_action,
+        aborted_turn=timeline.turn,
+        aborted_segment=timeline.segment,
+        bonus_until_turn=bonus_turn,
+        bonus_until_segment=bonus_segment,
+    )
+    return apply_event(session, evt), evt
