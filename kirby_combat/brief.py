@@ -611,7 +611,8 @@ class Brief:
         # ASKED OUTSIDE HIS OWN PHASE (an Abort, or a Held Action), said
         # first: everything below reads differently when it is somebody
         # else's Phase. See `brief_detail.out_of_turn_lines`.
-        out_of_turn = detail.out_of_turn_lines(situation)
+        out_of_turn = (detail.out_of_turn_lines(situation)
+                       or detail.phase_time_lines(situation))
         if out_of_turn:
             lines.append("")
             lines.extend(out_of_turn)

@@ -142,6 +142,38 @@ class PhaseSituation:
     out_of_turn: "OutOfTurn | None" = None
 
     @property
+    def halves_left(self) -> int | None:
+        """How much of the Phase this decision is taken from (6E2 p.20).
+
+        Read from `action_time` --- the fold that cuts the menu --- so the
+        seat is told the same thing the menu was built from, and nothing is
+        stored here to drift from it:
+
+        * his own Phase: `action_time.halves_left` --- 2 at the start, 1
+          after a first Half Phase Action, 1 all along for a very impressed
+          man (6E2 p.139);
+        * a Held Action question: 1 when what he Holds is only the second
+          half of a Phase (6E2 p.22, `holds_only_a_half`), else 2;
+        * an Abort question: None. An Abort is not taken out of a Phase in
+          hand; it costs his NEXT Phase (6E2 p.24).
+
+        A situation with no fight behind it (``session`` None) cannot say,
+        and raises rather than guessing.
+        """
+        from kirby_combat.action_time import halves_left, holds_only_a_half
+
+        oot = self.out_of_turn
+        if oot is not None and oot.reason is OutOfTurnReason.ABORT:
+            return None
+        if self.session is None:
+            raise ValueError(
+                "halves_left is read off the fight, and this situation has none")
+        actor_id = str(self.actor.id)
+        if oot is not None:
+            return 1 if holds_only_a_half(self.session, actor_id) else 2
+        return halves_left(self.session, actor_id)
+
+    @property
     def action_ids(self) -> list[str]:
         return [a.action_id for a in self.menu]
 
