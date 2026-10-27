@@ -3293,8 +3293,8 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
       while he is off the ground, he falls (`impact.fall`) and lands prone.
       A man who never left the ground has nothing to fall from.
 
-    NOT BUILT: the climbing CV penalties (6E2 p.48-49, `climbing.py`) are
-    still read by nothing -- nothing folds which wall a man is on.
+    - ON THE WALL: until he tops out, falls or is moved off it, he fights
+      at the face's penalties (6E2 p.48-49; `climbing_state`).
     """
     from kirby_combat.climbing import CLIMB_FAST_PENALTY
     from kirby_combat.impact import fall, skill_roll
@@ -3349,10 +3349,18 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
         if is_prone(new_session, actor.id):
             new_session = _on_his_feet(new_session, actor.id)
         top_z = min(wall.segment[0].z, wall.segment[1].z) + wall.height_m
+        topped_out = outcome.landing.z >= top_z - 1e-6
         payload.update({
             "climbed": bool(outcome.reachable),
             "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
-            "topped_out": outcome.landing.z >= top_z - 1e-6,
+            "topped_out": topped_out,
+            # 6E2 p.49: "a character can eliminate these penalties with a
+            # successful Climbing roll ... separate from any roll needed to
+            # keep climbing". RULING in `climbing_state`: made with each
+            # climb by a man with the Skill, at the face's difficulty.
+            "penalties_roll": (None if topped_out else skill_roll(
+                new_session, actor.id, "CLIMBING", modifier=-difficulty,
+                roller=roller)),
         })
         out = _recorded(new_session, actor, action, outcome, payload)
         return replace(out, events=_events_since(session, out.session))
