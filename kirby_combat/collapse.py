@@ -182,7 +182,7 @@ def bring_it_down(session: Any, construct: Any, *, roller, template):
     """
     from kirby_combat.actions.recording import _apply_damage
     from kirby_combat.models import AttackPower, DiceValues
-    from kirby_combat.resolution.damage import compute_damage
+    from kirby_combat.resolution.damage import compute_damage, stun_for_body_taken
 
     # A FACE OF A BUILDING IS NOT THE BUILDING.
     if getattr(construct, "part_of", None) and not is_structure(construct):
@@ -219,6 +219,7 @@ def bring_it_down(session: Any, construct: Any, *, roller, template):
         defense = int(getattr(stats, "pd", 0) or 0)
         stun = max(0, int(dmg.stun) - defense)
         body = max(0, int(dmg.body) - defense)
+        stun = stun_for_body_taken(stun, body)    # 6E2 p.105
         if stun or body:
             session = _apply_damage(session, cid, stun=stun, body=body)
         caught.append({"combatant_id": cid, "stun": stun, "body": body})

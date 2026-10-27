@@ -116,7 +116,10 @@ def test_dr_50_normal_does_not_apply_to_killing() -> None:
     # Killing vs PD 10/rPD 0: total_def=10 stops STUN, rPD 0 stops BODY.
     # STUN 8 - 10 = 0 (clamp), BODY 4 - 0 = 4. DR doesn't apply.
     assert r.body_dealt == 4
-    assert r.stun_dealt == 0
+    # ...and the 4 BODY that got through costs 4 STUN (6E2 p.105: "1 STUN
+    # for every 1 point of BODY damage that gets through his defenses").
+    # This asserted 0, which was the defect.
+    assert r.stun_dealt == 4
 
 
 def test_dr_75_resistant_physical_cuts_killing_75pct() -> None:

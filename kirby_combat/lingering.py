@@ -316,7 +316,7 @@ def _dose_against_one_defense(session, effect: Lingering, power, *,
     """
     from kirby_combat.adjustments import adjusted_con
     from kirby_combat.models import DiceValues
-    from kirby_combat.resolution.damage import compute_damage
+    from kirby_combat.resolution.damage import compute_damage, stun_for_body_taken
     from kirby_combat.resolution.defense import compute_defense
     from kirby_combat.resolution.status import determine_status_changes
     from kirby_combat.session.events import ActionResolved, make_author_combatant
@@ -341,6 +341,7 @@ def _dose_against_one_defense(session, effect: Lingering, power, *,
     body = int(damage.body) - soak_body
     if bare.avad and not bare.avad_does_body:
         body = 0                      # 6E1 p.328: AVAD does STUN only
+    stun = stun_for_body_taken(stun, body)    # 6E2 p.105
     if stun or body:
         session, _ = record_vitals_change(session, effect.target_id,
                                           stun=-stun, body=-body,

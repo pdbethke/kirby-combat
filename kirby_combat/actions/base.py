@@ -7,7 +7,7 @@ from kirby_combat.resolution.hit_location import (
     effect_for, exposed_through_cover, killing_damage, location_for_roll,
     normal_damage, uses_hit_locations,
 )
-from kirby_combat.resolution.damage import compute_damage
+from kirby_combat.resolution.damage import compute_damage, stun_for_body_taken
 from kirby_combat.resolution.defense import compute_defense
 from kirby_combat.resolution.knockback import compute_knockback, does_knockback
 from kirby_combat.resolution.status import determine_status_changes
@@ -279,6 +279,16 @@ class AttackAction:
                 f"{stun_dealt // 2}, BODY {body_dealt}→{body_dealt // 2}")
             stun_dealt //= 2
             body_dealt //= 2
+
+        # BODY THAT GOT THROUGH COSTS STUN (6E2 p.105), whatever the
+        # defenses did to the STUN: a killing attack against a man with no
+        # resistant defense took his BODY and left his STUN untouched.
+        floored = stun_for_body_taken(stun_dealt, body_dealt)
+        if floored != stun_dealt:
+            audit_trail.append(
+                f"1 STUN per BODY taken (6E2 p105): STUN {stun_dealt}→{floored}"
+            )
+            stun_dealt = floored
 
         audit_trail.append(
             f"Damage applied: STUN dealt={stun_dealt}, BODY dealt={body_dealt}"
