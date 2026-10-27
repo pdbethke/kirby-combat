@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.22.1 — unreleased
+## 0.22.1 — 2026-10-27
 
 **Four findings from kirby-app's 0.22.0 demo recording (Drago vs GORGON), two of them defects.**
 Each one is pinned by a seam test through `run_phase`.
