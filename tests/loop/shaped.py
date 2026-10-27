@@ -67,8 +67,9 @@ def encounter_on(scene, *combatants, segment: int = 12, template=TEMPLATE) -> En
 
 
 def armed(id: str, power, *, side=None, dex: int = 20, stun: int = 40,
-          spd: int = 4, running: int = 12, **stats):
-    """`conftest.fighter`'s stat block, carrying ``power`` as its one attack."""
+          spd: int = 4, running: int = 12, also=(), **stats):
+    """`conftest.fighter`'s stat block, carrying ``power`` as its one attack
+    (and ``also``, any more)."""
     from fixtures.synthetic_hero import synthetic_combatant
 
     block = dict(
@@ -81,7 +82,7 @@ def armed(id: str, power, *, side=None, dex: int = 20, stun: int = 40,
     block.update(stats)
     return synthetic_combatant(
         id=id, name=id, side=side,
-        attacks=[power] if power is not None else [], **block,
+        attacks=([power] if power is not None else []) + list(also), **block,
     )
 
 

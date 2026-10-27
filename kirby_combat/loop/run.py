@@ -34,6 +34,7 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import without_spent_shouts
 from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
+from kirby_combat.standing_areas import RAISE_DAMAGE_SHIELD
 from kirby_combat.pre_attacks.in_the_phase import (
     PRESENCE_KINDS, can_yield_to, half_phase_only, hesitation_owed,
     limit_to_half_phase, phase_already_begun, presence_attack_made_this_phase,
@@ -393,9 +394,12 @@ def _advance_to_an_actor(
 def _start_of_segment(session, *, template, roller):
     """The rules that fire at the top of a Segment, whoever acts in it."""
     from kirby_combat.lingering import fire_due_doses
+    from kirby_combat.standing_areas import tick_standing_areas
     from kirby_combat.zone_effects import zone_effects_for_segment
 
     session = fire_due_doses(session, template=template, roller=roller)
+    # A Damage Over Time ZONE keeps its own clock too (6E1 p.332).
+    session = tick_standing_areas(session, template=template, roller=roller)
     return zone_effects_for_segment(session, template=template, roller=roller)
 
 
@@ -643,8 +647,16 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # reaches the attack door, any modifier part `power_modifiers` cannot
     # resolve, and a Locked Out Damage Over Time (6E1 p.332).
     from kirby_combat.attack_shapes import offers_the_engine_can_keep
+    from kirby_combat.standing_areas import standing_offers
 
     menu = offers_the_engine_can_keep(session, actor_id, menu)
+    # A Damage Shield is raised, never fired; an always-on aura is never
+    # fired at all (6E1 p.130, p.323). See `standing_areas.standing_offers`.
+    menu = standing_offers(session, actor_id, menu)
+    # NO RECOVERY HOLDING HIS BREATH (6E2 p.132): not offered for nothing.
+    from kirby_combat.recovery_limits import without_futile_recovery
+
+    menu = without_futile_recovery(session, actor_id, menu)
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
         allies=[a for a in allies if not is_down(a)],
@@ -802,6 +814,16 @@ def run_phase(
             session, held_after, notes, template=template, roller=roller,
             on_unresolvable=on_unresolvable,
         )
+        # WHO WALKED INTO A ZONE THIS PHASE, and whether he Recovered and so
+        # kept no Constant power up (6E1 p.129, p.332; 6E2 p.131). Here,
+        # because every exit of his Phase comes through here.
+        from kirby_combat.standing_areas import after_the_phase
+
+        session = after_the_phase(
+            session, actor_id, since=log_before,
+            recovered=fields.get("kind") == "recover",
+            template=template, roller=roller,
+        )
         fields["notes"] = notes + list(fields.get("notes") or [])
         return _phase_result(encounter, session, log_before,
                              actor_id=actor_id, **fields)
@@ -841,6 +863,12 @@ def run_phase(
         from kirby_combat.lingering import maintain_constant_attacks
 
         session = maintain_constant_attacks(
+            session, actor_id, template=template, roller=roller,
+        )
+        # AND HIS CONSTANT ZONES AND DAMAGE SHIELDS, on the same rule.
+        from kirby_combat.standing_areas import maintain_standing_areas
+
+        session = maintain_standing_areas(
             session, actor_id, template=template, roller=roller,
         )
     actor = session.combatants[actor_id]
@@ -984,6 +1012,16 @@ def run_phase(
             result=resolved.result,
             notes=[f"{actor_id} reallocated his Multipower, a Zero Phase "
                    f"Action (6E1 p.410); his Phase goes on"],
+        )
+    if action.kind == RAISE_DAMAGE_SHIELD:
+        # ZERO PHASE. 6E1 p.323: "he only has to use a Zero Phase Action to
+        # activate it". The offer is gone once the shield is up
+        # (`standing_areas.standing_offers`), so the Phase comes back once.
+        return _done(
+            resolved.session, action_id=action.action_id, kind=action.kind,
+            result=resolved.result,
+            notes=[f"{actor_id} raised a Damage Shield, a Zero Phase Action "
+                   f"(6E1 p.323); his Phase goes on"],
         )
     if action.kind in PRESENCE_KINDS:
         # NO TIME. 6E2 p.25 rates a Presence Attack "No Time", and p.20 lets
@@ -1175,6 +1213,7 @@ _PROGRESS_EVENTS = frozenset({
     "PresenceApplied", "EntangleApplied", "FlashApplied",
     "AdjustmentApplied", "ConstructDamaged",
     "LingeringAttackApplied", "EnvironmentalTriggered",
+    "StandingAreaEstablished",
 })
 
 #: Events that mean something happened only when their numbers are not

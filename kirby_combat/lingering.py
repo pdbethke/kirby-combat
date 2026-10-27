@@ -41,8 +41,8 @@ carrying the absolute ``increments_remaining``, and a
 
 RULINGS, where the book leaves the call to the table (each labelled where
 it is made): the attacker keeps maintaining a Constant attack while he can
-(nothing in the engine chooses to switch one off), stops when its target is
-out of the fight, and a fresh use of the same power ends the old one; a
+(nothing in the engine chooses to switch one off) and stops when its target
+is out of the fight; a
 Damage Over Time's "can be negated by" condition is free text the engine
 cannot act on, so nothing negates it in a fight.
 """
@@ -74,8 +74,8 @@ class LingeringEnd(str, Enum):
     ATTACKER_STUNNED = "attacker_stunned_or_out"   # 6E1 p.347
     SLOT_SWITCHED = "slot_switched_off"        # 6E1 p.400
     TARGET_DOWN = "target_out_of_the_fight"    # RULING
-    POWER_REUSED = "power_used_again"          # RULING
     POWER_NOT_ON_BUILD = "power_not_on_build"
+    RECOVERED = "attacker_took_a_recovery"     # 6E2 p.131
 
 
 @dataclass(frozen=True)
@@ -193,9 +193,13 @@ def _end(session, lingering_id: str, reason: LingeringEnd):
 def begin_lingering(session, *, attacker_id: str, target_id: str, power):
     """Record that a Constant or Damage Over Time attack has hit.
 
-    A Constant power used again ends the attacker's earlier maintenance of
-    it (RULING: one power, one maintained effect --- 6E1 p.129 keeps "the
-    Power" on a target, and a second activation is a new use of it).
+    A Constant power used again is a SECOND maintained effect, not a
+    replacement. 6E1 p.129: "he could attack the same target a second time
+    and affect him with the power twice ... Each use of the power costs END
+    to activate and to maintain", and Sapphire's example keeps Green Dragon
+    and Snowblind burning at once "(a total of 20 END per Phase)". Batch C
+    ruled that a new use ended the old one; the page says otherwise, and
+    the ruling is gone.
     """
     from kirby_combat.session.events import LingeringAttackApplied, make_author_combatant
 
@@ -208,11 +212,6 @@ def begin_lingering(session, *, attacker_id: str, target_id: str, power):
         raise ValueError(
             f"lingering power {getattr(power, 'name', '?')!r} has no "
             "source_id; a later dose has to find the power again by its id")
-    if mode is LingeringMode.CONSTANT:
-        for old in active_lingering(session, attacker_id=attacker_id,
-                                    mode=LingeringMode.CONSTANT):
-            if old.power_source_id == source:
-                session = _end(session, old.id, LingeringEnd.POWER_REUSED)
     dot = getattr(power, "damage_over_time", None)
     return _apply(session, LingeringAttackApplied(
         id=str(uuid.uuid4()), session_id=session.id,

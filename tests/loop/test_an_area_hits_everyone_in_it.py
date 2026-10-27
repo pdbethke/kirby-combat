@@ -193,9 +193,11 @@ def test_a_cone_opens_away_from_the_attacker():
 
 
 def test_an_area_the_engine_cannot_resolve_is_not_offered():
-    """Surface (6E1 p.323) is a standing effect on a thing, not an attack on
-    an area: the engine does not build it, so the menu does not offer it."""
-    spec = area(shape=AreaShape.SURFACE, unbuilt=("Area Of Effect (Surface)",))
+    """An Area part `power_modifiers` cannot build (here Any Area, 6E1
+    p.323: the attacker arranges its 2m Areas "as desired" each use, which
+    no offer says) keeps the power off the menu. (This used to be Surface,
+    which `standing_areas.py` builds now.)"""
+    spec = area(shape=AreaShape.ANY, unbuilt=("Area Of Effect (Any Area)",))
     enc, power = _fight(spec)
     chooser = Picks(lambda a, _s: False)
     run_phase(enc, chooser, roller=Dice(face=3), on_unresolvable="raise")
@@ -205,15 +207,28 @@ def test_an_area_the_engine_cannot_resolve_is_not_offered():
     assert offered == []
 
 
-def test_an_area_power_is_not_offered_as_a_burst():
-    """Multi-shot kinds reach the door once per shot; 6E1 p.321 wants
-    Autofire for that (unbuilt), so an Area power is not a Rapid Fire."""
+def test_an_area_power_can_be_a_rapid_fire_but_not_a_spread():
+    """6E2 p.76 lists among the Multiple Attacks a character may make "use a
+    Blast and an RKA, Area Of Effect against a single target or multiple
+    targets" --- so a burst of Area shots is built: each shot goes to the
+    attack door, which lays its own Area. Batch C refused it, reading 6E1
+    p.321's price for Autofire on an Area as a ban; the page bans Spread
+    instead: "Characters cannot Spread Area Of Effect attacks"."""
     enc, power = _fight(area())
-    burst = LegalAction(action_id="rapid_fire:b", kind="rapid_fire",
+    burst = LegalAction(action_id="rapid_fire:b:a-storm:2", kind="rapid_fire",
                         target_id="b", power_xmlid=power.xmlid,
                         power_name=power.name, summary="", _attack_view=power)
-    assert offer_is_buildable(enc.sessions[0], "a", burst) is False
-    assert offer_is_buildable(enc.sessions[0], "a", _offer(power)) is True
+    spread = LegalAction(action_id="spread:b:a-storm", kind="spread",
+                         target_id="b", power_xmlid=power.xmlid,
+                         power_name=power.name, summary="", _attack_view=power)
+    s = enc.sessions[0]
+    assert offer_is_buildable(s, "a", burst) is True
+    assert offer_is_buildable(s, "a", spread) is False
+    resolved = resolve_chosen(s, s.combatants["a"], burst,
+                              template=TEMPLATE, roller=Dice(face=3))
+    uses = payloads(resolved.session, area_use=True)
+    assert len(uses) == 2
+    assert all(u["target_dcv"] == 3 for u in uses)
 
 
 def test_a_real_build_carries_its_area():

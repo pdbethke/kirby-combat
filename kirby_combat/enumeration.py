@@ -638,6 +638,9 @@ ALL_ACTION_KINDS = frozenset({
     "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
     "throw", "throw_object", "trading", "trip",
     "change_identity", "change_identity_instant",
+    # Offered by `standing_areas.standing_offers` (6E1 p.323), which the
+    # loop runs over this menu.
+    "raise_damage_shield",
 })
 
 #: Kinds that mean "this offer hits somebody". Used to tell a fighter who
@@ -1024,6 +1027,18 @@ def enumerate_actions(
     def _is_melee(ap: Any) -> bool:
         return not getattr(ap, "is_ranged", (getattr(ap, "range_m", 0) or 0) > 0)
 
+    def _no_range_area_covers(ap: Any, enemy_id: str) -> bool:
+        """A No Range Radius, Cone or Line centred on him (6E1 p.321-322)
+        that would take in this enemy: a Radius reaches its size every way,
+        and a Cone or Line opens toward the man it is aimed at."""
+        area = getattr(ap, "area", None)
+        if area is None or getattr(ap, "is_ranged", False):
+            return False
+        if getattr(area.shape, "value", "") not in ("radius", "cone", "line"):
+            return False
+        d = (distances or {}).get(enemy_id)
+        return d is not None and d <= float(area.size_m)
+
     def _pushable(ap: Any) -> bool:
         """Can this attack be Pushed at all? 6E2 p.135.
 
@@ -1149,7 +1164,10 @@ def enumerate_actions(
                 continue
             # Reach spec §2: gate melee (non-ranged) attacks by distance.
             # Ranged attacks are unaffected (their range is gated elsewhere).
-            if _is_melee(ap):
+            # A No Range AREA is not a blow: it is laid on himself and covers
+            # whoever stands in it (6E1 p.321-322), so it reaches every enemy
+            # inside its size, not only the one within arm's length.
+            if _is_melee(ap) and not _no_range_area_covers(ap, enemy.id):
                 gate = _melee_gate(enemy.id)
                 if gate == "block":
                     continue

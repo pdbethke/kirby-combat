@@ -95,10 +95,16 @@ def _apply_post_12_recovery(
     must be computed against a session the first man's Recovery has
     already landed on, or a Recovery could push a man past his maximum.
     """
+    from kirby_combat.recovery_limits import allowed_recovery
+
     for combatant_id in list(session.combatants):
         stun_delta, end_delta = compute_recovery(
             session.combatants[combatant_id], template, "post_12",
         )
+        # Not under water (6E2 p.132), and not the STUN a running Damage
+        # Over Time has taken (6E1 p.333). See `recovery_limits`.
+        stun_delta, end_delta = allowed_recovery(
+            session, session.combatants[combatant_id], stun_delta, end_delta)
         session = apply_event(session, RecoveryTaken(
             id=str(uuid.uuid4()),
             session_id=session.id,

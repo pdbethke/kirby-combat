@@ -154,17 +154,34 @@ def _in_area(spec: AreaSpec, geo: AreaGeometry, here) -> tuple[bool, float]:
                      "not have been offered")
 
 
-def explosion_dice_lost(distance_m: float) -> int:
-    """Damage Classes an Explosion has lost this far from the target point.
+#: 6E1 p.325, Killing Attacks: "subtract one die, starting with the highest
+#: die, for every 6m of expansion (full dice within 6m of the target point,
+#: -1 die for the next 6m, and so on)".
+KILLING_EXPLOSION_STEP_M = 6.0
+
+
+def explosion_dice_lost(distance_m: float, *, killing: bool) -> int:
+    """Dice an Explosion has lost this far from the target point.
 
     6E1 p.325: full effect "at the target point and 2m beyond that", then
     one DC "for every 2m". The book's own example: Kasdrevan's 8d6, "someone
     5m away from the target point would take the same damage, less the two
     sixes" --- two dice at 5m.
+
+    A Killing die is three Damage Classes, and the page gives the GM two
+    methods for it: a die per 6m, or 2 points of damage per 2m. RULING,
+    labelled: the first, because it is the same arithmetic as every other
+    Explosion --- whole dice, largest first --- on a 6m step, and the second
+    would reach into the BODY total after the dice are read. The page's
+    own Arkelos example (4d6 RKA, 8m Radius) shows the GM ruling a third
+    way for an area too small to diminish fully; this engine does not
+    resize a step to the area bought.
     """
-    if distance_m <= EXPLOSION_FULL_M:
+    full_m = KILLING_EXPLOSION_STEP_M if killing else EXPLOSION_FULL_M
+    step_m = KILLING_EXPLOSION_STEP_M if killing else EXPLOSION_STEP_M
+    if distance_m <= full_m:
         return 0
-    return math.ceil(distance_m / EXPLOSION_STEP_M) - 1
+    return math.ceil(distance_m / step_m) - 1
 
 
 def _explosion_dice(dice, power, lost: int):
@@ -237,30 +254,39 @@ def _record(session, event):
     return apply_event(session, event)
 
 
-def resolve_area_attack_in_session(
-    session: "CombatSession",
-    attack: "AttackInput",
-    template: "CombatTemplate",
-    *,
-    roller,
-    declaration_event_id: str | None,
-    action_type: str,
-    combat_type: str | None,
-    payload_extras: "Callable[[AttackResult], dict[str, Any]] | None",
-) -> tuple["CombatSession", "AttackResult"]:
-    """Resolve an Area Of Effect use: one roll, then every victim.
+@dataclass(frozen=True)
+class AreaUse:
+    """One use of an Area: where it landed, whom it holds, the use's row.
 
-    Returns the session and the NAMED target's result (a miss result when
-    the area did not catch him), so a caller that asked "did I hit the man I
-    aimed at" is answered truthfully.
+    ``failed`` is the result of a power that did not go off (6E1 p.375):
+    then nothing else is set and the use covers nobody.
     """
+
+    session: Any
+    failed: Any
+    use: Any
+    to_hit: Any
+    geo: "AreaGeometry | None"
+    victims: list
+    constructs: list
+    decl_id: str | None
+    landed: bool
+    combat_type: str | None
+
+
+def area_use(session, attack, template, *, roller, declaration_event_id,
+             action_type, combat_type) -> AreaUse:
+    """Make the use: the Activation Roll, the Attack Roll against the target
+    point, the scatter, who and what is in it, the use's own row, its END
+    and its Side Effects. What it does to each man in it is the caller's:
+    damage at the attack door (`resolve_area_attack_in_session`), a Flash or
+    an Entangle (`actions/area_effects.py`)."""
     from kirby_combat.actions.recording import (
         _activation_check, _record_failed_activation, _spend_attack_end,
-        apply_side_effects, resolve_attack_in_session,
+        apply_side_effects,
     )
     from kirby_combat.cv_modifiers import effective_ocv_for
     from kirby_combat.endurance import end_cost
-    from kirby_combat.models import AttackResult
     from kirby_combat.resolution.to_hit import resolve_to_hit
     from kirby_combat.roster import Roster
     from kirby_combat.sense_penalties import HTH, RANGED
@@ -282,7 +308,9 @@ def resolve_area_attack_in_session(
             declaration_event_id=declaration_event_id, action_type=action_type,
         )
         s = apply_side_effects(s, attack, template, roller=roller, failed=True)
-        return s, result
+        return AreaUse(session=s, failed=result, use=None, to_hit=None,
+                       geo=None, victims=[], constructs=[], decl_id=None,
+                       landed=False, combat_type=combat_type)
 
     # WHERE THE AREA GOES. No Range: on the attacker (6E1 p.321-322).
     # Otherwise on the named target's own spot --- the offer named a man,
@@ -390,6 +418,58 @@ def resolve_area_attack_in_session(
     s = _record(s, use)
     s = _spend_attack_end(s, attacker, end_cost(attack.power), template)
     s = apply_side_effects(s, attack, template, roller=roller, failed=False)
+    return AreaUse(session=s, failed=None, use=use, to_hit=to_hit, geo=geo,
+                   victims=victims, constructs=constructs, decl_id=decl_id,
+                   landed=landed, combat_type=combat_type)
+
+
+def resolve_area_attack_in_session(
+    session: "CombatSession",
+    attack: "AttackInput",
+    template: "CombatTemplate",
+    *,
+    roller,
+    declaration_event_id: str | None,
+    action_type: str,
+    combat_type: str | None,
+    payload_extras: "Callable[[AttackResult], dict[str, Any]] | None",
+) -> tuple["CombatSession", "AttackResult"]:
+    """Resolve an Area Of Effect use: one roll, then every victim.
+
+    Returns the session and the NAMED target's result (a miss result when
+    the area did not catch him), so a caller that asked "did I hit the man I
+    aimed at" is answered truthfully.
+    """
+    from kirby_combat.actions.recording import (
+        resolve_attack_in_session,
+    )
+    from kirby_combat.endurance import end_cost
+    from kirby_combat.models import AttackResult
+
+    spec: AreaSpec = attack.power.area
+    if spec.shape is AreaShape.SURFACE:
+        # A Surface is not an area on the ground: it covers a thing, and
+        # another man "has his standard DCV" (6E1 p.323). See
+        # `standing_areas.resolve_surface_use`.
+        from kirby_combat.standing_areas import resolve_surface_use
+
+        return resolve_surface_use(
+            session, attack, template, roller=roller,
+            declaration_event_id=declaration_event_id,
+            action_type=action_type, combat_type=combat_type,
+            payload_extras=payload_extras,
+        )
+    placed = area_use(session, attack, template, roller=roller,
+                      declaration_event_id=declaration_event_id,
+                      action_type=action_type, combat_type=combat_type)
+    if placed.failed is not None:
+        return placed.session, placed.failed
+    s, use, to_hit, geo = placed.session, placed.use, placed.to_hit, placed.geo
+    victims, constructs, decl_id = placed.victims, placed.constructs, placed.decl_id
+    landed, combat_type = placed.landed, placed.combat_type
+    attacker = s.combatants[attack.attacker.id]
+    named = attack.target
+    roller = roller or session.dice_roller
 
     # EVERY VICTIM, through the door, with the one roll and the one damage
     # roll. The power goes in without its Area so the door does not come
@@ -403,11 +483,19 @@ def resolve_area_attack_in_session(
             extra.update(payload_extras(result))
         return extra
 
-    for victim_id, distance in victims:
+    # A DAMAGE OVER TIME AREA DOES NOTHING ON THE USE: "the first increment
+    # of damage affects the target one time period after the character uses
+    # the attack" (6E1 p.331), and the zone keeps that clock (p.332). A
+    # Constant one hits now, "the target takes the damage ... normally"
+    # (6E1 p.129), and then stays.
+    dot_zone = getattr(attack.power, "damage_over_time", None) is not None
+    caught: list[str] = []
+    for victim_id, distance in ([] if dot_zone else victims):
         victim = s.combatants[victim_id]
         dice, power = attack.dice, bare
         if spec.explosion:
-            dice, power = _explosion_dice(dice, bare, explosion_dice_lost(distance))
+            dice, power = _explosion_dice(dice, bare, explosion_dice_lost(
+                distance, killing=bare.damage_type == "killing"))
         per_target = spec.targeting in (AreaTargeting.SELECTIVE,
                                         AreaTargeting.NONSELECTIVE)
         if per_target:
@@ -433,10 +521,30 @@ def resolve_area_attack_in_session(
         )
         if victim_id == named.id:
             named_result = result
+        if result.hit:
+            caught.append(victim_id)
 
-    for construct in constructs:
+    for construct in ([] if dot_zone else constructs):
         s = _damage_construct(s, attacker, bare, attack.dice, construct,
                               template, roller, decl_id, use.id)
+
+    # AND THEN IT STAYS. A Constant or Damage Over Time Area is a zone from
+    # here on (`kirby_combat/standing_areas.py`): where it landed --- even
+    # where a miss scattered it --- or, with No Range, on him. A No Range
+    # miss "has no effect on anyone whatsoever" (6E1 p.322), so no zone.
+    from kirby_combat.standing_areas import establish, is_standing
+
+    if landed and is_standing(attack.power):
+        s = establish(
+            s, owner_id=attacker.id, power=attack.power,
+            point=geo.point if geo is not None else None,
+            axis=geo.axis if geo is not None else (1.0, 0.0),
+            covered_id=None,
+            # Selective: whoever the per-target rolls caught (6E1 p.326).
+            # Damage Over Time: whoever was in it, whose clocks start now.
+            affected=([c for c, _ in victims] if dot_zone else caught),
+            use_event_id=use.id,
+        )
 
     if named_result is None:
         named_result = AttackResult(

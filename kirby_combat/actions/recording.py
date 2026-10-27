@@ -949,6 +949,21 @@ def resolve_attack_in_session(
     if not paid:
         # 6E1 p.395: an "always occurs" Side Effect lands on every use.
         s = apply_side_effects(s, attack, template, roller=roller, failed=False)
+        # A BLOW THAT LANDED HAND TO HAND TOUCHED HIM: a Damage Shield, or a
+        # Surface somebody laid on either man, hurts the other one (6E1
+        # p.323: "Any attacker who makes a successful HTH Combat attack
+        # against a character with a Damage Shield takes the damage", and
+        # the shield's wearer's own punch carries it too).
+        from kirby_combat.sense_penalties import HTH as _HTH
+
+        hand_to_hand = (combat_type == _HTH if combat_type is not None
+                        else not getattr(attack.power, "is_ranged", False))
+        if result.hit and hand_to_hand:
+            from kirby_combat.standing_areas import contact_doses
+
+            s = contact_doses(s, attacker_id, target_id, template=template,
+                              roller=roller or session.dice_roller,
+                              contact_event_id=resolved.id)
         # 6E1 p.129: a Constant attack that hit is maintained from here.
         if result.hit and getattr(attack.power, "constant", False):
             from kirby_combat.lingering import begin_lingering
@@ -1021,6 +1036,30 @@ def apply_side_effects(session: CombatSession, attack: AttackInput, template,
     from kirby_combat.session.apply import apply_event
 
     points = spec.severity.active_points(int(attack.power.active_points or 0))
+    if spec.environment_only:
+        # 6E1 p.396: it affects "the environment around the character
+        # instead of the character himself", and "the character should
+        # rarely, if ever, be allowed to cause damage to others with it or
+        # derive any sort of combat advantage". So it happens, on the same
+        # occasions as any Side Effect, and it is written down --- and it
+        # moves no number in the fight. Nobody's STUN, no Attack Roll.
+        last = next((e for e in reversed(session.event_log)
+                     if getattr(e, "kind", "") == "ActionResolved"), None)
+        return apply_event(session, ActionResolved(
+            id=str(uuid.uuid4()), session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_combatant(victim_id),
+            declaration_event_id=getattr(last, "declaration_event_id", "") or "",
+            result_payload={
+                "kind": "side_effect", "target_id": None,
+                "on_environment": True,
+                "power_name": getattr(attack.power, "name", None),
+                "severity": spec.severity.value, "active_points": points,
+                "on_failure": failed, "stun_dealt": 0, "body_dealt": 0,
+                "status_changes": [], "text": spec.text,
+            },
+        ))
     dice = max(1, points // SIDE_EFFECT_ACTIVE_POINTS_PER_DIE)
     blast = AttackPower(
         xmlid="SIDEEFFECTS", name="Side Effect", damage_dice=dice,

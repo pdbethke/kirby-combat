@@ -106,7 +106,11 @@ def test_attack_view_returns_attack_power():
     assert atk.damage_dice >= 1
     assert atk.damage_type == "normal"
     assert atk.defense_type == "ed"
-    assert atk.range_m > 0
+    # String Storm is a No Range Radius (HD's NORANGE): 6E1 p.131's "only
+    # has to be in HTH Combat range to use it". This asserted a range above
+    # zero, which was the view ignoring the Limitation.
+    assert atk.name == "String Storm"
+    assert atk.range_m == 0 and atk.is_ranged is False
 
 
 def test_defense_view_returns_list():
