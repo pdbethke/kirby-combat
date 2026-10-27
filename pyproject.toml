@@ -26,7 +26,7 @@ dependencies = [
     # Places: World, Scene and the geometry inside them, split out at 0.20.0.
     # The fight imports the place, never the other way round.
     # `kirby_combat.scene` stays as a PERMANENT re-export of it.
-    "kirby-world>=0.1.0",
+    "kirby-world>=0.1.1",
 ]
 
 [project.urls]
