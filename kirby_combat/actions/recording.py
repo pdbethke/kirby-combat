@@ -590,6 +590,7 @@ def resolve_attack_in_session(
     roller=None,
     combat_type: str | None = None,
     payload_extras: "Callable[[AttackResult], dict[str, Any]] | None" = None,
+    paid_use_event_id: str | None = None,
 ) -> tuple[CombatSession, AttackResult]:
     """Resolve an attack and record the outcome on the session's event log.
 
@@ -616,11 +617,44 @@ def resolve_attack_in_session(
     fight had a man standing whom the live fight had prone. Nothing edits a
     committed row.
 
+    ``paid_use_event_id`` marks an application that is part of a use
+    already made and paid for elsewhere --- one victim of an Area Of Effect,
+    one dose of a Constant or Damage Over Time attack. Such an application
+    makes no Activation Roll, pays no END, and carries no
+    ``power_source_id`` (so `charges.spent_charges` counts the use once):
+    the use's own row did all three.
+
+    THE SHAPE OF THE ATTACK IS DECIDED HERE TOO, for the same reason the
+    CV folds are: every caller reaches this door. An Area Of Effect goes
+    to `actions/area_attack.py`; a Damage Over Time use rolls to hit and
+    does no damage until its first dose (`lingering.py`); a Constant hit
+    starts being maintained; Side Effects land on the attacker.
+
     Returns ``(new_session, result)`` — ``result`` is exactly what
     ``resolve_attack`` returned; nothing about the pure result is altered.
     """
     from kirby_combat.pre_attacks.violence import presence_from_violence
     from kirby_combat.session.apply import apply_event
+
+    paid = paid_use_event_id is not None
+    if not paid and getattr(attack.power, "area", None) is not None:
+        from kirby_combat.actions.area_attack import resolve_area_attack_in_session
+
+        return resolve_area_attack_in_session(
+            session, attack, template, roller=roller,
+            declaration_event_id=declaration_event_id,
+            action_type=action_type, combat_type=combat_type,
+            payload_extras=payload_extras,
+        )
+    if not paid and getattr(attack.power, "damage_over_time", None) is not None:
+        from kirby_combat.lingering import resolve_damage_over_time_use
+
+        return resolve_damage_over_time_use(
+            session, attack, template, roller=roller,
+            declaration_event_id=declaration_event_id,
+            action_type=action_type, combat_type=combat_type,
+            payload_extras=payload_extras,
+        )
 
     # COVER REACHES THE ROLL HERE, and only here.
     #
@@ -641,13 +675,16 @@ def resolve_attack_in_session(
     # that does not fire is never rolled to hit -- and asked HERE, so that
     # a thrown object, a Pushed blast and each shot of a rapid-fire burst
     # must make the roll the plain attack makes.
-    activated = _activation_check(session, attack, roller)
+    activated = None if paid else _activation_check(session, attack, roller)
     if activated is not None and not activated["activated"]:
-        return _record_failed_activation(
+        failed_session, failed = _record_failed_activation(
             session, attack, activated,
             declaration_event_id=declaration_event_id,
             action_type=action_type,
         )
+        failed_session = apply_side_effects(
+            failed_session, attack, template, roller=roller, failed=True)
+        return failed_session, failed
 
     # EVERY PER-FIGHT CONDITION ON THE TWO CVs, at this one door. See
     # `_fold_session_cvs`: these rules reached the plain-attack resolver and
@@ -738,7 +775,8 @@ def resolve_attack_in_session(
     #
     # Recorded here beside the damage, and through the same door: an END
     # spend is a `VitalsChanged` row and `apply_event` applies it.
-    s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
+    if not paid:
+        s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
     # resolver with no session, so it read the build's CON and could not
@@ -828,7 +866,10 @@ def resolve_attack_in_session(
         # WHICH power, not what KIND of power. Doc Holliday's Shotgun and
         # his Colt Peacemaker are both RKA, so an ammunition count keyed on
         # xmlid would empty one gun by firing the other. Identity is an id.
-        "power_source_id": getattr(attack.power, "source_id", None),
+        # A paid application (an Area's victim, a lingering dose) is not a
+        # firing: the use's own row carries the id that spends the Charge.
+        "power_source_id": (None if paid
+                            else getattr(attack.power, "source_id", None)),
         # WHAT IT WAS, for anything narrating the blow. `power_xmlid` is a
         # TYPE and a coarse one -- a revolver, a crossbow and a laser are
         # all RKA -- so a reader that wants to say BLAM rather than POW
@@ -905,6 +946,16 @@ def resolve_attack_in_session(
     )
     s = apply_event(s, resolved)
 
+    if not paid:
+        # 6E1 p.395: an "always occurs" Side Effect lands on every use.
+        s = apply_side_effects(s, attack, template, roller=roller, failed=False)
+        # 6E1 p.129: a Constant attack that hit is maintained from here.
+        if result.hit and getattr(attack.power, "constant", False):
+            from kirby_combat.lingering import begin_lingering
+
+            s = begin_lingering(s, attacker_id=attacker_id,
+                                target_id=target_id, power=attack.power)
+
     # WHAT THE ONLOOKERS SAW. 6E2 p.138 prices a violent action as bonus
     # Presence dice, and the engine could always RESOLVE a Presence Attack
     # while being unable to notice one happening: only a declared
@@ -930,6 +981,82 @@ def resolve_attack_in_session(
         )
 
     return s, result
+
+
+#: 6E1 p.397's own worked example: Arkelos's Major Side Effect on a
+#: 40-point Blast is "30 Active Points of damage (Blast 6d6)" --- 5 Active
+#: Points to the die.
+SIDE_EFFECT_ACTIVE_POINTS_PER_DIE = 5
+
+
+def apply_side_effects(session: CombatSession, attack: AttackInput, template,
+                       *, roller, failed: bool) -> CombatSession:
+    """Side Effects on the attacker, when they occur (6E1 p.395-397).
+
+    When: "Each time the character's attempt to activate or use the power
+    fails" (``failed``) --- the engine's failing roll is the Activation Roll
+    (6E1 p.375) --- or on every use when bought "occurring every time he
+    uses the power".
+
+    What: the book leaves the effect to the character's description ("The
+    exact nature of a Side Effect is up to the character"), and the build
+    carries it only as words. RULING, labelled: the engine applies the
+    table's size (Minor 15 AP or 1/4 the power's, Major 30 or 1/2, Extreme
+    60 or all, 6E1 p.396) as Normal Damage at 5 Active Points a die --- the
+    book's own example, Arkelos's "30 Active Points of damage (Blast 6d6)"
+    --- with "no defenses against the Side Effect" and "no Attack Roll"
+    (p.397). The build's words ride on the row so a reader sees what the
+    character meant.
+
+    The deleted api driver surfaced the modifier as a flag and did nothing.
+    """
+    spec = getattr(attack.power, "side_effects", None)
+    if spec is None or not (failed or spec.always_occurs):
+        return session
+    victim_id = getattr(attack.attacker, "id", None)
+    if victim_id not in session.combatants:
+        return session
+    from kirby_combat.models import AttackPower, DiceValues
+    from kirby_combat.resolution.damage import compute_damage
+    from kirby_combat.session.apply import apply_event
+
+    points = spec.severity.active_points(int(attack.power.active_points or 0))
+    dice = max(1, points // SIDE_EFFECT_ACTIVE_POINTS_PER_DIE)
+    blast = AttackPower(
+        xmlid="SIDEEFFECTS", name="Side Effect", damage_dice=dice,
+        half_die=False, plus_one=False, damage_type="normal",
+        defense_type="pd", range_m=0.0, uses_str=False, str_min=0,
+        armor_piercing=0, penetrating=0, increased_stun_mult=0,
+    )
+    damage = compute_damage(
+        blast, DiceValues(damage=(roller or session.dice_roller).roll_dice(dice)),
+        template,
+    )
+    victim = session.combatants[victim_id]
+    stun, body = int(damage.stun), int(damage.body)
+    s, _ = record_vitals_change(session, victim_id, stun=-stun, body=-body,
+                                reason="side_effect")
+    status_changes = determine_status_changes(
+        stun_before=victim.current_stun, stun_after=victim.current_stun - stun,
+        body_before=victim.current_body, body_after=victim.current_body - body,
+        con=adjusted_con(s, victim), max_body=victim.max_body,
+    )
+    last = next((e for e in reversed(s.event_log)
+                 if getattr(e, "kind", "") == "ActionResolved"), None)
+    return apply_event(s, ActionResolved(
+        id=str(uuid.uuid4()), session_id=s.id,
+        sequence=len(s.event_log) + 1, timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(victim_id),
+        declaration_event_id=getattr(last, "declaration_event_id", "") or "",
+        result_payload={
+            "kind": "side_effect", "target_id": victim_id,
+            "power_name": getattr(attack.power, "name", None),
+            "severity": spec.severity.value, "active_points": points,
+            "dice": dice, "on_failure": failed,
+            "stun_dealt": stun, "body_dealt": body,
+            "status_changes": status_changes, "text": spec.text,
+        },
+    ))
 
 
 def resolve_mental_blast_in_session(
@@ -1185,6 +1312,7 @@ def resolve_block_in_session(
 
 
 __all__ = [
+    "apply_side_effects",
     "resolve_attack_in_session",
     "resolve_mental_blast_in_session",
     "resolve_block_in_session",

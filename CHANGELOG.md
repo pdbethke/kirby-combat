@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+**Attack shapes resolve: Area Of Effect, Constant, Damage Over Time, Move
+By / Move Through, hazard zones, Side Effects, Increased END.** Ported from
+the deleted api driver (kirby-api 70ad60f) into the live path and corrected
+against the book. New modules: `power_modifiers.py` (reads the modifiers off
+the build into `AttackPower.area` / `.constant` / `.damage_over_time` /
+`.side_effects` / `.increased_end`), `actions/area_attack.py`,
+`lingering.py`, `zone_effects.py`, `actions/velocity_maneuvers.py`,
+`attack_shapes.py` (the offer filter). New event kinds:
+`LingeringAttackApplied`, `LingeringAttackEnded`.
+- **Area Of Effect** (6E1 p.321-326, 6E2 p.42): one Attack Roll against the
+  target point (DCV 3, or 0 within 2m / No Range), Range Modifier to the
+  point, one damage roll for every character AND destructible construct in
+  the Radius / Cone / Line, friend or foe, the attacker too when it is
+  centred on him (unless Personal Immunity). A miss scatters 2m per point
+  (max half the distance, d6 direction). Explosion drops the largest die per
+  2m past the first 2m; Selective / Nonselective roll again per target;
+  Accurate hits one. One use = one Charge, one END. The driver hit every
+  living enemy on the map, each with his own roll, at Multiple Attack's -2
+  OCV steps --- corrected.
+- **Constant** (6E1 p.129-130, p.347): a hit is maintained; at the start of
+  each of the attacker's Phases he pays the END and the target takes the
+  damage again, no Attack Roll and no Action, until he cannot pay, is
+  Stunned/KO'd, loses LOS, switches the slot off, or uses it again.
+- **Damage Over Time** (6E1 p.330-333): the hit does no damage; doses fall
+  due on their own clock at the top of each Segment, through the full damage
+  pipeline (AVAD/NND included); Lock Out takes the offer away while it runs;
+  "defenses only apply once" spends one defense pool across the doses
+  (p.332's acid example). The driver's CON "shake-off" (it cited 6E1 p.102)
+  is in no book and is not ported.
+- **Hazard zones** (`resolve_construct_effect` finally has a caller): fire
+  every Segment as an automatic-hit attack; drowning per 6E2 p.132-133 (1
+  END a Phase at SPD 2+, then 1d6 STUN as END, then -1 BODY a Phase), not
+  the old flat 1 BODY a Segment.
+- **Move By / Move Through** (6E2 p.72-74): the charge runs (refused if it
+  cannot end in contact), the Attack Roll is made at the maneuver's OCV, the
+  DCV holds until his next Phase, the target takes the damage and Knockback,
+  and the attacker takes 1/3 (By) or 1/2, full with no Knockback (Through), of
+  the ROLLED damage against his own defenses. Move By finishes its Full Move
+  past the target. Halved STR keeps its half die (`strike_dice`). The offer
+  gate for Move By is now a Full Move (6E2 p.72).
+- **Side Effects** (6E1 p.395-397): on a failed Activation Roll, or every use
+  if "always occurs"; sized by the table, applied as Normal Damage at 5 AP a
+  die with no defenses (labelled ruling, from p.397's Arkelos example).
+- **Increased Endurance Cost** (6E1 p.376): END x the bought multiple; the
+  driver charged x2 whatever the build said.
+- **Not offered any more** (cannot be built faithfully): Surface / Any Area /
+  Mobile / Autofire / Hole In The Middle Areas; Constant or Damage Over Time
+  Areas (standing zones); Explosion on a non-Normal attack; Constant + DoT
+  together; environment-only, recipient-only, after-use, specific-act and
+  predefined-damage Side Effects; circumstantial Increased END; a shaped power
+  on any kind other than attack / strike / push / move_strike /
+  reposition_strike (so not as Rapid Fire, Sweep, Spread, Multiple Attack,
+  Haymaker or `attack_construct`, and not as Flash, Entangle or the mental
+  kinds).
+
 **Bodies move: Knockback, falls, footing, Throws, climbing and getting up.**
 Ported from the deleted api driver into the live path (batch B of the
 2026-09-17 lift-and-shift sweep) and checked against the book. A new action

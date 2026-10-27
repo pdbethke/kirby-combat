@@ -1910,6 +1910,156 @@
       "title": "HeldActionReleased",
       "type": "object"
     },
+    "LingeringAttackApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "LingeringAttackApplied",
+          "enum": [
+            "LingeringAttackApplied"
+          ],
+          "type": "string"
+        },
+        "applied_segment": {
+          "type": "integer"
+        },
+        "applied_turn": {
+          "type": "integer"
+        },
+        "attacker_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "increments": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interval_segments": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "const": "LingeringAttackApplied",
+          "enum": [
+            "LingeringAttackApplied"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "power_name": {
+          "type": "string"
+        },
+        "power_source_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "attacker_id",
+        "target_id",
+        "power_source_id",
+        "power_name",
+        "mode",
+        "increments",
+        "interval_segments",
+        "applied_turn",
+        "applied_segment"
+      ],
+      "title": "LingeringAttackApplied",
+      "type": "object"
+    },
+    "LingeringAttackEnded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "LingeringAttackEnded",
+          "enum": [
+            "LingeringAttackEnded"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "LingeringAttackEnded",
+          "enum": [
+            "LingeringAttackEnded"
+          ],
+          "type": "string"
+        },
+        "lingering_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "lingering_id",
+        "reason"
+      ],
+      "title": "LingeringAttackEnded",
+      "type": "object"
+    },
     "MovementResolved": {
       "additionalProperties": false,
       "properties": {
@@ -3262,6 +3412,12 @@
     },
     {
       "$ref": "#/$defs/HeldActionReleased"
+    },
+    {
+      "$ref": "#/$defs/LingeringAttackApplied"
+    },
+    {
+      "$ref": "#/$defs/LingeringAttackEnded"
     },
     {
       "$ref": "#/$defs/MovementResolved"

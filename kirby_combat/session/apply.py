@@ -259,6 +259,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
         "BreakoutRolled", "RageRolled", "RageTargeted",
+        # A lingering attack's running state is folded by
+        # `kirby_combat/lingering.py`; its damage rides on `VitalsChanged`.
+        "LingeringAttackApplied", "LingeringAttackEnded",
         "EnvironmentalTriggered", "GMOverride",
         "ConstructDamaged", "ConstructSpawned",
     }:

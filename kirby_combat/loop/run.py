@@ -320,7 +320,7 @@ def _with(encounter: "Encounter", session: "CombatSession") -> "Encounter":
 
 
 def _advance_to_an_actor(
-    encounter: "Encounter", *, campaign, tie_roller, roller,
+    encounter: "Encounter", *, campaign, tie_roller, roller, template,
 ) -> tuple["Encounter", str | None]:
     """Find a Segment somebody can act in, advancing the clock to reach it.
 
@@ -357,6 +357,15 @@ def _advance_to_an_actor(
             encounter = encounter.run_segment(
                 campaign=campaign, roller=tie_roller,
             )
+            # WHAT THE SEGMENT DOES BY ITSELF, before anybody acts in it:
+            # Damage Over Time doses fall due on their own clock (6E1
+            # p.331) and hazard zones burn and drown whoever is in them.
+            # Here, once per Segment, because this is where a Segment's
+            # order is resolved --- exactly once, and never for a fight
+            # rehydrated mid-Segment.
+            encounter = _with(encounter, _start_of_segment(
+                encounter.sessions[0], template=template, roller=roller,
+            ))
             session = encounter.sessions[0]
         session, actor_id, _passed_over = resolve_next_actor(session)
         encounter = _with(encounter, session)
@@ -371,6 +380,15 @@ def _advance_to_an_actor(
                 encounter.sessions[0], roller))
         encounter = encounter.advance_segment(campaign=campaign)
     return encounter, None
+
+
+def _start_of_segment(session, *, template, roller):
+    """The rules that fire at the top of a Segment, whoever acts in it."""
+    from kirby_combat.lingering import fire_due_doses
+    from kirby_combat.zone_effects import zone_effects_for_segment
+
+    session = fire_due_doses(session, template=template, roller=roller)
+    return zone_effects_for_segment(session, template=template, roller=roller)
 
 
 def _phase_result(
@@ -578,6 +596,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # during his next Phase". `PresenceTier.half_phase` was never read.
     if half_phase_only(session, actor_id):
         menu = limit_to_half_phase(menu)
+    # WHAT THE ENGINE CANNOT CARRY OUT IS NOT OFFERED: a shaped power
+    # (Area, Constant, Damage Over Time, Side Effects) on a kind that never
+    # reaches the attack door, any modifier part `power_modifiers` cannot
+    # resolve, and a Locked Out Damage Over Time (6E1 p.332).
+    from kirby_combat.attack_shapes import offers_the_engine_can_keep
+
+    menu = offers_the_engine_can_keep(session, actor_id, menu)
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
         allies=[a for a in allies if not is_down(a)],
@@ -695,6 +720,7 @@ def run_phase(
 
     encounter, actor_id = _advance_to_an_actor(
         encounter, campaign=campaign, tie_roller=tie_roller, roller=roller,
+        template=template,
     )
     session = encounter.sessions[0]
     if actor_id is None:
@@ -765,6 +791,16 @@ def run_phase(
         # his feet as a Zero Phase Action"), so it comes before anything
         # else he does with the Phase. See `standing.breakfall_to_feet`.
         session = breakfall_to_feet(session, actor_id, roller)
+        # HIS CONSTANT ATTACKS, paid for and landing before he does
+        # anything else (6E1 p.130: "paid when the character's Phase
+        # begins, before he does anything else"). Before the Stunned gate
+        # deliberately: a Stunned man's Constant power turns off (6E1
+        # p.347), and that is decided here.
+        from kirby_combat.lingering import maintain_constant_attacks
+
+        session = maintain_constant_attacks(
+            session, actor_id, template=template, roller=roller,
+        )
     actor = session.combatants[actor_id]
 
     # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
@@ -1065,6 +1101,7 @@ _PROGRESS_EVENTS = frozenset({
     "MovementResolved", "StatusChanged", "StatusEffectsChanged",
     "PresenceApplied", "EntangleApplied", "FlashApplied",
     "AdjustmentApplied", "ConstructDamaged",
+    "LingeringAttackApplied", "EnvironmentalTriggered",
 })
 
 #: Events that mean something happened only when their numbers are not

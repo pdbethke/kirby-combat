@@ -1120,17 +1120,12 @@ def _resolve_move_by(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Move-By (6E2 p.64): strike in passing, taking a third of the damage back."""
-    from kirby_combat.actions.move_by import MoveBy
+    """Move By (6E2 p.72): a Full Move past him, striking as you go, and a
+    third of the blow back. See `actions/velocity_maneuvers.py`."""
+    from kirby_combat.actions.velocity_maneuvers import resolve_velocity_maneuver
 
-    stats = actor.combat_stats()
-    outcome = MoveBy.compute(
-        attacker_str=int(stats.str_), velocity_mps=_velocity_mps(actor),
-    )
-    return _recorded(session, actor, action, outcome, {
-        "kind": action.kind, "target_id": action.target_id,
-        "damage_dc": getattr(outcome, "damage_dc", None),
-    })
+    return resolve_velocity_maneuver(session, actor, action, template=template,
+                                     roller=roller, through=False)
 
 
 @resolves("move_through")
@@ -1138,17 +1133,12 @@ def _resolve_move_through(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Move-Through (6E2 p.65): commit to the charge, and take more back."""
-    from kirby_combat.actions.move_through import MoveThrough
+    """Move Through (6E2 p.72): run into him; half the blow back, or all of
+    it if he did not go flying. See `actions/velocity_maneuvers.py`."""
+    from kirby_combat.actions.velocity_maneuvers import resolve_velocity_maneuver
 
-    stats = actor.combat_stats()
-    outcome = MoveThrough.compute(
-        attacker_str=int(stats.str_), velocity_mps=_velocity_mps(actor),
-    )
-    return _recorded(session, actor, action, outcome, {
-        "kind": action.kind, "target_id": action.target_id,
-        "damage_dc": getattr(outcome, "damage_dc", None),
-    })
+    return resolve_velocity_maneuver(session, actor, action, template=template,
+                                     roller=roller, through=True)
 
 
 @resolves("rapid_fire")

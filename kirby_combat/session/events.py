@@ -559,6 +559,57 @@ class RageTargeted(BaseEvent):
 
 
 @dataclass
+class LingeringAttackApplied(BaseEvent):
+    """An attack that goes on hurting after it lands.
+
+    Two Advantages make one hit into many, and the deleted api driver kept
+    both in a JSON column on the combatant row (`continuous_effects`), so a
+    fight rebuilt from its log had never been poisoned:
+
+      * Constant (HD's CONTINUOUS), 6E1 p.129: "the target takes damage ...
+        in every Segment in which the attacker has a Phase (on the
+        attacker's DEX) until the attacker turns off the Power, stops
+        maintaining it ... or loses LOS to the target."
+      * Damage Over Time, 6E1 p.330-333: ``increments`` doses,
+        ``interval_segments`` apart, the first "one time period after the
+        character uses the attack", whatever the attacker does after.
+
+    ``mode`` is a `kirby_combat.lingering.LingeringMode` value. Each later
+    dose is an ``ActionResolved`` whose ``declaration_event_id`` is THIS
+    event's id and whose payload carries ``lingering_id`` and the resulting
+    ``increments_remaining`` (absolute, never a delta --- the house pattern,
+    see `session/effects.py`). ``applied_turn``/``applied_segment`` is when
+    it landed: the Damage Over Time clock counts from here.
+    """
+    kind: Literal["LingeringAttackApplied"] = field(
+        default="LingeringAttackApplied", init=False)
+    attacker_id: str = ""
+    target_id: str = ""
+    power_source_id: str = ""
+    power_name: str = ""
+    mode: str = ""
+    increments: int | None = None
+    interval_segments: int | None = None
+    applied_turn: int = 0
+    applied_segment: int = 0
+
+
+@dataclass
+class LingeringAttackEnded(BaseEvent):
+    """A lingering attack stopped, and why (`lingering.LingeringEnd`).
+
+    A Damage Over Time ends by running out of doses; a Constant attack ends
+    when its attacker stops paying, is Stunned or Knocked Out (6E1 p.347),
+    loses Line Of Sight (6E1 p.129), switches the slot off (6E1 p.400) or
+    uses the power again. ``lingering_id`` is the `LingeringAttackApplied`.
+    """
+    kind: Literal["LingeringAttackEnded"] = field(
+        default="LingeringAttackEnded", init=False)
+    lingering_id: str = ""
+    reason: str = ""
+
+
+@dataclass
 class EnvironmentalTriggered(BaseEvent):
     kind: Literal["EnvironmentalTriggered"] = field(default="EnvironmentalTriggered", init=False)
     hazard_id: str = ""
@@ -650,6 +701,8 @@ CombatEvent = (
     | PresenceYielded
     | RageRolled
     | RageTargeted
+    | LingeringAttackApplied
+    | LingeringAttackEnded
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned

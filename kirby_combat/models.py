@@ -124,6 +124,28 @@ class AttackPower:
     # SIDEEFFECTS / INCREASEDEND detection across the whole corpus.
     # None for synthetic views (the bare STR strike) that have no source power.
     source_id: int | None = None
+    #: Area Of Effect (6E1 p.321-326), or None when the power was not bought
+    #: with it. A `power_modifiers.AreaSpec` says what shape and size, and
+    #: whether the engine can resolve it at all (`AreaSpec.unbuilt`).
+    #: `hero_view` reads it off the build; a power that carries one goes
+    #: through `actions/area_attack.py` at the attack door instead of
+    #: hitting one man.
+    area: Any = None
+    #: Constant (+1/2), HD's CONTINUOUS. 6E1 p.129: once it hits, the
+    #: target takes the damage again in every Segment the attacker has a
+    #: Phase, for as long as he pays the END and keeps Line Of Sight. See
+    #: `kirby_combat/lingering.py`.
+    constant: bool = False
+    #: Damage Over Time (6E1 p.330-333), or None. A
+    #: `power_modifiers.DamageOverTimeSpec`: how many increments, how many
+    #: Segments apart. The hit does no damage itself; the increments do.
+    damage_over_time: Any = None
+    #: Side Effects (6E1 p.395-397), or None. A
+    #: `power_modifiers.SideEffectsSpec`.
+    side_effects: Any = None
+    #: Increased Endurance Cost (6E1 p.376), or None. A
+    #: `power_modifiers.IncreasedEnd`: END is this many times the usual.
+    increased_end: Any = None
 
 
 @dataclass
@@ -398,6 +420,13 @@ class AttackInput:
     #: after defenses and Damage Reduction, which is what "damage taken"
     #: is. 1.0 or 0.5 only; anything else raises in the resolver.
     damage_taken_factor: float = 1.0
+    #: The Attack Roll this application does NOT make, because it was made
+    #: elsewhere or is not made at all: an Area Of Effect's one roll against
+    #: its target point (6E1 p.321: "the character rolls damage once and
+    #: each victim takes that damage"), or a Constant / Damage Over Time
+    #: power's later damage, which takes "no further Attack Rolls" (6E1
+    #: p.129). None --- the ordinary case --- means roll it here.
+    fixed_to_hit: "ToHitResult | None" = None
 
 
 @dataclass

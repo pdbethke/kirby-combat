@@ -46,7 +46,10 @@ class AttackAction:
         # ------------------------------------------------------------------
         # 1. To-hit
         # ------------------------------------------------------------------
-        to_hit = resolve_to_hit(attack, template)
+        # An Area's victims and a lingering power's later damage were hit
+        # by a roll made somewhere else (see `AttackInput.fixed_to_hit`).
+        fixed = getattr(attack, "fixed_to_hit", None)
+        to_hit = fixed if fixed is not None else resolve_to_hit(attack, template)
         audit_trail.extend(to_hit.audit)
 
         if not to_hit.hit:

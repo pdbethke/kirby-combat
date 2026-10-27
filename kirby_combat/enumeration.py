@@ -2835,7 +2835,10 @@ def enumerate_actions(
                 ).in_reach
 
             for enemy in alive_enemies:
-                if _charge_connects(enemy.id, running_m / 2.0):
+                # A FULL MOVE for both. 6E2 p.72: a Move By is "a Full
+                # Move past his target" (Starburst covers his whole 30m);
+                # it is a Half Phase of TIME, not a Half Move of distance.
+                if _charge_connects(enemy.id, running_m):
                     actions.append(LegalAction(
                         action_id=f"move_by:{enemy.id}",
                         kind="move_by",
