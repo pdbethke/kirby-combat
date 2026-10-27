@@ -3308,6 +3308,197 @@
       "title": "SessionStateView",
       "type": "object"
     },
+    "StandingAreaEnded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "StandingAreaEnded",
+          "enum": [
+            "StandingAreaEnded"
+          ],
+          "type": "string"
+        },
+        "area_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "StandingAreaEnded",
+          "enum": [
+            "StandingAreaEnded"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "area_id",
+        "reason"
+      ],
+      "title": "StandingAreaEnded",
+      "type": "object"
+    },
+    "StandingAreaEstablished": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "StandingAreaEstablished",
+          "enum": [
+            "StandingAreaEstablished"
+          ],
+          "type": "string"
+        },
+        "affected": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "axis": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "covered_id": {
+          "type": "string"
+        },
+        "established_segment": {
+          "type": "integer"
+        },
+        "established_turn": {
+          "type": "integer"
+        },
+        "follows_owner": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "increments": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interval_segments": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "const": "StandingAreaEstablished",
+          "enum": [
+            "StandingAreaEstablished"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "owner_id": {
+          "type": "string"
+        },
+        "persistent": {
+          "type": "boolean"
+        },
+        "point": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "power_name": {
+          "type": "string"
+        },
+        "power_source_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "shape": {
+          "type": "string"
+        },
+        "size_m": {
+          "type": "number"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "use_event_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "owner_id",
+        "power_source_id",
+        "power_name",
+        "mode",
+        "shape",
+        "size_m",
+        "point",
+        "axis",
+        "follows_owner",
+        "covered_id",
+        "affected",
+        "persistent",
+        "increments",
+        "interval_segments",
+        "established_turn",
+        "established_segment",
+        "use_event_id"
+      ],
+      "title": "StandingAreaEstablished",
+      "type": "object"
+    },
     "StatusEffectsChanged": {
       "additionalProperties": false,
       "properties": {
@@ -3818,6 +4009,12 @@
     },
     {
       "$ref": "#/$defs/SessionStarted"
+    },
+    {
+      "$ref": "#/$defs/StandingAreaEnded"
+    },
+    {
+      "$ref": "#/$defs/StandingAreaEstablished"
     },
     {
       "$ref": "#/$defs/StatusEffectsChanged"

@@ -156,6 +156,17 @@ class AttackPower:
     #: Increased Endurance Cost (6E1 p.376), or None. A
     #: `power_modifiers.IncreasedEnd`: END is this many times the usual.
     increased_end: Any = None
+    #: Persistent (6E1 p.130, p.334): "it's assumed to be on at all times,
+    #: even when the character is unconscious". A Persistent Damage Shield
+    #: or No Range aura is up from the first Segment and never needs
+    #: switching on (`kirby_combat/standing_areas.py`).
+    persistent: bool = False
+    #: Uncontrolled (6E1 p.354): the power runs on an END pool its user
+    #: feeds it, until a stated condition turns it off. Read so that the
+    #: menu can refuse it (`power_modifiers.unbuilt_reasons`): neither the
+    #: size of the pool nor the free-text condition is anything the engine
+    #: can carry out.
+    uncontrolled: bool = False
 
 
 @dataclass

@@ -131,6 +131,12 @@ class SideEffectsSpec:
     always_occurs: bool
     text: str
     unbuilt: tuple[str, ...]
+    #: 6E1 p.396: "A Side Effect might affect the environment around the
+    #: character instead of the character himself ... the character should
+    #: rarely, if ever, be allowed to cause damage to others with it or
+    #: derive any sort of combat advantage". HD's ONLYNEARCHARACTER. It
+    #: happens, is written down, and hurts nobody (`apply_side_effects`).
+    environment_only: bool
 
 
 @dataclass(frozen=True)
@@ -200,11 +206,11 @@ def area_spec_of(power: Any) -> AreaSpec | None:
     if size <= 0:
         unbuilt.append("Area Of Effect with no size")
 
-    if shape is AreaShape.SURFACE:
-        # 6E1 p.323: a Surface is "covered", and whoever touches it later
-        # suffers the power --- a standing effect on a thing, not an attack
-        # on an area.
-        unbuilt.append("Area Of Effect (Surface)")
+    # SURFACE is built (`kirby_combat/standing_areas.py`): on himself it is a
+    # Damage Shield (6E1 p.323-324), on another man it is an attack at his
+    # own DCV whose covered skin hurts whoever touches it. What a Surface
+    # on a mere object would do is asked in `unbuilt_reasons`, which sees
+    # the whole view.
     if shape is AreaShape.ANY:
         # 6E1 p.323: the attacker arranges 2m Areas "as desired" each use;
         # nothing in a menu offer says how.
@@ -306,18 +312,18 @@ def side_effects_of(power: Any) -> SideEffectsSpec | None:
     ):
         if adder in adders:
             unbuilt.append(why)
+    # 6E1 p.396: an environment-only Side Effect "should rarely, if ever,
+    # be allowed to cause damage to others with it or derive any sort of
+    # combat advantage". So it is built as exactly that: it occurs when the
+    # table says, is recorded, and changes nothing in the fight.
     environment_only = "ONLYNEARCHARACTER" in adders
-    if environment_only:
-        # 6E1 p.396: an environment-only Side Effect "should rarely, if
-        # ever, be allowed to cause damage to others". The engine models no
-        # small flammable objects to set alight.
-        unbuilt.append("Side Effect on the environment only")
     text = str(getattr(mod, "input", None) or getattr(mod, "_input", None)
                or getattr(mod, "_alias", None) or "")
     return SideEffectsSpec(
         severity=severity,
         always_occurs="ALWAYSOCCURS" in _sub_modifiers(mod),
         text=text, unbuilt=tuple(unbuilt),
+        environment_only=environment_only,
     )
 
 
@@ -348,7 +354,7 @@ def unbuilt_reasons(power: Any) -> list[str]:
     """Every part of this attack view's modifiers the engine cannot resolve.
 
     Empty means the engine can carry the power out as bought. Read by the
-    loop's offer filter (`actions/area_attack.offers_the_engine_can_keep`).
+    loop's offer filter (`attack_shapes.offers_the_engine_can_keep`).
     """
     out: list[str] = []
     area = getattr(power, "area", None)
@@ -358,17 +364,44 @@ def unbuilt_reasons(power: Any) -> list[str]:
                  getattr(power, "increased_end", None)):
         if spec is not None:
             out.extend(spec.unbuilt)
-    if area is not None and (constant or dot is not None):
-        # 6E1 p.127 / p.332: a Constant or Damage Over Time AREA stays in
-        # place and catches whoever enters it --- a standing zone, not an
-        # attack on an area.
-        out.append("Constant or Damage Over Time Area Of Effect")
+    if (constant or dot is not None) and getattr(power, "uncontrolled", False):
+        # 6E1 p.354: "the character feeds as much END as he desires into the
+        # power to create a pool of END to fuel it", and it runs until "a
+        # reasonably common and obvious set of circumstances" turns it off.
+        # The pool is a choice no offer carries, and the circumstance is
+        # words on the build; maintained as plain Constant it would stop
+        # when he is Stunned or loses sight of it, which Uncontrolled
+        # exists to prevent.
+        out.append("Uncontrolled (6E1 p.354)")
     if constant and dot is not None:
+        # No page says what a power bought with both does: Constant's dose
+        # "in every Segment in which the attacker has a Phase" (6E1 p.129)
+        # and Damage Over Time's own clock (p.331) are two different
+        # answers to the same question.
         out.append("Constant and Damage Over Time together")
-    if (area is not None and area.explosion
-            and getattr(power, "damage_type", "") != "normal"):
-        # 6E1 p.325: an Explosion loses one die per 2m "for attacks that
-        # cost 5 Character Points for 1 Damage Class"; anything else
-        # "requires a little more effort" the book leaves to the table.
-        out.append("Explosion on a non-Normal attack")
+    if area is not None:
+        surface = area.shape is AreaShape.SURFACE
+        if surface and dot is not None:
+            out.append("Damage Over Time on a Surface")
+        if surface and getattr(power, "damage_type", "") == "mental":
+            # 6E1 p.324's Mental Damage Shield needs Mental Contact Only and
+            # works through mental contact, which no offer makes.
+            out.append("Mental Surface (6E1 p.324)")
+        if surface and not getattr(power, "is_ranged", False) and not constant:
+            # 6E1 p.323: "A Constant Area Of Effect (personal Surface) power
+            # that a character applies to himself is known as a Damage
+            # Shield." An Instant one on his own skin lasts no time at all.
+            out.append("Instant Surface on himself")
+        if dot is not None and dot.one_defense:
+            # 6E1 p.332's spent defense is the victim's against "the overall
+            # damage of the attack"; a zone doses whoever walks in, each on
+            # his own clock, and the book does not say whose total it is.
+            out.append("Damage Over Time Area with defenses that apply once")
+        if area.explosion and getattr(power, "damage_type", "") not in (
+                "normal", "killing"):
+            # 6E1 p.325 writes Explosion for Normal and Killing damage, Flash
+            # and Entangle; an attack door kind with any other damage is
+            # none of those.
+            out.append("Explosion on an attack that is neither Normal nor "
+                       "Killing")
     return out

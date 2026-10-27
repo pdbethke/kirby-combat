@@ -2662,6 +2662,8 @@ def _build_attack_power(
     damage_over_time = damage_over_time_of(power)
     side_effects = side_effects_of(power)
     increased_end = increased_end_of(power)
+    persistent = _has_modifier(power, "PERSISTENT")
+    uncontrolled = _has_modifier(power, "UNCONTROLLED")
     from kirby_combat.charges import charges_on
 
     charges = charges_on(power)
@@ -2682,6 +2684,15 @@ def _build_attack_power(
             range_m = float(ap) if ap else float(getattr(power, "levels", 0))
         except (TypeError, ValueError):
             range_m = 0.0
+
+    # NO RANGE (-1/2). 6E1 p.131: "If a Power has No Range, the character
+    # using it ... only has to be in HTH Combat range to use it." HD writes
+    # the Limitation NORANGE (NORANGEMODIFIER is the +1/2 Advantage, a
+    # different thing). It was never read, so every No Range power --- a
+    # Damage Shield, a No Range Cone, a Blast bought as a punch (6E1 p.233)
+    # --- was fired from across the map at its full Active Points in metres.
+    if _has_modifier(power, "NORANGE"):
+        range_m = 0.0
 
     is_ranged = range_m > 0
     reach_m_val = 0.0 if is_ranged else (_base_reach_m(hero) if hero is not None else 0.0)
@@ -2720,6 +2731,8 @@ def _build_attack_power(
         damage_over_time=damage_over_time,
         side_effects=side_effects,
         increased_end=increased_end,
+        persistent=persistent,
+        uncontrolled=uncontrolled,
         lockout=lockout,
         active_points=active_points,
         framework_xmlid=framework_xmlid,

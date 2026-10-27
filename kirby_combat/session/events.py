@@ -633,11 +633,64 @@ class LingeringAttackEnded(BaseEvent):
     A Damage Over Time ends by running out of doses; a Constant attack ends
     when its attacker stops paying, is Stunned or Knocked Out (6E1 p.347),
     loses Line Of Sight (6E1 p.129), switches the slot off (6E1 p.400) or
-    uses the power again. ``lingering_id`` is the `LingeringAttackApplied`.
+    takes a Recovery (6E2 p.131). ``lingering_id`` is the
+    `LingeringAttackApplied`.
     """
     kind: Literal["LingeringAttackEnded"] = field(
         default="LingeringAttackEnded", init=False)
     lingering_id: str = ""
+    reason: str = ""
+
+
+@dataclass
+class StandingAreaEstablished(BaseEvent):
+    """A zone a power has left in the scene, and goes on hurting from.
+
+    A Constant or Damage Over Time Area Of Effect (6E1 p.129, p.332) stays
+    where it landed --- or, with No Range, on the man who made it (6E1
+    p.326) --- and catches whoever is in it on its owner's Phases (Constant)
+    or on its own clock (Damage Over Time), and whoever walks into it. A
+    Damage Shield (6E1 p.323) is the same thing on a man's skin:
+    ``shape="surface"``, ``covered_id`` the wearer.
+
+    Its running state is folded by `kirby_combat/standing_areas.py`: each
+    dose is an ``ActionResolved`` declared by THIS event's id and carrying
+    ``standing_area_id``. ``point`` is where it was set down (empty for one
+    that follows its owner, which is wherever the log has put him);
+    ``axis`` is the direction a Cone or Line opens. ``affected`` is who a
+    Selective zone works on (6E1 p.326). A Persistent always-on aura has no
+    such event: it is read off the build.
+    """
+    kind: Literal["StandingAreaEstablished"] = field(
+        default="StandingAreaEstablished", init=False)
+    owner_id: str = ""
+    power_source_id: str = ""
+    power_name: str = ""
+    mode: str = ""
+    shape: str = ""
+    size_m: float = 0.0
+    point: dict[str, float] = field(default_factory=dict)
+    axis: dict[str, float] = field(default_factory=dict)
+    follows_owner: bool = False
+    covered_id: str = ""
+    affected: list[str] = field(default_factory=list)
+    persistent: bool = False
+    increments: int | None = None
+    interval_segments: int | None = None
+    established_turn: int = 0
+    established_segment: int = 0
+    use_event_id: str = ""
+
+
+@dataclass
+class StandingAreaEnded(BaseEvent):
+    """A zone stopped, and why (`standing_areas.StandingEnd`): its owner
+    stopped paying, was Stunned or Knocked Out (6E1 p.347), lost sight of
+    it (6E1 p.129), switched the slot off (6E1 p.400) or took a Recovery
+    (6E2 p.131); a Damage Over Time zone ran its course (6E1 p.332)."""
+    kind: Literal["StandingAreaEnded"] = field(
+        default="StandingAreaEnded", init=False)
+    area_id: str = ""
     reason: str = ""
 
 
@@ -817,6 +870,8 @@ CombatEvent = (
     | RageTargeted
     | LingeringAttackApplied
     | LingeringAttackEnded
+    | StandingAreaEstablished
+    | StandingAreaEnded
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned

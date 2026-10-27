@@ -26,9 +26,11 @@ from kirby_combat.side import Side
 VILLAINS, HEROES = Side.named("villains"), Side.named("heroes")
 
 
-def _effects(severity=SideEffectSeverity.MINOR, always=False):
+def _effects(severity=SideEffectSeverity.MINOR, always=False,
+             environment_only=False):
     return SideEffectsSpec(severity=severity, always_occurs=always,
-                           text="the power arcs back into him", unbuilt=())
+                           text="the power arcs back into him", unbuilt=(),
+                           environment_only=environment_only)
 
 
 def _fight(power, template=None):
@@ -112,3 +114,26 @@ def test_a_circumstantial_increase_is_not_offered():
     assert not [a for a in chooser.menus[0]
                 if getattr(a, "_attack_view", None) is not None
                 and a._attack_view.source_id == "a-bolt"]
+
+
+def test_an_environment_only_side_effect_happens_and_hurts_nobody():
+    """6E1 p.396: a Side Effect on "the environment around the character
+    instead of the character himself" should "rarely, if ever" damage others
+    or give any combat advantage. It was not offered at all; now the power is
+    offered, the Side Effect is recorded on its occasion (here: always), and
+    nobody's STUN moves but the target's from the Blast itself."""
+    from kirby_combat.attack_shapes import offer_is_buildable
+
+    power = shaped_blast("a-bolt", 4, active_points=80,
+                         side_effects=_effects(always=True, environment_only=True))
+    enc = _fight(power)
+    chooser = Picks(_attack)
+    result = run_phase(enc, chooser, roller=Dice(face=2),
+                       on_unresolvable="raise")
+    assert result.kind == "attack"
+    side = payloads(result.session, kind="side_effect")
+    assert len(side) == 1 and side[0]["on_environment"] is True
+    assert side[0]["stun_dealt"] == 0 and side[0]["target_id"] is None
+    assert result.session.combatants["a"].state.current_stun == 40
+    assert any(offer_is_buildable(enc.sessions[0], "a", a)
+               for a in chooser.menus[0] if a.kind == "attack")

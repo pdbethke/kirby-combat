@@ -701,6 +701,12 @@ def _resolve_recover(
     # longer has.
     recovering = session.combatants.get(actor.id, actor)
     stun_delta, end_delta = compute_recovery(recovering, template, "phase_12")
+    # 6E2 p.132 and 6E1 p.333 hold some or all of it back
+    # (`kirby_combat/recovery_limits.py`).
+    from kirby_combat.recovery_limits import allowed_recovery
+
+    stun_delta, end_delta = allowed_recovery(session, recovering, stun_delta,
+                                             end_delta)
 
     # APPLIED BY THE EVENT. This used to build the recovered combatant
     # itself and lay it on the session before logging a `RecoveryTaken`
@@ -890,6 +896,12 @@ def _resolve_flash(
     power = action._attack_view
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    from kirby_combat.actions.area_effects import is_area_effect, resolve_area_effect
+
+    if is_area_effect(power):
+        # Everyone in the Area, from one roll (6E1 p.228, p.321, p.326).
+        return resolve_area_effect(session, actor, action, template=template,
+                                   roller=roller, kind="flash")
 
     target = session.combatants[action.target_id]
     groups = sorted(flash_groups(power)) or ["sight"]
@@ -926,6 +938,12 @@ def _resolve_entangle(
     power = action._attack_view
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    from kirby_combat.actions.area_effects import is_area_effect, resolve_area_effect
+
+    if is_area_effect(power):
+        # Everyone in the Area, from one roll (6E1 p.220, p.321).
+        return resolve_area_effect(session, actor, action, template=template,
+                                   roller=roller, kind="entangle")
 
     dice = _levels(action)
     body = counted_body(roller.roll_dice(dice))

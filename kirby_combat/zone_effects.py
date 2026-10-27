@@ -26,9 +26,18 @@ And 6E2 p.133 prices STUN as END: "1d6 STUN Only damage for every 2 'END'
 (or fraction thereof) used, and no defense is allowed". So it fires in the
 Segments he has a Phase in, at SPD 2 or better.
 
-NOT BUILT: ``status`` zones (the driver skipped them too: it "never applies
-the status, so emitting a note would claim an effect that didn't happen"),
-and 6E2 p.132's "does not get to Recover" while holding his breath.
+A STATUS ZONE (``status``) puts the condition it names on whoever is in it,
+every Segment, when that condition is one this engine keeps: a place can put
+a man on the ground (``prone`` --- 6E2 p.51's Prone, folded from
+`statuses.FELL`). Any other name is the zone's special effect and nothing
+more (6E1 p.126: "The appearance of a Power depends on its special effect"),
+and the trigger is written down saying it changed nothing --- the deleted
+driver skipped status zones because it "never applies the status, so
+emitting a note would claim an effect that didn't happen"; this note says
+it did not.
+
+6E2 p.132's "does not get to Recover" while holding his breath is kept by
+`recovery_limits.py`, at the two Recovery doors.
 """
 from __future__ import annotations
 
@@ -182,6 +191,38 @@ def _drown(session, construct, combatant_id: str, *, roller):
                     kind="construct_effect")
 
 
+#: The conditions a place can put on a man, by the name a zone gives them,
+#: and the payload key that writes each one down. Prone is the one a place
+#: can cause and this engine folds from a row (`statuses._is_prone`).
+_ZONE_CONDITIONS = {"prone": "fell"}
+
+
+def _inflict(session, construct, combatant_id: str, status: str | None):
+    """One Segment of a status zone (see the module docstring)."""
+    from kirby_combat.statuses import FELL
+
+    key = _ZONE_CONDITIONS.get((status or "").strip().lower())
+    session, cause = _triggered(session, construct.obj_id, combatant_id, {
+        "kind": "status", "status": status, "applied": key is not None,
+    })
+    if key is None:
+        return session
+    from kirby_combat.session.events import ActionResolved, make_author_engine
+
+    assert key == FELL
+    return _apply(session, ActionResolved(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        declaration_event_id=cause,
+        result_payload={
+            "kind": "construct_effect", "target_id": combatant_id,
+            "construct_id": construct.obj_id, "stun_dealt": 0,
+            "body_dealt": 0, "status_changes": [], FELL: [combatant_id],
+        },
+    ))
+
+
 def zone_effects_for_segment(session: "CombatSession", *, template, roller):
     """Every ``every_segment`` zone effect, on everyone standing in one."""
     from kirby_combat.construct_effects import resolve_construct_effect
@@ -209,4 +250,7 @@ def zone_effects_for_segment(session: "CombatSession", *, template, roller):
                                 template=template, roller=roller)
             elif res.outcome == "suffocating":
                 session = _drown(session, construct, combatant_id, roller=roller)
+            elif res.outcome == "status":
+                session = _inflict(session, construct, combatant_id,
+                                   res.status_inflicted)
     return session

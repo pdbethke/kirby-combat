@@ -229,3 +229,24 @@ class _SingleDice(Dice):
         if count == 1:
             return [self.singles.pop(0)]
         return [3] * count
+
+
+def test_a_second_use_is_a_second_maintained_attack():
+    """6E1 p.129: "he could attack the same target a second time and affect
+    him with the power twice ... Each use of the power costs END to activate
+    and to maintain" --- Sapphire keeps two going at once. Batch C ended the
+    first use when the power was used again; the page keeps both."""
+    enc = _fight(shaped_blast("a-beam", 4, constant=True))
+    fired = []
+
+    def want(action, situation):
+        if situation.actor.id == "a" and action.kind == "attack" and len(fired) < 2:
+            fired.append(1)
+            return True
+        return False
+    chooser = Picks(want)
+    enc, _ = _phases(enc, chooser, 1, Dice(face=2))
+    enc, _ = _to_as_next_phase(enc, chooser, Dice(face=2))
+    s = enc.sessions[0]
+    assert len(active_lingering(s, attacker_id="a")) == 2
+    assert [e for e in s.event_log if e.kind == "LingeringAttackEnded"] == []

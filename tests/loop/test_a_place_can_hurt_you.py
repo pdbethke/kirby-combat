@@ -93,3 +93,37 @@ def test_out_of_breath_he_burns_stun_and_then_body():
     enc.sessions[0].combatants["b"].state.statuses.add("cannot_swim")
     enc = _step(enc, 3, Dice(face=4))
     assert _triggered(enc)[0].effect["body"] == 1
+
+
+def test_a_man_holding_his_breath_gets_no_recovery():
+    """6E2 p.132: "A character who holds his breath does not get to Recover,
+    even on Post-Segment 12." b is under water through the Turn's end; his
+    free Recovery gives him nothing, while c's, on dry land, gives REC."""
+    enc = _fight(_zone("suffocation", gating="breathing_swimming"), end=2, stun=30)
+    enc.sessions[0].combatants["b"].state.statuses.add("cannot_swim")
+    enc = _step(enc, 4, Dice(face=1))           # Seg 12: a, b, c; then the wrap
+    recovered = {e.combatant_id: (e.stun_recovered, e.end_recovered)
+                 for e in enc.sessions[0].event_log if e.kind == "RecoveryTaken"}
+    assert recovered["b"] == (0, 0)
+
+
+def test_a_slippery_floor_puts_him_on_the_ground():
+    """A status zone puts the condition it names on whoever stands in it,
+    when it is one the engine keeps: here Prone (6E2 p.51). The driver
+    skipped status zones; Batch C listed them as missing."""
+    from kirby_combat.statuses import PRONE, statuses_for
+
+    enc = _fight(_zone("status", status_inflicted="prone"))
+    enc = _step(enc, 1, Dice(face=3))
+    assert PRONE in statuses_for(enc.sessions[0], "b")
+    assert PRONE not in statuses_for(enc.sessions[0], "a")
+    trig = _triggered(enc)
+    assert trig and trig[0].effect["applied"] is True
+
+
+def test_a_status_the_engine_does_not_keep_is_said_to_change_nothing():
+    enc = _fight(_zone("status", status_inflicted="on_fire"))
+    enc = _step(enc, 1, Dice(face=3))
+    trig = _triggered(enc)
+    assert trig and trig[0].effect == {"kind": "status", "status": "on_fire",
+                                       "applied": False}

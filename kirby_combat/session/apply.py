@@ -294,6 +294,8 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # A lingering attack's running state is folded by
         # `kirby_combat/lingering.py`; its damage rides on `VitalsChanged`.
         "LingeringAttackApplied", "LingeringAttackEnded",
+        # So is a standing zone's, by `kirby_combat/standing_areas.py`.
+        "StandingAreaEstablished", "StandingAreaEnded",
         "EnvironmentalTriggered", "GMOverride",
         "ConstructDamaged", "ConstructSpawned",
     }:
