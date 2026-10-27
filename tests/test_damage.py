@@ -178,10 +178,11 @@ class TestKillingDamage:
 
 class TestHalfDieAndPlusOne:
     def test_half_die(self):
-        """2d6+½d6 normal, dice [4,3,5] → STUN=9 (4+3+2), BODY=3 (1+1+1)
+        """2d6+½d6 normal, dice [4,3,5] → STUN=10 (4+3+3), BODY=3 (1+1+1)
 
         First two values are the full d6s, third is the half-die value.
-        Half-die STUN = 5//2 = 2. Half-die BODY: 5>=5 → 1.
+        6E2 p.100: half-die STUN is the face halved ROUNDED UP, 5 → 3; it
+        does 1 BODY on a 4, 5 or 6.
         """
         power = make_power(damage_type="normal", half_die=True)
         dice = make_dice([4, 3, 5])
@@ -189,11 +190,11 @@ class TestHalfDieAndPlusOne:
 
         result = compute_damage(power, dice, template)
 
-        assert result.stun == 9   # 4 + 3 + (5//2=2) = 9
-        assert result.body == 3   # 1 + 1 + 1(5>=5) = 3
+        assert result.stun == 10  # 4 + 3 + ceil(5/2)=3 = 10
+        assert result.body == 3   # 1 + 1 + 1 (a 5) = 3
 
     def test_half_die_low_value(self):
-        """Half-die value < 5 → 0 BODY from that half die."""
+        """Half-die value 3 → no BODY from that half die (it takes a 4+)."""
         power = make_power(damage_type="normal", half_die=True)
         # Full dice: [3, 2], half-die value: 3
         dice = make_dice([3, 2, 3])
@@ -201,8 +202,8 @@ class TestHalfDieAndPlusOne:
 
         result = compute_damage(power, dice, template)
 
-        assert result.stun == 6   # 3 + 2 + (3//2=1) = 6
-        assert result.body == 2   # 1 + 1 + 0(3<5) = 2
+        assert result.stun == 7   # 3 + 2 + ceil(3/2)=2 = 7
+        assert result.body == 2   # 1 + 1 + 0 (a 3) = 2
 
     def test_plus_one(self):
         """2d6+1 normal, dice [4,3] → STUN=8 (4+3+1), BODY=2"""
@@ -221,14 +222,14 @@ class TestHalfDieAndPlusOne:
         Raw STUN-mult d6=2 → ½d6 = 1; multiplier = base 1 + (1-1) = 1.
         """
         power = make_power(damage_type="killing", half_die=True)
-        # Full dice: [3, 4], half-die: 5 → BODY = 3+4+(5//2=2) = 9
+        # Full dice: [3, 4], half-die: 5 → BODY = 3+4+ceil(5/2)=3 = 10
         dice = make_dice([3, 4, 5], stun_multiplier=[2])
         template = make_template(killing_stun_mult_base=1)
 
         result = compute_damage(power, dice, template)
 
-        assert result.body == 9   # 3 + 4 + 2 = 9
-        assert result.stun == 9   # 9 × 1 = 9
+        assert result.body == 10  # 3 + 4 + 3 = 10
+        assert result.stun == 10  # 10 × 1 = 10
 
     def test_killing_plus_one(self):
         """Killing damage with plus_one: +1 to BODY.

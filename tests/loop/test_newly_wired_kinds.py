@@ -395,21 +395,25 @@ def test_attacking_a_construct_that_is_not_on_the_scene_refuses():
 
 
 def test_healing_does_not_fade_and_says_so_by_emitting_nothing():
-    """Healing shares Aid's arithmetic but has no fade (6E1 p.150). An
-    AdjustmentApplied carrying fade_rate_per_turn=5 would state the
-    opposite of the rule, so none is emitted."""
-    _, resolved = _resolve(_action("heal", power=_Power("HEALING", levels=4)))
-    assert resolved.result.delta > 0
+    """Healing has no fade (6E1 p.234: "The points gained from Healing do
+    not fade"). An AdjustmentApplied carrying fade_rate_per_turn=5 would
+    state the opposite of the rule, so none is emitted; what it restores is
+    a `VitalsChanged` (tests/loop/test_adjustment_powers_bite.py)."""
+    power = _Power("HEALING", levels=4)
+    power.input = "BODY"
+    _, resolved = _resolve(_action("heal", power=power))
+    assert resolved.result["rolled"] > 0
     assert not [e for e in resolved.events if e.kind == "AdjustmentApplied"]
 
 
-def test_dispel_records_the_roll_not_a_delta():
-    """All-or-nothing against the target power's Active Points -- there is
-    no partial Dispel to apply."""
-    _, resolved = _resolve(_action("dispel", power=_Power("DISPEL", levels=6)))
-    payload = resolved.session.event_log[-1].result_payload
-    assert payload["active_points_rolled"] > 0
-    assert "delta" not in payload
+def test_a_dispel_that_names_no_power_of_the_target_refuses():
+    """6E1 p.195: "the character must declare what power or ability he's
+    trying to Dispel". This test used to pass a Dispel naming nothing and
+    assert the roll was recorded; that offer is not written any more, and
+    the resolver refuses one. What a Dispel does is in
+    tests/loop/test_dispel_turns_a_power_off.py."""
+    with pytest.raises(ValueError, match="names no power"):
+        _resolve(_action("dispel", power=_Power("DISPEL", levels=6)))
 
 
 def test_a_group_presence_attack_is_ONE_roll_judged_against_each_target():
@@ -526,6 +530,9 @@ def test_a_force_wall_needs_a_map_and_lands_on_it():
         _action("force_wall", power=_Power("FORCEWALL", levels=6)),
         template=TEMPLATE, roller=RandomRoller(seed=9),
     )
-    assert len(scene.walls) == 1, "the barrier must reach the scene"
-    assert scene.walls[0].body == 6, "BODY comes from the power's levels"
-    assert resolved.events
+    walls = resolved.session.scene.walls
+    assert len(walls) == 1, "the barrier must reach the scene"
+    assert walls[0].body == 6, "BODY comes from the power's levels"
+    # Through the log, not beside it: the authored Scene is untouched.
+    assert scene.walls == []
+    assert any(e.kind == "BarrierRaised" for e in resolved.events)

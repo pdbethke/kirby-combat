@@ -1876,109 +1876,23 @@ def enumerate_actions(
                     "Ends the moment you attack."
                 ),
             ))
-    # PR-70 / PR-71 / PR-72: Adjustment + Healing powers.
-    # Aid boosts allies, Healing restores STUN/BODY on allies, Drain
-    # reduces enemy stats. Detected via xmlid on hero.powers.
-    aid_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "AID"
-    ]
-    healing_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "HEALING"
-    ]
-    drain_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "DRAIN"
-    ]
-    # Aid + Healing target allies; we surface them targeting NONE so
-    # the driver picks the most-needed ally at resolve time. The picker
-    # picks "aid" or "heal" without selecting target — actor's own
-    # team's most-wounded gets it.
-    for ap in aid_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        actions.append(LegalAction(
-            action_id=_power_action_id("aid", "self", ap),
-            kind="aid",
-            target_id=None,
-            power_xmlid=ap.xmlid,
-            power_name=getattr(ap, "name", None) or "Aid",
-            summary=(
-                f"AID an ally ({n}d6 stat boost on most-wounded "
-                f"teammate, fades at 5 points/turn){limit_tag}"
-            ),
-            _attack_view=ap,
-        ))
-    for ap in healing_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        actions.append(LegalAction(
-            action_id=_power_action_id("heal", "self", ap),
-            kind="heal",
-            target_id=None,
-            power_xmlid=ap.xmlid,
-            power_name=getattr(ap, "name", None) or "Healing",
-            summary=(
-                f"HEAL most-wounded ally ({n}d6 STUN restored)"
-                f"{limit_tag}"
-            ),
-            _attack_view=ap,
-        ))
-    for ap in drain_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        for enemy in alive_enemies:
-            actions.append(LegalAction(
-                action_id=_power_action_id("drain", enemy.id, ap),
-                kind="drain",
-                target_id=enemy.id,
-                power_xmlid=ap.xmlid,
-                power_name=getattr(ap, "name", None) or "Drain",
-                summary=(
-                    f"DRAIN {_friendly(enemy)}'s stat ({n}d6 effect, "
-                    f"fades at 5 pts/turn — STR/DEX/CON drain hobbles "
-                    f"a brick fast){limit_tag}"
-                ),
-                _attack_view=ap,
-            ))
-    # PR-97: DISPEL — shut off one of target's defensive powers
-    # (Force Field, Armor, DR, Density, Flight, Invisibility) for
-    # one phase. Roll levels d6 vs target power's Active Points.
-    dispel_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "DISPEL"
-    ]
-    for ap in dispel_powers:
-        n = getattr(ap, "levels", 0) or 0
-        # PR-98: surface VARIABLEEFFECT scope in the summary so the
-        # picker sees "DISPEL Fire/Heat" not generic "DISPEL". The
-        # full scope-token semantics live in the driver; here we
-        # just lift the input_value text for human readability.
-        scope_label = ""
-        for m in (getattr(ap, "assigned_modifiers", []) or []):
-            mx = (getattr(m, "xmlid", "") or "").upper()
-            if mx == "VARIABLEEFFECT":
-                iv = (getattr(m, "input_value", None) or "").strip()
-                if iv:
-                    scope_label = f" [scope: {iv}]"
-                break
-        limit_tag = _limitation_label(actor, ap)
-        for enemy in alive_enemies:
-            actions.append(LegalAction(
-                action_id=_power_action_id("dispel", enemy.id, ap),
-                kind="dispel",
-                target_id=enemy.id,
-                power_xmlid=ap.xmlid,
-                power_name=getattr(ap, "name", None) or "Dispel",
-                summary=(
-                    f"DISPEL one of {_friendly(enemy)}'s defenses "
-                    f"({n}d6 vs the power's Active Points{scope_label} "
-                    f"— Force Field, Armor, Flight, Invisibility all "
-                    f"fair game; shut-off lasts one phase){limit_tag}"
-                ),
-                _attack_view=ap,
-            ))
+    # ADJUSTMENT AND HEALING POWERS (6E1 p.169, p.197, p.234). Offered on
+    # the actor and each ally by name, and on enemies in range --- see
+    # `adjustment_offers` for what changed and why.
+    from kirby_combat.adjustment_offers import adjustment_offers
+
+    actions.extend(adjustment_offers(
+        actor, enemies=alive_enemies, allies=list(allies or []), scene=scene,
+        distances=distances, limitation_label=_limitation_label,
+    ))
+    # DISPEL (6E1 p.195): one offer per enemy power it is bought against,
+    # in range --- see `adjustment_offers.dispel_offers`.
+    from kirby_combat.adjustment_offers import dispel_offers
+
+    actions.extend(dispel_offers(
+        actor, enemies=alive_enemies, scene=scene, distances=distances,
+        limitation_label=_limitation_label,
+    ))
     # PR-73: Block as a first-class declaration (not just abort).
     # 6E1 p373: Block has -2 OCV penalty BUT successful Block grants
     # +1 OCV initiative bonus next phase against the blocked attacker.

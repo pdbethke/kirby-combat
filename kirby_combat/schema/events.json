@@ -295,6 +295,9 @@
         "author": {
           "$ref": "#/$defs/EventAuthor"
         },
+        "cost_per_point": {
+          "type": "number"
+        },
         "delta": {
           "type": "integer"
         },
@@ -343,7 +346,8 @@
         "stat",
         "delta",
         "fade_rate_per_turn",
-        "source_event_id"
+        "source_event_id",
+        "cost_per_point"
       ],
       "title": "AdjustmentApplied",
       "type": "object"
@@ -440,6 +444,94 @@
         "weather"
       ],
       "title": "AmbientConditions",
+      "type": "object"
+    },
+    "BarrierRaised": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "BarrierRaised",
+          "enum": [
+            "BarrierRaised"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body": {
+          "type": "integer"
+        },
+        "def_value": {
+          "type": "integer"
+        },
+        "ed_value": {
+          "type": "integer"
+        },
+        "end": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "height_m": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "BarrierRaised",
+          "enum": [
+            "BarrierRaised"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "start": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "wall_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "wall_id",
+        "name",
+        "start",
+        "end",
+        "height_m",
+        "body",
+        "def_value",
+        "ed_value",
+        "source_combatant"
+      ],
+      "title": "BarrierRaised",
       "type": "object"
     },
     "BleedingSuffered": {
@@ -2274,6 +2366,122 @@
       "title": "PositionView",
       "type": "object"
     },
+    "PowerDispelled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PowerDispelled",
+          "enum": [
+            "PowerDispelled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PowerDispelled",
+          "enum": [
+            "PowerDispelled"
+          ],
+          "type": "string"
+        },
+        "power_id": {
+          "type": "string"
+        },
+        "power_xmlid": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "power_id",
+        "power_xmlid",
+        "source_combatant"
+      ],
+      "title": "PowerDispelled",
+      "type": "object"
+    },
+    "PowerRestarted": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PowerRestarted",
+          "enum": [
+            "PowerRestarted"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PowerRestarted",
+          "enum": [
+            "PowerRestarted"
+          ],
+          "type": "string"
+        },
+        "power_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "power_id"
+      ],
+      "title": "PowerRestarted",
+      "type": "object"
+    },
     "PresenceActionLost": {
       "additionalProperties": false,
       "properties": {
@@ -3375,6 +3583,9 @@
       "$ref": "#/$defs/AdjustmentFaded"
     },
     {
+      "$ref": "#/$defs/BarrierRaised"
+    },
+    {
       "$ref": "#/$defs/BleedingSuffered"
     },
     {
@@ -3424,6 +3635,12 @@
     },
     {
       "$ref": "#/$defs/PhaseSpent"
+    },
+    {
+      "$ref": "#/$defs/PowerDispelled"
+    },
+    {
+      "$ref": "#/$defs/PowerRestarted"
     },
     {
       "$ref": "#/$defs/PresenceActionLost"

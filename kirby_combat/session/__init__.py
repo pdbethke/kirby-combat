@@ -33,7 +33,8 @@ from kirby_combat.session.events import (
     HeldActionDeclared, HeldActionReleased,
     AdjustmentApplied, AdjustmentFaded,
     EntangleApplied, EntangleEscape, FlashApplied, FlashRecovered,
-    EnvironmentalTriggered, ConstructDamaged, ConstructSpawned,
+    EnvironmentalTriggered, ConstructDamaged, ConstructSpawned, BarrierRaised,
+    PowerDispelled, PowerRestarted,
     GMOverride, SessionEnded,
     make_author_combatant, make_author_gm, make_author_engine,
 )
@@ -46,7 +47,8 @@ __all__ += [
     "HeldActionDeclared", "HeldActionReleased",
     "AdjustmentApplied", "AdjustmentFaded",
     "EntangleApplied", "EntangleEscape", "FlashApplied", "FlashRecovered",
-    "EnvironmentalTriggered", "ConstructDamaged", "ConstructSpawned",
+    "EnvironmentalTriggered", "ConstructDamaged", "ConstructSpawned", "BarrierRaised",
+    "PowerDispelled", "PowerRestarted",
     "GMOverride", "SessionEnded",
     "make_author_combatant", "make_author_gm", "make_author_engine",
 ]

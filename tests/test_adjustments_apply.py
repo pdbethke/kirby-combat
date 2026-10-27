@@ -51,11 +51,18 @@ def _session(*combatants):
 
 
 def _adjust(session, target: str, stat: str, delta: int):
+    """``delta`` POINTS of ``stat``, recorded as the book records them: the
+    Character Points that buy that many points (6E1 p.137), with the
+    target's cost per point on the row."""
+    from kirby_combat.adjustments import cost_per_point
+
+    per_point = cost_per_point(session.combatants[target], stat)
     return apply_event(session, AdjustmentApplied(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        target_id=target, stat=stat, delta=delta, fade_rate_per_turn=5,
+        target_id=target, stat=stat, delta=round(delta * per_point),
+        fade_rate_per_turn=5, cost_per_point=per_point,
     ))
 
 
@@ -201,13 +208,22 @@ def test_aiding_con_makes_a_blow_fail_to_stun():
 
 
 def test_a_faded_adjustment_stops_affecting_the_stat():
-    """The two halves must meet: once the fade takes it to zero, the CV is
-    the build's again."""
+    """The two halves must meet: as the Drain returns, the CV comes back.
+
+    5 CHARACTER POINTS a Turn, not 5 points of DCV (6E1 p.141: "Chiron
+    regains 5 Character Points' worth of DEX, thus regaining 2 of the lost
+    points"). DCV costs 5 per point, so -3 DCV is 15 Character Points and
+    comes back a point a Turn. This test said the first wrap returned all
+    three, which was the fade running in the wrong unit.
+    """
     from kirby_combat.encounter import Encounter
 
     session = _adjust(_session(), "bob", "DCV", -3)
     assert effective_dcv_for(session, "bob") == 5
 
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
-    enc = enc.advance_segment()          # the Turn wrap fades it out entirely
+    enc = enc.advance_segment()          # Post-Segment 12: 5 CP return
+    assert effective_dcv_for(enc.sessions[0], "bob") == 6
+    for _ in range(24):                  # two more Turns: all 15 back
+        enc = enc.advance_segment()
     assert effective_dcv_for(enc.sessions[0], "bob") == 8

@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+**Adjustment powers and loose ends (the lift-and-shift port, batch E).**
+- **Aid, Drain and Healing change the stat they are bought against.** Every
+  Adjustment was recorded as `stat="STUN"` and divided by 5; Aid and Healing
+  were offered with no target and applied to the user; Drain rolled no Attack
+  Roll; Healing healed nobody. Now (6E1 p.137-143, p.169, p.197, p.234):
+  - `AdjustmentApplied.delta` is **Character Points** and the row carries the
+    target's `cost_per_point` (new field, read off his build's LVLCOST/LVLVAL);
+    whole increments only (p.140); half effect on CON, DCV, DMCV, PD, ED, REC,
+    END, BODY, STUN (p.143); Aid stops at its maximum effect (p.169); Drain on
+    an Attack Roll, less Power Defense (p.197); a power's dice by its Active
+    Points per die (p.139). Rows written before have `cost_per_point=0` and
+    change nothing, as they never did.
+  - `apply_event` projects the fold onto `state.drains` / `state.aids` / new
+    `state.adjusted_dice`, so **every** reader of the stat sees it: CV, the
+    Stunning check, SPD, STR damage, PD/ED, a power's dice. The CV-path overlay
+    is removed (it would double count). The fade now runs in Character Points:
+    -3 DCV comes back a point a Turn, not all at once.
+  - STUN/BODY/END: the current value moves with the maximum (p.138); returning
+    Drain points come back to both, a fading Aid cuts back to the new maximum.
+  - Healing restores BODY/STUN/END up to full, half effect, never fades, and a
+    repeat heals only the margin over earlier rolls (p.234); Simplified Healing
+    (p.236); Healing BODY stops Bleeding.
+  - Offers name their target: the actor and each ally within reach (No Range),
+    enemies within Drain's 10m x Base Points. **Not offered:** inputs naming a
+    special-effect group, a ratio split without Expanded Effect, Healing of a
+    Drained characteristic, Healing on someone who has lost nothing.
+- **Dispel** turns the named power off (6E1 p.195): Attack Roll, dice less
+  Power Defense must exceed its Active Points (doubled per Difficult To Dispel,
+  p.335; the driver dispelled on a tie). New events **`PowerDispelled`** /
+  **`PowerRestarted`**; the off set is folded into the target's build, and
+  `run_phase` restarts it as a Zero Phase Action at his next Phase he can act
+  in (6E2 p.20). Group inputs, characteristics and snapshot-rebuilt targets are
+  not offered.
+- **Lockout** (6E1 p.388): `run_phase` passes `blocked_lockout_ids`; a framework
+  slot bought with Lockout shuts its siblings out while a continuing effect it
+  established holds, or in the Segment it fired. `AttackPower.lockout` (new).
+- **Force Wall** is a new **`BarrierRaised`** event folded onto the scene; it
+  was appended to `scene.walls` in place, so replays and rewinds had no wall.
+- **Half dice** (6E2 p.100): a ½d6 is the face halved and rounded UP (was
+  down) and does 1 BODY on 4-6 (was 5-6); a killing ½d6 adds 1-3 BODY. Every
+  attack site rolled one die too few for a half-die attack (the half die was
+  never rolled, so the last whole die was read as it); `_with_half_die` fixes
+  all of them.
+
 **Attack shapes resolve: Area Of Effect, Constant, Damage Over Time, Move
 By / Move Through, hazard zones, Side Effects, Increased END.** Ported from
 the deleted api driver (kirby-api 70ad60f) into the live path and corrected

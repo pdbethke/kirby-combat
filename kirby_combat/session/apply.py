@@ -212,6 +212,27 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         assert isinstance(event, MovementResolved)
         return _fold_position(session, new_log, now, event)
 
+    if kind in ("AdjustmentApplied", "AdjustmentFaded"):
+        # A running effect folded forward (`session/effects.py`), AND
+        # projected onto the target's state so that every reader of the stat
+        # reads it: see `adjustments.project_onto`. The projection is
+        # rebuilt from the log, never accumulated here.
+        from kirby_combat.adjustments import project_onto
+
+        return project_onto(
+            replace(session, event_log=new_log, updated_at=now), event.target_id)
+
+    if kind in ("PowerDispelled", "PowerRestarted"):
+        # The dispelled set is folded into the combatant's build, so every
+        # reader of his powers reads it (`actions/dispel.py`).
+        from kirby_combat.actions.dispel import fold_dispel
+
+        who = event.target_id if kind == "PowerDispelled" else event.combatant_id
+        return fold_dispel(replace(session, event_log=new_log, updated_at=now), who)
+
+    if kind == "BarrierRaised":
+        return _fold_barrier(session, new_log, now, event)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)
@@ -254,7 +275,6 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     #     lives in the driver, not the engine session (Plan 2)
     if kind in {
         "ActionResolved", "HeldActionReleased",
-        "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
@@ -304,6 +324,41 @@ def _fold_vitals(
     return replace(
         session, event_log=new_log, combatants=new_combatants, updated_at=now,
     )
+
+
+def _fold_barrier(session: CombatSession, new_log, now, event) -> CombatSession:
+    """THE ONE WRITER of a Barrier raised in the fight (6E1 p.167).
+
+    A NEW wall list on a new Scene, never an append to the old one: the
+    resolver this replaced appended in place, so the wall leaked into every
+    other session sharing that Scene object --- and into the "before" of
+    the same fight, which is what a rewind reads.
+
+    A session with no Scene has no board to put a wall on, and a raise is
+    only ever offered on a map (`enumerate_actions(has_scene=...)`), so a
+    row that arrives without one RAISES rather than being kept quietly.
+    """
+    from kirby_world.scene import Position, Wall
+
+    if session.scene is None:
+        raise ValueError(
+            f"BarrierRaised {event.wall_id!r} in session {session.id!r}, "
+            f"which has no Scene to raise it on"
+        )
+    wall = Wall(
+        id=event.wall_id, name=event.name,
+        segment=(
+            Position(float(event.start["x"]), float(event.start["y"]),
+                     float(event.start["z"])),
+            Position(float(event.end["x"]), float(event.end["y"]),
+                     float(event.end["z"])),
+        ),
+        height_m=float(event.height_m),
+        body=int(event.body), def_value=int(event.def_value),
+        ed_value=int(event.ed_value),
+    )
+    scene = replace(session.scene, walls=[*session.scene.walls, wall])
+    return replace(session, event_log=new_log, scene=scene, updated_at=now)
 
 
 def _fold_position(

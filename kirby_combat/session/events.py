@@ -356,12 +356,27 @@ class HeldActionReleased(BaseEvent):
 
 @dataclass
 class AdjustmentApplied(BaseEvent):
+    """An Aid, a Drain (6E1 p.169, p.197) landing on one stat of one target.
+
+    ``delta`` is CHARACTER POINTS, signed: + for an Aid, - for a Drain. 6E1
+    p.137 applies an Adjustment "to the Active Points of a Characteristic or
+    Power", and the 5-points-per-Turn fade (6E1 p.141) comes off those, so
+    that is the unit the fold walks. ``stat`` is the characteristic's xmlid
+    ("DEX") or ``"POWER:<source id>"`` for one attack power's dice.
+
+    ``cost_per_point`` is what one point of ``stat`` cost on the TARGET's
+    build when this landed (DEX 2, SPD 10, STUN 0.5; a power's Active Points
+    per 1d6), so the log alone turns points into a characteristic and a
+    replay needs no build to price it. 0 only on rows written before it was
+    recorded, which `adjustments.live_adjustments` keeps and does not apply.
+    """
     kind: Literal["AdjustmentApplied"] = field(default="AdjustmentApplied", init=False)
     target_id: str = ""
     stat: str = ""
     delta: int = 0
     fade_rate_per_turn: int = 5
     source_event_id: str = ""
+    cost_per_point: float = 0.0
 
 
 @dataclass
@@ -653,6 +668,60 @@ class ConstructSpawned(BaseEvent):
 
 
 @dataclass
+class BarrierRaised(BaseEvent):
+    """A Barrier put up in the fight (6E1 p.167) --- and what applies it.
+
+    THE WALL WAS NEVER IN THE RECORD. `_resolve_force_wall` appended a
+    `Wall` to `session.scene.walls` IN PLACE and logged an `ActionResolved`
+    beside it, the same mutate-then-log shape `MovementResolved` was taken
+    out of in 0.18.5. A fight rebuilt from its rows, a `rewind_to_sequence`
+    and a Krackle replay all started from the authored scene and had no
+    wall: the shot it was raised to stop went through on the replay.
+
+    `apply_event` folds this onto `session.scene.walls`, so it is the one
+    writer of a raised Barrier. `start`/`end` carry ``x``, ``y``, ``z`` ---
+    the two ends of the wall's footprint, as `scene.Wall.segment` holds
+    them. The BODY and DEFs are the Barrier's own; damage to it is folded
+    from the log like any other construct's (`constructs.damage_by_object`).
+    """
+    kind: Literal["BarrierRaised"] = field(default="BarrierRaised", init=False)
+    wall_id: str = ""
+    name: str = ""
+    start: dict[str, float] = field(default_factory=dict)
+    end: dict[str, float] = field(default_factory=dict)
+    height_m: float = 0.0
+    body: int = 0
+    def_value: int = 0
+    ed_value: int = 0
+    source_combatant: str = ""
+
+
+@dataclass
+class PowerDispelled(BaseEvent):
+    """One of the target's powers stops working (6E1 p.195).
+
+    `apply_event` folds it into the target's build (`actions/dispel.py`):
+    every reader of his powers reads them without this one until a
+    `PowerRestarted` for it.
+    """
+    kind: Literal["PowerDispelled"] = field(default="PowerDispelled", init=False)
+    target_id: str = ""
+    power_id: str = ""
+    power_xmlid: str = ""
+    source_combatant: str = ""
+
+
+@dataclass
+class PowerRestarted(BaseEvent):
+    """He turns a dispelled power back on --- a Zero Phase Action at the
+    start of his Phase (6E2 p.20; 6E1 p.195: "The victim of a Dispel may
+    'restart' the Dispelled power")."""
+    kind: Literal["PowerRestarted"] = field(default="PowerRestarted", init=False)
+    combatant_id: str = ""
+    power_id: str = ""
+
+
+@dataclass
 class SessionEnded(BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
@@ -706,6 +775,9 @@ CombatEvent = (
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned
+    | BarrierRaised
+    | PowerDispelled
+    | PowerRestarted
     | GMOverride
     | SessionEnded
 )

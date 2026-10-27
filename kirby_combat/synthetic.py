@@ -57,10 +57,29 @@ from kirby_combat.models import AttackPower, DefenseItem
 
 @dataclass
 class _SyntheticCharacteristic:
-    """Just enough of a characteristic object for the engine to name it."""
+    """Just enough of a characteristic object for the engine to name it,
+    and to price it: an Adjustment divides by the characteristic's cost per
+    point (6E1 p.137), which a real build reads off its template."""
 
     xmlid: str
     id: str
+    level_cost: float
+    level_value: float
+
+
+#: The 6E standard cost of each characteristic as (LVLCOST, LVLVAL) ---
+#: the numbers a real build carries from its template (6E1 p.40's
+#: Characteristics Table: DEX 2 per point, SPD 10, END 1 per 5, STUN 1 per
+#: 2). A synthetic hero has no template to read them off, so it carries the
+#: standard ones.
+_STANDARD_COSTS = {
+    "STR": (1.0, 1.0), "DEX": (2.0, 1.0), "CON": (1.0, 1.0),
+    "INT": (1.0, 1.0), "EGO": (1.0, 1.0), "PRE": (1.0, 1.0),
+    "OCV": (5.0, 1.0), "DCV": (5.0, 1.0), "OMCV": (3.0, 1.0), "DMCV": (3.0, 1.0),
+    "SPD": (10.0, 1.0), "PD": (1.0, 1.0), "ED": (1.0, 1.0), "REC": (1.0, 1.0),
+    "END": (1.0, 5.0), "BODY": (1.0, 1.0), "STUN": (1.0, 2.0),
+    "RUNNING": (1.0, 1.0), "SWIMMING": (1.0, 2.0), "LEAPING": (1.0, 2.0),
+}
 
 
 class _SyntheticHero:
@@ -102,7 +121,10 @@ class _SyntheticHero:
         # fighter who has no weapon raises, which blocked three separate
         # legitimate tests before it was worth fixing here.
         self.characteristics = [
-            _SyntheticCharacteristic(xmlid=x, id=f"synthetic-{x.lower()}")
+            _SyntheticCharacteristic(
+                xmlid=x, id=f"synthetic-{x.lower()}",
+                level_cost=_STANDARD_COSTS[x][0], level_value=_STANDARD_COSTS[x][1],
+            )
             for x in sorted(char_values)
         ]
 
@@ -171,7 +193,11 @@ class _SyntheticCombatant(HeroCombatant):
 
     @property
     def attacks(self) -> list[AttackPower]:
-        return self._explicit_attacks
+        # An Aid or Drain on a power's dice reaches a synthetic fighter's
+        # attacks exactly as it reaches a built one's.
+        from kirby_combat.hero_view import _with_adjusted_dice
+
+        return _with_adjusted_dice(self._explicit_attacks, self.state.adjusted_dice)
 
     def defense_view(self) -> list[DefenseItem]:
         """The caller's explicit list.

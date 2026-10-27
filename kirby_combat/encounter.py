@@ -195,6 +195,12 @@ def _is_stabilized(session, combatant_id: str) -> bool:
             continue
         if payload.get("kind") == "stabilize":
             stabilized = bool(payload.get("stabilized"))
+        elif (payload.get("kind") == "heal"
+              and "BODY" in (payload.get("rolled_by_stat") or {})):
+            # 6E1 p.234: "Any successful use of a Healing BODY stops
+            # Bleeding automatically, but wounds not fully Healed can still
+            # reopen" --- which the next wound below does.
+            stabilized = True
         elif payload.get("body_dealt"):
             stabilized = False            # shot again; the wound is new
     return stabilized
@@ -314,6 +320,7 @@ def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
                 continue
             remaining = max(0, magnitude - rate)
             signed = remaining if effect.net_delta > 0 else -remaining
+            before = _expendable_points(session, combatant_id, effect.stat)
             session = apply_event(session, AdjustmentFaded(
                 id=str(uuid.uuid4()),
                 session_id=session.id,
@@ -324,7 +331,54 @@ def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
                 stat=effect.stat,
                 remaining_delta=signed,
             ))
+            if before is not None:
+                session = _expendable_fade(session, combatant_id, effect.stat, before)
     return session
+
+
+def _expendable_points(session, combatant_id: str, stat: str) -> int | None:
+    """The points of STUN/BODY/END an Adjustment holds on him now, or None
+    for any other stat (or a row recorded without a cost per point)."""
+    from kirby_combat.adjustments import expendable_vital, live_adjustments
+
+    if expendable_vital(stat) is None:
+        return None
+    for live in live_adjustments(session, combatant_id):
+        if live.stat == stat:
+            return live.points
+    return None
+
+
+def _expendable_fade(session, combatant_id: str, stat: str, before: int):
+    """What a fading Adjustment does to the CURRENT value of an expendable.
+
+    6E1 p.138: Drained points "increase both his current Characteristic and
+    the maximum to which he can Recover it" as they return. An Aided STUN or
+    END that fades takes away only what is left of the boost: "any lost or
+    used points come out of the boosted points first" (p.169), so he loses
+    nothing he has already spent and is cut back to his new maximum at most.
+    """
+    from kirby_combat.adjustments import expendable_vital, live_adjustments
+    from kirby_combat.session.events import VitalsChanged
+
+    vital = expendable_vital(stat)
+    after = next((a.points for a in live_adjustments(session, combatant_id)
+                  if a.stat == stat), 0)
+    combatant = session.combatants[combatant_id]
+    if before < 0:
+        amount = after - before
+    else:
+        maximum = int(getattr(combatant.combat_stats(), f"max_{vital}"))
+        current = int(getattr(combatant.state, f"current_{vital}"))
+        amount = -max(0, current - maximum)
+    if not amount:
+        return session
+    return apply_event(session, VitalsChanged(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id=combatant_id, reason="adjustment_fade", **{vital: amount},
+    ))
 
 
 

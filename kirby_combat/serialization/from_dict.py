@@ -285,6 +285,9 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         statuses=set(data.get("statuses") or []),
         drains=dict(data.get("drains") or {}),
         aids=dict(data.get("aids") or {}),
+        # Absent from snapshots written before Adjustments reached a power's
+        # dice, which recorded none.
+        adjusted_dice=dict(data.get("adjusted_dice") or {}),
         used_charges=dict(data.get("used_charges") or {}),
         active_slot_per_framework=dict(data.get("active_slot_per_framework") or {}),
         last_acted_segment=data.get("last_acted_segment"),

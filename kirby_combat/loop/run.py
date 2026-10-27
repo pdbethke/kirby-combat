@@ -52,6 +52,8 @@ from kirby_combat.loop.reactions import (
 )
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
+from kirby_combat.lockout import blocked_lockout_ids
+from kirby_combat.actions.dispel import restart_dispelled
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
@@ -570,6 +572,11 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.
         mind_scan_locks=mind_scan_locks(session, actor_id),
+        # LOCKOUT (6E1 p.388): a framework slot bought with it shuts its
+        # siblings out while it is in use. The parameter has existed since
+        # the driver's PR-96 and this caller never passed it, so the
+        # limitation cost nothing. Folded from the log; see `lockout.py`.
+        blocked_lockout_ids=blocked_lockout_ids(session, actor) or None,
         # IMAGES HE TAKES FOR MEN (6E1 p.238-239), and whether he has one of
         # his own standing. Both parameters existed and this caller passed
         # neither, so no Image ever drew a shot and a caster could conjure
@@ -842,6 +849,15 @@ def run_phase(
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
+
+    # A DISPELLED POWER COMES BACK ON. "Activating a Power" is a Zero Phase
+    # Action at the start of a Phase (6E2 p.20), and he can take Actions this
+    # Phase (the Stunned and Presence gates above have let him through), so
+    # whatever was Dispelled off him is turned on before he chooses
+    # (6E1 p.195: "The victim of a Dispel may 'restart' the Dispelled power").
+    if not continuing:
+        session = restart_dispelled(session, actor_id)
+        actor = session.combatants[actor_id]
 
     # RAGE. 6E1 p.424: "Every Phase a character is in a situation where he
     # can become Enraged, he should roll his chance"; and a raging man rolls

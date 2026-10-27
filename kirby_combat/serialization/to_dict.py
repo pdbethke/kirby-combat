@@ -89,6 +89,7 @@ def to_dict(obj: Any) -> Any:
             "statuses": sorted(obj.state.statuses),
             "drains": dict(obj.state.drains),
             "aids": dict(obj.state.aids),
+            "adjusted_dice": dict(obj.state.adjusted_dice),
             "used_charges": dict(obj.state.used_charges),
             "active_slot_per_framework": dict(obj.state.active_slot_per_framework),
             "last_acted_segment": obj.state.last_acted_segment,
