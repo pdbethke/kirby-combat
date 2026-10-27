@@ -971,10 +971,11 @@ def run_phase(
     # that character, but before any rolls are made" (6E2 p.24). His own
     # chooser decides; the Dodge or Block he takes is read at the attack
     # door. See `loop/reactions.react_to_attack`.
-    session, reaction = react_to_attack(session, actor, action, chooser)
-    if reaction is not None and reaction is not Reaction.NONE:
-        notes.append(f"{action.target_id} Aborted to {reaction.value} "
-                     f"against {actor_id}")
+    session, reactions = react_to_attack(session, actor, action, chooser)
+    for defender_id, reaction in reactions:
+        if reaction is not Reaction.NONE:
+            notes.append(f"{defender_id} Aborted to {reaction.value} "
+                         f"against {actor_id}")
 
     try:
         resolved: ResolvedAction = resolve_chosen(

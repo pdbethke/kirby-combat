@@ -548,6 +548,25 @@ def ranged_damaging_attacks(attacks: list[Any]) -> list[Any]:
     ]
 
 
+#: The names the menu puts on the standard maneuvers anyone may make
+#: (`LegalAction.power_name`). Named once, here, because a player's Held
+#: Action order names its action by these (`loop.reactions.nameable_powers`).
+GRAB_NAME = "Grab"
+TRIP_NAME = "Trip"
+MOVE_BY_NAME = "Move-By"
+MOVE_THROUGH_NAME = "Move-Through"
+STANDARD_MANEUVER_NAMES = (GRAB_NAME, TRIP_NAME, MOVE_BY_NAME, MOVE_THROUGH_NAME)
+
+#: PR-50: Interaction Skills as social-combat actions (APG p34), by skill
+#: xmlid: (offer kind, the name the menu gives it).
+INTERACTION_SKILLS = {
+    "CHARM": ("charm", "Charm"),
+    "PERSUASION": ("persuasion", "Persuasion"),
+    "CONVERSATION": ("conversation", "Conversation"),
+    "TRADING": ("trading", "Trading"),
+}
+
+
 def _friendly(c: HeroCombatant) -> str:
     return getattr(c.hero, "name", None) or c.id
 
@@ -1955,12 +1974,7 @@ def enumerate_actions(
     # Charm / Persuasion / Conversation / Trading map to the same
     # MC degree ladder when used in combat (EGO+10/20/30 thresholds).
     # Detection: the actor's hero.skills carries the interaction skill.
-    _INTERACTION_SKILL_XMLIDS = {
-        "CHARM": ("charm", "Charm"),
-        "PERSUASION": ("persuasion", "Persuasion"),
-        "CONVERSATION": ("conversation", "Conversation"),
-        "TRADING": ("trading", "Trading"),
-    }
+    _INTERACTION_SKILL_XMLIDS = INTERACTION_SKILLS
     actor_skills = {
         (getattr(s, "xmlid", "") or "").upper()
         for s in (getattr(build_in_play(actor), "skills", []) or [])
@@ -2343,7 +2357,7 @@ def enumerate_actions(
                 action_id=f"grab:{enemy.id}",
                 kind="grab",
                 target_id=enemy.id,
-                power_xmlid="GRAB", power_name="Grab",
+                power_xmlid="GRAB", power_name=GRAB_NAME,
                 summary=(
                     f"Grab {_friendly(enemy)} (-1 OCV to hit, "
                     f"-2 DCV until released)"
@@ -2669,7 +2683,7 @@ def enumerate_actions(
                 action_id=f"trip:{enemy.id}",
                 kind="trip",
                 target_id=enemy.id,
-                power_xmlid="TRIP", power_name="Trip",
+                power_xmlid="TRIP", power_name=TRIP_NAME,
                 summary=(
                     f"Trip {_friendly(enemy)}: half-phase, -1 OCV, "
                     f"target falls prone (-2 to their OCV, +2 to "
@@ -2773,7 +2787,7 @@ def enumerate_actions(
                         action_id=f"move_by:{enemy.id}",
                         kind="move_by",
                         target_id=enemy.id,
-                        power_xmlid="MOVE_BY", power_name="Move-By",
+                        power_xmlid="MOVE_BY", power_name=MOVE_BY_NAME,
                         summary=(
                             f"Move-By {_friendly(enemy)}: "
                             f"{mb_total}d6N normal damage "
@@ -2786,7 +2800,7 @@ def enumerate_actions(
                         action_id=f"move_through:{enemy.id}",
                         kind="move_through",
                         target_id=enemy.id,
-                        power_xmlid="MOVE_THROUGH", power_name="Move-Through",
+                        power_xmlid="MOVE_THROUGH", power_name=MOVE_THROUGH_NAME,
                         summary=(
                             f"Move-Through {_friendly(enemy)}: "
                             f"{mt_total}d6N normal damage "
