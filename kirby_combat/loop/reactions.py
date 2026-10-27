@@ -177,7 +177,8 @@ def may_abort(session: "CombatSession", defender_id: str, attacker) -> bool:
     * Stunned or recovering (6E2 p.106: "he cannot even Abort");
     * used his Phase this Segment (6E2 p.24, quoted on the helper above);
     * Surprised (6E2 p.24: "Characters who are Surprised normally cannot
-      Abort their next Phase; they have, after all, been taken unawares").
+      Abort their next Phase; they have, after all, been taken unawares");
+    * concentrating (6E1 p.374: "nor may he Dodge or take any other Actions").
     """
     from kirby_combat.actions.reactive.abort import is_aborting
     from kirby_combat.actions.recording import _surprise_for
@@ -203,6 +204,12 @@ def may_abort(session: "CombatSession", defender_id: str, attacker) -> bool:
         # defend himself, and an Abort is only ever to a defensive Action
         # (6E2 p.23). `rage_menu` refuses it on his own Phase; this is the
         # same refusal out of turn.
+        return False
+    from kirby_combat.concentration import concentrating
+
+    if concentrating(session, defender_id) is not None:
+        # 6E1 p.374: concentrating, "nor may he Dodge or take any other
+        # Actions" until his next Phase.
         return False
     surprise = _surprise_for(session, attacker, defender)
     if surprise is not None and surprise.applies:

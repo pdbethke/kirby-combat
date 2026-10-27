@@ -44,6 +44,7 @@ from kirby_combat.statuses import (
     statuses_for,
 )
 from kirby_combat.template import CombatTemplate
+from kirby_combat.actions.entangle import Transparency
 
 
 def test_ids_are_foundry_shaped_slugs():
@@ -243,6 +244,7 @@ def test_statuses_for_entangled():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     assert ENTANGLED in statuses_for(s2, "bob")
     assert ENTANGLED not in statuses_for(s2, "alice")
@@ -316,6 +318,7 @@ def test_statuses_for_folds_several_simultaneous_conditions():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, _ = Flash.apply(
         s2, attacker_id="alice", target_id="bob",

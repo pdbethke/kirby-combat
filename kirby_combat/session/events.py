@@ -407,6 +407,15 @@ class EntangleApplied(BaseEvent):
     #: The Mental Paralysis's Resistant Mental Defense (6E1 p.219); 0 for a
     #: physical Entangle, whose defenses are ``entangle_pd``/``entangle_ed``.
     entangle_md: int = 0
+    #: Takes No Damage From Attacks (6E1 p.221), an `entangle.Transparency`
+    #: value: ``"none"``, ``"limited"`` / ``"all"`` (transparent to some or
+    #: all outside attacks) or ``"str_only"`` (+1: nobody outside can affect
+    #: it, and the victim breaks out with STR or EGO alone). The ``"none"``
+    #: default exists only so a log written before it still reads; every
+    #: emitter states it.
+    transparency: str = "none"
+    #: Entangle And Character Both Take Damage (6E1 p.220).
+    both_take_damage: bool = False
 
 
 @dataclass
@@ -527,6 +536,53 @@ class BreakoutRolled(BaseEvent):
     target_number: int = 0
     bonus: int = 0
     broke_free: bool = False
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
+class PhaseTimeUsed(BaseEvent):
+    """Part of a Phase used by an Action that did NOT end it.
+
+    6E2 p.20 sorts every Action by the time it takes: a Full Phase Action
+    takes the Phase; a Half Phase Action takes half of it, "a character can
+    perform two Half Phase Actions per Phase"; an Attack Action is a Half
+    Phase Action that ENDS the Phase; a Zero Phase Action and an Action that
+    takes no time leave it as it was. The loop spends a Phase with
+    `PhaseSpent`; this is the other half of the record --- the Actions after
+    which the same Phase came back to him --- so a fight replayed from its
+    log offers the second half exactly what the fight that ran offered it.
+
+    ``time`` is an `action_time.ActionTime` value: ``"half"``, ``"zero"``
+    or ``"no_time"``. ``action_kind`` / ``action_id`` name the offer taken.
+    Written by `loop/run.py`; folded by `kirby_combat/action_time.py`.
+    """
+    kind: Literal["PhaseTimeUsed"] = field(default="PhaseTimeUsed", init=False)
+    combatant_id: str = ""
+    action_kind: str = ""
+    action_id: str = ""
+    time: str = ""
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
+class ConcentrationBegan(BaseEvent):
+    """A man used a power bought with the Concentration Limitation.
+
+    6E1 p.374-375: he is at ½ DCV or 0 DCV (the Limitation's value) "not
+    only during the Phase in which he activates the power, but until his
+    next Phase"; he "may not move more than 2m per Phase, nor may he Dodge
+    or take any other Actions"; and any STUN or BODY from an Attack Power
+    breaks it. ``dcv`` is a `concentration.ConcentrationDCV` value
+    (``"half"`` / ``"zero"``); ``oblivious`` is HD's OBLIVIOUS Adder ("totally
+    unaware of nearby events"). Folded by `kirby_combat/concentration.py`.
+    """
+    kind: Literal["ConcentrationBegan"] = field(default="ConcentrationBegan", init=False)
+    combatant_id: str = ""
+    power_id: str = ""
+    dcv: str = ""
+    oblivious: bool = False
     turn: int = 0
     segment: int = 0
 
@@ -866,6 +922,8 @@ CombatEvent = (
     | PresenceFaded
     | BreakoutRolled
     | PresenceYielded
+    | PhaseTimeUsed
+    | ConcentrationBegan
     | RageRolled
     | RageTargeted
     | LingeringAttackApplied

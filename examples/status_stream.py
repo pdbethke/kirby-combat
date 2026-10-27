@@ -65,7 +65,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from kirby_combat.actions.entangle import Entangle
+from kirby_combat.actions.entangle import Entangle, Transparency
 from kirby_combat.actions.flash import Flash
 from kirby_combat.actions.grab import Grab
 from kirby_combat.actions.held_action import HeldAction
@@ -155,6 +155,7 @@ def main() -> None:
     session, _ = Entangle.apply(
         session, attacker_id="weaver", target_id="vanguard",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     show_step("Entangle: 8 BODY / 4 PD / 4 ED", before, session)
 

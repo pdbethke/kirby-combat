@@ -6,6 +6,7 @@ from kirby_combat.template import CombatTemplate
 from kirby_dice import FakeRoller
 from kirby_combat.session import CombatSession
 from kirby_combat.actions.entangle import Entangle, EntangleResult
+from kirby_combat.actions.entangle import Transparency
 
 
 def _c(id_: str, str_: int = 20) -> "HeroCombatant":
@@ -35,6 +36,7 @@ def test_apply_creates_entangle_state_on_target():
     s2, result = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     assert isinstance(result, EntangleResult)
     assert result.target_id == "bob"
@@ -48,6 +50,7 @@ def test_apply_emits_entangleapplied_event():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     kinds = [e.kind for e in s2.event_log]
     assert "EntangleApplied" in kinds
@@ -62,6 +65,7 @@ def test_apply_emits_action_declared_and_resolved_too():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     kinds = [e.kind for e in s2.event_log]
     assert "ActionDeclared" in kinds
@@ -80,6 +84,7 @@ def test_is_entangled_returns_remaining_body():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     is_e, body = Entangle.is_entangled(s2, "bob")
     assert is_e is True
@@ -93,6 +98,7 @@ def test_modifiers_zero_dcv_half_ocv_when_entangled():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     mods = Entangle.modifiers(s2, "bob")
     assert mods == {"ocv_factor": 0.5, "dcv_factor": 0.0}
@@ -111,6 +117,7 @@ def test_casual_str_escape_reduces_body_by_str_over_10_minus_pd():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, esc = Entangle.escape_attempt(
         s2, target_id="bob", damage_body=0, escape_type="casual",
@@ -127,6 +134,7 @@ def test_casual_str_escape_with_high_str_chips_away():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, esc = Entangle.escape_attempt(
         s2, target_id="bob", damage_body=4, escape_type="casual",
@@ -144,6 +152,7 @@ def test_full_str_escape_uses_str_over_5_minus_pd():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, esc = Entangle.escape_attempt(
         s2, target_id="bob", damage_body=2, escape_type="full",
@@ -159,6 +168,7 @@ def test_full_str_escape_can_break_free_in_one_attempt():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, esc = Entangle.escape_attempt(
         s2, target_id="bob", damage_body=12, escape_type="full",
@@ -172,6 +182,7 @@ def test_escape_emits_entangleescape_event():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, _ = Entangle.escape_attempt(
         s2, target_id="bob", damage_body=12, escape_type="full",
@@ -193,6 +204,7 @@ def test_unknown_escape_type_raises():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     with pytest.raises(ValueError, match="escape_type"):
         Entangle.escape_attempt(
@@ -206,7 +218,8 @@ def test_multiple_casual_attempts_eventually_break_through():
     s = _session()
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
-        entangle_body=8, entangle_pd=2, entangle_ed=4,    # weak entangle
+        entangle_body=8, entangle_pd=2, entangle_ed=4,    # weak entangle,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     # caller counted 8 BODY; entangle PD 2 -> damage_body=6. After 1 attempt: body=2.
     s3, esc1 = Entangle.escape_attempt(s2, target_id="bob", damage_body=6, escape_type="casual")
@@ -227,6 +240,7 @@ def test_modifiers_clear_after_escape():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, _ = Entangle.escape_attempt(s2, target_id="bob", damage_body=12, escape_type="full")
     assert Entangle.modifiers(s3, "bob") == {}
@@ -276,6 +290,7 @@ def test_teleport_escape_frees_target():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, res = Entangle.teleport_escape(s2, target_id="bob")
     assert res.escaped is True and res.method == "teleport"
@@ -290,6 +305,7 @@ def test_teleport_escape_blocked_by_noteleport():
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
         no_teleport_levels=1,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     s3, res = Entangle.teleport_escape(s2, target_id="bob")
     assert res.escaped is False and res.method == "teleport_blocked"
@@ -305,6 +321,7 @@ def test_teleport_escape_armor_piercing_cancels():
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
         no_teleport_levels=2,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     # AP 1 < NOTELEPORT 2 → still trapped
     _s, res = Entangle.teleport_escape(s2, target_id="bob", teleport_ap_levels=1)
@@ -356,6 +373,7 @@ def test_escape_attempt_takes_rolled_body():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     # caller rolled 5 BODY (already past the entangle's defense)
     s3, res = Entangle.escape_attempt(
@@ -390,5 +408,6 @@ def test_entangled_dcv_factor_single_source():
     s2, _ = Entangle.apply(
         s, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     assert Entangle.modifiers(s2, "bob")["dcv_factor"] == ENTANGLED_DCV_FACTOR

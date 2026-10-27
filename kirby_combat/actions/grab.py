@@ -30,6 +30,12 @@ from kirby_combat.session.events import (
 RELEASED = "grab_release"
 
 
+#: What is left of the escaper's Phase after each `Grab.escape_outcome`
+#: (6E2 p.126): "has a Full Phase in which to act"; "is free, but may take no
+#: more Actions that Phase"; and held, his Phase gone.
+GRAB_ESCAPE_REGAINED = {"free_acting": "full", "free_spent": "none", "held": "none"}
+
+
 @dataclass
 class GrabResult:
     success: bool
@@ -268,6 +274,9 @@ class Grab:
                 "grabber_id": grabber_id,
                 "escaper_str": escaper_str,
                 "grabber_str": grabber_str,
+                # The three-way result, so the time it took (6E2 p.126) is
+                # read off the record (`action_time.breakout_time`).
+                "outcome": outcome,
             },
         )
         s = apply_event(s, resolved)

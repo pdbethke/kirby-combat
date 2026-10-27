@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from enum import Enum
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -75,6 +76,74 @@ def can_teleport_escape(entangle_power, teleportation_power=None) -> bool:
     levels. ``teleportation_power=None`` means a plain teleport (0 AP)."""
     ap = armor_piercing_levels(teleportation_power) if teleportation_power is not None else 0
     return noteleport_levels(entangle_power) <= ap
+
+
+class Transparency(str, Enum):
+    """Takes No Damage From Attacks (6E1 p.221), HD's TAKESNODAMAGE options.
+
+    * NONE --- an ordinary Entangle: an attack on the man inside hits the
+      Entangle first (6E1 p.218), and anyone may target it.
+    * LIMITED / ALL --- "transparent to certain types of attacks" (+1/4) /
+      "to all attacks" (+1/2): attacks reach the man and leave it whole; "If
+      an attacker targets the Entangle specifically (at -3 OCV), the damage
+      affects the Entangle and then the Entangled character".
+    * STR_ONLY --- +1: it "cannot be attacked, damaged, or affected by
+      outside attackers at all - only the victim can break free, and he can
+      only apply his STR (or EGO, for Mental Paralysis Entangles)".
+    """
+
+    NONE = "none"
+    LIMITED = "limited"
+    ALL = "all"
+    STR_ONLY = "str_only"
+
+
+#: HD's option ids -> the value.
+_TRANSPARENCY_OPTIONS = {
+    "LIMITED": Transparency.LIMITED,
+    "ALL": Transparency.ALL,
+    "STRONLY": Transparency.STR_ONLY,
+}
+
+
+def transparency_of(power) -> Transparency:
+    """Read Takes No Damage From Attacks off an Entangle power.
+
+    Raises on an option this module does not know rather than guessing one:
+    each of the three changes who may do what to the Entangle.
+    """
+    from kirby_combat.power_modifiers import _find, _option
+
+    mod = _find(power, "TAKESNODAMAGE")
+    if mod is None:
+        return Transparency.NONE
+    option = _option(mod)
+    try:
+        return _TRANSPARENCY_OPTIONS[option]
+    except KeyError:
+        raise ValueError(
+            f"Takes No Damage From Attacks option {option!r} on "
+            f"{getattr(power, 'id', power)!r} is none of "
+            f"{sorted(_TRANSPARENCY_OPTIONS)} (6E1 p.221)"
+        ) from None
+
+
+def both_take_damage(power) -> bool:
+    """Entangle And Character Both Take Damage (6E1 p.220), HD's BOTHDAMAGE."""
+    from kirby_combat.power_modifiers import _find
+
+    return _find(power, "BOTHDAMAGE") is not None
+
+
+def _stated(transparency) -> Transparency:
+    """The Transparency an Entangle was bought with --- never assumed."""
+    if not isinstance(transparency, Transparency):
+        raise ValueError(
+            f"an Entangle must state its Takes No Damage From Attacks "
+            f"(a Transparency, 6E1 p.221); got {transparency!r}. Read it off "
+            f"the power with `transparency_of`."
+        )
+    return transparency
 
 
 #: 6E1 p217: an Entangled character is at DCV 0. The one authority for the
@@ -173,6 +242,43 @@ def escape_body(body: int, defense: int) -> int:
     return max(0, int(body) - int(defense))
 
 
+def ego_escape_end_cost(ego: int) -> int:
+    """END for breaking a Mental Paralysis with EGO: "this costs 1 END per 10
+    Character Points of EGO used" (6E1 p.219). EGO is 1 Character Point a
+    point (6E1 p.40), so 1 END per 10 EGO."""
+    return max(0, int(ego) // 10)
+
+
+class _ShieldedMind:
+    """A man seen by a mental attack through the Mental Paralysis holding him.
+
+    Everything is his except ``md``, which carries the paralysis's own:
+    "This Mental Defense protects the Entangle if it's attacked, and also
+    protects the Entangled character if anyone tries to attack him mentally"
+    (6E1 p.219).
+    """
+
+    def __init__(self, inner, extra_md: int) -> None:
+        self._inner = inner
+        self._extra_md = int(extra_md)
+
+    @property
+    def md(self) -> int:
+        return int(self._inner.md) + self._extra_md
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def mentally_shielded(session: CombatSession, target):
+    """``target`` as a mental attack meets him: behind his Mental Paralysis's
+    Mental Defense when one holds him (6E1 p.219), else himself."""
+    hold = Entangle.held(session, target.id, mental_paralysis=True)
+    if hold is None or hold.md <= 0:
+        return target
+    return _ShieldedMind(target, hold.md)
+
+
 def ego_escape_dice(ego: int) -> int:
     """Mental Paralysis (6E1 p.219): "The victim uses EGO, not STR, to escape
     ... He rolls 1d6 per 5 points of EGO". Mental Defense adds nothing ("Mental
@@ -201,6 +307,12 @@ class EntangleHold:
     md: int
     no_teleport: int
     mental_paralysis: bool
+    #: Takes No Damage From Attacks (6E1 p.221). A Mental Paralysis "must be
+    #: built with" it (6E1 p.219) and breaks with EGO or a Mental Blast, so
+    #: it is recorded as ``ALL`` unless the build says ``STR_ONLY``.
+    transparency: "Transparency"
+    #: Entangle And Character Both Take Damage (6E1 p.220).
+    both_take_damage: bool
 
 
 @dataclass(frozen=True)
@@ -210,6 +322,10 @@ class EntangleResult:
     damage_to_entangle_body: int
     body_remaining: int
     escaped: bool
+    #: What is left of his Phase after a break-out (6E2 p.126, `breakout`):
+    #: "full" | "half" | "none". An Entangle applied leaves "none" --- it is
+    #: not his Action.
+    action_regained: str
 
 
 class Entangle:
@@ -225,6 +341,8 @@ class Entangle:
         entangle_body: int,
         entangle_pd: int,
         entangle_ed: int,
+        transparency: Transparency,
+        both_take_damage: bool,
         no_teleport_levels: int = 0,
         attack_roll: "dict | None" = None,
     ) -> tuple[CombatSession, EntangleResult]:
@@ -285,6 +403,8 @@ class Entangle:
             no_teleport_levels=no_teleport_levels,
             mental_paralysis=False,
             entangle_md=0,
+            transparency=_stated(transparency).value,
+            both_take_damage=bool(both_take_damage),
         )
         s = apply_event(s, applied)
 
@@ -294,6 +414,7 @@ class Entangle:
             damage_to_entangle_body=0,
             body_remaining=entangle_body,
             escaped=False,
+            action_regained="none",
         )
 
     # ------------------------------------------------------------------ apply_mental_paralysis
@@ -305,8 +426,13 @@ class Entangle:
         target_id: str,
         entangle_body: int,
         entangle_md: int,
+        transparency: Transparency,
     ) -> tuple[CombatSession, EntangleResult]:
         """Bind ``target_id`` in a Mental Paralysis (6E1 p.219).
+
+        ``transparency``: a Mental Paralysis is built with Takes No Damage
+        From Attacks (p.219), so ``ALL`` unless the build bought ``STR_ONLY``
+        ("only ... EGO, for Mental Paralysis Entangles", p.221).
 
         Emits ONLY the `EntangleApplied` --- the MCV Attack Roll and Effect
         Roll that put it there are the mental resolver's own `ActionResolved`.
@@ -336,11 +462,13 @@ class Entangle:
             no_teleport_levels=0,
             mental_paralysis=True,
             entangle_md=md,
+            transparency=_stated(transparency).value,
+            both_take_damage=False,
         )
         s = apply_event(session, applied)
         return s, EntangleResult(
             target_id=target_id, method="applied", damage_to_entangle_body=0,
-            body_remaining=body, escaped=False,
+            body_remaining=body, escaped=False, action_regained="none",
         )
 
     # ------------------------------------------------------------------ escape_attempt
@@ -418,6 +546,45 @@ class Entangle:
             damage_to_entangle_body=damage,
             body_remaining=body_remaining,
             escaped=escaped,
+            action_regained=res.action_regained,
+        )
+
+    @staticmethod
+    def attacked_from_outside(
+        session: CombatSession, *, attacker_id: str, target_id: str,
+        damage_body: int, mental_paralysis: bool,
+    ) -> tuple[CombatSession, EntangleResult]:
+        """Someone else's attack on the Entangle holding ``target_id`` (6E1
+        p.218-219), with BODY the caller rolled and already soaked against
+        the Entangle's own defense.
+
+        The same `EntangleEscape` row a break-out writes --- it moves the
+        same BODY --- authored by the attacker, ``method="outside_attack"``.
+        Destroyed when the BODY reaches the Entangle's remaining BODY (6E1
+        p.218: "When he reduces the Entangle's BODY to 0, he is free"). The
+        man inside gains no Action by it: it was not his.
+        """
+        from kirby_combat.session.apply import apply_event
+
+        hold = Entangle.held(session, target_id, mental_paralysis=mental_paralysis)
+        if hold is None:
+            raise ValueError(f"{target_id} is not entangled; there is nothing to attack")
+        damage = max(0, int(damage_body))
+        escaped = damage >= hold.body
+        s = apply_event(session, EntangleEscape(
+            id=str(uuid.uuid4()), session_id=session.id,
+            sequence=len(session.event_log) + 1,
+            timestamp=datetime.now(timezone.utc),
+            author=make_author_combatant(attacker_id),
+            target_id=target_id, method="outside_attack",
+            damage_to_entangle_body=damage, escaped=escaped,
+            mental_paralysis=mental_paralysis,
+        ))
+        return s, EntangleResult(
+            target_id=target_id, method="outside_attack",
+            damage_to_entangle_body=damage,
+            body_remaining=0 if escaped else hold.body - damage,
+            escaped=escaped, action_regained="none",
         )
 
     # ------------------------------------------------------------------ teleport_escape
@@ -458,6 +625,7 @@ class Entangle:
                 damage_to_entangle_body=0,
                 body_remaining=current_body or 0,
                 escaped=False,
+                action_regained="none",
             )
 
         evt = EntangleEscape(
@@ -479,6 +647,8 @@ class Entangle:
             damage_to_entangle_body=0,
             body_remaining=0,
             escaped=True,
+            # Its time is the Half Move it is (`action_time.KIND_TIMES`).
+            action_regained="half",
         )
 
     # ------------------------------------------------------------------ is_entangled
@@ -525,6 +695,8 @@ class Entangle:
                     ed=int(evt.entangle_ed), md=int(getattr(evt, "entangle_md", 0)),
                     no_teleport=int(getattr(evt, "no_teleport_levels", 0) or 0),
                     mental_paralysis=mental_paralysis,
+                    transparency=Transparency(evt.transparency),
+                    both_take_damage=bool(evt.both_take_damage),
                 )
             elif hold is not None:
                 body = 0 if evt.escaped else max(0, hold.body - evt.damage_to_entangle_body)

@@ -845,6 +845,76 @@
       "title": "CombatantStateView",
       "type": "object"
     },
+    "ConcentrationBegan": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ConcentrationBegan",
+          "enum": [
+            "ConcentrationBegan"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "dcv": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ConcentrationBegan",
+          "enum": [
+            "ConcentrationBegan"
+          ],
+          "type": "string"
+        },
+        "oblivious": {
+          "type": "boolean"
+        },
+        "power_id": {
+          "type": "string"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "power_id",
+        "dcv",
+        "oblivious",
+        "turn",
+        "segment"
+      ],
+      "title": "ConcentrationBegan",
+      "type": "object"
+    },
     "Construct": {
       "additionalProperties": false,
       "properties": {
@@ -1276,6 +1346,9 @@
         "author": {
           "$ref": "#/$defs/EventAuthor"
         },
+        "both_take_damage": {
+          "type": "boolean"
+        },
         "entangle_body": {
           "type": "integer"
         },
@@ -1316,6 +1389,9 @@
         "timestamp": {
           "format": "date-time",
           "type": "string"
+        },
+        "transparency": {
+          "type": "string"
         }
       },
       "required": [
@@ -1332,7 +1408,9 @@
         "entangle_ed",
         "no_teleport_levels",
         "mental_paralysis",
-        "entangle_md"
+        "entangle_md",
+        "transparency",
+        "both_take_damage"
       ],
       "title": "EntangleApplied",
       "type": "object"
@@ -2356,6 +2434,76 @@
         "reason"
       ],
       "title": "PhaseSpent",
+      "type": "object"
+    },
+    "PhaseTimeUsed": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PhaseTimeUsed",
+          "enum": [
+            "PhaseTimeUsed"
+          ],
+          "type": "string"
+        },
+        "action_id": {
+          "type": "string"
+        },
+        "action_kind": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PhaseTimeUsed",
+          "enum": [
+            "PhaseTimeUsed"
+          ],
+          "type": "string"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "time": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "action_kind",
+        "action_id",
+        "time",
+        "turn",
+        "segment"
+      ],
+      "title": "PhaseTimeUsed",
       "type": "object"
     },
     "Position": {
@@ -3930,6 +4078,9 @@
       "$ref": "#/$defs/BreakoutRolled"
     },
     {
+      "$ref": "#/$defs/ConcentrationBegan"
+    },
+    {
       "$ref": "#/$defs/ConstructDamaged"
     },
     {
@@ -3973,6 +4124,9 @@
     },
     {
       "$ref": "#/$defs/PhaseSpent"
+    },
+    {
+      "$ref": "#/$defs/PhaseTimeUsed"
     },
     {
       "$ref": "#/$defs/PowerDispelled"

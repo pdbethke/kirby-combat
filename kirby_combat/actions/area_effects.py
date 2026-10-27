@@ -93,7 +93,8 @@ def resolve_area_effect(session, actor, action: "LegalAction", *, template,
     """Flash or Entangle everyone in the Area (see the module docstring)."""
     from kirby_combat.actions.area_attack import area_use, explosion_dice_lost
     from kirby_combat.actions.entangle import (
-        Entangle, counted_body, entangle_default_defenses,
+        Entangle, both_take_damage, counted_body, entangle_default_defenses,
+        transparency_of,
     )
     from kirby_combat.actions.flash import Flash
     from kirby_combat.loop.registry import ResolvedAction
@@ -160,6 +161,8 @@ def resolve_area_effect(session, actor, action: "LegalAction", *, template,
                     s, attacker_id=actor.id, target_id=victim_id,
                     entangle_body=body, entangle_pd=max(0, pd - lost),
                     entangle_ed=max(0, ed - lost),
+                    transparency=transparency_of(power),
+                    both_take_damage=both_take_damage(power),
                 )
             results.append((victim_id, result))
     return ResolvedAction(

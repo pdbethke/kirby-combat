@@ -24,6 +24,7 @@ from kirby_combat.status_emission import (
 )
 from kirby_combat.statuses import ABORTED, ENTANGLED, KNOCKED_OUT
 from kirby_combat.template import CombatTemplate
+from kirby_combat.actions.entangle import Transparency
 
 
 def _c(id_: str, **overrides) -> "object":
@@ -52,6 +53,7 @@ def _entangle(session: CombatSession, target_id: str) -> CombatSession:
     session, _ = Entangle.apply(
         session, attacker_id="alice", target_id=target_id,
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     return session
 
@@ -65,6 +67,7 @@ def test_new_condition_appears_in_added():
     after, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     deltas = status_deltas(before, after, session_id="s1", start_sequence=1)
     assert len(deltas) == 1
@@ -83,6 +86,7 @@ def test_ended_condition_appears_in_removed():
         _session(_c("alice"), _c("bob")),
         attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     escaped_session, _ = Entangle.escape_attempt(
         entangled_session, target_id="bob", damage_body=99, escape_type="full",
@@ -108,6 +112,7 @@ def test_unchanged_combatant_produces_no_event():
     after, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     deltas = status_deltas(before, after, session_id="s1", start_sequence=1)
     assert all(evt.combatant_id != "alice" for evt in deltas)
@@ -127,6 +132,7 @@ def test_several_combatants_changing_each_get_one_event():
     mid, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     after, _ = mark_aborting(mid, "carol", to_action="dodge")
 
@@ -148,6 +154,7 @@ def test_simultaneous_changes_collapse_into_one_event():
     entangled, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     after, _ = mark_aborting(entangled, "bob", to_action="dodge")
 
@@ -201,6 +208,7 @@ def test_well_formed_events_have_session_id_and_default_engine_author():
     after, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     deltas = status_deltas(before, after, session_id="s1", start_sequence=7)
     evt = deltas[0]
@@ -216,6 +224,7 @@ def test_custom_id_factory_is_honoured():
     after, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     deltas = status_deltas(
         before, after, session_id="s1", start_sequence=1,
@@ -234,6 +243,7 @@ def test_diffing_across_the_emitted_events_finds_nothing_further():
     after, _ = Entangle.apply(
         before, attacker_id="alice", target_id="bob",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     deltas = status_deltas(
         before, after, session_id="s1", start_sequence=len(after.event_log) + 1,

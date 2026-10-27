@@ -17,6 +17,7 @@ from kirby_combat.loop.chooser import (
 from kirby_combat.loop import resolvers as _resolvers  # noqa: F401  (registers them)
 from kirby_combat.loop import standing_resolvers as _standing  # noqa: F401  (registers them)
 from kirby_combat.loop import autofire_resolvers as _autofire  # noqa: F401  (registers them)
+from kirby_combat.loop import half_phase_resolvers as _half_phase  # noqa: F401  (registers them)
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, registered_kinds, resolve_chosen, resolves,
 )

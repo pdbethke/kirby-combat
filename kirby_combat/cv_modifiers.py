@@ -253,6 +253,20 @@ def _entangle_cv_modifiers(
     return {}
 
 
+def _concentration_cv_modifiers(
+    session: "CombatSession", combatant_id: str,
+) -> dict[str, float]:
+    """Concentrating on a power (6E1 p.374): "at reduced DCV (1/2 or 0,
+    depending upon the Limitation's value)" until his next Phase. See
+    `kirby_combat/concentration.py`."""
+    from kirby_combat.concentration import concentrating
+
+    live = concentrating(session, combatant_id)
+    if live is None:
+        return {}
+    return {"dcv_factor": live.dcv.factor}
+
+
 #: Ordered sources folded into ``cv_modifiers_for``. THIS tuple is the
 #: seam: add one more ``(session, combatant_id) -> dict`` entry here for a
 #: new CV-affecting condition (see the module docstring's sense-affecting-
@@ -265,6 +279,7 @@ _CV_MODIFIER_SOURCES: tuple[
     _multi_attack_cv_modifiers,
     _illusion_cv_modifiers,
     _entangle_cv_modifiers,
+    _concentration_cv_modifiers,
 )
 
 

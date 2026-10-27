@@ -422,7 +422,7 @@ def test_a_raging_holder_is_offered_only_his_target_and_no_defence():
 
 def test_a_very_impressed_holder_has_only_half_phase_actions():
     """6E2 p.139: PRE+10 leaves him a Half Phase Action --- from a Hold too."""
-    from kirby_combat.pre_attacks.in_the_phase import HALF_PHASE_EXCLUDED
+    from kirby_combat.action_time import FULL_PHASE_KINDS
     from kirby_combat.pre_attacks.presence_effects import PresenceEffects
 
     enc = _three_with_a_holder()
@@ -433,7 +433,7 @@ def test_a_very_impressed_holder_has_only_half_phase_actions():
               on_unresolvable="raise")
     kinds = {a.kind for a in chooser.held_menus[0]}
     assert "attack" in kinds
-    assert not kinds & set(HALF_PHASE_EXCLUDED), kinds
+    assert not kinds & FULL_PHASE_KINDS, kinds
 
 
 def test_a_presence_attack_from_a_hold_does_not_use_it():

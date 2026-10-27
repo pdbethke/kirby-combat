@@ -2653,8 +2653,8 @@ def _build_attack_power(
     # kirby-api driver and read by nothing in the engine since it went
     # (kirby-api 70ad60f); see `kirby_combat.power_modifiers`.
     from kirby_combat.power_modifiers import (
-        area_spec_of, autofire_of, damage_over_time_of, increased_end_of,
-        is_constant, side_effects_of,
+        area_spec_of, autofire_of, concentration_of, damage_over_time_of,
+        increased_end_of, is_constant, side_effects_of,
     )
 
     area = area_spec_of(power)
@@ -2663,6 +2663,7 @@ def _build_attack_power(
     side_effects = side_effects_of(power)
     increased_end = increased_end_of(power)
     autofire = autofire_of(power)
+    concentration = concentration_of(power)
     persistent = _has_modifier(power, "PERSISTENT")
     uncontrolled = _has_modifier(power, "UNCONTROLLED")
     from kirby_combat.charges import charges_on
@@ -2735,6 +2736,7 @@ def _build_attack_power(
         autofire=autofire,
         persistent=persistent,
         uncontrolled=uncontrolled,
+        concentration=concentration,
         lockout=lockout,
         active_points=active_points,
         framework_xmlid=framework_xmlid,

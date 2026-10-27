@@ -22,6 +22,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
+from kirby_combat.actions.entangle import Transparency
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
@@ -168,7 +169,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 71   # autofire, autofire_spray (6E2 p.44-45)
+    assert len(registered_kinds()) == 74   # half_move, snap_out_of_rage, attack_entangle
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -207,6 +208,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "pick_up_weapon",          # test_maneuvers_complete
         "raise_damage_shield",     # test_standing_areas
         "autofire", "autofire_spray",  # test_autofire_bursts
+        "half_move", "snap_out_of_rage", "attack_entangle",  # test_half_phase_economy
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
@@ -356,6 +358,7 @@ def _entangled_session():
     trapped, _ = Entangle.apply(
         session, attacker_id="mark", target_id="actor",
         entangle_body=8, entangle_pd=4, entangle_ed=4,
+        transparency=Transparency.NONE, both_take_damage=False,
     )
     return trapped
 
