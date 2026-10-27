@@ -54,7 +54,7 @@ LoadedHero + state.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -166,6 +166,11 @@ class HeroCombatState:
     """Stat name → -delta currently applied. Fade rate tracked separately."""
     aids: dict[str, int] = field(default_factory=dict)
     """Stat name → +delta currently applied."""
+    adjusted_dice: dict[str, int] = field(default_factory=dict)
+    """Attack power source id → whole dice added (+) or Drained (-), the
+    projection of an Aid or Drain bought against that power (6E1 p.137,
+    p.139). Written by `adjustments.project_onto` from the log, read by
+    `HeroCombatant.attacks`."""
 
     # Charges
     used_charges: dict[str, int] = field(default_factory=dict)
@@ -394,7 +399,7 @@ class CombatantSnapshot:
             reach_m=stats.reach_m,
             str_source_id=combatant._str_characteristic_id(),
             swimming_m=combatant.swimming_m(),
-            attacks=list(combatant.attacks),
+            attacks=list(combatant.unadjusted_attacks()),
             defenses=list(combatant.defenses),
             csls=list(combatant.csls),
             senses=list(combatant.senses()),
@@ -413,6 +418,31 @@ class CombatantSnapshot:
 # ─────────────────────────────────────────────────────────────────────────────
 # HeroCombatant — the participant that wraps a LoadedHero
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _with_adjusted_dice(attacks, adjusted: dict[str, int]) -> list[AttackPower]:
+    """Each attack with any Aid or Drain on its dice applied (6E1 p.137).
+
+    Whole dice (6E1 p.140: an Adjustment moves whole increments, and a Blast's
+    increment is 1d6). A power Drained to nothing is TURNED OFF and leaves
+    the list --- 6E1 p.197: "If a power is completely Drained (it has no
+    Active Points left), then the power has been 'turned off'".
+    """
+    if not adjusted:
+        # THE SAME LIST, not a copy: a synthetic fighter's attacks are its
+        # own field, and callers that append to it must reach it.
+        return attacks
+    out: list[AttackPower] = []
+    for a in attacks:
+        delta = int(adjusted.get(str(a.source_id), 0) or 0)
+        if not delta:
+            out.append(a)
+            continue
+        full = int(a.damage_dice) + delta
+        if full < 0 or (full == 0 and not a.half_die):
+            continue
+        out.append(replace(a, damage_dice=full))
+    return out
 
 
 @dataclass
@@ -606,7 +636,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if sub:
                     _walk(sub)
         if self.snapshot is not None:
-            return self.snapshot.attacks
+            return _with_adjusted_dice(self.snapshot.attacks, self.state.adjusted_dice)
 
         _walk(self.hero.powers)
         # Carried weapons. Second, so an innate power keeps its position in
@@ -614,7 +644,15 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # and a character with both heat vision and a pistol should not have
         # the pistol shadow the power they were built around.
         _walk(getattr(self.hero, "equipment", None))
-        return out
+        return _with_adjusted_dice(out, self.state.adjusted_dice)
+
+    def unadjusted_attacks(self) -> list[AttackPower]:
+        """`attacks` as the build has them, before any Aid or Drain on a
+        power's dice. What a snapshot records, so a rebuilt combatant applies
+        ``state.adjusted_dice`` once and not twice."""
+        if not self.state.adjusted_dice:
+            return self.attacks
+        return replace(self, state=replace(self.state, adjusted_dice={})).attacks
 
     @property
     def defenses(self) -> list[DefenseItem]:

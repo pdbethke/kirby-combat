@@ -685,17 +685,13 @@ def _effective_cv(
     delta_key = f"{key}_delta"
     per_opponent = _per_opponent_modifiers(session, combatant_id, against, combat_type)
 
-    # ADJUSTMENTS APPLY TO THE BASE, before any factor. An Aid or Drain
-    # changes the CHARACTERISTIC itself (6E1 p.133 / p.139), so a Stunned
+    # ADJUSTMENTS ARE ALREADY IN THE BASE, before any factor. An Aid or
+    # Drain changes the CHARACTERISTIC itself (6E1 p.137), so a Stunned
     # character with a Drained DCV is halved on the already-lowered value --
-    # not lowered after halving, which would be a different number. Until
-    # 2026-09-07 nothing read the Adjustment fold at all and both were
-    # inert; see `kirby_combat/adjustments.py`.
-    from kirby_combat.adjustments import CV_STATS, effective_characteristic
-
-    stat = CV_STATS.get(key)
-    if stat is not None:
-        base = effective_characteristic(session, combatant_id, stat, base)
+    # not lowered after halving, which would be a different number. The base
+    # comes from `combat_stats()`, which carries the Adjustment since
+    # `adjustments.project_onto` writes it onto the combatant's state; a
+    # second fold here would apply it twice.
 
     factors = _factors_for(session, combatant_id, factor_key)
     factors += [m.get(factor_key, 1.0) for m in per_opponent]

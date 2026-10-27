@@ -356,12 +356,27 @@ class HeldActionReleased(BaseEvent):
 
 @dataclass
 class AdjustmentApplied(BaseEvent):
+    """An Aid, a Drain (6E1 p.169, p.197) landing on one stat of one target.
+
+    ``delta`` is CHARACTER POINTS, signed: + for an Aid, - for a Drain. 6E1
+    p.137 applies an Adjustment "to the Active Points of a Characteristic or
+    Power", and the 5-points-per-Turn fade (6E1 p.141) comes off those, so
+    that is the unit the fold walks. ``stat`` is the characteristic's xmlid
+    ("DEX") or ``"POWER:<source id>"`` for one attack power's dice.
+
+    ``cost_per_point`` is what one point of ``stat`` cost on the TARGET's
+    build when this landed (DEX 2, SPD 10, STUN 0.5; a power's Active Points
+    per 1d6), so the log alone turns points into a characteristic and a
+    replay needs no build to price it. 0 only on rows written before it was
+    recorded, which `adjustments.live_adjustments` keeps and does not apply.
+    """
     kind: Literal["AdjustmentApplied"] = field(default="AdjustmentApplied", init=False)
     target_id: str = ""
     stat: str = ""
     delta: int = 0
     fade_rate_per_turn: int = 5
     source_event_id: str = ""
+    cost_per_point: float = 0.0
 
 
 @dataclass

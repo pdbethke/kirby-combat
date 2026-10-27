@@ -212,6 +212,16 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         assert isinstance(event, MovementResolved)
         return _fold_position(session, new_log, now, event)
 
+    if kind in ("AdjustmentApplied", "AdjustmentFaded"):
+        # A running effect folded forward (`session/effects.py`), AND
+        # projected onto the target's state so that every reader of the stat
+        # reads it: see `adjustments.project_onto`. The projection is
+        # rebuilt from the log, never accumulated here.
+        from kirby_combat.adjustments import project_onto
+
+        return project_onto(
+            replace(session, event_log=new_log, updated_at=now), event.target_id)
+
     if kind == "BarrierRaised":
         return _fold_barrier(session, new_log, now, event)
 
@@ -257,7 +267,6 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     #     lives in the driver, not the engine session (Plan 2)
     if kind in {
         "ActionResolved", "HeldActionReleased",
-        "AdjustmentApplied", "AdjustmentFaded",
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",

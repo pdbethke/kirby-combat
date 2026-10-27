@@ -295,6 +295,9 @@
         "author": {
           "$ref": "#/$defs/EventAuthor"
         },
+        "cost_per_point": {
+          "type": "number"
+        },
         "delta": {
           "type": "integer"
         },
@@ -343,7 +346,8 @@
         "stat",
         "delta",
         "fade_rate_per_turn",
-        "source_event_id"
+        "source_event_id",
+        "cost_per_point"
       ],
       "title": "AdjustmentApplied",
       "type": "object"

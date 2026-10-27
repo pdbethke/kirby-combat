@@ -395,11 +395,14 @@ def test_attacking_a_construct_that_is_not_on_the_scene_refuses():
 
 
 def test_healing_does_not_fade_and_says_so_by_emitting_nothing():
-    """Healing shares Aid's arithmetic but has no fade (6E1 p.150). An
-    AdjustmentApplied carrying fade_rate_per_turn=5 would state the
-    opposite of the rule, so none is emitted."""
-    _, resolved = _resolve(_action("heal", power=_Power("HEALING", levels=4)))
-    assert resolved.result.delta > 0
+    """Healing has no fade (6E1 p.234: "The points gained from Healing do
+    not fade"). An AdjustmentApplied carrying fade_rate_per_turn=5 would
+    state the opposite of the rule, so none is emitted; what it restores is
+    a `VitalsChanged` (tests/loop/test_adjustment_powers_bite.py)."""
+    power = _Power("HEALING", levels=4)
+    power.input = "BODY"
+    _, resolved = _resolve(_action("heal", power=power))
+    assert resolved.result["rolled"] > 0
     assert not [e for e in resolved.events if e.kind == "AdjustmentApplied"]
 
 

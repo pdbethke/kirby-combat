@@ -1045,45 +1045,24 @@ def _resolve_mental_entangle(
 
 def _adjustment(
     session: "CombatSession", actor, action: LegalAction, *, roller, sign: str,
+    template: "CombatTemplate",
 ) -> ResolvedAction:
-    """Shared body for Aid and Drain: roll, compute, record, apply."""
-    import uuid
-    from datetime import datetime, timezone
+    """Shared body for Aid and Drain: `actions/adjust.py` owns the rule.
 
-    from kirby_combat.resolution.adjustments import compute_aid, compute_drain
-    from kirby_combat.session.apply import apply_event
-    from kirby_combat.session.events import AdjustmentApplied, make_author_combatant
+    This hard-coded ``stat="STUN"`` for every Adjustment Power whatever it
+    was bought against, and divided the roll by 5 whatever the
+    characteristic cost. The power's own stat, its cost per point, half
+    effect on a defence, Aid's maximum and Drain's Attack Roll and Power
+    Defense are all there now.
+    """
+    from kirby_combat.actions.adjust import resolve_aid_or_drain
 
-    #: 6E: an Adjustment power's dice are its levels; 5 Active Points buys
-    #: one point of effect, which is the engine's `points_per_level`.
-    rolled = sum(roller.roll_dice(_levels(action)))
-    target_id = action.target_id or actor.id
-    target = session.combatants[target_id]
-
-    if sign == "aid":
-        outcome = compute_aid(rolled, 5, target_max_boost_cp=rolled)
-    else:
-        outcome = compute_drain(
-            rolled, 5, target_current_value=int(target.state.current_stun),
-        )
-
-    new_session = _record_outcome(session, actor, action, {
-        "kind": action.kind,
-        "target_id": target_id,
-        "delta": outcome.delta,
-        "fade_rate_per_turn": outcome.fade_rate_per_turn,
-    })
-    new_session = apply_event(new_session, AdjustmentApplied(
-        id=str(uuid.uuid4()), session_id=new_session.id,
-        sequence=len(new_session.event_log) + 1,
-        timestamp=datetime.now(timezone.utc),
-        author=make_author_combatant(actor.id),
-        target_id=target_id, stat="STUN",
-        delta=outcome.delta, fade_rate_per_turn=outcome.fade_rate_per_turn,
-    ))
+    new_session, payload = resolve_aid_or_drain(
+        session, actor, action, which=sign, roller=roller, template=template,
+    )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
-        result=outcome, events=_events_since(session, new_session),
+        result=payload, events=_events_since(session, new_session),
     )
 
 
@@ -1092,9 +1071,10 @@ def _resolve_aid(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Aid (6E1 p.133): a positive, fading boost. Targets an ally, or the
-    actor when the offer names no one."""
-    return _adjustment(session, actor, action, roller=roller, sign="aid")
+    """Aid (6E1 p.169): a positive, fading boost to the stat the power is
+    bought against, on the actor or an ally the offer names."""
+    return _adjustment(session, actor, action, roller=roller, sign="aid",
+                       template=template)
 
 
 @resolves("drain")
@@ -1102,9 +1082,10 @@ def _resolve_drain(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Drain (6E1 p.139): a negative, fading reduction, capped so it cannot
-    take the target below zero."""
-    return _adjustment(session, actor, action, roller=roller, sign="drain")
+    """Drain (6E1 p.197): an Attack Roll, then a fading reduction of the
+    stat the power is bought against, less the target's Power Defense."""
+    return _adjustment(session, actor, action, roller=roller, sign="drain",
+                       template=template)
 
 
 def _decoy_position(session: "CombatSession", actor):
@@ -2004,21 +1985,21 @@ def _resolve_heal(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Healing (6E1 p.150): restore a stat, and unlike Aid it does not fade.
+    """Healing (6E1 p.234): restore what the power is bought for, up to its
+    starting value, and never fade.
 
-    Shares Aid's arithmetic --- both add points at 1 per 5 Active Points ---
-    which is why `compute_aid` is the right calculator. What differs is the
-    FADE, and Healing has none, so no AdjustmentApplied is emitted: an event
-    carrying `fade_rate_per_turn=5` would say the opposite of the rule.
+    This recorded the roll and changed nothing --- a Healing healed nobody.
+    `actions/adjust.resolve_heal` owns the rule.
     """
-    from kirby_combat.resolution.adjustments import compute_aid
+    from kirby_combat.actions.adjust import resolve_heal
 
-    rolled = sum(roller.roll_dice(_levels(action)))
-    target_id = action.target_id or actor.id
-    outcome = compute_aid(rolled, 5, target_max_boost_cp=rolled)
-    return _recorded(session, actor, action, outcome, {
-        "kind": action.kind, "target_id": target_id, "delta": outcome.delta,
-    })
+    new_session, payload = resolve_heal(
+        session, actor, action, roller=roller, template=template,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=payload, events=_events_since(session, new_session),
+    )
 
 
 @resolves("dispel")

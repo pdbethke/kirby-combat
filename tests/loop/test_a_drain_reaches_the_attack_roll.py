@@ -48,11 +48,18 @@ def _fight():
 
 
 def _adjust(session, target: str, stat: str, delta: int):
+    """``delta`` POINTS of ``stat``, recorded as the book records them: the
+    Character Points that buy that many points (6E1 p.137), with the
+    target's cost per point on the row."""
+    from kirby_combat.adjustments import cost_per_point
+
+    per_point = cost_per_point(session.combatants[target], stat)
     return apply_event(session, AdjustmentApplied(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        target_id=target, stat=stat, delta=delta, fade_rate_per_turn=5,
+        target_id=target, stat=stat, delta=round(delta * per_point),
+        fade_rate_per_turn=5, cost_per_point=per_point,
     ))
 
 

@@ -1876,72 +1876,15 @@ def enumerate_actions(
                     "Ends the moment you attack."
                 ),
             ))
-    # PR-70 / PR-71 / PR-72: Adjustment + Healing powers.
-    # Aid boosts allies, Healing restores STUN/BODY on allies, Drain
-    # reduces enemy stats. Detected via xmlid on hero.powers.
-    aid_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "AID"
-    ]
-    healing_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "HEALING"
-    ]
-    drain_powers = [
-        p for p in (actor.hero.powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "DRAIN"
-    ]
-    # Aid + Healing target allies; we surface them targeting NONE so
-    # the driver picks the most-needed ally at resolve time. The picker
-    # picks "aid" or "heal" without selecting target — actor's own
-    # team's most-wounded gets it.
-    for ap in aid_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        actions.append(LegalAction(
-            action_id=_power_action_id("aid", "self", ap),
-            kind="aid",
-            target_id=None,
-            power_xmlid=ap.xmlid,
-            power_name=getattr(ap, "name", None) or "Aid",
-            summary=(
-                f"AID an ally ({n}d6 stat boost on most-wounded "
-                f"teammate, fades at 5 points/turn){limit_tag}"
-            ),
-            _attack_view=ap,
-        ))
-    for ap in healing_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        actions.append(LegalAction(
-            action_id=_power_action_id("heal", "self", ap),
-            kind="heal",
-            target_id=None,
-            power_xmlid=ap.xmlid,
-            power_name=getattr(ap, "name", None) or "Healing",
-            summary=(
-                f"HEAL most-wounded ally ({n}d6 STUN restored)"
-                f"{limit_tag}"
-            ),
-            _attack_view=ap,
-        ))
-    for ap in drain_powers:
-        n = getattr(ap, "levels", 0) or 0
-        limit_tag = _limitation_label(actor, ap)
-        for enemy in alive_enemies:
-            actions.append(LegalAction(
-                action_id=_power_action_id("drain", enemy.id, ap),
-                kind="drain",
-                target_id=enemy.id,
-                power_xmlid=ap.xmlid,
-                power_name=getattr(ap, "name", None) or "Drain",
-                summary=(
-                    f"DRAIN {_friendly(enemy)}'s stat ({n}d6 effect, "
-                    f"fades at 5 pts/turn — STR/DEX/CON drain hobbles "
-                    f"a brick fast){limit_tag}"
-                ),
-                _attack_view=ap,
-            ))
+    # ADJUSTMENT AND HEALING POWERS (6E1 p.169, p.197, p.234). Offered on
+    # the actor and each ally by name, and on enemies in range --- see
+    # `adjustment_offers` for what changed and why.
+    from kirby_combat.adjustment_offers import adjustment_offers
+
+    actions.extend(adjustment_offers(
+        actor, enemies=alive_enemies, allies=list(allies or []), scene=scene,
+        distances=distances, limitation_label=_limitation_label,
+    ))
     # PR-97: DISPEL — shut off one of target's defensive powers
     # (Force Field, Armor, DR, Density, Flight, Invisibility) for
     # one phase. Roll levels d6 vs target power's Active Points.
