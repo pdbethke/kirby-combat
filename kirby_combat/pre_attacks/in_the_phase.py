@@ -139,6 +139,11 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
     """
     if presence_attack_made_this_phase(session, combatant_id):
         return True
+    # So does a Zero Phase Multipower reallocation (6E1 p.410).
+    from kirby_combat.framework import reallocated_this_phase
+
+    if reallocated_this_phase(session, combatant_id):
+        return True
     # A Zero Phase change of identity (Instant Change, 6E1 p.272) leaves
     # the Phase his in the same way; see `kirby_combat/identity.py`.
     if any(getattr(evt, "kind", None) == "IdentityChanged"

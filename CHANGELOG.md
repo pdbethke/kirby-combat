@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Reallocating a Multipower is a Zero Phase Action, once a Phase** (6E1 p.410). Until now it spent the whole Phase, so a man who switched slots never fired the slot he switched to. In kirby-api's benchmark fight a first-offer seat had Bullet reallocate every Phase from Turn 4 until the cap, and the fight never ended. The Phase now stays his (as after a No-Time Presence Attack or an Instant Change), and the reallocate offer leaves the menu for the rest of it (`framework.reallocated_this_phase`). No new event kind. Seam test: `tests/loop/test_reallocate_is_zero_phase.py`.
+
 ## 0.22.1 — 2026-10-27
 
 **Four findings from kirby-app's 0.22.0 demo recording (Drago vs GORGON), two of them defects.**

@@ -33,6 +33,7 @@ from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import without_spent_shouts
+from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
 from kirby_combat.pre_attacks.in_the_phase import (
     PRESENCE_KINDS, can_yield_to, half_phase_only, hesitation_owed,
     limit_to_half_phase, phase_already_begun, presence_attack_made_this_phase,
@@ -619,6 +620,10 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # change again would let him flicker in and out of costume for ever.
     if identity_changed_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind not in IDENTITY_KINDS]
+    # ONE MULTIPOWER REALLOCATION A PHASE (6E1 p.410), for the same reason:
+    # it is a Zero Phase Action and the Phase comes back to him after it.
+    if reallocated_this_phase(session, actor_id):
+        menu = [a for a in menu if a.kind != REALLOCATE_KIND]
     # VERY IMPRESSED. 6E2 p.139: he "only performs a Half Phase Action
     # during his next Phase". `PresenceTier.half_phase` was never read.
     if half_phase_only(session, actor_id):
@@ -957,6 +962,18 @@ def run_phase(
             result=resolved.result,
             notes=[f"{actor_id} changed identity with Instant Change, a Zero "
                    f"Phase Action (6E1 p.272); his Phase goes on"],
+        )
+    if action.kind == REALLOCATE_KIND:
+        # ZERO PHASE. 6E1 p.410: "A character can change the way his
+        # Multipower reserve points are distributed or allocated as a Zero
+        # Phase Action", once a Phase. It spent the whole Phase here, so a
+        # seat that reallocated never fired the slot it chose --- and a
+        # first-offer seat reallocated every Phase of a fight for ever.
+        return _done(
+            resolved.session, action_id=action.action_id, kind=action.kind,
+            result=resolved.result,
+            notes=[f"{actor_id} reallocated his Multipower, a Zero Phase "
+                   f"Action (6E1 p.410); his Phase goes on"],
         )
     if action.kind in PRESENCE_KINDS:
         # NO TIME. 6E2 p.25 rates a Presence Attack "No Time", and p.20 lets
