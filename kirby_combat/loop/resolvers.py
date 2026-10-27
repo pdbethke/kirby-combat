@@ -1345,7 +1345,8 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
     attack = AttackInput(
         attacker=actor, target=target, power=power,
         distance_m=_range_to(session, actor, target), aim=None,
-        dice=_attack_dice(roller, max(1, dice)),
+        # The Throw's ½d6, when its STR leaves one, is rolled too (6E2 p.100).
+        dice=_attack_dice(roller, max(1, _with_half_die(power, dice))),
         ocv_modifier=_set_bonus(session, actor, target) + grab.ocv_delta,
         grab_ocv_factor=grab.ocv_factor, grab_dcv_factor=grab.dcv_factor,
         damage_taken_factor=0.5 if halved else 1.0,
