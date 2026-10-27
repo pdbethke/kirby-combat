@@ -442,6 +442,94 @@
       "title": "AmbientConditions",
       "type": "object"
     },
+    "BarrierRaised": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "BarrierRaised",
+          "enum": [
+            "BarrierRaised"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "body": {
+          "type": "integer"
+        },
+        "def_value": {
+          "type": "integer"
+        },
+        "ed_value": {
+          "type": "integer"
+        },
+        "end": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "height_m": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "BarrierRaised",
+          "enum": [
+            "BarrierRaised"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "start": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "wall_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "wall_id",
+        "name",
+        "start",
+        "end",
+        "height_m",
+        "body",
+        "def_value",
+        "ed_value",
+        "source_combatant"
+      ],
+      "title": "BarrierRaised",
+      "type": "object"
+    },
     "BleedingSuffered": {
       "additionalProperties": false,
       "properties": {
@@ -3373,6 +3461,9 @@
     },
     {
       "$ref": "#/$defs/AdjustmentFaded"
+    },
+    {
+      "$ref": "#/$defs/BarrierRaised"
     },
     {
       "$ref": "#/$defs/BleedingSuffered"

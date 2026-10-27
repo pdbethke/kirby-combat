@@ -212,6 +212,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         assert isinstance(event, MovementResolved)
         return _fold_position(session, new_log, now, event)
 
+    if kind == "BarrierRaised":
+        return _fold_barrier(session, new_log, now, event)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)
@@ -304,6 +307,41 @@ def _fold_vitals(
     return replace(
         session, event_log=new_log, combatants=new_combatants, updated_at=now,
     )
+
+
+def _fold_barrier(session: CombatSession, new_log, now, event) -> CombatSession:
+    """THE ONE WRITER of a Barrier raised in the fight (6E1 p.167).
+
+    A NEW wall list on a new Scene, never an append to the old one: the
+    resolver this replaced appended in place, so the wall leaked into every
+    other session sharing that Scene object --- and into the "before" of
+    the same fight, which is what a rewind reads.
+
+    A session with no Scene has no board to put a wall on, and a raise is
+    only ever offered on a map (`enumerate_actions(has_scene=...)`), so a
+    row that arrives without one RAISES rather than being kept quietly.
+    """
+    from kirby_world.scene import Position, Wall
+
+    if session.scene is None:
+        raise ValueError(
+            f"BarrierRaised {event.wall_id!r} in session {session.id!r}, "
+            f"which has no Scene to raise it on"
+        )
+    wall = Wall(
+        id=event.wall_id, name=event.name,
+        segment=(
+            Position(float(event.start["x"]), float(event.start["y"]),
+                     float(event.start["z"])),
+            Position(float(event.end["x"]), float(event.end["y"]),
+                     float(event.end["z"])),
+        ),
+        height_m=float(event.height_m),
+        body=int(event.body), def_value=int(event.def_value),
+        ed_value=int(event.ed_value),
+    )
+    scene = replace(session.scene, walls=[*session.scene.walls, wall])
+    return replace(session, event_log=new_log, scene=scene, updated_at=now)
 
 
 def _fold_position(

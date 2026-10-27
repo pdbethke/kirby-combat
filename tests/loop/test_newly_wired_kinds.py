@@ -526,6 +526,9 @@ def test_a_force_wall_needs_a_map_and_lands_on_it():
         _action("force_wall", power=_Power("FORCEWALL", levels=6)),
         template=TEMPLATE, roller=RandomRoller(seed=9),
     )
-    assert len(scene.walls) == 1, "the barrier must reach the scene"
-    assert scene.walls[0].body == 6, "BODY comes from the power's levels"
-    assert resolved.events
+    walls = resolved.session.scene.walls
+    assert len(walls) == 1, "the barrier must reach the scene"
+    assert walls[0].body == 6, "BODY comes from the power's levels"
+    # Through the log, not beside it: the authored Scene is untouched.
+    assert scene.walls == []
+    assert any(e.kind == "BarrierRaised" for e in resolved.events)

@@ -2197,7 +2197,11 @@ def _resolve_force_wall(
     shared placement helper --- because a barrier that is not between you
     and the threat is not a barrier.
     """
-    from kirby_world.scene import Position, Wall
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import BarrierRaised, make_author_combatant
 
     power = action._attack_view
     if power is None:
@@ -2211,17 +2215,30 @@ def _resolve_force_wall(
     x, y, z = centre
     levels = _levels(action)
     half = FORCE_WALL_HALF_WIDTH_M
-    wall = Wall(
-        id=f"force-wall-{actor.id}-{len(getattr(scene, 'walls', []) or [])}",
-        name="Force Wall",
-        segment=(Position(x - half, y, z), Position(x + half, y, z)),
+    wall_id = f"force-wall-{actor.id}-{len(getattr(scene, 'walls', []) or [])}"
+    # THE WALL IS AN EVENT. This appended to `scene.walls` in place, so a
+    # replay from the log never had it; `BarrierRaised` is what puts it on
+    # the board now, through `apply_event` like a move.
+    new_session = _record_outcome(session, actor, action, {
+        "kind": action.kind, "wall_id": wall_id, "body": levels,
+    })
+    new_session = apply_event(new_session, BarrierRaised(
+        id=str(uuid.uuid4()), session_id=new_session.id,
+        sequence=len(new_session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(actor.id),
+        wall_id=wall_id, name="Force Wall",
+        start={"x": x - half, "y": y, "z": z},
+        end={"x": x + half, "y": y, "z": z},
         height_m=FORCE_WALL_HEIGHT_M,
         body=levels, def_value=levels, ed_value=levels,
+        source_combatant=actor.id,
+    ))
+    wall = next(w for w in new_session.scene.walls if w.id == wall_id)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=wall, events=_events_since(session, new_session),
     )
-    scene.walls.append(wall)
-    return _recorded(session, actor, action, wall, {
-        "kind": action.kind, "wall_id": wall.id, "body": levels,
-    })
 
 
 # ---------------------------------------------------------------------------

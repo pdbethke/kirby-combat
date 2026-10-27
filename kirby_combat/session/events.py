@@ -653,6 +653,35 @@ class ConstructSpawned(BaseEvent):
 
 
 @dataclass
+class BarrierRaised(BaseEvent):
+    """A Barrier put up in the fight (6E1 p.167) --- and what applies it.
+
+    THE WALL WAS NEVER IN THE RECORD. `_resolve_force_wall` appended a
+    `Wall` to `session.scene.walls` IN PLACE and logged an `ActionResolved`
+    beside it, the same mutate-then-log shape `MovementResolved` was taken
+    out of in 0.18.5. A fight rebuilt from its rows, a `rewind_to_sequence`
+    and a Krackle replay all started from the authored scene and had no
+    wall: the shot it was raised to stop went through on the replay.
+
+    `apply_event` folds this onto `session.scene.walls`, so it is the one
+    writer of a raised Barrier. `start`/`end` carry ``x``, ``y``, ``z`` ---
+    the two ends of the wall's footprint, as `scene.Wall.segment` holds
+    them. The BODY and DEFs are the Barrier's own; damage to it is folded
+    from the log like any other construct's (`constructs.damage_by_object`).
+    """
+    kind: Literal["BarrierRaised"] = field(default="BarrierRaised", init=False)
+    wall_id: str = ""
+    name: str = ""
+    start: dict[str, float] = field(default_factory=dict)
+    end: dict[str, float] = field(default_factory=dict)
+    height_m: float = 0.0
+    body: int = 0
+    def_value: int = 0
+    ed_value: int = 0
+    source_combatant: str = ""
+
+
+@dataclass
 class SessionEnded(BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
@@ -706,6 +735,7 @@ CombatEvent = (
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned
+    | BarrierRaised
     | GMOverride
     | SessionEnded
 )
