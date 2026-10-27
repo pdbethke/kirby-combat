@@ -53,6 +53,7 @@ from kirby_combat.loop.reactions import (
 from kirby_combat.framework import allocation_for
 from kirby_combat.holding import held_object
 from kirby_combat.lockout import blocked_lockout_ids
+from kirby_combat.actions.dispel import restart_dispelled
 from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
@@ -848,6 +849,15 @@ def run_phase(
             notes=[f"{actor_id} is held by a Presence Attack and forfeits "
                    f"the Phase"],
         )
+
+    # A DISPELLED POWER COMES BACK ON. "Activating a Power" is a Zero Phase
+    # Action at the start of a Phase (6E2 p.20), and he can take Actions this
+    # Phase (the Stunned and Presence gates above have let him through), so
+    # whatever was Dispelled off him is turned on before he chooses
+    # (6E1 p.195: "The victim of a Dispel may 'restart' the Dispelled power").
+    if not continuing:
+        session = restart_dispelled(session, actor_id)
+        actor = session.combatants[actor_id]
 
     # RAGE. 6E1 p.424: "Every Phase a character is in a situation where he
     # can become Enraged, he should roll his chance"; and a raging man rolls

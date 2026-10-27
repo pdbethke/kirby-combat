@@ -162,3 +162,38 @@ def adjustment_offers(
                        f"Attack Roll; returns 5 a Turn, 6E1 p197)",
                        suffix=power_action_suffix(target))
     return out
+
+
+def dispel_offers(
+    actor, *, enemies: list, scene: Any, distances: dict[str, float] | None,
+    limitation_label: Callable[[Any, Any], str],
+) -> list:
+    """One Dispel offer per enemy power the Dispel is bought against.
+
+    The power is named on the offer (6E1 p.195: "the character must declare
+    what power or ability he's trying to Dispel"); the old offer said "one
+    of his defenses" and let the resolver pick the biggest.
+    """
+    from kirby_combat.actions.dispel import dispellable_on, resistance
+    from kirby_combat.enumeration import LegalAction, _friendly, _power_action_id, is_down
+
+    out: list = []
+    for ap in _powers(actor, "DISPEL"):
+        for enemy in enemies:
+            if is_down(enemy) or not _in_range(actor, enemy, ap, scene, distances):
+                continue
+            for power in dispellable_on(ap, enemy):
+                name = getattr(power, "name", None) or power.xmlid.title()
+                out.append(LegalAction(
+                    action_id=f"{_power_action_id('dispel', enemy.id, ap)}:power={power.id}",
+                    kind="dispel", target_id=enemy.id, power_xmlid=ap.xmlid,
+                    power_name=getattr(ap, "name", None) or "Dispel",
+                    summary=(
+                        f"DISPEL {_friendly(enemy)}'s {name} ({_dice_text(ap)} "
+                        f"less his Power Defense must beat its {resistance(power)} "
+                        f"Active Points, on an Attack Roll; off until he turns "
+                        f"it back on at his next Phase, 6E1 p195)"
+                    ) + limitation_label(actor, ap),
+                    _attack_view=ap,
+                ))
+    return out

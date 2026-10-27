@@ -391,6 +391,14 @@ class CombatantSnapshot:
         which derives the list of views to compare from the class's own
         public surface rather than from a list anybody keeps.
         """
+        # THE BUILD, NOT WHAT A DISPEL LEFT OF IT. A snapshot is the views a
+        # rebuilt combatant fights with for good; recording one with a
+        # power switched off would leave it off after he restarts it
+        # (`actions/dispel.py`).
+        from kirby_combat.actions.dispel import original_hero
+
+        if original_hero(combatant.hero) is not combatant.hero:
+            combatant = replace(combatant, hero=original_hero(combatant.hero))
         stats = combatant.combat_stats()
         return cls(
             rpd=stats.rpd, red=stats.red, md=stats.md,

@@ -2007,18 +2007,22 @@ def _resolve_dispel(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Dispel (6E1 p.143): shut a power off outright rather than weaken it.
+    """Dispel (6E1 p.195): an Attack Roll, then the dice less Power Defense
+    against the target power's Active Points; on a win the power is OFF
+    until its owner restarts it.
 
-    All-or-nothing against the target power's Active Points, which is why
-    the payload records the roll rather than a delta --- there is no partial
-    Dispel to apply.
+    This recorded the roll and turned nothing off. `actions/dispel.py` owns
+    the rule.
     """
-    rolled = sum(roller.roll_dice(_levels(action)))
-    return _recorded(session, actor, action, rolled, {
-        "kind": action.kind,
-        "target_id": action.target_id,
-        "active_points_rolled": rolled,
-    })
+    from kirby_combat.actions.dispel import resolve_dispel
+
+    new_session, payload = resolve_dispel(
+        session, actor, action, roller=roller, template=template,
+    )
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=payload, events=_events_since(session, new_session),
+    )
 
 
 @resolves("presence_attack_group")

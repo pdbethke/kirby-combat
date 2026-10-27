@@ -697,6 +697,31 @@ class BarrierRaised(BaseEvent):
 
 
 @dataclass
+class PowerDispelled(BaseEvent):
+    """One of the target's powers stops working (6E1 p.195).
+
+    `apply_event` folds it into the target's build (`actions/dispel.py`):
+    every reader of his powers reads them without this one until a
+    `PowerRestarted` for it.
+    """
+    kind: Literal["PowerDispelled"] = field(default="PowerDispelled", init=False)
+    target_id: str = ""
+    power_id: str = ""
+    power_xmlid: str = ""
+    source_combatant: str = ""
+
+
+@dataclass
+class PowerRestarted(BaseEvent):
+    """He turns a dispelled power back on --- a Zero Phase Action at the
+    start of his Phase (6E2 p.20; 6E1 p.195: "The victim of a Dispel may
+    'restart' the Dispelled power")."""
+    kind: Literal["PowerRestarted"] = field(default="PowerRestarted", init=False)
+    combatant_id: str = ""
+    power_id: str = ""
+
+
+@dataclass
 class SessionEnded(BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
@@ -751,6 +776,8 @@ CombatEvent = (
     | ConstructDamaged
     | ConstructSpawned
     | BarrierRaised
+    | PowerDispelled
+    | PowerRestarted
     | GMOverride
     | SessionEnded
 )

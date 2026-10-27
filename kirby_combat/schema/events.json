@@ -2366,6 +2366,122 @@
       "title": "PositionView",
       "type": "object"
     },
+    "PowerDispelled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PowerDispelled",
+          "enum": [
+            "PowerDispelled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PowerDispelled",
+          "enum": [
+            "PowerDispelled"
+          ],
+          "type": "string"
+        },
+        "power_id": {
+          "type": "string"
+        },
+        "power_xmlid": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "power_id",
+        "power_xmlid",
+        "source_combatant"
+      ],
+      "title": "PowerDispelled",
+      "type": "object"
+    },
+    "PowerRestarted": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PowerRestarted",
+          "enum": [
+            "PowerRestarted"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PowerRestarted",
+          "enum": [
+            "PowerRestarted"
+          ],
+          "type": "string"
+        },
+        "power_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "power_id"
+      ],
+      "title": "PowerRestarted",
+      "type": "object"
+    },
     "PresenceActionLost": {
       "additionalProperties": false,
       "properties": {
@@ -3519,6 +3635,12 @@
     },
     {
       "$ref": "#/$defs/PhaseSpent"
+    },
+    {
+      "$ref": "#/$defs/PowerDispelled"
+    },
+    {
+      "$ref": "#/$defs/PowerRestarted"
     },
     {
       "$ref": "#/$defs/PresenceActionLost"

@@ -222,6 +222,14 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         return project_onto(
             replace(session, event_log=new_log, updated_at=now), event.target_id)
 
+    if kind in ("PowerDispelled", "PowerRestarted"):
+        # The dispelled set is folded into the combatant's build, so every
+        # reader of his powers reads it (`actions/dispel.py`).
+        from kirby_combat.actions.dispel import fold_dispel
+
+        who = event.target_id if kind == "PowerDispelled" else event.combatant_id
+        return fold_dispel(replace(session, event_log=new_log, updated_at=now), who)
+
     if kind == "BarrierRaised":
         return _fold_barrier(session, new_log, now, event)
 

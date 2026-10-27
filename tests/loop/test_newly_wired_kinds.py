@@ -406,13 +406,14 @@ def test_healing_does_not_fade_and_says_so_by_emitting_nothing():
     assert not [e for e in resolved.events if e.kind == "AdjustmentApplied"]
 
 
-def test_dispel_records_the_roll_not_a_delta():
-    """All-or-nothing against the target power's Active Points -- there is
-    no partial Dispel to apply."""
-    _, resolved = _resolve(_action("dispel", power=_Power("DISPEL", levels=6)))
-    payload = resolved.session.event_log[-1].result_payload
-    assert payload["active_points_rolled"] > 0
-    assert "delta" not in payload
+def test_a_dispel_that_names_no_power_of_the_target_refuses():
+    """6E1 p.195: "the character must declare what power or ability he's
+    trying to Dispel". This test used to pass a Dispel naming nothing and
+    assert the roll was recorded; that offer is not written any more, and
+    the resolver refuses one. What a Dispel does is in
+    tests/loop/test_dispel_turns_a_power_off.py."""
+    with pytest.raises(ValueError, match="names no power"):
+        _resolve(_action("dispel", power=_Power("DISPEL", levels=6)))
 
 
 def test_a_group_presence_attack_is_ONE_roll_judged_against_each_target():
