@@ -154,19 +154,15 @@ def test_being_prone_does_not_hide_being_stunned():
     assert "elif _is_prone" not in src
 
 
-# ---- Disarm: an honest partial ----
+# ---- Disarm takes a weapon now ----
 
-def test_a_disarm_lands_but_takes_nothing_away():
-    """The Attack Roll is real; the disarming is not yet. This engine has
-    no per-combatant weapon inventory to remove anything from, and
-    enumeration's own comment has said so since the offer was written."""
-    before, resolved = _resolve(_act("disarm"), roller=_hits())
-    assert resolved.result.hit
-    assert resolved.events
-    assert (
-        list(resolved.session.combatants["mark"].attacks)
-        == list(before.combatants["mark"].attacks)
-    ), "nothing to remove -- and the test says so rather than pretending"
+def test_a_disarm_that_names_no_weapon_is_refused():
+    """A Disarm knocks "the target's weapon or object" flying (6E2 p.62),
+    and the offer names which (`kirby_combat.weapons`). One that names
+    nothing is refused rather than rolled against nothing. The weapon
+    itself going: `tests/loop/test_maneuvers_complete.py`."""
+    with pytest.raises(UnresolvableAction):
+        _resolve(_act("disarm"), roller=_hits())
 
 
 # ---- Trip and Disarm roll with the bare-handed Strike ----
@@ -200,7 +196,9 @@ def _resolve_by(actor, action, *, roller):
     )
 
 
-@pytest.mark.parametrize("kind", ["disarm", "trip"])
+# (Disarm's half of these two needs a weapon to take: pinned with an armed
+# man in `tests/loop/test_maneuvers_complete.py`.)
+@pytest.mark.parametrize("kind", ["trip"])
 def test_a_man_with_no_attack_powers_can_do_what_he_was_offered(kind):
     unarmed = fighter("actor", side=Side.named("heroes"), dex=25, armed=False)
     assert not list(unarmed.attacks)
@@ -209,7 +207,7 @@ def test_a_man_with_no_attack_powers_can_do_what_he_was_offered(kind):
     assert resolved.result.power_xmlid == "STR"
 
 
-@pytest.mark.parametrize("kind", ["disarm", "trip"])
+@pytest.mark.parametrize("kind", ["trip"])
 def test_a_blaster_disarms_with_his_hands_not_his_blast(kind):
     blaster = fighter("actor", side=Side.named("heroes"), dex=25)
     assert [a.xmlid for a in blaster.attacks] != ["STR"]

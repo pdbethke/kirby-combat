@@ -152,7 +152,10 @@ def test_a_scene_GATES_melee_that_a_void_offered_freely():
     void = _menu_kinds(None)
     far = _menu_kinds(_apart(20.0))
 
-    assert {"strike", "grab", "disarm", "trip"} <= void, (
+    # Disarm is offered only against a weapon in his hand, which these
+    # stat blocks do not carry: its reach gate is pinned with an armed man
+    # in `tests/loop/test_maneuvers_complete.py`.
+    assert {"strike", "grab", "trip"} <= void, (
         "the void offers melee unconditionally -- that is the defect"
     )
     assert not ({"strike", "grab", "disarm", "trip"} & far), (
@@ -163,7 +166,7 @@ def test_a_scene_GATES_melee_that_a_void_offered_freely():
 def test_the_same_melee_returns_when_adjacent():
     """Gated by distance, not removed: step into reach and it is back."""
     near = _menu_kinds(_apart(1.0))
-    assert {"strike", "grab", "disarm", "trip"} <= near, sorted(near)
+    assert {"strike", "grab", "trip"} <= near, sorted(near)
 
 
 def test_a_ranged_attack_survives_the_gate():

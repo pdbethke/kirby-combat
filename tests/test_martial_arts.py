@@ -129,6 +129,7 @@ def _mv(**kw) -> MartialManeuverView:
         ocv=0, dcv=2, dc_bonus=4, add_str=True, damage_type="normal",
         phase="1/2", category_is_ranged=False, reach_m=1.0, is_attack=True,
         is_block=False, is_dodge=False, target_falls=False, effect="",
+        hd_defense="NORMAL", sense_input="",
     )
     base.update(kw)
     return MartialManeuverView(**base)

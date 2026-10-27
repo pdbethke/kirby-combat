@@ -20,37 +20,66 @@ WHAT IS DECODED, and where each rule comes from:
   1/2d6 (6E2 p.99), STR adds nothing ("Martial Maneuvers that don't add dice of
   damage - such as Killing Damage strikes, NND Strikes ... can't be used to add
   damage", 6E2 p.101).
+* ``[FLASHDC]`` --- Martial Flash: 1d6 of Flash per DC (kirby-cost
+  ``Maneuver.flash_dc``, HD's own reading) against the Sense Group the
+  maneuver's INPUT names, resolved as the Flash power is (6E1 p.228).
 * ``[STRDC]`` --- a STR bonus for one purpose only: holding on (Martial Grab,
-  6E2 p.94) or the Disarm contest (Martial Disarm, 6E2 p.94). HD writes the
-  maneuver's DCs as +5 STR each.
+  6E2 p.94), the Disarm contest (Martial Disarm, 6E2 p.94), wrenching a
+  weapon away (Takeaway) or the distance of a Shove. HD writes the maneuver's
+  DCs as +5 STR each. A free-text "+10 STR" is the same figure written by
+  hand, and is read only when it agrees with the DCs HD costed.
 * ``Grab One/Two/Three Limbs`` --- a Grab (6E2 p.67; Martial Grab p.94; Choke
-  Hold p.86 / p.93).
-* ``Disarm`` --- a Disarm (6E2 p.65; Martial Disarm p.94).
+  Hold p.86 / p.93). A Grab that also does damage is a Grab with its free
+  Squeeze: "If the Grabber chooses to Squeeze ... in the same Segment in which
+  he ... successfully Grabbed him, the Squeeze ... does not require an Attack
+  Roll" (6E2 p.64), so the damage lands when the Grab does.
+* ``Disarm`` --- a Disarm (6E2 p.62; Martial Disarm p.94).
+* ``Grab Weapon`` + ``to take weapon away`` --- 6E2 p.69: "A character can
+  choose to Grab a target's weapon, Accessible Focus, or other held or
+  carried object instead of the target himself ... use normal Grab rules to
+  see if the attacker succeeds" (Takeaway, Disarming Throw).
+* ``Shove`` (``to Shove``) --- 6E2 p.81's Shove.
 * ``Target Falls`` / ``You Fall`` --- the target / the attacker ends prone
   (Legsweep, Martial Throw, Sacrifice Throw, 6E2 p.94).
-* ``+v/10`` / ``+v/5`` --- velocity damage. A ``maneuver`` offer composes no
-  movement, so the velocity is 0 and adds nothing: "A character has to have a
-  full 6m/10m of movement ... to get +1 DC - anything less than that has no
-  effect" (6E2 p.101).
+* ``+v/10`` / ``+v/5`` --- velocity damage: +1 DC per full 10m (5m) of
+  velocity, "anything less than that has no effect" (6E2 p.101). A plain
+  ``maneuver`` composes no movement, so its velocity is 0.
+* ``FMove`` --- the maneuver is made as part of a Full Move, which is what a
+  Move By or Move Through is (6E2 p.72): see `actions/martial_fmove.py`.
+* ``Must Follow Block`` --- Counterstrike: usable only in the Phase after a
+  successful Block of that attacker (the Block, and its "acts first" reward,
+  are 6E2 p.59-60).
+* ``Must Follow Grab`` --- Crush, Grappling Throw: usable only on a man the
+  attacker is holding, i.e. a Squeeze or Throw "in a later Phase" (6E2 p.64).
+* ``Crush`` --- the Squeeze of 6E2 p.64 ("regular STR damage ... the character
+  retains his hold"), with the maneuver's DCs on top.
 * ``Strike`` --- the word that decorates a damage token; it states no damage of
-  its own. HD's own output for a custom "Strike" with damage type NONE is the
-  bare word, so none is guessed at.
+  its own.
 * Extra Damage Classes (``EXTRADC``): "Each Extra DC adds one Damage Class to
   any Maneuver ... or +5 STR to any Maneuver that grants extra STR for limited
   purposes" (6E2 p.94). The caller folds them into the DC count it passes.
 
+FMove, Must Follow, Crush, Grab Weapon, Shove and Martial Flash are HERO System
+Martial Arts elements, not rows of 6E2's table. Each is built because the 6E
+core books define the mechanic it names (above). The ones that are not:
+
 WHAT IS REFUSED --- ``UnbuildableManeuver`` --- is every element this engine
-has no faithful rule for. Each comes from HD's maneuver builder (the HERO
-System Martial Arts book's elements), not from 6E2's table, so there is no 6E2
-page to implement them against: ``FMove`` (a Full Move made as part of the
-maneuver, which a ``maneuver`` offer does not compose), ``Must Follow Block`` /
-``Must Follow Grab``, ``Crush``, ``Bind``, ``Shove``, ``Grab Weapon``,
-``Disable``, ``Block`` / ``Dodge`` / ``Abort`` (defensive, not offensive),
-``vs. Grabs`` / ``to Escape``, ``[FLASHDC]`` (a Sense Group the view does not
-carry), a Grab that also does Normal or Killing damage, and free-text STR
-figures ("+10 STR") that duplicate the DC count HD already records. Refusing
-keeps the menu honest: enumeration does not offer what the resolver would have
-to approximate.
+has no faithful rule for:
+
+* ``Bind`` --- a HERO System Martial Arts element with no 6E core mechanic.
+* ``Disable`` (Joint Break) --- the Impairing/Disabling wound rules it names
+  are an optional rule over Hit Locations (6E2 p.111-113) this engine does
+  not model.
+* ``Block`` / ``Dodge`` / ``Abort`` (defensive, read by
+  `actions/reactive/martial.py`, not offensive), ``vs. Grabs`` / ``to
+  Escape`` (escapes, read by `martial_escape`), ``to resist Shove``.
+* a Strike with damage type NONE: HD's own reading is that it does no damage
+  (kirby-cost ``Maneuver.does_damage``), so there is nothing to resolve.
+* a free-text STR or dice figure that disagrees with the DCs HD costed
+  ("60 STR for holding on", "4d6"), and anything else left over.
+
+Refusing keeps the menu honest: enumeration does not offer what the resolver
+would have to approximate.
 """
 from __future__ import annotations
 
@@ -76,6 +105,13 @@ class ManeuverDamage(str, Enum):
     #: The EFFECT names two different damage tokens. HD can store it; there
     #: is no single rule to resolve it by.
     MIXED = "mixed"
+
+
+class MustFollow(str, Enum):
+    """What a maneuver must follow (a HERO System Martial Arts element)."""
+
+    BLOCK = "block"
+    GRAB = "grab"
 
 
 #: HD's damage tokens, in the EFFECT string.
@@ -127,11 +163,26 @@ class UnbuildableManeuver(Exception):
         super().__init__(f"maneuver {name!r} ({effect!r}) is not built: {reason}")
 
 
+#: HD's DEFENSE attribute on Choke Hold (Main6E.hdt): its NND is stopped by
+#: something other than Nerve Strike's defence (6E2 p.86).
+HD_SPECIAL_DEFENSE = "SPECIAL"
+
+#: A Martial Flash's INPUT, as HD writes it, -> the engine's Sense Group.
+_FLASH_SENSES: dict[str, str] = {
+    "sight": "sight", "sight group": "sight",
+    "hearing": "hearing", "hearing group": "hearing",
+    "smell": "smell", "smell/taste": "smell", "smell/taste group": "smell",
+    "radio": "radio", "radio group": "radio",
+    "mental": "mental", "mental group": "mental",
+}
+
+
 @dataclass(frozen=True)
 class MartialEffect:
     """What resolving one maneuver does, decided before any die is rolled."""
 
-    #: NONE for a Grab or Disarm without damage; else NORMAL / KILLING / NND.
+    #: NONE for a Grab, Disarm, Takeaway or Shove without damage; else
+    #: NORMAL / KILLING / NND / FLASH.
     damage: ManeuverDamage
     #: The maneuver's own DCs plus every Extra DC (6E2 p.94).
     damage_classes: int
@@ -139,30 +190,56 @@ class MartialEffect:
     adds_str: bool
     grab: bool
     disarm: bool
-    #: +STR for holding on (Grab) or for the Disarm contest; 0 otherwise.
+    #: +STR for holding on (Grab), the Disarm contest, wrenching a weapon
+    #: away (Takeaway) or a Shove's distance; 0 otherwise.
     str_bonus: int
     target_falls: bool
     actor_falls: bool
+    #: Grab Weapon: the target's weapon, not the target (6E2 p.69).
+    grab_weapon: bool
+    #: Shove (6E2 p.81).
+    shove: bool
+    #: Crush: a Squeeze of a man already held (6E2 p.64).
+    crush: bool
+    #: Made as part of a Full Move (6E2 p.72's Move By / Move Through).
+    fmove: bool
+    #: +1 DC per this many metres of velocity, or None (6E2 p.101).
+    velocity_divisor: int | None
+    must_follow: MustFollow | None
+    #: A Grab whose NND is Choke Hold's (6E2 p.86): Life Support (Self-
+    #: Contained Breathing) is a defence against it too.
+    choke: bool
+    #: Martial Flash's Sense Group, or None.
+    flash_sense: str | None
 
 
 #: Elements removed from the EFFECT as they are recognised. Order matters:
 #: a qualifier goes before the bare word it qualifies.
 _ELEMENTS: tuple[tuple[str, str], ...] = (
+    ("must_follow_block", r"\bmust follow block\b"),
+    ("must_follow_grab", r"\bmust follow grab\b"),
+    ("grab_weapon", r"\bgrab weapon\b"),
+    ("take_away", r"\bto take weapon away\b"),
     ("grab", r"\bgrab (one|two|three|[123]) limbs?\b"),
     ("holding", r"\bfor holding on\b"),
     ("disarm_q", r"\bto disarm( roll)?\b"),
     ("disarm", r"\bdisarm\b"),
+    ("shove", r"\bto shove\b"),
     ("target_falls", r"\btarget falls\b"),
     ("actor_falls", r"\byou fall\b"),
-    ("token", r"\[(normaldc|killingdc|nnddc|strdc|damage)\]"),
+    ("token", r"\[(normaldc|killingdc|nnddc|strdc|flashdc|damage)\]"),
     ("strike", r"\bstrike\b"),
-    ("velocity", r"\+?v/(5|10)\b"),
+    ("crush", r"\bcrush\b"),
+    ("fmove", r"\bfmove\b"),
 )
+
+_VELOCITY = re.compile(r"\+?v/(5|10)\b")
+_FREE_STR = re.compile(r"\+(\d+) str\b")
 
 
 def decode_effect(
     *, name: str, effect: str, damage: ManeuverDamage, damage_classes: int,
-    adds_str: bool,
+    adds_str: bool, hd_defense: str, sense_input: str,
 ) -> MartialEffect:
     """Decode one maneuver, or raise ``UnbuildableManeuver`` saying why.
 
@@ -174,6 +251,14 @@ def decode_effect(
     lowered = (effect or "").lower()
     seen: set[str] = set()
     residue = lowered
+
+    divisors = {int(m) for m in _VELOCITY.findall(residue)}
+    if len(divisors) > 1:
+        raise UnbuildableManeuver(name, effect, "two velocity divisors")
+    residue = _VELOCITY.sub(" ", residue)
+    free_str = [int(m) for m in _FREE_STR.findall(residue)]
+    residue = _FREE_STR.sub(" ", residue)
+
     for label, pattern in _ELEMENTS:
         residue, n = re.subn(pattern, " ", residue)
         if n:
@@ -184,15 +269,38 @@ def decode_effect(
 
     grab = "grab" in seen
     disarm = "disarm" in seen
+    grab_weapon = "grab_weapon" in seen
+    shove = "shove" in seen
+    crush = "crush" in seen
+    fmove = "fmove" in seen
+    must_follow = (MustFollow.BLOCK if "must_follow_block" in seen
+                   else MustFollow.GRAB if "must_follow_grab" in seen else None)
+    if "must_follow_block" in seen and "must_follow_grab" in seen:
+        raise UnbuildableManeuver(name, effect, "must follow both a Block and a Grab")
     if "holding" in seen and not grab:
         raise UnbuildableManeuver(name, effect, "'for holding on' without a Grab")
-    if damage in (ManeuverDamage.FLASH, ManeuverDamage.MIXED):
-        raise UnbuildableManeuver(name, effect, f"{damage.value} damage")
+    if "take_away" in seen and not grab_weapon:
+        raise UnbuildableManeuver(name, effect, "'to take weapon away' without Grab Weapon")
+    if damage is ManeuverDamage.MIXED:
+        raise UnbuildableManeuver(name, effect, "two damage families")
 
+    str_purpose = grab or disarm or grab_weapon or shove
     str_bonus = 0
+    if free_str:
+        # A HAND-WRITTEN "+10 STR". HD costs the maneuver on its DC count,
+        # and writes that count as +5 STR a DC (6E2 p.94); a figure that
+        # agrees with it is the same bonus spelled out, one that does not is
+        # a number HD never priced, and is not guessed between.
+        if len(free_str) > 1 or not str_purpose or damage is not ManeuverDamage.NONE:
+            raise UnbuildableManeuver(name, effect, "a free-text STR figure")
+        if free_str[0] != 5 * int(damage_classes):
+            raise UnbuildableManeuver(
+                name, effect,
+                f"free-text +{free_str[0]} STR disagrees with its {damage_classes} DC")
+        str_bonus = free_str[0]
     if damage is ManeuverDamage.STR:
-        if not (grab or disarm):
-            raise UnbuildableManeuver(name, effect, "a STR bonus with no Grab or Disarm to spend it on")
+        if not str_purpose:
+            raise UnbuildableManeuver(name, effect, "a STR bonus with nothing to spend it on")
         if not adds_str:
             raise UnbuildableManeuver(name, effect, "[STRDC] that replaces STR rather than adding to it")
         # HD's `str_dc` writes the total as (DC + STR/5) * 5, so the bonus
@@ -200,21 +308,50 @@ def decode_effect(
         str_bonus = 5 * int(damage_classes)
         damage = ManeuverDamage.NONE
 
-    if grab and disarm:
-        raise UnbuildableManeuver(name, effect, "a Grab and a Disarm at once")
-    if grab and damage not in (ManeuverDamage.NONE, ManeuverDamage.NND):
-        # Choke Hold (6E2 p.86) is the one Grab that does damage as part of
-        # taking hold, and it is NND.
-        raise UnbuildableManeuver(name, effect, f"a Grab that also does {damage.value} damage")
-    if disarm and (damage is not ManeuverDamage.NONE or "target_falls" in seen):
-        raise UnbuildableManeuver(name, effect, "a Disarm with another effect")
-    if not (grab or disarm) and damage is ManeuverDamage.NONE:
-        raise UnbuildableManeuver(name, effect, "no damage, Grab or Disarm to resolve")
+    if damage is ManeuverDamage.NONE and not (
+            grab or disarm or grab_weapon or shove):
+        raise UnbuildableManeuver(
+            name, effect,
+            "no damage, Grab, Disarm, Takeaway or Shove to resolve (HD's damage "
+            "type NONE does no damage: kirby-cost Maneuver.does_damage)")
+    flash_sense = None
+    if damage is ManeuverDamage.FLASH:
+        flash_sense = _FLASH_SENSES.get((sense_input or "").strip().lower())
+        if flash_sense is None:
+            raise UnbuildableManeuver(
+                name, effect, f"a Flash against no Sense Group the engine knows ({sense_input!r})")
+        if seen - {"token", "strike"} or divisors:
+            raise UnbuildableManeuver(name, effect, "a Flash with another effect")
+
+    takes = sum(map(bool, (grab, disarm, grab_weapon, shove, crush)))
+    if takes > 1:
+        raise UnbuildableManeuver(name, effect, "two of Grab / Disarm / Takeaway / Shove / Crush")
+    if (disarm or shove) and (damage is not ManeuverDamage.NONE or "target_falls" in seen):
+        raise UnbuildableManeuver(name, effect, "a Disarm or Shove with another effect")
+    if grab_weapon and damage is not ManeuverDamage.NONE:
+        raise UnbuildableManeuver(name, effect, "a Takeaway that also does damage")
+    if crush and (must_follow is not MustFollow.GRAB or damage is not ManeuverDamage.NORMAL):
+        raise UnbuildableManeuver(name, effect, "a Crush that is not a Squeeze of a held man")
+    if must_follow is MustFollow.GRAB and (grab or grab_weapon or disarm or shove or fmove):
+        raise UnbuildableManeuver(name, effect, "a held man's maneuver that takes hold again")
+    if must_follow is MustFollow.BLOCK and (takes or fmove):
+        raise UnbuildableManeuver(name, effect, "a Block's follow-up that is not a blow")
+    if fmove and (must_follow or crush or grab_weapon or shove
+                  or damage is ManeuverDamage.FLASH):
+        raise UnbuildableManeuver(name, effect, "an FMove with an effect a charge cannot carry")
+    if divisors and damage is not ManeuverDamage.NORMAL:
+        raise UnbuildableManeuver(name, effect, "velocity damage on a non-Normal attack")
 
     return MartialEffect(
         damage=damage, damage_classes=int(damage_classes), adds_str=bool(adds_str),
         grab=grab, disarm=disarm, str_bonus=str_bonus,
         target_falls="target_falls" in seen, actor_falls="actor_falls" in seen,
+        grab_weapon=grab_weapon, shove=shove, crush=crush, fmove=fmove,
+        velocity_divisor=next(iter(divisors)) if divisors else None,
+        must_follow=must_follow,
+        choke=(grab and damage is ManeuverDamage.NND
+               and (hd_defense or "").upper() == HD_SPECIAL_DEFENSE),
+        flash_sense=flash_sense,
     )
 
 
@@ -223,7 +360,16 @@ def decode_maneuver(mv) -> MartialEffect:
     return decode_effect(
         name=mv.name, effect=mv.effect, damage=ManeuverDamage(mv.damage_type),
         damage_classes=mv.dc_bonus, adds_str=mv.add_str,
+        hd_defense=mv.hd_defense, sense_input=mv.sense_input,
     )
+
+
+def velocity_dcs(effect: MartialEffect, velocity_mps: float) -> int:
+    """+1 DC per FULL 10m (or 5m) of velocity; "anything less than that has
+    no effect" (6E2 p.101)."""
+    if effect.velocity_divisor is None:
+        return 0
+    return int(max(0.0, float(velocity_mps)) // effect.velocity_divisor)
 
 
 def killing_dice(damage_classes: int) -> tuple[int, bool, bool]:
@@ -247,13 +393,18 @@ def nnd_dice(damage_classes: int) -> tuple[int, bool]:
 #: The NND maneuvers' defense, for `resolution/defense.py`'s named-defense
 #: match. 6E2 p.94, Nerve Strike: "The target takes full damage from the
 #: Nerve Strike unless he has rigid armor protecting his vulnerable spots or
-#: PD Resistant Protection." Choke Hold's further defense (Life Support:
-#: Self-Contained Breathing, 6E2 p.86) is NOT matched by this text --- see
-#: the PR / CHANGELOG note; it is surfaced, not invented.
+#: PD Resistant Protection."
 NND_DEFENSE = "Resistant Protection (PD) or rigid armor"
+#: 6E2 p.86, Choke: "The defense against this NND is having rigid armor on
+#: the neck, Resistant Protection PD on the neck, or Life Support:
+#: Self-Contained Breathing." The last is matched by
+#: `defense._target_has_named_defense` on the combatant's own Life Support.
+CHOKE_DEFENSE = (
+    "Resistant Protection (PD) or rigid armor, or Life Support "
+    "(Self-Contained Breathing)")
 
 
-def maneuver_power(mv, effect: MartialEffect, *, strength: int):
+def maneuver_power(mv, effect: MartialEffect, *, strength: int, velocity_mps: float):
     """The ``AttackPower`` a maneuver's Attack Roll and damage go through.
 
     Built the way ``HeroCombatant.str_strike_view`` builds the bare Strike
@@ -261,12 +412,14 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int):
     the maneuver's OCV/DCV/DC") --- with the damage made the maneuver's:
 
     * NORMAL: STR dice (kirby-cost's ``strike_dice``, half die included,
-      6E2 p.98) + 1d6 per DC (6E2 p.101). STR only if the maneuver adds it.
+      6E2 p.98) + 1d6 per DC (6E2 p.101) + 1d6 per full 10m (5m) of
+      velocity (6E2 p.101). STR only if the maneuver adds it.
     * KILLING: DCs + STR/5 (6E2 p.93 "as if to an HKA"; 6E1 p.244), at 3 DC
       per die (6E2 p.99) --- the driver bumped Normal dice and switched the
       type, so a Killing Strike rolled 1d6 of Killing per DC.
     * NND: 1/2d6 per DC, no STR (6E2 p.99, p.101), STUN only (6E1 p.328).
-    * NONE (a Grab or Disarm): no damage dice; the roll is the whole of it.
+    * NONE (a Grab, Disarm, Takeaway or Shove) and FLASH: no damage dice; the
+      roll is the whole of it (a Flash rolls its own dice, 6E1 p.228).
 
     END: "They do not cost END to use, though the character has to pay END
     for any STR used with them" (6E2 p.93). So the power's Active Points are
@@ -282,7 +435,7 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int):
     full, half, plus_one, damage_type = 0, False, False, "normal"
     if effect.damage is ManeuverDamage.NORMAL:
         str_full, str_half = strike_dice(strength) if uses_str else (0, False)
-        full, half = str_full + dc, str_half
+        full, half = str_full + dc + velocity_dcs(effect, velocity_mps), str_half
     elif effect.damage is ManeuverDamage.KILLING:
         damage_type = "killing"
         full, half, plus_one = killing_dice(
@@ -298,7 +451,9 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int):
         range_m=0.0, uses_str=uses_str, str_min=0,
         armor_piercing=0, penetrating=0, increased_stun_mult=0,
         is_ranged=False, reach_m=mv.reach_m,
-        avad=nnd, avad_defense=NND_DEFENSE if nnd else "",
+        avad=nnd,
+        avad_defense=(CHOKE_DEFENSE if effect.choke
+                      else NND_DEFENSE if nnd else ""),
         active_points=int(strength) if uses_str else 0,
         reduced_end=not uses_str,
     )
@@ -309,9 +464,18 @@ def describe_effect(effect: MartialEffect, *, strength: int) -> str:
     from kirby_cost.engine.damage import str_damage_classes, strike_dice
 
     parts: list[str] = []
+    if effect.must_follow is MustFollow.BLOCK:
+        parts.append("after your Block")
+    if effect.must_follow is MustFollow.GRAB:
+        parts.append("on the man you hold")
+    if effect.fmove:
+        parts.append("at the end of a Full Move")
     if effect.damage is ManeuverDamage.NORMAL:
         full, half = (strike_dice(strength) if effect.adds_str else (0, False))
-        parts.append(f"{full + effect.damage_classes}{'½' if half else ''}d6")
+        vel = (f" +1d6 per {effect.velocity_divisor}m of velocity"
+               if effect.velocity_divisor else "")
+        parts.append(f"{full + effect.damage_classes}{'½' if half else ''}d6"
+                     f"{vel}{' Squeeze' if effect.crush else ''}")
     elif effect.damage is ManeuverDamage.KILLING:
         f, h, p = killing_dice(effect.damage_classes + (
             str_damage_classes(strength) if effect.adds_str else 0))
@@ -319,13 +483,19 @@ def describe_effect(effect: MartialEffect, *, strength: int) -> str:
     elif effect.damage is ManeuverDamage.NND:
         f, h = nnd_dice(effect.damage_classes)
         parts.append(f"{f}{'½' if h else ''}d6 NND")
+    elif effect.damage is ManeuverDamage.FLASH:
+        parts.append(f"{effect.damage_classes}d6 Flash ({effect.flash_sense})")
+    bonus = f" (+{effect.str_bonus} STR)" if effect.str_bonus else ""
     if effect.grab:
         parts.append("Grab" + (f" (+{effect.str_bonus} STR to hold)" if effect.str_bonus else ""))
     if effect.disarm:
-        parts.append("Disarm" + (f" (+{effect.str_bonus} STR)" if effect.str_bonus else ""))
+        parts.append("Disarm" + bonus)
+    if effect.grab_weapon:
+        parts.append("take his weapon" + bonus)
+    if effect.shove:
+        parts.append(f"Shove {(strength + effect.str_bonus) // 5}m")
     if effect.target_falls:
         parts.append("target falls")
     if effect.actor_falls:
         parts.append("you fall")
     return ", ".join(parts)
-

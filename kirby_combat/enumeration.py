@@ -212,6 +212,12 @@ _HTH_ACTION_KINDS: frozenset[str] = frozenset({
 # ``target_id`` only to name the destination, so the targeting gate skips them;
 # perception is re-evaluated at strike-resolution time. (``move_by`` /
 # ``move_through`` are velocity attacks but are movement-led, same reasoning.)
+# The escape ladder (6E2 p.64-66, 6E1 p.217): its ``target_id`` names the
+# man or Entangle HOLDING the actor, not a target he must perceive.
+_ESCAPE_KINDS: frozenset[str] = frozenset({
+    "escape_str", "escape_attack", "escape_ego", "escape_teleport",
+})
+
 _MOVEMENT_ACTION_KINDS: frozenset[str] = frozenset({
     "move", "move_strike", "move_by", "move_through",
 })
@@ -297,6 +303,10 @@ class LegalAction:
     # menu described rather than looking one up again. None for every other
     # kind.
     _maneuver_view: Any = None
+    # The `weapons.Weapon` a ``disarm`` / Takeaway ``maneuver`` /
+    # ``pick_up_weapon`` offer names: which object in which hand (or on which
+    # spot of ground). None for every other kind.
+    _weapon: Any = None
     # Movement spec §3: the movement mode for move / move_strike kinds
     # (running | leaping | flight | teleportation | swimming | tunneling).
     # None for non-movement actions. Defaults to "running" for the bare
@@ -621,7 +631,7 @@ ALL_ACTION_KINDS = frozenset({
     "mind_scan", "move_to_cover",
     "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
     "move_strike", "move_through", "multiple_attack", "persuasion",
-    "pickup", "presence_attack", "presence_attack_group", "push",
+    "pickup", "pick_up_weapon", "presence_attack", "presence_attack_group", "push",
     "rapid_fire", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_push", "reposition_strike",
     "stabilize", "stand_up",
@@ -715,6 +725,8 @@ def enumerate_actions(
     allies: list[HeroCombatant] | None = None,
     mind_scan_locks: frozenset[str] | None = None,
     prone: bool = False,
+    weapons: Any = None,
+    block_follow_ups: frozenset[str] | None = None,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -1224,54 +1236,18 @@ def enumerate_actions(
         maneuvers = list(actor.maneuver_view())
     except Exception:
         maneuvers = []
-    from kirby_combat.actions.maneuver_effects import (
-        UnbuildableManeuver, decode_maneuver, describe_effect,
-    )
+    # ONLY WHAT THE ENGINE CAN RESOLVE, gated on what each maneuver must
+    # follow and how it reaches him: `actions/martial_offers.py`. Every one
+    # used to be offered and raise `UnresolvableAction` (prod 2026-10-26: a
+    # 500 on /run); a refused maneuver is not offered.
+    from kirby_combat.actions.martial_offers import maneuver_offers
 
-    for mv in maneuvers:
-        if not getattr(mv, "is_attack", False) or getattr(
-            mv, "category_is_ranged", False
-        ):
-            continue
-        # ONLY WHAT THE ENGINE CAN RESOLVE. Every one of these used to be
-        # offered and every one raised `UnresolvableAction` (prod
-        # 2026-10-26: a 500 on /run). `decode_maneuver` refuses the HD
-        # elements with no faithful rule here (FMove, Must Follow ...,
-        # Crush, Bind, Shove, Grab Weapon ...), and a refused maneuver is
-        # not offered --- the menu does not promise what the resolver
-        # would have to approximate.
-        try:
-            effect = decode_maneuver(mv)
-        except UnbuildableManeuver:
-            continue
-        mv_name = getattr(mv, "name", None) or "Maneuver"
-        mv_ocv = getattr(mv, "ocv", 0)
-        mv_dcv = getattr(mv, "dcv", 0)
-        mv_does = describe_effect(effect, strength=int(s.str_))
-        for enemy in alive_enemies:
-            gate = _melee_gate(enemy.id)
-            if gate == "block":
-                continue
-            if gate == "close":
-                # NOT OFFERED. A maneuver at the end of a move was a
-                # `move_strike` with no attack on it, so the resolver moved
-                # and struck nobody. The `maneuver` resolver now rolls the
-                # blow, but `move_strike` does not yet compose with it, so a
-                # close-and-maneuver is still not on the menu.
-                continue
-            actions.append(LegalAction(
-                action_id=f"maneuver:{enemy.id}:{mv.maneuver_id}",
-                kind="maneuver",
-                target_id=enemy.id,
-                power_xmlid="MANEUVER",
-                power_name=mv_name,
-                summary=(
-                    f"{mv_name} vs {_friendly(enemy)} "
-                    f"(OCV {mv_ocv:+d}/DCV {mv_dcv:+d} until your next "
-                    f"phase; {mv_does})"
-                ),
-                _maneuver_view=mv,
-            ))
+    actions.extend(maneuver_offers(
+        actor, maneuvers=maneuvers, enemies=alive_enemies,
+        melee_gate=_melee_gate, friendly=_friendly, strength=int(s.str_),
+        scene=scene, held_target_ids=held_target_ids or frozenset(),
+        block_follow_ups=block_follow_ups or frozenset(), weapons=weapons,
+    ))
 
     # Task 8: Multipower reallocate offer.  When the actor has a power
     # framework with >1 slot, offer one
@@ -2655,26 +2631,19 @@ def enumerate_actions(
                     f"melee attackers next phase)"
                 ),
             ))
-    # PR-35: Disarm — knock a weapon out of the target's hand (6E2
-    # p65). -2 OCV. v1 narrative-only: lands an event in the audit log
-    # but doesn't mechanically remove a weapon (we don't track weapons
-    # granularly yet). Useful for the picker's strategic vocabulary.
+    # Disarm --- knock a weapon out of the target's hand (6E2 p.62). Offered
+    # per weapon in his hand (`kirby_combat.weapons`): a man holding nothing
+    # has nothing to be disarmed of. And picking one up off the ground (6E2
+    # p.25, p.62), within reach or a Half Move.
+    from kirby_combat.actions.martial_offers import disarm_offers, pick_up_offers
+
     if s.str_ >= 5:
-        for enemy in alive_enemies:
-            # Reach spec §2 (extended): Disarm is a pure STR melee maneuver —
-            # offer ONLY within reach (direct band). Suppress on close/block.
-            if _melee_gate(enemy.id) != "direct":
-                continue
-            actions.append(LegalAction(
-                action_id=f"disarm:{enemy.id}",
-                kind="disarm",
-                target_id=enemy.id,
-                power_xmlid="DISARM", power_name="Disarm",
-                summary=(
-                    f"Disarm {_friendly(enemy)}: half-phase, -2 OCV, "
-                    f"strip their weapon (narrative effect this phase)"
-                ),
-            ))
+        actions.extend(disarm_offers(
+            enemies=alive_enemies, melee_gate=_melee_gate, friendly=_friendly,
+            weapons=weapons))
+    actions.extend(pick_up_offers(
+        actor, scene=scene, weapons=weapons, reach_m=reach_m,
+        half_move_m=half_move_m))
     # PR-33: Move-By + Move-Through — velocity-based maneuvers per
     # 6E2 p72. Both require a scene (positions must exist) and at
     # least minimal RUNNING. Move-By is half-phase, Move-Through
@@ -3111,6 +3080,14 @@ def enumerate_actions(
                 continue
             if a.kind in _MOVEMENT_ACTION_KINDS:
                 gated.append(a)          # movement is repositioning, not a lock
+                continue
+            if a.kind in _ESCAPE_KINDS:
+                # Breaking free of the man who HOLDS him is not a shot at
+                # somebody he must see: he has hold of him. The gate dropped
+                # a Grab's escape whenever the grabber was Invisible or out
+                # of sight, so a man held by Ravel (Active Camouflage) was
+                # offered no way out in any fight (6E2 p.64-66 give him one).
+                gated.append(a)
                 continue
             perc = perc_by_enemy.get(tid)
             if perc is None:

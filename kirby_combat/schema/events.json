@@ -3617,6 +3617,92 @@
       ],
       "title": "Wall",
       "type": "object"
+    },
+    "WeaponMoved": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "WeaponMoved",
+          "enum": [
+            "WeaponMoved"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "by_id": {
+          "type": "string"
+        },
+        "cause": {
+          "type": "string"
+        },
+        "holder_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "WeaponMoved",
+          "enum": [
+            "WeaponMoved"
+          ],
+          "type": "string"
+        },
+        "on_map": {
+          "type": "boolean"
+        },
+        "owner_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "weapon_id": {
+          "type": "string"
+        },
+        "weapon_name": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "owner_id",
+        "weapon_id",
+        "weapon_name",
+        "holder_id",
+        "on_map",
+        "x",
+        "y",
+        "z",
+        "cause",
+        "by_id"
+      ],
+      "title": "WeaponMoved",
+      "type": "object"
     }
   },
   "$id": "urn:kirby-combat:schema:events:0.22.1",
@@ -3738,6 +3824,9 @@
     },
     {
       "$ref": "#/$defs/VitalsChanged"
+    },
+    {
+      "$ref": "#/$defs/WeaponMoved"
     }
   ],
   "title": "CombatEvent",

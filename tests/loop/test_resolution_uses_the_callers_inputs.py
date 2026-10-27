@@ -63,7 +63,10 @@ class _NotThisOne(RandomRoller):
 #: Every kind the menu below offers, so a kind that stops being offered
 #: fails loudly rather than dropping out of the check.
 KINDS = [
-    "attack", "block", "disarm", "disengage", "dodge", "grab", "haymaker",
+    # (Disarm needs a weapon in his hand, which these stat blocks do not
+    # carry; it is pinned with the caller's roller in
+    # `tests/loop/test_maneuvers_complete.py`.)
+    "attack", "block", "disengage", "dodge", "grab", "haymaker",
     "hold", "move", "move_by", "move_strike", "move_through",
     "multiple_attack", "presence_attack", "presence_attack_group", "push",
     "rapid_fire", "set", "strike", "sweep", "trip",

@@ -233,6 +233,15 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         who = event.target_id if kind == "PowerDispelled" else event.combatant_id
         return fold_dispel(replace(session, event_log=new_log, updated_at=now), who)
 
+    if kind == "WeaponMoved":
+        # Out of his hand is off for him, for every reader: the same fold a
+        # Dispel takes (`kirby_combat.weapons`). The holder gains nothing
+        # (6E1 p.382; see the module's ruling), so only the owner is folded.
+        from kirby_combat.actions.dispel import fold_dispel
+
+        return fold_dispel(replace(session, event_log=new_log, updated_at=now),
+                           event.owner_id)
+
     if kind == "BarrierRaised":
         return _fold_barrier(session, new_log, now, event)
 

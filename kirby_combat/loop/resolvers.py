@@ -1575,17 +1575,15 @@ def _resolve_maneuver(
     - Grab and Disarm maneuvers grab and disarm, through the same rows the
       plain Grab and Disarm write.
 
-    The Attack Roll goes through ``_maneuver_attack`` ->
+    The Attack Roll goes through ``martial_resolution.martial_attack`` ->
     ``resolve_attack_in_session`` as Trip and Disarm do, so blindness,
-    Dodges, Surprise, Drains and cover reach it exactly as they reach a
-    punch.
+    Dodges, Surprise, Drains, cover and a Grab's CV reach it exactly as they
+    reach a punch.
     """
-    from kirby_combat.actions.grab import Grab
     from kirby_combat.actions.maneuver_effects import (
-        UnbuildableManeuver, decode_maneuver, maneuver_power,
+        UnbuildableManeuver, decode_maneuver,
     )
-    from kirby_combat.actions.martial_arts import MANEUVER_DCV_DELTA
-    from kirby_combat.statuses import FELL
+    from kirby_combat.actions.martial_resolution import resolve_martial
 
     mv = action._maneuver_view
     if mv is None or action.target_id not in session.combatants:
@@ -1596,62 +1594,11 @@ def _resolve_maneuver(
         # Enumeration never offers one; a hand-built offer that names one is
         # refused, never resolved as something nearby.
         raise UnresolvableAction(action.kind, action.action_id) from exc
-
-    strength = int(actor.combat_stats().str_)
-    target = session.combatants[action.target_id]
-    power = maneuver_power(mv, effect, strength=strength)
-
-    def _maneuver_payload(result) -> dict:
-        hit = bool(result.hit)
-        fell = []
-        if hit and effect.target_falls:
-            fell.append(target.id)
-        # JUDGEMENT: the thrower goes down when the throw is made. 6E2 p.94
-        # describes Sacrifice Throw's fall as part of the throw landing ("the
-        # victim ... must land within 2m of the Thrower - and the Thrower
-        # himself ends up prone"); it says nothing of a miss.
-        if hit and effect.actor_falls:
-            fell.append(actor.id)
-        payload = {
-            "maneuver_id": mv.maneuver_id,
-            "maneuver_ocv_delta": int(mv.ocv),
-            "maneuver_dc_bonus": effect.damage_classes,
-            "target_falls": effect.target_falls,
-            "is_prone_after": target.id in fell,
-            FELL: fell,
-            # 6E2 p.68: a Grab that lands puts the grabber at 1/2 DCV, which
-            # "replaces the -2 DCV penalty, it's not in addition to it".
-            MANEUVER_DCV_DELTA: (None if (effect.grab and hit) else int(mv.dcv)),
-        }
-        if effect.grab:
-            # THE ROW `Grab.is_grabbed` FOLDS, written on the attack's own
-            # row: one Attack Roll took hold, so there is one row.
-            payload.update({
-                "type": "grab", "success": hit,
-                "attacker_id": actor.id,
-                "attacker_str": strength + effect.str_bonus,
-                "target_str": int(target.combat_stats().str_),
-                Grab.HOLDING_STR_BONUS: effect.str_bonus,
-            })
-        if effect.disarm:
-            # As the plain Disarm (6E2 p.65): the Attack Roll is real and
-            # this engine tracks no weapons to take, so the hit and the STR
-            # the contest would be rolled with are what reach the log.
-            payload["disarm_str"] = strength + effect.str_bonus
-        return payload
-
-    new_session, result = _maneuver_attack(
-        session, actor, action, template=template, roller=roller,
-        power=power, ocv_modifier=int(mv.ocv),
-        # A half die is a die rolled (`compute_damage` reads the last one).
-        damage_dice=power.damage_dice + (1 if power.half_die else 0),
-        action_type="grab" if effect.grab else "strike",
-        payload_extras=_maneuver_payload,
-    )
-    return ResolvedAction(
-        session=new_session, kind=action.kind, action_id=action.action_id,
-        result=result, events=_events_since(session, new_session),
-    )
+    # Every family --- Strike, Grab, Disarm, Takeaway, Shove, Flash, the held
+    # man's Crush and Throw, the Block's follow-up, the charge --- is carried
+    # out in `actions/martial_resolution.py`.
+    return resolve_martial(session, actor, action, mv, effect,
+                           template=template, roller=roller)
 
 
 # ---------------------------------------------------------------------------
@@ -1784,14 +1731,32 @@ def _resolve_grab_escape(
 
     casual = action.action_id.endswith(":casual")
     own_str = int(actor.combat_stats().str_)
+    # MARTIAL ESCAPE (6E2 p.94): "The character adds the STR from this
+    # maneuver to his own STR when rolling BODY to break out from a Grab".
+    # A maneuver is a Half Phase Action (6E2 p.93), so it is the full
+    # attempt that uses it; the Casual roll that takes no time does not.
+    from kirby_combat.actions.reactive.martial import escape_maneuver
+
+    martial = None if casual else escape_maneuver(actor)
     new_session, result = Grab.escape(
         session,
         escaper_id=actor.id,
-        escaper_str=own_str // 2 if casual else own_str,
+        escaper_str=(own_str // 2 if casual
+                     else own_str + (martial.str_bonus if martial else 0)),
         # A Martial Grab holds on with more than its STR (6E2 p.94).
         grabber_str=(int(session.combatants[grabber_id].combat_stats().str_)
                      + Grab.holding_str_bonus(session, actor.id)),
     )
+    if martial is not None and martial.grabber_falls and result.success:
+        # A custom "[DAMAGE] vs Grabs, Target Falls": the break-out throws
+        # the man who held him. RULING: on a successful escape, the only
+        # roll the maneuver makes.
+        from kirby_combat.statuses import FELL
+
+        new_session = _record_outcome(new_session, actor, action, {
+            "kind": "martial_escape", "maneuver": martial.name,
+            "target_id": grabber_id, FELL: [grabber_id],
+        })
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -2733,24 +2698,100 @@ def _resolve_disarm(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Disarm (6E2 p.65): −2 OCV to knock a weapon out of the target's hand.
+    """Disarm (6E2 p.62): -2 OCV to knock a weapon out of the target's hand.
 
-    THE ATTACK ROLL IS REAL; THE DISARMING IS NOT YET. This engine does not
-    track weapons per combatant --- there is no inventory to remove one from
-    --- so a successful Disarm lands in the log and takes nothing away.
-    Enumeration has said so in its own comment since the offer was written
-    ("v1 narrative-only ... doesn't mechanically remove a weapon"), and this
-    resolver matches that rather than pretending otherwise. When weapons
-    become first-class, the hit recorded here is what a consequence hangs
-    off.
+    THE DISARMING IS REAL NOW. This engine tracked no weapons, so a Disarm
+    that landed took nothing away. The offer names the weapon
+    (`kirby_combat.weapons`, an Accessible Focus in the target's hand,
+    6E1 p.379), and 6E2 p.62 decides it: "If the Attack Roll succeeds, the
+    two characters engage in a STR Versus STR Contest: each rolls 1d6 per 5
+    points of STR and counts the Normal Damage BODY. If the attacker's BODY
+    total is higher or the rolls tie, the Disarm succeeds and the target's
+    weapon or object goes flying 1d6+1 meters in the direction of the
+    strike". Off his sheet until somebody picks it up (`pick_up_weapon`).
+
+    NOT MODELLED: p.62's optional modifiers (unarmed against a weapon,
+    two-handed weapons, a Surprised target's Casual STR, a Martial Disarm's
+    STR resisting), each "the GM may wish to" apply.
     """
+    from kirby_combat import weapons as W
+
+    weapon = action._weapon
+    target = session.combatants.get(action.target_id) if action.target_id else None
+    if weapon is None or target is None or W.holder_of(session, weapon) != target.id:
+        raise UnresolvableAction(action.kind, action.action_id)
+    strength = int(actor.combat_stats().str_)
+    won: dict = {}
+
+    def _disarm_payload(result) -> dict:
+        p = {"kind": "disarm", "target_id": target.id,
+             "weapon_owner_id": weapon.owner_id, "weapon_id": weapon.weapon_id,
+             "weapon_name": weapon.name, "disarm_str": strength}
+        if result.hit:
+            contest = W.disarm_contest(
+                roller, attacker_str=strength,
+                defender_str=int(target.combat_stats().str_))
+            p["disarm_contest"] = contest
+            won["yes"] = contest["won"]
+        return p
+
     new_session, result = _maneuver_attack(
         session, actor, action, template=template, roller=roller,
         power=actor.str_strike_view(), ocv_modifier=-2, damage_dice=0,
+        payload_extras=_disarm_payload,
     )
+    if won.get("yes"):
+        new_session, _landing = W.knock_away(
+            new_session, weapon, attacker_id=actor.id, target_id=target.id,
+            roller=roller)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
+    )
+
+
+@resolves("pick_up_weapon")
+def _resolve_pick_up_weapon(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Pick a weapon up off the ground (6E2 p.25: "Pick up Disarmed weapon,
+    time required = 1/2 Phase"; p.62: "Recovering a Disarmed weapon typically
+    requires a Half Phase Action to move to the weapon ... plus another Half
+    Phase Action to pick it up").
+
+    The offer says whether he must move first (``reposition_dest`` is the
+    weapon's spot): a Half Move to it, then the pick-up. Back in its owner's
+    hand it is his again (`apply_event` folds it back onto his sheet); in
+    anybody else's it is out of the owner's reach and no use to the holder
+    (`kirby_combat.weapons`' ruling, 6E1 p.382).
+    """
+    from kirby_combat import weapons as W
+    from kirby_combat.placement import move_toward
+    from kirby_world.geometry import distance_3d
+    from kirby_world.occupancy import position_of
+    from kirby_world.scene import Position
+
+    weapon = action._weapon
+    if weapon is None or not W.on_ground(session, weapon):
+        raise UnresolvableAction(action.kind, action.action_id)
+    spot = W.ground_position(session, weapon)
+    start = session
+    if spot is not None:
+        reach = float(getattr(actor.combat_stats(), "reach_m", 1.0) or 1.0)
+        if action.reposition_dest is not None:
+            dest = Position(*action.reposition_dest)
+            session, _ = move_toward(session, actor.id, _stop_at_reach(
+                position_of(session.scene, actor.id), dest, reach),
+                mode="running", distance_m=_half_move(actor))
+        here = position_of(session.scene, actor.id)
+        if here is None or distance_3d(here, spot) > reach + 1e-6:
+            raise UnresolvableAction(action.kind, action.action_id)
+    session = W.move_weapon(session, weapon, by_id=actor.id, cause=W.PICKED_UP,
+                            holder_id=actor.id, position=None)
+    return ResolvedAction(
+        session=session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(start, session),
     )
 
 

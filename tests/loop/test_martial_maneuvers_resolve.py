@@ -40,12 +40,9 @@ from kirby_dice import RandomRoller
 import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
 from kirby_combat.actions import recording
 from kirby_combat.actions.grab import Grab
-from kirby_combat.enumeration import enumerate_actions
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
-from kirby_combat.loop.run import distances_from
 from kirby_combat.models import AttackInput, DiceValues
-from kirby_combat.roster import Roster
 from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds,
 )
@@ -122,31 +119,29 @@ BUILT = [
 
 #: Maneuvers HD can build whose effect this engine cannot carry faithfully.
 #: Each must stay OFF the menu --- see `kirby_combat/actions/maneuver_effects.py`.
+#: (FMove, Must Follow, Crush, Takeaway, Shove and Martial Flash are built
+#: now: `tests/loop/test_maneuvers_complete.py`.)
 NOT_BUILT = [
-    _maneuver("x-tackle", "Flying Tackle",
-              "[NORMALDC] +v/10 Strike; You Fall, Target Falls; FMove",
-              ocv="+0", dcv="-1", dc=0, add_str=True),
-    _maneuver("x-counter", "Counterstrike",
-              "[NORMALDC] Strike, Must Follow Block",
-              ocv="+2", dcv="+2", dc=2, add_str=True),
-    _maneuver("x-crush", "Crush", "[NORMALDC] Crush, Must Follow Grab",
-              ocv="+0", dcv="+0", dc=4, add_str=True),
-    _maneuver("x-takeaway", "Takeaway",
-              "Grab Weapon, [STRDC] to take weapon away",
-              ocv="+0", dcv="+0", dc=2, add_str=True),
-    _maneuver("x-shove", "Shove", "[STRDC] to Shove",
-              ocv="+0", dcv="+0", dc=3, add_str=True),
+    # Bind: a HERO System Martial Arts element with no 6E core mechanic.
     _maneuver("x-bind", "Weapon Bind", "Bind, [STRDC]",
               ocv="+1", dcv="+0", dc=2, add_str=True),
-    _maneuver("x-flash", "Martial Flash", "[FLASHDC]",
-              ocv="-1", dcv="-1", dc=4, add_str=False),
+    # Disable: 6E2 p.111-113's optional Impairing/Disabling over Hit Locations.
     _maneuver("x-break", "Joint Break", "Grab One Limb; [KILLINGDC], Disable",
               ocv="-1", dcv="-2", dc=4, add_str=True),
     # HD's own output for a custom "Strike" with damage type NONE is the
-    # bare word: it states no damage, and none is guessed at.
+    # bare word: it does no damage (kirby-cost Maneuver.does_damage).
     _maneuver("x-custom", "Custom Maneuver", "Strike",
               ocv="+1", dcv="-2", dc=4, add_str=True),
+    # A Martial Flash bought against no Sense Group (no INPUT).
+    _maneuver("x-flash", "Martial Flash", "[FLASHDC]",
+              ocv="-1", dcv="-1", dc=4, add_str=False),
+    # A hand-written STR figure HD never costed.
+    _maneuver("x-cobra", "Cobra Grab", "Grab Two Limbs, 60 STR for holding on",
+              ocv="-1", dcv="-1", dc=2, add_str=True),
 ]
+
+#: The maneuvers whose offer names a weapon in the target's hand.
+ARMED = {"Martial Disarm"}
 
 #: One Extra Damage Class (6E2 p.94): +1 DC to every maneuver, +5 STR to a
 #: maneuver that grants STR for a limited purpose.
@@ -186,7 +181,21 @@ def _mark():
     )
 
 
-def _session(actor) -> CombatSession:
+def _armed_mark():
+    """Bokor, as imported: his Mojo Hand is an Obvious Accessible Focus
+    (6E1 p.379), the thing a Disarm takes."""
+    return replace(HeroCombatant.from_build(require_authored("Bokor"), id="mark"),
+                   side=Side.named("b"))
+
+
+def _session_for(name: str, actor=None) -> CombatSession:
+    """A mat on which ``name`` has something to act on."""
+    actor = actor if actor is not None else _student()
+    return _session(actor, mark=_armed_mark() if name in ARMED else None)
+
+
+def _session(actor, mark=None) -> CombatSession:
+    mark = mark if mark is not None else _mark()
     scene = Scene(
         id="mat", name="Mat", bounds=SceneBounds(0, 0, 0, 40, 40, 10),
         surfaces=[], walls=[], hazards=[], ambient=AmbientConditions(),
@@ -195,24 +204,26 @@ def _session(actor) -> CombatSession:
     return CombatSession.create(
         id="s", scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
-        combatants=[actor, _mark()],
+        combatants=[actor, mark],
     ).start()
 
 
 def _menu(session, actor_id: str = "ravel"):
-    """The menu as `run_phase` asks for it."""
-    actor = session.combatants[actor_id]
-    enemies = Roster(session).enemies_of(actor)
-    return enumerate_actions(
-        actor, enemies, has_scene=True, scene=session.scene,
-        distances=distances_from(session.scene, actor, enemies),
-        movement=list(actor.movement_view()),
-        grabbed_by=Grab.is_grabbed(session, actor_id)[1],
-    )
+    """The menu `run_phase` builds --- its own door, so every fact it folds
+    from the fight (who holds what weapon, who is holding whom) is fed."""
+    from kirby_combat.loop.run import _situation_for
+
+    return _situation_for(session, actor_id).menu
 
 
 def _maneuvers(session) -> dict[str, object]:
     return {a.power_name: a for a in _menu(session) if a.kind == "maneuver"}
+
+
+def _row(session) -> dict:
+    """The last action row's payload (a Disarm writes a `WeaponMoved` after it)."""
+    return next(e.result_payload for e in reversed(session.event_log)
+                if e.kind == "ActionResolved")
 
 
 def _resolve(session, offer, roller):
@@ -330,7 +341,7 @@ class _PicksFor:
 # ---------------------------------------------------------------------------
 
 def test_every_6e2_maneuver_is_offered_and_every_unbuildable_one_is_not():
-    offered = set(_maneuvers(_session(_student())))
+    offered = set(_maneuvers(_session(_student(), mark=_armed_mark())))
     assert offered >= {m["display"] for m in BUILT}
     refused = {m["display"] for m in NOT_BUILT} & offered
     assert not refused, f"offered but not buildable: {sorted(refused)}"
@@ -339,11 +350,11 @@ def test_every_6e2_maneuver_is_offered_and_every_unbuildable_one_is_not():
 @pytest.mark.parametrize("name", [m["display"] for m in BUILT])
 @pytest.mark.parametrize("dice", [_AlwaysLow, _AlwaysHigh], ids=["hit", "miss"])
 def test_every_offered_maneuver_resolves(name, dice):
-    session = _session(_student())
+    session = _session_for(name)
     offer = _maneuvers(session)[name]
     resolved = _resolve(session, offer, dice(seed=1))
     assert resolved.events, f"{name} recorded nothing"
-    payload = resolved.session.event_log[-1].result_payload
+    payload = _row(resolved.session)
     assert payload["maneuver_id"] == offer._maneuver_view.maneuver_id
     assert payload["hit"] is (dice is _AlwaysLow)
 
@@ -367,7 +378,7 @@ def test_an_offer_without_its_maneuver_refuses():
     ("Choke Hold", -2), ("Martial Disarm", -1),
 ])
 def test_the_maneuvers_ocv_reaches_its_attack_roll(name, ocv, rolled):
-    session = _session(_student())
+    session = _session_for(name)
     _resolve(session, _maneuvers(session)[name], _AlwaysLow(seed=1))
     (attack,) = rolled
     # The door may add its own conditions; none apply on an open mat, so
@@ -382,7 +393,7 @@ def test_the_maneuvers_ocv_reaches_its_attack_roll(name, ocv, rolled):
 def test_the_maneuvers_dcv_lasts_until_his_next_phase(name, dcv):
     """6E2 p.68: a maneuver's DCV modifier stays with him "until his next
     Phase". Read through the same door every attack on him takes."""
-    session = _session(_student())
+    session = _session_for(name)
     assert _attack_on(session, "ravel").dcv_modifier == 0
     after = _resolve(session, _maneuvers(session)[name], _AlwaysHigh(seed=1)).session
     assert _attack_on(after, "ravel").dcv_modifier == dcv
@@ -508,9 +519,9 @@ def test_martial_grabs_holding_str_resists_the_escape():
 
 
 def test_martial_disarm_records_its_contest_str():
-    session = _session(_student())
+    session = _session_for("Martial Disarm")
     after = _resolve(session, _maneuvers(session)["Martial Disarm"],
                      _AlwaysLow(seed=1)).session
-    payload = after.event_log[-1].result_payload
+    payload = _row(after)
     assert payload["disarm_str"] == 10 + 15
     assert payload["stun_dealt"] == 0 and payload["body_dealt"] == 0
