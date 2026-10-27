@@ -77,7 +77,12 @@ class CombatantLine:
     PERCEPTION --- an actor cannot target what it cannot perceive --- not by
     hiding numbers from whoever is choosing. Showing STUN and DCV but
     withholding, say, power names would be inconsistent rather than
-    principled.
+    principled. The same line is why a combatant the actor cannot perceive
+    at all gets his name on the page and nothing else (`Brief._combatant_block`).
+
+    This is the HEAD of a combatant's entry. What sits under it on the
+    page --- SPD, defenses, the mental numbers, health and status, what is
+    being done to him, his powers by name --- is `brief_detail.detail_lines`.
     """
 
     combatant: object
@@ -525,7 +530,39 @@ class Brief:
 
     @property
     def menu(self) -> list["LegalAction"]:
-        return list(self._situation.menu)
+        """The offers in READING order: `PhaseSituation.ordered_menu`,
+        scenery last.
+
+        The page listed `situation.menu` raw while both shipped choosers
+        read `ordered_menu`, so the one reader that decides by reading was
+        the one still handed six wall attacks before the first man --- the
+        exact order `ordered_menu` was written to undo. Same set, same
+        ids; only the order a reader meets them in.
+        """
+        return list(self._situation.ordered_menu)
+
+    @property
+    def sightings(self):
+        """What the actor perceives of each enemy, as the menu's gate does.
+        See `kirby_combat.brief_detail.sightings`."""
+        from kirby_combat.brief_detail import sightings
+
+        return sightings(self._situation)
+
+    def _combatant_block(self, line: CombatantLine, seen, *, actor: bool) -> list[str]:
+        """A combatant's head line and, below it, his detail.
+
+        An enemy the actor cannot perceive is named and no more: his
+        condition is something you learn by looking. See
+        `kirby_combat.brief_detail`.
+        """
+        from kirby_combat.brief_detail import detail_lines
+
+        sighting = seen.get(line.combatant.id) if seen is not None else None
+        if sighting is not None and not sighting.perceived:
+            return [f"{line.name} [{line.side}]: you cannot perceive him"]
+        detail = detail_lines(self._situation, line.combatant, complications=not actor)
+        return [line.render(), *(f"    {d}" for d in detail)]
 
     @property
     def action_ids(self) -> list[str]:
@@ -559,24 +596,53 @@ class Brief:
         an A/B arm stops being an arm). With extras and no doctrine of
         its own, the section opens with the extras alone.
         """
+        from kirby_combat import brief_detail as detail
+
         situation = self._situation
+        seen = self.sightings
+        you = self._combatant_block(self.actor, None, actor=True)
         lines = [
             f"Turn {situation.turn}, Segment {situation.segment}.",
             "",
-            f"YOU control: {self.actor.render()}",
+            f"YOU control: {you[0]}",
+            *you[1:],
         ]
+
+        # WHY HIS MENU IS WHAT IT IS, and what will bite him, before anything
+        # else about the fight. See `brief_detail.order_lines` for the ruling.
+        heads_up = [*detail.order_lines(situation), *detail.warning_lines(situation)]
+        if heads_up:
+            lines.append("")
+            lines.extend(heads_up)
 
         if self.allies:
             lines.append("")
             lines.append("Allies:")
-            lines.extend(f"  {line.render()}" for line in self.allies)
+            for ally in self.allies:
+                lines.extend(f"  {row}" for row in
+                             self._combatant_block(ally, seen, actor=False))
 
         lines.append("")
         lines.append("Enemies:" if self.enemies else "Enemies: none standing.")
-        lines.extend(f"  {line.render()}" for line in self.enemies)
+        for enemy in self.enemies:
+            lines.extend(f"  {row}" for row in
+                         self._combatant_block(enemy, seen, actor=False))
 
         lines.append("")
         lines.append(self.terrain.render())
+
+        # NO HEADING OVER NOTHING, for each of these: most Phases have no
+        # unseen enemy, no decisive matchup and no framework.
+        for heading, rows in (
+            ("Reaching them:", detail.reach_lines(situation, seen)),
+            ("What you perceive:", detail.perception_lines(situation, seen)),
+            ("The matchup:", detail.matchup_lines(situation, seen)),
+            ("Frameworks:", detail.framework_lines(situation)),
+        ):
+            if rows:
+                lines.append("")
+                lines.append(heading)
+                lines.extend(f"  {row}" for row in rows)
 
         # WHAT THE SIDE WANTS, which is not the same as what the man
         # wants. See `Side.objective`.

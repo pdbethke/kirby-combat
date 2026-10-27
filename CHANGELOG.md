@@ -37,6 +37,53 @@ every Phase, and defaulted missing rolls to 11-; all three are corrected.
 **Schema change: needs a MINOR bump.** New event kinds `PresenceYielded`,
 `RageRolled`, `RageTargeted` (`schema/events.json` regenerated).
 
+**The Brief carries what the deleted page carried.** The consumer-side page
+builder removed in the 2026-09-17 harness refactor showed far more than the
+engine's Brief kept (STUN, BODY, END, OCV, DCV, role, DOWN). Ported into
+`kirby_combat/brief_detail.py`, each section reading the fold or view the
+rules already use:
+- **Per perceived combatant** (actor, allies, enemies): SPD, PD/rPD, ED/rED,
+  PRE (6E2 p.138), EGO, OMCV/DMCV, MD, INT; the health rung from
+  `health.classify_health` and the visible statuses from `statuses_for`
+  (Stunned 6E2 p.106, recovering p.107, prone, grabbed, aborted, knocked out,
+  dead); physical Entangle (6E1 p.217) and, to its victim only, Mental
+  Paralysis (6E1 p.219); Drains and Aids; an active Presence Attack; held
+  actions; attacks taken this Turn; Damage Reduction / Negation; Trigger and
+  Limited Power texts; the identity a character with Only In Alternate
+  Identity purchases is in (6E1 p.388); powers by their authored names
+  (capped at 8); and, for allies and enemies, their complications.
+- **Perception governs the page as it governs the menu.** An enemy (or ally)
+  the actor cannot perceive is named and nothing more. The page never rolls:
+  where `perceive` would need a Fringe or Stealth roll, it reads the menu the
+  gate already built. "What you perceive" carries the mental-lock line (a
+  mind in reach through a Mind Scan lock, 6E1 p.265) and the unperceived line.
+  Mind Control and Mental Illusion on another man show only to their caster
+  (Mental Powers are invisible by default, 6E1 p.151).
+- **The victim's Mind Control order** (spare / withdraw / turn, 6E1 p.256),
+  and what it does to his menu. RULING: the page is the player's, so the
+  order is told as a GM tells the player (the character himself does not know,
+  6E1 p.255), and he still chooses how (6E1 p.258). CORRECTION: the old page
+  told its reader to act as the controller ("YOUR PUPPET ... you may target
+  either side"); the engine since 0.21 gives the victim his own chooser, so
+  that instruction is not ported.
+- **Warnings**: Flashed, per Sense Group with Segments left (6E1 p.228, 6E2
+  p.9); deep water a man who can neither swim nor do without air is in or
+  within 10 m of (the same immunity test `resolve_construct_effect` makes).
+- **Reaching them**: per perceived enemy, within reach (6E2 p.56, via
+  `within_reach`), a half-move of Running away, or neither --- then elevation
+  and which movement modes `movement_reach` says get there this Phase.
+- **The matchup**: the old kite/outmuscle asymmetries as numbers only (SPD,
+  average STUN through the worst defense, share of the STUN track). The old
+  page's advice ("do NOT trade blows", "close and trade") is not ported: it is
+  judgement, and belongs to a chooser.
+- **Frameworks**: reserve or pool, each slot's Active Points, fixed or
+  variable, switched on in this fight, and an attack slot's own dice --- the
+  old page's AP/5 "dice" was only ever right for a Blast --- with an NND's
+  defense (6E1 p.328). Switching and rebuilding are named only when offered.
+- **Reading order**: the page lists `PhaseSituation.ordered_menu` (scenery
+  last), the order both shipped choosers already read. `Brief.menu` follows.
+No new event kinds, no schema change.
+
 **Martial maneuvers resolve.** Every `maneuver` the menu offered raised
 `UnresolvableAction` (a 500 on kirby-api's `/run`): the resolver looked the
 offer's `power_xmlid="MANEUVER"` up in the static table and refused it, and
