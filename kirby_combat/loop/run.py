@@ -493,6 +493,9 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         if Grab.is_grabbed(session, e.id) == (True, actor_id)
     )
     physical_hold, paralysis_hold = _entangle_holds(session, actor_id)
+    from kirby_combat.actions.reactive.blocking import block_follow_ups
+    from kirby_combat.weapons import weapons_in_play
+
     menu = enumerate_actions(
         actor, enemies,
         has_scene=scene is not None,
@@ -597,6 +600,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # ON THE GROUND. Prone had sources and no way out; the menu now
         # offers getting up (6E2 p.51).
         prone=is_prone(session, actor_id),
+        # WHAT IS IN WHOSE HAND, AND WHAT IS ON THE GROUND (`kirby_combat.
+        # weapons`): a Disarm or Takeaway names a weapon he is holding, and a
+        # dropped one can be picked up. Folded from the log, like the rest.
+        weapons=weapons_in_play(session),
+        # WHOSE BLOW HE BLOCKED since he last acted: what a Must Follow Block
+        # maneuver may answer (`reactive.blocking.block_follow_ups`).
+        block_follow_ups=block_follow_ups(session, actor_id),
         # WHAT HE CANNOT SENSE. `enumerate_actions` has taken his Flashed
         # Sense Groups since Flash was built and this caller never passed
         # them, so a man blinded by a Sight Flash was offered every shot

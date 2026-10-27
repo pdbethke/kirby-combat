@@ -258,24 +258,9 @@ def test_a_sighted_trip_carries_the_margin_and_the_cvs():
     assert payload["margin"] == to_hit.target_number - to_hit.roll
 
 
-def test_disarm_reports_the_same_three_facts():
-    """The report belongs to the maneuver path, not to Trip -- Disarm is
-    -2 OCV (6E2 p.65) and carries the same keys."""
-    session = _fight(_scene({"brute": OPEN, "mark": OPEN_2}))
-    disarm = LegalAction(
-        action_id="disarm:mark", kind="disarm", target_id="mark",
-        power_xmlid=None, power_name=None, summary="disarm",
-        _attack_view=_blast("brute-eb"),
-    )
-    resolved = resolve_chosen(
-        session, session.combatants["brute"], disarm,
-        template=TEMPLATE, roller=_roller([4, 4, 4]),
-    )
-    payload = resolved.session.event_log[-1].result_payload
-
-    assert payload["effective_ocv"] == OCV - 2
-    assert payload["target_dcv"] == DCV
-    assert payload["margin"] == resolved.result.to_hit.margin
+# Disarm carries the same three facts on the same path; it needs a weapon in
+# the target's hand, so it is pinned with an armed man in
+# `tests/loop/test_maneuvers_complete.py::test_disarm_reports_the_same_three_facts`.
 
 
 # ---------------------------------------------------------------------------

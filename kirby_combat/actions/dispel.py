@@ -63,7 +63,7 @@ class HeroWithPowersOff:
         self.off = frozenset(off)
 
     def _on(self, items):
-        return [p for p in (items or []) if str(getattr(p, "id", "")) not in self.off]
+        return _without(items, self.off)
 
     @property
     def powers(self):
@@ -80,6 +80,73 @@ class HeroWithPowersOff:
         if name == "original":
             raise AttributeError(name)
         return getattr(self.original, name)
+
+
+class _PurchaseWithPartsOff:
+    """A framework (or List, or Compound Power) with some of its parts off.
+
+    A Disarm takes ONE object, and a slot bought with its own Accessible
+    Focus inside a framework that is not is one (`kirby_combat.weapons`), so
+    switching off only top-level purchases could not take it. Everything is
+    the purchase's own except the part lists, which leave the off ones out.
+    """
+
+    def __init__(self, original, off: frozenset[str]):
+        self.original = original
+        self.off = frozenset(off)
+
+    @property
+    def sub_powers(self):
+        return _without(getattr(self.original, "sub_powers", None), self.off)
+
+    @property
+    def objects(self):
+        return _without(getattr(self.original, "objects", None), self.off)
+
+    @property
+    def powers(self):
+        return _without(getattr(self.original, "powers", None), self.off)
+
+    def __getattr__(self, name):
+        if name == "original":
+            raise AttributeError(name)
+        return getattr(self.original, name)
+
+
+_PART_LISTS = ("sub_powers", "objects", "powers")
+
+
+def _without(items, off: frozenset[str]):
+    """``items`` less the purchases in ``off``, at any depth."""
+    out = []
+    for p in items or []:
+        if str(getattr(p, "id", "")) in off:
+            continue
+        if any(str(getattr(c, "id", "")) in off
+               for c in _parts(p)):
+            p = _PurchaseWithPartsOff(p, off)
+        out.append(p)
+    return out
+
+
+def _parts(purchase):
+    """Every part under a purchase, at any depth."""
+    stack = []
+    for attr in _PART_LISTS:
+        nested = getattr(purchase, attr, None)
+        if isinstance(nested, list):
+            stack.extend(nested)
+    seen: set[int] = set()
+    while stack:
+        p = stack.pop()
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        yield p
+        for attr in _PART_LISTS:
+            nested = getattr(p, attr, None)
+            if isinstance(nested, list):
+                stack.extend(nested)
 
 
 def original_hero(hero):
@@ -107,7 +174,10 @@ def fold_dispel(session: "CombatSession", combatant_id: str) -> "CombatSession":
     if combatant is None:
         raise ValueError(
             f"{combatant_id!r} is not a combatant in session {session.id!r}")
-    off = dispelled_ids(session, combatant_id)
+    # A weapon out of his hand is off the same way (`kirby_combat.weapons`).
+    from kirby_combat.weapons import out_of_hand_ids
+
+    off = dispelled_ids(session, combatant_id) | out_of_hand_ids(session, combatant_id)
     base = original_hero(combatant.hero)
     hero = HeroWithPowersOff(base, off) if off else base
     combatants = {**session.combatants, combatant_id: replace(combatant, hero=hero)}

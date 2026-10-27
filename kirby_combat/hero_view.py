@@ -294,6 +294,12 @@ class MartialManeuverView:
     is_dodge: bool         # reactive Dodge (abort-eligible)
     target_falls: bool     # target knocked prone on a hit
     effect: str            # raw EFFECT string (display + future special handling)
+    #: HD's DEFENSE attribute (Main6E.hdt): "SPECIAL" on Choke Hold, whose
+    #: NND Life Support also stops (6E2 p.86); "NORMAL" / "NONE" elsewhere.
+    hd_defense: str
+    #: HD's INPUT --- the Sense Group a Martial Flash is bought against
+    #: ("Sight", "Hearing"); "" when the maneuver takes none.
+    sense_input: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1397,10 +1403,13 @@ class HeroCombatant(Stunnable, CombatParticipant):
             damage_type = damage_family(effect, int(getattr(m, "damage_type", 0) or 0))
 
             is_dodge = "dodge" in effect_l
-            is_block = "block" in effect_l
+            # A Block, not a blow that must FOLLOW one (Counterstrike's
+            # "Must Follow Block" is an attack).
+            is_block = bool(re.search(r"(?<!must follow )\bblock\b", effect_l))
             # Dodge / Block are reactive (no offensive to-hit). Escape ("vs. Grabs")
             # breaks free of a Grab and rolls no attack either.
-            is_escape = "vs. grabs" in effect_l or "escape" in effect_l
+            # "[DAMAGE] vs Grabs" (a custom one) writes it without the stop.
+            is_escape = bool(re.search(r"\bvs\.? grabs\b|\bescape\b", effect_l))
             is_attack = not (is_dodge or is_block or is_escape)
             target_falls = "target falls" in effect_l
 
@@ -1426,6 +1435,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 is_dodge=is_dodge,
                 target_falls=target_falls,
                 effect=effect,
+                hd_defense=str(getattr(m, "defense", "") or ""),
+                sense_input=str(getattr(m, "input", "") or ""),
             ))
         return out
 

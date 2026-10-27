@@ -108,6 +108,15 @@ def _target_has_named_defense(target, avad_defense: str) -> bool:
             elif getattr(target, attr, 0):
                 return True
 
+    # LIFE SUPPORT (SELF-CONTAINED BREATHING), which Choke Hold's NND names
+    # (6E2 p.86: "The defense against this NND is ... Life Support:
+    # Self-Contained Breathing"). It is a Life Support power, not a defence
+    # item, so the walk below can never find it; the combatant answers.
+    if "SELF-CONTAINED BREATHING" in text:
+        breathes = getattr(target, "has_self_contained_breathing", None)
+        if callable(breathes) and breathes():
+            return True
+
     # Walk defense items (powers / armor / force fields) for keyword match.
     for d in (getattr(target, "defenses", None) or []):
         nm = (getattr(d, "name", "") or "").upper()

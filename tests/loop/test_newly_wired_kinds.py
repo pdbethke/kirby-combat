@@ -168,7 +168,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 67
+    assert len(registered_kinds()) == 68   # pick_up_weapon (6E2 p.62), 2026-10-27
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -204,6 +204,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "escape_ego",              # test_mental_paralysis_binds
         "stand_up",                # test_bodies_moving
         "change_identity", "change_identity_instant",  # test_identity_change
+        "pick_up_weapon",          # test_maneuvers_complete
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

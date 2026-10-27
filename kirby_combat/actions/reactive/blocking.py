@@ -149,4 +149,68 @@ def try_block(
         attacker_ocv=attacker_ocv,
         declaration_event_id=declaration_id,
     )
+    if result.success:
+        session = _block_riders(session, blocker, session.combatants[attacker_id],
+                                declaration_id=declaration_id)
     return session, result
+
+
+def _block_riders(session, blocker, attacker, *, declaration_id: str):
+    """A Grappling Block takes hold of the man it stopped; a Defensive Throw
+    puts him down (`reactive.martial._block_riders`). One row, the one
+    `Grab.is_grabbed` and `statuses._is_prone` already fold."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import ActionResolved, make_author_combatant
+    from kirby_combat.statuses import FELL
+
+    used = block_maneuver(blocker)
+    if not (used.grabs or used.throws):
+        return session
+    payload: dict[str, Any] = {
+        "kind": "block_rider", "maneuver": used.name,
+        "target_id": attacker.id, FELL: [attacker.id] if used.throws else [],
+    }
+    if used.grabs:
+        payload.update({
+            "type": "grab", "success": True, "attacker_id": blocker.id,
+            "attacker_str": int(blocker.combat_stats().str_),
+            "target_str": int(attacker.combat_stats().str_),
+        })
+    return apply_event(session, ActionResolved(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(blocker.id),
+        declaration_event_id=declaration_id, result_payload=payload,
+    ))
+
+
+def block_follow_ups(session: "CombatSession", combatant_id: str) -> frozenset[str]:
+    """The attackers whose blows he has Blocked since he last acted.
+
+    What a "Must Follow Block" maneuver (Counterstrike) may answer: HD's
+    element for a maneuver usable only in the Phase after a successful Block
+    of that attacker. 6E2 p.59-60 is the Block and the reward it already
+    carries ("acts before that attacker in the next Phase in which they both
+    act"); the HERO System Martial Arts element turns it into a blow.
+
+    Folded from the log: a successful Block roll (`kind="block"`, this module's
+    row) adds its attacker; any Phase of his spent since --- acted, Stunned,
+    down --- closes the window, except the one an Abort gave up (6E2 p.24,
+    `PhaseSpent(reason="aborted")`), which he never had.
+    """
+    pending: set[str] = set()
+    for event in session.event_log:
+        kind = getattr(event, "kind", "")
+        if kind == "ActionResolved":
+            p = getattr(event, "result_payload", None) or {}
+            if (p.get("kind") == BLOCK and p.get("success")
+                    and p.get("blocker_id") == combatant_id and p.get("attacker_id")):
+                pending.add(p["attacker_id"])
+        elif (kind == "PhaseSpent" and event.combatant_id == combatant_id
+              and event.reason != "aborted"):
+            pending.clear()
+    return frozenset(pending)

@@ -3,6 +3,18 @@
 ## Unreleased
 
 - **Reallocating a Multipower is a Zero Phase Action, once a Phase** (6E1 p.410). Until now it spent the whole Phase, so a man who switched slots never fired the slot he switched to. In kirby-api's benchmark fight a first-offer seat had Bullet reallocate every Phase from Turn 4 until the cap, and the fight never ended. The Phase now stays his (as after a No-Time Presence Attack or an Instant Change), and the reallocate offer leaves the menu for the rest of it (`framework.reallocated_this_phase`). No new event kind. Seam test: `tests/loop/test_reallocate_is_zero_phase.py`.
+- **Weapons are tracked, and a Disarm takes one.** An Accessible Focus (OAF/IAF, 6E1 p.379) is a thing in a hand (`kirby_combat.weapons`): Bokor's Mojo Hand, Brainchild's OAF Multipower pistol. A Disarm is offered per weapon in the target's hand, rolls 6E2 p.62's STR contest (the attacker wins ties), and knocks the weapon 1d6+1m along the line of the blow. Takeaway wrenches it into the attacker's hand (6E2 p.69; 6E1 p.379, "more BODY" to win). Anyone within reach or a Half Move can pick it up (`pick_up_weapon`, 6E2 p.25 and p.62). A weapon out of its owner's hand is off his sheet for every reader, through the fold a Dispel uses, which now also reaches a slot inside a framework. Ruling: in somebody else's hand it is no use to him (6E1 p.382; HD records no Personal/Universal choice). **New event kind: `WeaponMoved`** (where it ended up, absolute); `schema/events.json` regenerated. A Disarm against a man holding nothing is no longer offered.
+- **The martial maneuvers PR #5 stopped offering are built** (`actions/martial_resolution.py`, `martial_fmove.py`, `martial_offers.py`):
+  - FMove (Flying Tackle, Passing Strike/Throw/Disarm, Charge, Flying Grab, Sacrifice Lunge): the Move By / Move Through charge (6E2 p.72) around the maneuver's own blow, +1 DC per full 10m of velocity (6E2 p.101). Rulings: the maneuver's CVs replace Move By's, there is no recoil, and a Grab or "You Fall" stops where it hit.
+  - Must Follow Block (Counterstrike): offered only in his next Phase after a successful Block of that attacker (6E2 p.59-60, `reactive.blocking.block_follow_ups`).
+  - Must Follow Grab: Crush is the later-Phase Squeeze and Grappling Throw is a Throw of the man he holds (6E2 p.64). Ruling: a Grappling Throw ends the hold.
+  - Takeaway and Disarming Throw; Shove (6E2 p.81, 1m per 5 STR, damage only from a wall); Martial Flash against its INPUT Sense Group (6E1 p.228); a Grab that also does damage, as the same-Segment Squeeze (6E2 p.64); a free-text "+10 STR" that matches the costed DCs.
+  - Martial Escape adds its STR to a full Grab break-out (6E2 p.94). Grappling Block takes hold and Defensive Throw throws when the Block succeeds.
+  - Choke Hold's NND is stopped by Life Support (Self-Contained Breathing) (6E2 p.86).
+  - A maneuver's Attack Roll now takes the Grab's CV (6E2 p.64-66), as the plain attack does.
+  - Still refused, so not offered: Bind (no 6E core mechanic), Joint Break's Disable (optional Hit Location rules, 6E2 p.111-113), a Strike with damage type NONE (HD: no damage), and hand-written STR or dice figures HD never costed. Reversal's grab-after-escape is not read.
+- **A held man may always struggle.** The perception gate dropped a Grab's escape whenever the grabber was Invisible, so a man held by Ravel was offered no way out. Escape kinds no longer pass that gate.
+- `MartialManeuverView` gains `hd_defense` and `sense_input` (HD's DEFENSE and INPUT). Seam tests: `tests/loop/test_maneuvers_complete.py`.
 
 ## 0.22.1 — 2026-10-27
 

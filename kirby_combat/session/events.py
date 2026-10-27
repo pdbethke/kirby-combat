@@ -739,6 +739,33 @@ class PowerRestarted(BaseEvent):
 
 
 @dataclass
+class WeaponMoved(BaseEvent):
+    """An Accessible Focus changing hands, or landing on the ground.
+
+    6E2 p.62 (a Disarm knocks it 1d6+1m), p.69 and 6E1 p.379 (a Grab wrenches
+    it away), 6E2 p.25 (picking it up). Carries where it ENDED UP --- in
+    ``holder_id``'s hand, or on the ground at (x, y, z) when ``on_map`` ---
+    never a delta, so a replay folds the same place (`kirby_combat.weapons`).
+    `apply_event` folds the owner's out-of-hand weapons out of his build, the
+    way a Dispel's are (`actions/dispel.py`).
+    """
+    kind: Literal["WeaponMoved"] = field(default="WeaponMoved", init=False)
+    owner_id: str = ""
+    weapon_id: str = ""
+    weapon_name: str = ""
+    #: "" when it is on the ground.
+    holder_id: str = ""
+    #: False for a weapon on the ground in a fight with no map.
+    on_map: bool = False
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    #: `kirby_combat.weapons.CAUSES`: "disarm" | "takeaway" | "pick_up".
+    cause: str = ""
+    by_id: str = ""
+
+
+@dataclass
 class SessionEnded(BaseEvent):
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
     reason: str = ""
@@ -796,6 +823,7 @@ CombatEvent = (
     | BarrierRaised
     | PowerDispelled
     | PowerRestarted
+    | WeaponMoved
     | GMOverride
     | SessionEnded
 )
