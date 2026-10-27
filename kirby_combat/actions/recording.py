@@ -113,6 +113,14 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
     return session
 
 
+def _impact_stunned(landed: dict) -> bool:
+    """Did a Knockback impact or a fall, on its own, beat his CON?"""
+    kb = landed.get("knockback") or {}
+    footing = landed.get("footing") or {}
+    parts = [kb.get("impact"), kb.get("fall"), footing.get("fall")]
+    return any(bool(p and p.get("stunned")) for p in parts)
+
+
 def _tracks_endurance(template, attacker) -> bool:
     """Whether this campaign counts END at all.
 
@@ -577,6 +585,31 @@ def resolve_attack_in_session(
 
     result = resolve_attack(attack, template)
 
+    # THE KNOCKBACK ROLL (6E2 p.116), made here and only for a blow that
+    # landed with BODY on its dice: only the session knows two of p.117's
+    # modifiers (is the target in the air; is there gravity), and a roll
+    # nobody needs is a die drawn out of every seeded fight for nothing.
+    # A BODY total below the number of dice can never beat the roll, so
+    # nothing is rolled for it either. A caller that rolled its own pool
+    # kept it, and the pure resolver has already used it.
+    from kirby_combat.impact import after_the_blow, knockback_dice_for
+
+    if result.knockback_owed:
+        kb_count = knockback_dice_for(session, attack, template)
+        kb_roller = roller or session.dice_roller
+        if kb_count and int(result.damage.body) >= kb_count and kb_roller is not None:
+            from kirby_combat.resolution.knockback import compute_knockback
+
+            pool = kb_roller.roll_dice(kb_count)
+            kb = compute_knockback(
+                body=int(result.damage.body), knockback_dice=list(pool),
+                kb_resistance_m=int(result.defense.knockback_resistance),
+                knockback_multiplier=template.knockback_multiplier,
+                template=template,
+            )
+            result = _replace(result, knockback=kb,
+                              audit_trail=[*result.audit_trail, *kb.audit])
+
     attacker_id = attack.attacker.id
     target_id = attack.target.id
     now = datetime.now(timezone.utc)
@@ -629,6 +662,20 @@ def resolve_attack_in_session(
         # it is correcting an INPUT the pure resolver could not see, using
         # the same rule function it used.
         result = _replace(result, status_changes=status_changes)
+    # WHERE THE BLOW SENT HIM. Knockback moves him and hurts him, and a
+    # man hit on a ledge may lose his footing (`impact.after_the_blow`).
+    # Here, after his damage and before the row, so the row can say where
+    # he went and that he went down (`statuses.FELL`).
+    s, landed = after_the_blow(
+        s, attack, result, roller=roller or session.dice_roller,
+        template=template,
+    )
+    # A Knockback impact or a fall is damage of its own, checked against
+    # CON on its own (6E2 p.105): it can Stun a man the blow did not.
+    if (_impact_stunned(landed) and "Stunned" not in status_changes):
+        status_changes = [*status_changes, "Stunned"]
+        result = _replace(result, status_changes=status_changes)
+
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
@@ -731,7 +778,17 @@ def resolve_attack_in_session(
     # `payload_extras` in the docstring: this is the seam that replaced an
     # edit of an already-committed event.
     if payload_extras is not None:
-        result_payload.update(payload_extras(result))
+        extras = payload_extras(result)
+        # Two writers of who went down -- a maneuver's Target Falls and the
+        # blow's Knockback -- so the lists are joined, not overwritten.
+        from kirby_combat.statuses import FELL
+
+        if FELL in landed and FELL in extras:
+            extras = {**extras, FELL: sorted(set(extras[FELL]) | set(landed[FELL]))}
+        result_payload.update(landed)
+        result_payload.update(extras)
+    else:
+        result_payload.update(landed)
 
     resolved = ActionResolved(
         id=str(uuid.uuid4()),

@@ -143,12 +143,11 @@ def test_knockback_ground_impact_quarter_meters(default_template: CombatTemplate
     assert result.target_passed_through is False
 
 
-def test_knockback_object_breakable_half_meters(default_template: CombatTemplate) -> None:
-    """Per 6E2 p118: breakable object impact = ½ × meters in d6 if KB ≤ 2*(PD+BODY).
+def test_knockback_into_a_structure_is_half_meters_and_stops(default_template: CombatTemplate) -> None:
+    """6E2 p118: KB <= 2*(PD+BODY) -> 1d6 per full 2m, capped at PD+BODY; he stops.
 
-    BODY=15, KB-roll=[3,2]=5 → delta=10 → 20m. half_meters=10.
-    Object: PD=4, BODY=8. threshold = 2*12 = 24. 10 ≤ 24 → breakable.
-    Damage = 10 dice; target passes through.
+    BODY=15, KB-roll=[3,2]=5 -> delta=10 -> 20m. Wall PD 4 / BODY 8:
+    2*(4+8) = 24m, and 20m does not exceed it. 20//2 = 10 dice (cap 12).
     """
     target = ImpactTarget(pd=4, body=8, breakable=True)
     result = compute_knockback(
@@ -160,14 +159,13 @@ def test_knockback_object_breakable_half_meters(default_template: CombatTemplate
     )
     assert not result.resisted
     assert result.damage_dice == 10
-    assert result.target_passed_through is True
+    assert result.target_passed_through is False
 
 
-def test_knockback_object_immovable_pd_plus_body_dice(default_template: CombatTemplate) -> None:
-    """Per 6E2 p118: immovable object impact = PD + BODY dice; target stops.
+def test_knockback_into_an_unbreakable_structure_is_still_half_meters(default_template: CombatTemplate) -> None:
+    """An unbreakable wall still deals 1d6 per 2m (capped at PD+BODY), not PD+BODY outright.
 
-    Object PD=10, BODY=20 (granite wall). breakable=False → immovable.
-    Damage = 10 + 20 = 30 dice regardless of distance.
+    20m into PD 10 / BODY 20: 10 dice, he stops.
     """
     target = ImpactTarget(pd=10, body=20, breakable=False)
     result = compute_knockback(
@@ -178,14 +176,13 @@ def test_knockback_object_immovable_pd_plus_body_dice(default_template: CombatTe
         impact_target=target,
     )
     assert not result.resisted
-    assert result.damage_dice == 30   # PD + BODY
+    assert result.damage_dice == 10
     assert result.target_passed_through is False
 
 
-def test_knockback_breakable_overwhelmed_treated_as_immovable(default_template: CombatTemplate) -> None:
-    """If half_meters > 2*(PD+BODY), the breakable object resists fully (RAW: too much KB to break)."""
-    # BODY=30, KB-roll=[1,1]=2 → delta=28 → 56m. half_meters=28.
-    # Object: PD=2, BODY=2. threshold = 2*4 = 8. 28 > 8 → object resists.
+def test_knockback_overwhelming_a_structure_shatters_it(default_template: CombatTemplate) -> None:
+    """KB > 2*(PD+BODY): PD+BODY dice and he continues through (6E2 p118)."""
+    # BODY=30, KB-roll=[1,1]=2 → delta=28 → 56m. Wall 2/2: 2*4 = 8m < 56m.
     target = ImpactTarget(pd=2, body=2, breakable=True)
     result = compute_knockback(
         body=30,
@@ -195,7 +192,17 @@ def test_knockback_breakable_overwhelmed_treated_as_immovable(default_template: 
         impact_target=target,
     )
     assert result.damage_dice == 4   # PD + BODY
-    assert result.target_passed_through is False
+    assert result.target_passed_through is True
+
+
+def test_the_books_mechanon_example():
+    """6E2 p118, verbatim numbers: Mechanon is Knocked Back 22m.
+
+    Into a 6 PD / 2 BODY wall: 22 > 16, so 8d6 and he blows through.
+    Into a 6 PD / 6 BODY wall: 22 <= 24, so 11d6 and he stops.
+    """
+    assert compute_impact_damage_dice(22.0, ImpactTarget(pd=6, body=2)) == (8, True)
+    assert compute_impact_damage_dice(22.0, ImpactTarget(pd=6, body=6)) == (11, False)
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +217,13 @@ def test_compute_impact_damage_dice_ground():
 
 
 def test_compute_impact_damage_dice_breakable_within_threshold():
-    """Breakable object: ½ × meters if half_meters ≤ 2*(PD+BODY)."""
-    target = ImpactTarget(pd=4, body=8, breakable=True)   # threshold = 24
-    # 20m → half=10 ≤ 24 → breakable.
-    assert compute_impact_damage_dice(20.0, target) == (10, True)
+    """A structure the knockback does not overwhelm: ½ × meters, and he stops."""
+    target = ImpactTarget(pd=4, body=8, breakable=True)   # shatters above 24m
+    assert compute_impact_damage_dice(20.0, target) == (10, False)
 
 
 def test_compute_impact_damage_dice_immovable():
-    """Immovable: PD + BODY dice, no pass-through."""
+    """Unbreakable: ½ × meters capped at PD + BODY, never through."""
     target = ImpactTarget(pd=10, body=20, breakable=False)
-    assert compute_impact_damage_dice(50.0, target) == (30, False)
+    assert compute_impact_damage_dice(50.0, target) == (25, False)
+    assert compute_impact_damage_dice(80.0, target) == (30, False)

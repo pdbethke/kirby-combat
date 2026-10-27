@@ -1253,6 +1253,133 @@ def _rapid_fire_at_construct(
     })
 
 
+def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
+    """Throw the man you are holding (6E2 p.64, p.83-85).
+
+    THIS THREW HIM AS A 1d6 OBJECT AND LEFT HIM WHERE HE STOOD. The ``throw``
+    kind fell through to the thrown-object branch, which looked for a held
+    construct, found none, capped the damage at that nonexistent object's
+    PD + BODY of 0 and rolled the 1d6 floor; nobody moved, the Grab held,
+    and he stayed on his feet. Ported from the deleted driver's
+    ``_resolve_throw``, checked against the book:
+
+    - AN ATTACK ROLL. "If the Grabber wants to ... Throw his victim in a
+      later Phase, doing so is an Attack Action (it doesn't automatically
+      succeed, requires an Attack Roll)" (p.64), at +0 OCV (p.58), and the
+      held man is at 1/2 DCV (`grappling.grab_cv`). CORRECTED: the driver
+      auto-hit with +20 OCV. The same-Segment free Throw of p.64 is not
+      offered (the Grab resolver would have to make it).
+    - DAMAGE: "the Thrower's STR damage, up to a maximum of the PD + BODY
+      of the surface (or object) he's Thrown into" (p.84) -- the bare
+      Strike, with no Haymaker or Hand-To-Hand Attack (p.64). The ground
+      carries no PD or BODY in a Scene, so only a wall caps it.
+    - BREAKFALL halves it: "reduce the damage taken from a Throw by half if
+      he makes a Breakfall roll at -1 for every 2d6 of damage" (p.85).
+      RULING: rolled as the Throw is made, since the penalty is known then
+      and only the hit decides whether it counts.
+    - HE MOVES a Standing Throw's distance (p.64, p.83's table) straight
+      away from the thrower, stopping at a wall, and FALLS if he leaves an
+      edge (`impact.fall`, the driver's rule).
+    - HE LANDS PRONE: "the target usually ends up prone" (p.84).
+    - THE GRAB ENDS, hit or miss. On a miss "the GM decides whether the
+      target was Thrown some harmless distance but is now unhindered, or if
+      he got out of the Thrower's grasp and is still within Reach" -- this
+      engine rules the second.
+
+    NOT BUILT: the Thrower acting first when both next act in one Segment
+    (p.84), an Acrobatics roll to keep his feet (p.84 names it, prices it
+    nowhere), and the fall's own Stun check (its damage is taken, after the
+    Throw's row).
+    """
+    from dataclasses import replace as _replace
+
+    from kirby_combat.actions.grab import RELEASED, Grab
+    from kirby_combat.actions.movement.knockback_movement import (
+        away_from, resolve_forced_movement,
+    )
+    from kirby_combat.actions.throw import standing_throw_distance_m
+    from kirby_combat.impact import (
+        BREAKFALL, _record_move, can_save, fall, skill_roll,
+    )
+    from kirby_combat.models import AttackInput
+    from kirby_combat.statuses import FELL
+    from kirby_world.occupancy import position_of
+
+    target = session.combatants.get(action.target_id) if action.target_id else None
+    if target is None or Grab.is_grabbed(session, target.id) != (True, actor.id):
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    metres = standing_throw_distance_m(int(actor.combat_stats().str_))
+    scene = session.scene
+    start = position_of(scene, target.id) if scene is not None else None
+    source = position_of(scene, actor.id) if scene is not None else None
+    moved = None
+    if start is not None and source is not None and metres > 0:
+        moved = resolve_forced_movement(
+            combatant_id=target.id, start=start,
+            direction_xy=away_from(source, start), distance_m=metres,
+            scene=scene, gravity_scale=float(scene.ambient.gravity_scale),
+            airborne=False,
+        )
+
+    strike = actor.str_strike_view()
+    dice, half = int(strike.damage_dice), bool(strike.half_die)
+    wall = moved.wall_collision if moved is not None else None
+    if wall is not None and wall.pd is not None:
+        cap = int(wall.pd) + int(wall.body)
+        if dice >= cap:
+            dice, half = cap, False
+    power = _replace(strike, name="Throw", damage_dice=dice, half_die=half,
+                     no_knockback=True)
+
+    save = None
+    if can_save(session, target.id):
+        save = skill_roll(session, target.id, BREAKFALL,
+                          modifier=-(dice // 2), roller=roller)
+    halved = save is not None and save["made"]
+
+    grab = _grab_cv(session, actor, target)
+    attack = AttackInput(
+        attacker=actor, target=target, power=power,
+        distance_m=_range_to(session, actor, target), aim=None,
+        dice=_attack_dice(roller, max(1, dice)),
+        ocv_modifier=_set_bonus(session, actor, target) + grab.ocv_delta,
+        grab_ocv_factor=grab.ocv_factor, grab_dcv_factor=grab.dcv_factor,
+        damage_taken_factor=0.5 if halved else 1.0,
+    )
+
+    def _throw_payload(result) -> dict:
+        landing = moved.final_position if (moved is not None and result.hit) else None
+        return {
+            "kind": "throw", "target_id": target.id,
+            # The row `Grab.is_grabbed` folds as the end of the hold.
+            "type": RELEASED, "attacker_id": actor.id,
+            "throw_distance_m": metres if result.hit else 0.0,
+            "breakfall": save if result.hit else None,
+            "landing": ([landing.x, landing.y, landing.z]
+                        if landing is not None else None),
+            "wall_id": wall.wall_id if (wall is not None and result.hit) else None,
+            FELL: [target.id] if result.hit else [],
+        }
+
+    new_session, result = resolve_attack_in_session(
+        session, attack, template, action_type="strike", roller=roller,
+        combat_type=HTH, payload_extras=_throw_payload,
+    )
+    if result.hit and moved is not None:
+        new_session = _record_move(new_session, target.id, start,
+                                   moved.travel_end, move_type="thrown",
+                                   distance_m=moved.distance_traveled_m)
+        if moved.fall is not None:
+            new_session, _landed = fall(new_session, target.id, moved.travel_end,
+                                        roller=roller, template=template,
+                                        landing=moved.fall)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=result, events=_events_since(session, new_session),
+    )
+
+
 @resolves("throw", "throw_object")
 def _resolve_throw(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -1265,6 +1392,12 @@ def _resolve_throw(
     distance on it means.
     """
     from kirby_combat.actions.throw import Throw
+
+    # A HELD MAN is a different throw from an object (6E2 p.84, "Throwing A
+    # Character"): see `_throw_grabbed`.
+    if action.kind == "throw":
+        return _throw_grabbed(session, actor, action, template=template,
+                              roller=roller)
 
     outcome = Throw.compute(attacker_str=int(actor.combat_stats().str_))
 
@@ -2905,15 +3038,49 @@ def _resolve_multiple_attack(
     return _multi_attack(session, actor, action, template=template, roller=roller, sweep=False)
 
 
-def _climb(session, actor, action: LegalAction, *, fast: bool):
-    """Climb a wall (6E1 p.70, 6E2 p.48-49).
+#: How badly a Climbing roll must miss before the climber falls. GM RULING,
+#: ported from the deleted driver: 6E1 p.70 says a failed roll "usually means
+#: the character cannot climb that area, but sometimes means a fall if the
+#: roll was spectacularly bad", and leaves "spectacularly" to the GM. Missing
+#: by 5 or more is this engine's reading.
+CLIMB_SPECTACULAR_MISS = 5
 
-    `climbing.py` owns the rule, including the contradiction it resolves:
-    6E1 p.70 halves OCV *and* DCV, 6E2 p.48-49 halves DCV only and takes -2
-    DC. The engine implements 6E2. What this adds is the wall id, read off
-    the offer, and whether the climber is hurrying.
+
+def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template):
+    """Climb a wall (6E1 p.70, 6E2 p.48-49): roll, then move -- or fall.
+
+    THE CLIMB USED TO GO NOWHERE. This recorded a `climbing:<wall>` status
+    nothing folded and the modifiers nothing read, rolled nothing and moved
+    nobody, so a man spent Phase after Phase "climbing" at the foot of the
+    wall. The driver it was carved out of did the climb; this ports it.
+
+    - THE ROLL. 6E1 p.70: "Most characters can climb ordinary things (like
+      ladders) without a Skill. A character with Climbing may climb
+      difficult surfaces with a successful Skill Roll." So a difficult face
+      (``climb_difficulty > 0``) is a Climbing roll at minus its
+      difficulty; an ordinary face needs no roll at the ordinary rate.
+      CORRECTED from the driver, which made a man who HAD the Skill roll for
+      a ladder the man without it walked up.
+    - HURRYING. "+2m per Phase per -3 penalty to the Climbing roll", so
+      ``climb_fast`` is always a roll, at -3 more (enumeration offers it
+      only to a man with the Skill).
+    - SUCCESS: he moves to the point the offer named (`movement_reach`
+      already passed it), and is on his feet doing it -- a man on a wall is
+      not lying on the ground (the driver's rule, kept).
+    - FAILURE: no progress. Missing by `CLIMB_SPECTACULAR_MISS` or more
+      while he is off the ground, he falls (`impact.fall`) and lands prone.
+      A man who never left the ground has nothing to fall from.
+
+    NOT BUILT: the climbing CV penalties (6E2 p.48-49, `climbing.py`) are
+    still read by nothing -- nothing folds which wall a man is on.
     """
-    from kirby_combat.climbing import climb_modifiers, climb_status
+    from kirby_combat.climbing import CLIMB_FAST_PENALTY
+    from kirby_combat.impact import fall, skill_roll
+    from kirby_combat.placement import move_toward
+    from kirby_combat.standing import is_prone, _on_his_feet
+    from kirby_combat.statuses import FELL
+    from kirby_world.occupancy import position_of
+    from kirby_world.scene import Position
 
     # `climb_wall_id` is the offer's own field; the action_id is the
     # fallback for a hand-built action. Split only when there IS a
@@ -2922,19 +3089,80 @@ def _climb(session, actor, action: LegalAction, *, fast: bool):
     wall_id = action.climb_wall_id
     if not wall_id and ":" in action.action_id:
         wall_id = action.action_id.split(":", 1)[1]
-    if not wall_id:
+    scene = session.scene
+    if not wall_id or scene is None or action.reposition_dest is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+    wall = next((w for w in scene.walls if str(w.id) == str(wall_id)), None)
+    start = position_of(scene, actor.id)
+    if wall is None or start is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    mods = climb_modifiers(0)
-    return _recorded(session, actor, action, mods, {
-        "kind": action.kind,
-        "wall_id": wall_id,
-        "status": climb_status(wall_id),
-        "dcv_delta": mods.dcv_delta,
-        "dcv_multiplier": mods.dcv_multiplier,
-        "dc_penalty": mods.dc_penalty,
-        "hurried": fast,
-    })
+    difficulty = int(wall.climb_difficulty or 0)
+    modifier = -difficulty + (CLIMB_FAST_PENALTY if fast else 0)
+    save = None
+    if difficulty > 0 or fast:
+        save = skill_roll(session, actor.id, "CLIMBING", modifier=modifier,
+                          roller=roller)
+        if save is None:
+            # Enumeration offers a roll-requiring climb only to a man with
+            # the Skill; reaching here without it is a hand-built offer.
+            raise UnresolvableAction(action.kind, action.action_id)
+    payload = {
+        "kind": action.kind, "wall_id": str(wall_id), "hurried": fast,
+        "difficulty": difficulty, "climbing_roll": save,
+        "climbed": False, FELL: [],
+    }
+
+    if save is None or save["made"]:
+        x, y, z = action.reposition_dest
+        dest = Position(x, y, z, facing=start.facing)
+        import math as _math
+
+        distance = _math.dist((start.x, start.y, start.z), (x, y, z))
+        new_session, outcome = move_toward(
+            session, actor.id, dest, mode="climbing", distance_m=distance,
+        )
+        if outcome is None:
+            raise UnresolvableAction(action.kind, action.action_id)
+        if is_prone(new_session, actor.id):
+            new_session = _on_his_feet(new_session, actor.id)
+        top_z = min(wall.segment[0].z, wall.segment[1].z) + wall.height_m
+        payload.update({
+            "climbed": bool(outcome.reachable),
+            "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
+            "topped_out": outcome.landing.z >= top_z - 1e-6,
+        })
+        out = _recorded(new_session, actor, action, outcome, payload)
+        return replace(out, events=_events_since(session, out.session))
+
+    base_z = min(wall.segment[0].z, wall.segment[1].z)
+    missed_by = -int(save["made_by"])
+    if missed_by < CLIMB_SPECTACULAR_MISS or start.z <= base_z + 1e-6:
+        return _recorded(session, actor, action, save, payload)
+
+    new_session, landed = fall(session, actor.id, start, roller=roller,
+                               template=template)
+    payload.update({"fall": landed, FELL: [actor.id],
+                    # The fall's damage is checked against CON like any
+                    # other (6E2 p.105); the row names him so the Stun fold
+                    # can read it.
+                    "target_id": actor.id,
+                    "status_changes": ["Stunned"] if landed.get("stunned") else []})
+    out = _recorded(new_session, actor, action, landed, payload)
+    return replace(out, events=_events_since(session, out.session))
+
+
+@resolves("stand_up")
+def _resolve_stand_up(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Get up off the ground (6E2 p.51). See `kirby_combat.standing`."""
+    from kirby_combat.standing import stand_up
+
+    new_session, payload = stand_up(session, actor.id)
+    out = _recorded(new_session, actor, action, payload, payload)
+    return replace(out, events=_events_since(session, out.session))
 
 
 @resolves("climb")
@@ -2943,7 +3171,8 @@ def _resolve_climb(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """Climb at the ordinary rate."""
-    return _climb(session, actor, action, fast=False)
+    return _climb(session, actor, action, fast=False, roller=roller,
+                  template=template)
 
 
 @resolves("climb_fast")
@@ -2952,7 +3181,8 @@ def _resolve_climb_fast(
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
     """Climb faster, for a worse roll."""
-    return _climb(session, actor, action, fast=True)
+    return _climb(session, actor, action, fast=True, roller=roller,
+                  template=template)
 
 
 #: The interaction skills 6E1 p.60 makes Skill-vs-Skill contests. Kept as a

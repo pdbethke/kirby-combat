@@ -237,7 +237,7 @@ def _activation_gun(activation: int):
         activation_roll=activation)
 
 
-def _scripted_stray(first_roll, *, stray_activation):
+def _scripted_stray(first_roll, *, stray_activation, stray_knockback=()):
     """One shot that misses inside the cover penalty, then the stray.
 
     Dice per attack, in the order the engine draws them: to-hit 3d6, damage,
@@ -254,6 +254,10 @@ def _scripted_stray(first_roll, *, stray_activation):
     pool = [
         first_roll, [3, 3], [3, 3, 3], [1], [3, 3, 3],          # the shot
         [3, 3, 3], [3, 3], [3, 3, 3], [1], stray_activation,    # the stray
+        # The stray that goes off and lands rolls its Knockback (6E2
+        # p.116-117: 2d6 +1d6 for a Killing attack). 18 against 6 BODY:
+        # frank stays where he is.
+        *([list(stray_knockback)] if stray_knockback else []),
         # A stray that goes off and draws BODY from frank is violence doc
         # witnesses, and his Presence reaction (6E2 p.138) rolls on this
         # same roller now rather than the session's. Low, so it frightens
@@ -302,7 +306,8 @@ def test_the_failed_stray_is_recorded_as_a_failed_activation():
 def test_a_stray_whose_weapon_does_go_off_still_resolves():
     """Guards the guard: the ordinary stray must keep working, and must
     still say whether it hit."""
-    out = _scripted_stray([5, 5, 4], stray_activation=[3, 3, 3])
+    out = _scripted_stray([5, 5, 4], stray_activation=[3, 3, 3],
+                          stray_knockback=(6, 6, 6))
     audit = out.result.to_hit.audit or []
     assert any("strayed to frank" in line for line in audit)
     assert not any("did not go off" in line for line in audit)

@@ -623,7 +623,7 @@ ALL_ACTION_KINDS = frozenset({
     "pickup", "presence_attack", "presence_attack_group", "push",
     "rapid_fire", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_push", "reposition_strike",
-    "stabilize",
+    "stabilize", "stand_up",
     "reposition_vantage", "set", "spread", "strike", "sweep", "telepathy",
     "throw", "throw_object", "trading", "trip",
 })
@@ -712,6 +712,7 @@ def enumerate_actions(
     spent_charges: dict[str, int] | None = None,
     allies: list[HeroCombatant] | None = None,
     mind_scan_locks: frozenset[str] | None = None,
+    prone: bool = False,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -2424,15 +2425,17 @@ def enumerate_actions(
             if _melee_gate(enemy.id) != "direct":
                 continue
             throw_dc = s.str_ // 5
+            from kirby_combat.actions.throw import standing_throw_distance_m
             actions.append(LegalAction(
                 action_id=f"throw:{enemy.id}",
                 kind="throw",
                 target_id=enemy.id,
                 power_xmlid="THROW", power_name="Throw",
                 summary=(
-                    f"Throw {_friendly(enemy)}: {throw_dc}d6N normal "
-                    f"damage, target lands STR-scaled meters away "
-                    f"(auto-hits, releases the hold)"
+                    f"Throw {_friendly(enemy)}: an Attack Roll at +0 OCV "
+                    f"against his halved DCV; {throw_dc}d6N normal damage, "
+                    f"{standing_throw_distance_m(s.str_):.0f}m away and "
+                    f"prone (6E2 p.64, p.84); hit or miss, the hold ends"
                 ),
             ))
     # PR-38: Mind Control — derived directly from hero.powers since
@@ -2880,6 +2883,20 @@ def enumerate_actions(
             summary=(
                 f"Recover — regain {s.rec} STUN + {s.rec} END "
                 f"(skip phase, sitting-duck DCV ½)"
+            ),
+        ))
+
+    # Getting up (6E2 p.51): "Getting back to one's feet takes a Half Phase
+    # Action". Offered only to a man on the ground; `prone` is folded from
+    # the fight by the caller (`loop/run.py`), the same way `can_abort` is.
+    if prone:
+        actions.append(LegalAction(
+            action_id="stand_up",
+            kind="stand_up",
+            target_id=None, power_xmlid=None, power_name=None,
+            summary=(
+                "Stand up — get off the ground (takes this Phase; until you "
+                "do you are at ½ DCV and -2 OCV, 6E2 p.51, p.129)"
             ),
         ))
 
@@ -3828,6 +3845,11 @@ def enumerate_actions(
                 ("climb", CLIMB_BASE_M, 0),
                 ("climb_fast", CLIMB_FAST_M, CLIMB_FAST_PENALTY),
             ):
+                # 6E1 p.70's faster climb is "+2m per Phase per -3 penalty
+                # to the Climbing roll" -- a man with no Climbing roll has
+                # nothing to take the penalty on.
+                if kind == "climb_fast" and not _has_climbing:
+                    continue
                 dest_z = min(actor_pos.z + rate, top_z)
                 dest = _ClimbPos(near[0], near[1], dest_z)
                 # The move this Phase covers the climb rate PLUS whatever

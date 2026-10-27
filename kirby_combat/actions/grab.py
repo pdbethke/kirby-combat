@@ -25,6 +25,11 @@ from kirby_combat.session.events import (
 )
 
 
+#: The row type that ends a hold from the GRABBER's side (a Throw lets go of
+#: the man it throws). `Grab.is_grabbed` folds it beside `grab_escape`.
+RELEASED = "grab_release"
+
+
 @dataclass
 class GrabResult:
     success: bool
@@ -295,6 +300,10 @@ class Grab:
                 and payload.get("success") is True
             ):
                 grabber = None
+            elif ptype == RELEASED and payload.get("target_id") == combatant_id:
+                # The grabber let go of him -- a Throw ends the hold, hit or
+                # miss (6E2 p.84; `resolvers._throw_grabbed`).
+                grabber = None
         return (grabber is not None, grabber)
 
     # ------------------------------------------------------------------ holding
@@ -326,5 +335,7 @@ class Grab:
             elif (ptype == "grab_escape"
                   and payload.get("escaper_id") == combatant_id
                   and payload.get("success") is True):
+                bonus = 0
+            elif ptype == RELEASED and payload.get("target_id") == combatant_id:
                 bonus = 0
         return bonus

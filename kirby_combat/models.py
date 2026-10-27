@@ -84,6 +84,13 @@ class AttackPower:
     #: Defaults False so a power that does not declare the limitation
     #: does not acquire one.
     beam: bool = False
+    #: No Knockback (-1/4), HD's NOKB. 6E1 p.147: "An Attack Power with
+    #: this Limitation never does Knockback, regardless of how much BODY
+    #: the attacker rolls." Also set on the engine's own synthetic powers
+    #: for things that are not blows -- a fall, a Throw's landing -- so the
+    #: impact itself never knocks anybody further. Defaults False, the same
+    #: reading as `beam`: a power that does not declare it does Knockback.
+    no_knockback: bool = False
     #: The cost engine's Active Points for this power. 6E1 p.132 prices END
     #: at 1 per 10 Active Points, and this is the only place that figure
     #: was available -- `SlotView` carried one and a bare AttackPower did
@@ -386,6 +393,11 @@ class AttackInput:
     #: 6E2 p.45: the OCV penalty for the other bodies in the target's
     #: melee. 0 when the rule is off or nobody is in the way.
     melee_cover_ocv: int = 0
+    #: A save that HALVES the damage taken (6E2 p.85: a Thrown character's
+    #: Breakfall "reduce[s] the damage taken from a Throw by half"). Applied
+    #: after defenses and Damage Reduction, which is what "damage taken"
+    #: is. 1.0 or 0.5 only; anything else raises in the resolver.
+    damage_taken_factor: float = 1.0
 
 
 @dataclass
@@ -442,6 +454,10 @@ class KnockbackResult:
     damage_dice: int
     resisted: bool
     target_passed_through: bool = False    # True if KB broke through a breakable object
+    #: 6E2 p.116: "If the result is 0, the defender is Knocked Down" --
+    #: no distance, but he is on the ground and must spend a Half Phase
+    #: getting up. Distinct from `resisted`, which is also true here.
+    knocked_down: bool = False
     audit: list[str] = field(default_factory=list)
 
 
@@ -460,6 +476,11 @@ class AttackResult:
     status_changes: list[str]
     power_xmlid: str
     audit_trail: list[str] = field(default_factory=list)
+    #: The blow can knock him back (6E2 p.116) and was resolved with no
+    #: Knockback pool to roll it with -- the session door rolls it
+    #: (`recording.resolve_attack_in_session`). False when Knockback is off,
+    #: impossible for this power, or already computed into `knockback`.
+    knockback_owed: bool = False
 
 
 @dataclass

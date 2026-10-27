@@ -68,10 +68,19 @@ def _target(stun: int = 40, body: int = 15):
     )
 
 
+def _no_knockback():
+    """The superheroic template with Knockback off: these tests are about
+    where damage goes, and a blow with BODY on it now knocks a man back
+    (6E2 p.116) and rolls for it -- see ``tests/loop/test_bodies_moving.py``."""
+    from dataclasses import replace
+
+    return replace(CombatTemplate.default_6e_superheroic(), use_knockback=False)
+
+
 def _session(*combatants) -> CombatSession:
     return CombatSession.create(
         id="s1", combatants=list(combatants), scene=None,
-        template=CombatTemplate.default_6e_superheroic(),
+        template=_no_knockback(),
         dice_roller=FakeRoller([]),
     ).start()
 
@@ -93,7 +102,7 @@ def test_stun_is_subtracted_from_the_session_combatant():
     s = _session(a, t)
     s2, result = resolve_attack_in_session(
         s, _attack(a, t, dice=[3, 3, 3, 3, 3, 3, 3, 3]),
-        CombatTemplate.default_6e_superheroic(),
+        _no_knockback(),
     )
     assert result.hit
     assert result.stun_dealt > 0
@@ -105,7 +114,7 @@ def test_body_is_subtracted_from_the_session_combatant():
     s = _session(a, t)
     s2, result = resolve_attack_in_session(
         s, _attack(a, t, dice=[6, 6, 6, 6, 6, 6, 6, 6]),
-        CombatTemplate.default_6e_superheroic(),
+        _no_knockback(),
     )
     assert result.body_dealt > 0
     assert s2.combatants["target"].current_body == 15 - result.body_dealt
@@ -115,7 +124,7 @@ def test_the_original_session_is_not_mutated():
     a, t = _attacker(), _target(stun=40)
     s = _session(a, t)
     resolve_attack_in_session(
-        s, _attack(a, t, dice=[3] * 8), CombatTemplate.default_6e_superheroic(),
+        s, _attack(a, t, dice=[3] * 8), _no_knockback(),
     )
     assert s.combatants["target"].current_stun == 40
 
@@ -133,7 +142,7 @@ def test_an_attacker_takes_no_damage_from_their_own_attack():
     a, t = _attacker(), _target()
     s = _session(a, t)
     s2, result = resolve_attack_in_session(
-        s, _attack(a, t, dice=[3] * 8), CombatTemplate.default_6e_superheroic(),
+        s, _attack(a, t, dice=[3] * 8), _no_knockback(),
     )
     before, after = s.combatants["attacker"], s2.combatants["attacker"]
     assert (after.current_stun, after.current_body) == (
@@ -146,7 +155,7 @@ def test_an_attacker_takes_no_damage_from_their_own_attack():
     # true whichever template the fixture moves to.
     from kirby_combat.actions.recording import _tracks_endurance
 
-    template = CombatTemplate.default_6e_superheroic()
+    template = _no_knockback()
     expected = result.end_spent if _tracks_endurance(template, a) else 0
     assert before.current_end - after.current_end == expected
 
@@ -156,7 +165,7 @@ def test_an_attacker_takes_no_damage_from_their_own_attack():
 def test_successive_attacks_accumulate():
     a, t = _attacker(), _target(stun=40)
     s = _session(a, t)
-    tmpl = CombatTemplate.default_6e_superheroic()
+    tmpl = _no_knockback()
 
     s, r1 = resolve_attack_in_session(s, _attack(a, t, dice=[3] * 8), tmpl)
     after_first = s.combatants["target"].current_stun
@@ -175,7 +184,7 @@ def test_folds_onto_the_session_combatant_not_the_callers_handle():
     combatant that never took the previous one."""
     a, t = _attacker(), _target(stun=40)
     s = _session(a, t)
-    tmpl = CombatTemplate.default_6e_superheroic()
+    tmpl = _no_knockback()
 
     s, r1 = resolve_attack_in_session(s, _attack(a, t, dice=[3] * 8), tmpl)
     stale = t                                    # still reads 40 STUN
@@ -204,7 +213,7 @@ def test_a_miss_applies_no_damage():
             distance_m=0, aim=None,
             dice=DiceValues(to_hit=[6, 6, 6], damage=[6] * 8),
         ),
-        CombatTemplate.default_6e_superheroic(),
+        _no_knockback(),
     )
     assert result.hit is False
     assert s2.combatants["target"].current_stun == 40
@@ -219,7 +228,7 @@ def test_target_is_ko_once_applied_stun_reaches_zero():
     a, t = _attacker(), _target(stun=4)
     s = _session(a, t)
     s2, result = resolve_attack_in_session(
-        s, _attack(a, t, dice=[6] * 8), CombatTemplate.default_6e_superheroic(),
+        s, _attack(a, t, dice=[6] * 8), _no_knockback(),
     )
     assert result.stun_dealt > 4
     assert s2.combatants["target"].is_ko is True
@@ -234,7 +243,7 @@ def test_target_absent_from_session_raises():
     with pytest.raises(KeyError, match="target"):
         resolve_attack_in_session(
             s, _attack(a, t, dice=[3] * 8),
-            CombatTemplate.default_6e_superheroic(),
+            _no_knockback(),
         )
 
 
@@ -244,7 +253,7 @@ def test_the_recorded_payload_is_unchanged():
     a, t = _attacker(), _target()
     s = _session(a, t)
     s2, result = resolve_attack_in_session(
-        s, _attack(a, t, dice=[3] * 8), CombatTemplate.default_6e_superheroic(),
+        s, _attack(a, t, dice=[3] * 8), _no_knockback(),
     )
     payload = s2.event_log[-1].result_payload
     assert payload["stun_dealt"] == result.stun_dealt

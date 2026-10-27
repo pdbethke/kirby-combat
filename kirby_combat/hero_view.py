@@ -2395,6 +2395,9 @@ def _build_attack_power(
     # limitation the build declares and the view drops is unenforceable
     # everywhere downstream.
     beam = _has_modifier(power, "BEAM")
+    # 6E1 p.147, No Knockback (-1/4). HD writes it NOKB; until this line a
+    # power bought with it knocked people about like any other.
+    no_knockback = _has_modifier(power, "NOKB")
     # 6E1 p.375. The commonest Limitation in any bestiary, and this view
     # carried no field for it -- so every character who had taken points
     # off a power for an Activation Roll fired it at will and kept the
@@ -2452,6 +2455,7 @@ def _build_attack_power(
         activation_roll=activation_roll,
         no_range_modifier=no_range_modifier,
         beam=beam,
+        no_knockback=no_knockback,
         active_points=active_points,
         framework_xmlid=framework_xmlid,
         framework_id=framework_id,

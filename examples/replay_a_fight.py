@@ -135,6 +135,9 @@ def _hitting_attack(attacker, target) -> AttackInput:
         dice=DiceValues(
             to_hit=[3, 3, 3],
             damage=[5, 4, 3, 6, 2, 4, 6, 3, 1, 2],
+            # The 2d6 Knockback roll (6E2 p.116): 12 against 11 BODY, so he
+            # stays where he stands.
+            knockback=[6, 6],
         ),
     )
 

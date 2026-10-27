@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+**Bodies move: Knockback, falls, footing, Throws, climbing and getting up.**
+Ported from the deleted api driver into the live path (batch B of the
+2026-09-17 lift-and-shift sweep) and checked against the book. A new action
+kind, `stand_up`; no new event kinds (moves are `MovementResolved` with
+`move_type` "knockback"/"fall"/"thrown", impact damage is `VitalsChanged` with
+`reason` "knockback"/"falling", who went down is the attack row's
+`statuses.FELL`). New fields: `AttackPower.no_knockback` (HD's NOKB, 6E1
+p.147), `AttackInput.damage_taken_factor`, `AttackResult.knockback_owed`,
+`KnockbackResult.knocked_down`, `WallCollision.pd`/`.body`;
+`enumerate_actions(prone=)`.
+- **Knockback is applied** (`kirby_combat.impact`, called from
+  `recording.resolve_attack_in_session`): the 2d6 roll is made at the door
+  (+1d6 Killing, +1d6 martial maneuver, -1d6 target in the air, -1d6 zero
+  gravity, 6E2 p.117); he travels away from the attacker; into a wall he
+  stops and takes 1d6 per 2m capped at its PD + BODY; off an edge he falls
+  and takes falling damage instead of the ground impact (RULING); in the air
+  he takes nothing (p.118); otherwise 1d6 per 4m, which Breakfall at -1 per
+  4m avoids (p.119); a 0 result Knocks him Down (p.116). He ends Prone. KO
+  blow's Knockback does 2x STUN (p.108).
+- **Knockback used BODY dealt and an empty pool** (`actions/base.py`): it
+  now uses BODY rolled (6E2 p.116) and nothing when no pool was rolled,
+  instead of BODY x 2m on every hit.
+- **`compute_impact_damage_dice` had 6E2 p.118 inverted** (a small
+  Knockback passed through a wall, a large one stopped). Corrected; the
+  book's Mechanon example is the test.
+- **Falls** (`impact.fall`): 1d6 per full 2m (6E2 p.142) with Breakfall
+  halving, or nothing when made by half (6E1 p.68).
+- **Footing**: a man hit on a precarious surface rolls DEX or Acrobatics or
+  falls (GM RULING, ported); a narrow surface is -2 DCV (6E2 p.39).
+- **Prone bites and clears**: 1/2 DCV against anybody standing, -2 OCV
+  attacking from the ground (6E2 p.51, p.129); `stand_up` (Half Phase, takes
+  the Phase here -- no Half Phase economy) and a Breakfall Zero Phase
+  stand-up at the top of his Phase (6E1 p.68).
+- **Throwing a grabbed man** (`resolvers._throw_grabbed`): an Attack Roll
+  (6E2 p.64; the driver auto-hit), STR damage capped by a wall's PD + BODY,
+  Breakfall halves it (p.85), a Standing Throw's distance from p.83's table,
+  he lands prone and can fall, and the Grab ends hit or miss. Before, it
+  rolled 1d6 at him as an object and left him held.
+- **Climbing moves** (`resolvers._climb`): a Climbing roll on a difficult
+  face, none on an ordinary one (the driver made the skilled roll for a
+  ladder), the move up the face, and a fall on a miss by 5+ (RULING, 6E1
+  p.70). `climb_fast` is offered only with the Skill.
+- **Not built**: a shattered wall letting him "continue through the hole";
+  the wall's own damage; Autofire/Multiple Attack KB aggregation (each hit
+  rolls its own); Double Knockback, Does Knockback; Rolled With The Punch,
+  underwater, Clinging; the Thrower acting first; climbing CV penalties.
+
 **Presence Attacks land, take No Time, and are felt.** Ported from the
 deleted api driver and checked against the book.
 - A chosen `presence_attack` / `presence_attack_group` is now APPLIED

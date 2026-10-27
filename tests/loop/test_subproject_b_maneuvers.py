@@ -65,6 +65,14 @@ def _hits(damage_dice: int = 0) -> FakeRoller:
     return FakeRoller([*pool, _LOCATION, _STUN_MULT])
 
 
+def _hits_and_stays_put(damage_dice: int) -> FakeRoller:
+    """`_hits`, then the 2d6 Knockback roll the door makes for a blow with
+    BODY on it (6E2 p.116): 12, more than these dice can roll, so nobody
+    moves and the test reads only the maneuver."""
+    return FakeRoller([[1, 1, 1], [3] * damage_dice, _LOCATION, _STUN_MULT,
+                       [6, 6]])
+
+
 def _misses() -> FakeRoller:
     return FakeRoller([[6, 6, 6], _LOCATION, _STUN_MULT])
 
@@ -216,7 +224,7 @@ def test_spread_trades_dice_for_ocv_one_for_one():
     enumeration put it, so menu and resolution cannot disagree."""
     _, resolved = _resolve(
         _act("spread", action_id="spread:mark:eb:2", power=blast("eb", dice=8)),
-        roller=_hits(damage_dice=6),     # 8 dice less the 2 sold
+        roller=_hits_and_stays_put(6),     # 8 dice less the 2 sold
     )
     assert resolved.result.hit
     assert resolved.events
@@ -228,7 +236,7 @@ def test_spread_reads_the_count_off_the_offer():
         _, resolved = _resolve(
             _act("spread", action_id=f"spread:mark:eb:{sold}",
                  power=blast("eb", dice=8)),
-            roller=_hits(damage_dice=8 - sold),
+            roller=_hits_and_stays_put(8 - sold),
         )
         assert resolved.result.hit
 

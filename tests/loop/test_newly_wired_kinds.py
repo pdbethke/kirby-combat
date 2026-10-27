@@ -17,7 +17,7 @@ import pytest
 from conftest import blast, fighter  # tests/loop/conftest.py
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop import registered_kinds
-from kirby_combat.loop.registry import resolve_chosen
+from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
@@ -151,9 +151,10 @@ def test_presence_attack_produces_an_effect_not_damage():
 # ---- The count, and what it does not claim ----
 
 def test_every_kind_is_wired():
-    """64 now: `escape_ego` joined them with 6E1 p.219's Mental Paralysis
+    """65 now: `stand_up` joined them with 6E2 p.51's Half Phase to get up
+    (64 was `escape_ego`, which joined them with 6E1 p.219's Mental Paralysis
     (63 was `mind_scan`, which joined them with 6E1 p.263's lock-on (62 was
-    `stabilize`, with 6E2 p.109's Paramedics roll).
+    `stabilize`, with 6E2 p.109's Paramedics roll)).
 
     61, not 51, was the last count. Three offers build their kind from a
     variable, so an AST walk matching `kind="literal"` missed eight -- see
@@ -161,7 +162,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 64
+    assert len(registered_kinds()) == 65
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -195,6 +196,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "stabilize",               # test_doc_stops_the_bleeding
         "mind_scan",               # test_mental_combat_bites
         "escape_ego",              # test_mental_paralysis_binds
+        "stand_up",                # test_bodies_moving
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"
@@ -207,7 +209,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("kind", ["move_by", "move_through", "rapid_fire", "throw"])
+@pytest.mark.parametrize("kind", ["move_by", "move_through", "rapid_fire"])
 def test_a_pure_computer_kind_records_its_outcome(kind):
     """These engine functions return an outcome and hold no session, so the
     wrapper's whole job is to roll what the rule needs, call it unchanged,
@@ -217,11 +219,15 @@ def test_a_pure_computer_kind_records_its_outcome(kind):
     assert resolved.events, f"{kind} recorded nothing"
 
 
-def test_throw_and_throw_object_share_one_resolver():
-    """Both are STR against distance; `Throw.compute` answers both."""
-    for kind in ("throw", "throw_object"):
-        _, resolved = _resolve(_action(kind))
-        assert resolved.result is not None
+def test_throw_refuses_a_man_nobody_is_holding():
+    """A Throw of a person needs a Grab on him (6E2 p.82: "a Grab is
+    definitely required to Throw another character"). It used to fall
+    through to the thrown-OBJECT branch and roll a 1d6 floor at him; the
+    whole Throw is in tests/loop/test_bodies_moving.py."""
+    with pytest.raises(UnresolvableAction):
+        _resolve(_action("throw"))
+    _, resolved = _resolve(_action("throw_object"))
+    assert resolved.result is not None
 
 
 def test_move_by_reads_velocity_from_the_build():

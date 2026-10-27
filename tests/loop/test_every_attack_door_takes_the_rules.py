@@ -202,6 +202,8 @@ def test_every_call_site_is_a_door_this_file_covers():
                         "by tests/test_firing_into_melee.py",
         "_resolve_throw": "needs a held object; covered by "
                           "tests/loop/test_a_brick_can_throw_the_furniture.py",
+        "_throw_grabbed": "needs a Grab in progress; covered by "
+                          "tests/loop/test_bodies_moving.py",
     }
 
     source = Path(resolvers_module.__file__).read_text(encoding="utf-8")

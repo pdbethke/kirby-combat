@@ -290,10 +290,47 @@ _CV_MODIFIER_SOURCES: tuple[
 #
 # Sources here return the same ``*_factor`` keys plus, optionally,
 # ``*_delta`` keys for a flat modifier the book states as an integer.
+def _ground_cv_modifiers(
+    session: "CombatSession", combatant_id: str, opponent_id: str,
+    combat_type: str,
+) -> dict[str, float]:
+    """Where he is standing -- or lying -- against this opponent.
+
+    PRONE (6E2 p.51, p.129). "A prone target ... is at half DCV"; and from
+    Groundfighting, "characters on the ground ... are at half DCV when
+    attacked by non-prone characters. They have their full DCV against
+    attacks from other prone characters. Second, attacking from the ground
+    imposes a -2 OCV penalty on both HTH and Ranged attacks". Per
+    opponent, because the halving depends on whether the OTHER man is down
+    too. Prone was set (Trip, Knockback, a fall) and changed no CV until
+    this.
+
+    A NARROW SURFACE (6E2 p.39): "On a narrow surface (tightrope, ledge),
+    DCV = -2." Read off the Surface he stands on (`is_precarious`).
+
+    NOT BUILT: Groundfighting's untrained -2 OCV / 1/2 DCV between two
+    prone men and PS: Groundfighting (both GM options on p.129).
+    """
+    from kirby_combat.statuses import PRONE, statuses_for
+
+    out: dict[str, float] = {}
+    if PRONE in statuses_for(session, combatant_id):
+        out["ocv_delta"] = -2
+        if PRONE not in statuses_for(session, opponent_id):
+            out["dcv_factor"] = 0.5
+    if getattr(session, "scene", None) is not None:
+        from kirby_combat.impact import precarious_under
+
+        if precarious_under(session, combatant_id):
+            out["dcv_delta"] = -2
+    return out
+
+
 _PER_OPPONENT_CV_MODIFIER_SOURCES: tuple[
     Callable[["CombatSession", str, str, str], dict[str, float]], ...
 ] = (
     _sense_penalty_cv_modifiers,
+    _ground_cv_modifiers,
 )
 
 

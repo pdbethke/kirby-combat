@@ -139,6 +139,9 @@ def main() -> None:
         dice=DiceValues(
             to_hit=[3, 3, 3],
             damage=[3, 2, 3, 2, 3, 2, 1, 2, 1, 1],
+            # The 2d6 Knockback roll (6E2 p.116): 12 against 8 BODY,
+            # so nobody is knocked anywhere and the example is about STUN.
+            knockback=[6, 6],
         ),
     )
     session, result = resolve_attack_in_session(session, attack, session.template)
