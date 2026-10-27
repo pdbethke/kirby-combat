@@ -32,6 +32,12 @@ from typing import TYPE_CHECKING, Any, Callable
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
+from kirby_combat.pre_attacks.in_the_phase import (
+    PRESENCE_KINDS, can_yield_to, half_phase_only, hesitation_owed,
+    limit_to_half_phase, phase_already_begun, presence_attack_made_this_phase,
+    yield_phase,
+)
+from kirby_combat.rage import RageMenu, rage_menu, rage_phase_start, rage_post_segment_12
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
 from kirby_combat.statuses import STUN_RECOVERY, stunned_or_recovering_for
@@ -309,7 +315,7 @@ def _with(encounter: "Encounter", session: "CombatSession") -> "Encounter":
 
 
 def _advance_to_an_actor(
-    encounter: "Encounter", *, campaign, tie_roller,
+    encounter: "Encounter", *, campaign, tie_roller, roller,
 ) -> tuple["Encounter", str | None]:
     """Find a Segment somebody can act in, advancing the clock to reach it.
 
@@ -351,6 +357,13 @@ def _advance_to_an_actor(
         encounter = _with(encounter, session)
         if actor_id is not None:
             return encounter, actor_id
+        if encounter.segment >= SEGMENTS_PER_TURN:
+            # 6E1 p.424: a raging man "gets a free attempt to recover ... in
+            # Post-Segment 12 if he hasn't attempted to recover in that
+            # Turn". Rolled here, before the wrap, because it belongs to the
+            # Turn that is ending and `advance_segment` holds no dice.
+            encounter = _with(encounter, rage_post_segment_12(
+                encounter.sessions[0], roller))
         encounter = encounter.advance_segment(campaign=campaign)
     return encounter, None
 
@@ -477,7 +490,7 @@ def run_phase(
         )
 
     encounter, actor_id = _advance_to_an_actor(
-        encounter, campaign=campaign, tie_roller=tie_roller,
+        encounter, campaign=campaign, tie_roller=tie_roller, roller=roller,
     )
     session = encounter.sessions[0]
     if actor_id is None:
@@ -503,7 +516,14 @@ def run_phase(
     # still act in that Phase." Before anything else about his Phase,
     # because "a character always gets one (but only one) Breakout Roll
     # before he suffers the effects".
-    session = roll_breakouts(session, actor_id, roller)
+    #
+    # NOT TWICE IN ONE PHASE. A Phase can come back to the same man: after a
+    # free Presence Attack (No Time, 6E2 p.25) or after he hesitated behind
+    # the man who impressed him (6E2 p.139). What is owed "at the top of his
+    # Phase" was settled the first time.
+    continuing = phase_already_begun(session, actor_id)
+    if not continuing:
+        session = roll_breakouts(session, actor_id, roller)
     actor = session.combatants[actor_id]
 
     # STUNNED. 6E2 p.106: "A character who's Stunned or recovering from
@@ -546,6 +566,26 @@ def run_phase(
                    f"the Phase"],
         )
 
+    # RAGE. 6E1 p.424: "Every Phase a character is in a situation where he
+    # can become Enraged, he should roll his chance"; and a raging man rolls
+    # to recover when he has finished with his target or run out of END.
+    # Only a man who will actually act this Phase rolls.
+    if not continuing:
+        session = rage_phase_start(session, actor_id, roller)
+        actor = session.combatants[actor_id]
+
+    # IMPRESSED. 6E2 p.139: "He hesitates enough so that the attacker may
+    # act before him that Phase." `presence_state` folded who he yields to
+    # and nothing read it. If that man still has a Phase to come in this
+    # Segment, this one steps back behind it and the Phase is not spent.
+    owed = hesitation_owed(session, actor_id)
+    if owed is not None and can_yield_to(session, actor_id, owed):
+        session = yield_phase(session, actor_id, owed)
+        return _phase_result(
+            encounter, session, log_before, actor_id=actor_id,
+            notes=[f"{actor_id} hesitates; {owed} acts first (6E2 p.139)"],
+        )
+
     roster = Roster(session)
     # MIND CONTROL. The order he is obeying decides who his enemies are (and
     # whether he may attack anybody at all); see `mental/continuing.obey`.
@@ -565,6 +605,12 @@ def run_phase(
             encounter, session, log_before, actor_id=actor_id,
             notes=[f"{actor_id} is lost in a Mental Illusion and stands still"],
         )
+    allies = obeyed.allies
+    # ENRAGED / BERSERK (6E1 p.424-425): he fights only his target ---
+    # Berserk, even a friend --- helps nobody and makes no defensive move.
+    rage = rage_menu(session, actor, enemies, allies)
+    if rage is not None:
+        enemies, allies = rage.enemies, rage.allies
     _held = held_object(session, actor_id)
 
     # THE SCENE, PLUMBED THROUGH. `CombatSession.scene` has always existed
@@ -640,6 +686,7 @@ def run_phase(
         can_abort=not (
             is_aborting(session, actor_id)
             or stunned_or_recovering_for(session, actor_id)
+            or (rage is not None and not rage.may_abort)
         ),
         # AMMUNITION. `used_charges` sat on `HeroCombatState` for a long
         # time, documented and serialized both ways, written by nothing
@@ -673,7 +720,7 @@ def run_phase(
         # which is right for "who can help me fight" and exactly wrong
         # for the man on the ground who needs somebody to kneel beside
         # him.
-        allies=obeyed.allies,
+        allies=allies,
         # WHOSE MINDS HE CAN REACH WITHOUT SEEING THEM: the Mind Scan locks
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.
@@ -685,6 +732,15 @@ def run_phase(
     )
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
+    if rage is not None:
+        menu = RageMenu.without_defence(menu)
+    # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
+    if presence_attack_made_this_phase(session, actor_id):
+        menu = [a for a in menu if a.kind not in PRESENCE_KINDS]
+    # VERY IMPRESSED. 6E2 p.139: he "only performs a Half Phase Action
+    # during his next Phase". `PresenceTier.half_phase` was never read.
+    if half_phase_only(session, actor_id):
+        menu = limit_to_half_phase(menu)
     if not menu:
         session, spent = _mark_acted(session, actor_id)
         return _phase_result(
@@ -694,14 +750,14 @@ def run_phase(
 
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
-        allies=[a for a in obeyed.allies if not is_down(a)],
+        allies=[a for a in allies if not is_down(a)],
         # THE MAN ON THE GROUND, kept in his own list. The menu above
         # already gets standing and fallen both; this object did not, so
         # the tactic layer could not see the ally it was supposed to
         # save and `stabilize` was offered 39 times and chosen never.
         # A separate field rather than a widened `allies` because three
         # tactics read that one as "who can help me fight".
-        fallen_allies=[a for a in obeyed.allies if is_down(a)],
+        fallen_allies=[a for a in allies if is_down(a)],
         # THE SAME DISTANCES THE MENU WAS BUILT FROM. Computed once above
         # for `enumerate_actions` and handed on rather than measured
         # twice, so a tactic and the offer it names cannot disagree about
@@ -728,6 +784,18 @@ def run_phase(
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
+    if action.kind in PRESENCE_KINDS:
+        # NO TIME. 6E2 p.25 rates a Presence Attack "No Time", and p.20 lets
+        # one be made beside a Full Phase Action. So the slot is NOT spent:
+        # the next `run_phase` hands the same man the same Phase, with the
+        # Presence offers gone from his menu.
+        return _phase_result(
+            encounter, resolved.session, log_before, actor_id=actor_id,
+            action_id=action.action_id, kind=action.kind,
+            result=resolved.result,
+            notes=[f"{actor_id} made a Presence Attack; it takes No Time "
+                   f"(6E2 p.25) and his Phase goes on"],
+        )
     session, spent = _mark_acted(resolved.session, actor_id)
     return _phase_result(
         encounter, session, log_before, actor_id=actor_id,

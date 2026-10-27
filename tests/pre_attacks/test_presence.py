@@ -36,14 +36,23 @@ def test_presence_attack_computes_dice_from_pre_divided_by_5():
     assert base_pre_dice(a2) == 7    # 37//5 = 7
 
 
-def test_presence_attack_reduced_by_target_pre_defense():
+def test_pre_defense_raises_the_pre_the_roll_is_judged_against():
+    """PRE Defense is PRE the target resists with, not dice off the roll.
+
+    This test used to assert the 1-for-1 dice subtraction, which is not a
+    6E rule: 6E2 p.137 compares the total "to the defender's PRE", and 6E1
+    p.178's example Presence Defense is "+20 PRE; Only To Protect Against
+    Presence Attacks". So every die is rolled, and the bar goes up.
+    """
     a = _attacker(pre=25)   # 5 dice
     t = _target(pre=10)
     r = resolve_presence_attack(a, t, dice_values=[4, 4, 4, 4, 4],
-                                target_pre_defense=2)
-    # 5 - 2 = 3 effective dice; sum = 12
-    assert r.effective_dice == 3
-    assert r.roll_total == 12
+                                target_pre_defense=10)
+    assert r.effective_dice == 5
+    assert r.roll_total == 20
+    assert r.resisting_pre == 20
+    # 20 against PRE 10 alone would be very impressed; against 20, impressed.
+    assert r.effect == "impressed"
 
 
 def test_presence_effect_ladder_thresholds():

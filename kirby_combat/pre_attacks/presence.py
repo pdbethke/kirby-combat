@@ -4,8 +4,16 @@
 Situational modifiers add or subtract dice. The roll's BODY (or simple total)
 is compared to the target's PRE; the margin determines the effect tier.
 
-Citation: 6E2 p139 (PRE Attack effects table). Note: target's PRE Defense
-reduces incoming PRE-attack dice as if it were Resistant Defense.
+Citation: 6E2 p139 (PRE Attack effects table).
+
+PRE DEFENSE RAISES THE PRE THE ROLL IS JUDGED AGAINST; IT REMOVES NO DICE.
+This module used to say PRE Defense "reduces incoming PRE-attack dice as if
+it were Resistant Defense", and subtracted it from the dice 1-for-1. That is
+not a 6E rule. 6E2 p.137: "Compare the total of the Presence Attack to the
+defender's PRE"; and 6E has no Presence Defense Power --- 6E1 p.178's example
+"Presence Defense" is "+20 PRE; Only To Protect Against Presence Attacks
+(-1)". So a target's PRE Defense is PRE he adds when resisting, and nothing
+else (`pre_attacks/landing.py::pre_defense_of` reads it off the build).
 """
 from __future__ import annotations
 
@@ -22,10 +30,14 @@ class PresenceAttackResult:
     base_dice: int
     bonus_dice: int
     total_dice: int
-    target_pre_defense: int          # PRE Defense subtracts dice
-    effective_dice: int              # max(0, total_dice - PRE def in dice equivalent)
+    #: PRE bought only to resist Presence Attacks (6E1 p.178); added to the
+    #: target's PRE for the comparison, never taken off the dice.
+    target_pre_defense: int
+    effective_dice: int              # the dice actually rolled: max(0, total_dice)
     roll_total: int                  # sum of dice values
     target_pre: int
+    #: What the roll was judged against: ``target_pre + target_pre_defense``.
+    resisting_pre: int
     effect: str                      # 6E2 p138 table: no_effect | impressed |
     #                                very_impressed | awed | cowed | overwhelmed
     audit: list[str] = field(default_factory=list)
@@ -74,8 +86,10 @@ def resolve_presence_attack(
     """
     base_dice = base_pre_dice(attacker)
     total_dice = base_dice + bonus_dice_from_situation
-    # PRE Defense reduces incoming dice 1-for-1 (6E2 p138)
-    effective_dice = max(0, total_dice - target_pre_defense)
+    # PRE Defense is PRE the target resists with (6E1 p.178, 6E2 p.137);
+    # it is NOT taken off the dice. See the module docstring.
+    effective_dice = max(0, total_dice)
+    resisting_pre = target.pre + target_pre_defense
 
     if target_stunned:
         # 6E2 p.106: a Stunned (or recovering) target cannot be affected
@@ -86,8 +100,8 @@ def resolve_presence_attack(
         effect = "no_effect"
         audit = [
             f"PRE Attack: PRE={attacker.pre}/5={base_dice} base; "
-            f"+{bonus_dice_from_situation} situational; "
-            f"-{target_pre_defense} PRE Def -> {effective_dice} effective dice",
+            f"{bonus_dice_from_situation:+d} situational -> "
+            f"{effective_dice} dice",
             "Target is Stunned (or recovering from being Stunned) -- "
             "cannot be affected by Presence Attacks (6E2 p.106) -> "
             "effect=no_effect",
@@ -97,7 +111,8 @@ def resolve_presence_attack(
             base_dice=base_dice, bonus_dice=bonus_dice_from_situation,
             total_dice=total_dice, target_pre_defense=target_pre_defense,
             effective_dice=effective_dice, roll_total=roll_total,
-            target_pre=target.pre, effect=effect, audit=audit,
+            target_pre=target.pre, resisting_pre=resisting_pre,
+            effect=effect, audit=audit,
         )
 
     # Caller passes pre-rolled dice values; we tally the first `effective_dice`
@@ -107,13 +122,15 @@ def resolve_presence_attack(
             f"got {len(dice_values)}"
         )
     roll_total = sum(dice_values[:effective_dice])
-    effect = presence_attack_effect(roll_total, target.pre)
+    effect = presence_attack_effect(roll_total, resisting_pre)
 
     audit = [
         f"PRE Attack: PRE={attacker.pre}/5={base_dice} base; "
-        f"+{bonus_dice_from_situation} situational; "
-        f"-{target_pre_defense} PRE Def -> {effective_dice} effective dice",
-        f"Roll total={roll_total} vs target PRE={target.pre} -> effect={effect}",
+        f"{bonus_dice_from_situation:+d} situational -> {effective_dice} dice",
+        f"Roll total={roll_total} vs target PRE={target.pre}"
+        + (f" +{target_pre_defense} PRE only to resist Presence Attacks "
+           f"(6E1 p.178) = {resisting_pre}" if target_pre_defense else "")
+        + f" -> effect={effect}",
     ]
 
     return PresenceAttackResult(
@@ -121,7 +138,8 @@ def resolve_presence_attack(
         base_dice=base_dice, bonus_dice=bonus_dice_from_situation,
         total_dice=total_dice, target_pre_defense=target_pre_defense,
         effective_dice=effective_dice, roll_total=roll_total,
-        target_pre=target.pre, effect=effect, audit=audit,
+        target_pre=target.pre, resisting_pre=resisting_pre,
+        effect=effect, audit=audit,
     )
 
 

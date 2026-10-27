@@ -2290,6 +2290,216 @@
       "title": "PresenceFaded",
       "type": "object"
     },
+    "PresenceYielded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "PresenceYielded",
+          "enum": [
+            "PresenceYielded"
+          ],
+          "type": "string"
+        },
+        "attacker_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "PresenceYielded",
+          "enum": [
+            "PresenceYielded"
+          ],
+          "type": "string"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "target_id",
+        "attacker_id",
+        "turn",
+        "segment"
+      ],
+      "title": "PresenceYielded",
+      "type": "object"
+    },
+    "RageRolled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "RageRolled",
+          "enum": [
+            "RageRolled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "berserk": {
+          "type": "boolean"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "complication_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "RageRolled",
+          "enum": [
+            "RageRolled"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "roll_kind": {
+          "type": "string"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "complication_id",
+        "roll_kind",
+        "roll",
+        "target_number",
+        "succeeded",
+        "berserk",
+        "target_id",
+        "reason",
+        "turn",
+        "segment"
+      ],
+      "title": "RageRolled",
+      "type": "object"
+    },
+    "RageTargeted": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "RageTargeted",
+          "enum": [
+            "RageTargeted"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "RageTargeted",
+          "enum": [
+            "RageTargeted"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "target_id",
+        "reason"
+      ],
+      "title": "RageTargeted",
+      "type": "object"
+    },
     "RecoveryTaken": {
       "additionalProperties": false,
       "properties": {
@@ -3067,6 +3277,15 @@
     },
     {
       "$ref": "#/$defs/PresenceFaded"
+    },
+    {
+      "$ref": "#/$defs/PresenceYielded"
+    },
+    {
+      "$ref": "#/$defs/RageRolled"
+    },
+    {
+      "$ref": "#/$defs/RageTargeted"
     },
     {
       "$ref": "#/$defs/RecoveryTaken"

@@ -500,6 +500,65 @@ class BreakoutRolled(BaseEvent):
 
 
 @dataclass
+class PresenceYielded(BaseEvent):
+    """An impressed man stepping back behind the one who impressed him.
+
+    6E2 p.139, at PRE: "He hesitates enough so that the attacker may act
+    before him that Phase." Applying it moves the target's first unspent
+    slot in this Segment's acting order to just after the attacker's, so a
+    fight replayed from its log hands the Phases out in the same order.
+    Written by `pre_attacks/in_the_phase.py`.
+    """
+    kind: Literal["PresenceYielded"] = field(default="PresenceYielded", init=False)
+    target_id: str = ""
+    attacker_id: str = ""
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
+class RageRolled(BaseEvent):
+    """A roll against an Enraged/Berserk complication (6E1 p.424-425).
+
+    ``roll_kind`` is ``"go"`` (his chance to give in to fury, rolled every
+    Phase the circumstance holds) or ``"recover"`` (his chance to calm
+    down). ``succeeded`` is the roll made: a made "go" roll puts him in a
+    rage, a made "recover" roll ends it. ``target_id`` is who a rage that
+    begins here is locked on ("" when there is nobody to lock on).
+    ``reason`` says why the roll was owed: the circumstance class for a
+    "go" roll, the recovery occasion for a "recover" roll.
+    Folded by `kirby_combat/rage.py::rage_state`.
+    """
+    kind: Literal["RageRolled"] = field(default="RageRolled", init=False)
+    combatant_id: str = ""
+    complication_id: str = ""
+    roll_kind: str = ""
+    roll: int = 0
+    target_number: int = 0
+    succeeded: bool = False
+    berserk: bool = False
+    target_id: str = ""
+    reason: str = ""
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
+class RageTargeted(BaseEvent):
+    """A raging man turning on a new target after finishing the last.
+
+    6E1 p.424 (Enraged): having failed to recover, he "vents his anger on
+    other targets ... starting with the targets most closely related to his
+    original target"; p.425 (Berserk): he "attacks the nearest visible
+    target".
+    """
+    kind: Literal["RageTargeted"] = field(default="RageTargeted", init=False)
+    combatant_id: str = ""
+    target_id: str = ""
+    reason: str = ""
+
+
+@dataclass
 class EnvironmentalTriggered(BaseEvent):
     kind: Literal["EnvironmentalTriggered"] = field(default="EnvironmentalTriggered", init=False)
     hazard_id: str = ""
@@ -588,6 +647,9 @@ CombatEvent = (
     | PresenceActionLost
     | PresenceFaded
     | BreakoutRolled
+    | PresenceYielded
+    | RageRolled
+    | RageTargeted
     | EnvironmentalTriggered
     | ConstructDamaged
     | ConstructSpawned

@@ -770,29 +770,29 @@ def _resolve_presence_attack(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A Presence Attack (6E2 p.129) — PRE dice against the target's PRE.
+    """A Presence Attack (6E2 p.137-139) — PRE dice against the target's PRE.
 
     The outcome is an EFFECT on the target's willingness to act, not
-    damage: the pure resolver classifies the roll and names the effect, and
-    ``can_act_after`` says whether the target may still do anything. No
-    STUN or BODY moves, so none is applied.
+    damage. It used to stop at naming the tier, so a chosen shout changed
+    nothing; `pre_attacks/landing.py` now rolls it by the book and records
+    the tier, which is what `can_act`, the DCV seam and the hesitation
+    rules read.
     """
-    from kirby_combat.pre_attacks.presence import (
-        base_pre_dice, resolve_presence_attack,
+    from kirby_combat.pre_attacks.landing import (
+        apply_presence_results, payload_for, roll_presence_attack,
     )
 
     target = session.combatants[action.target_id]
-    dice = max(1, base_pre_dice(actor))
-    result = resolve_presence_attack(actor, target, roller.roll_dice(dice))
-
+    results = roll_presence_attack(session, actor, [target], roller)
+    result = results[target.id]
     new_session = _record_outcome(
         session, actor, action, {
             "kind": action.kind,
             "target_id": target.id,
-            "effect": result.effect,
-            "total": getattr(result, "total", None),
+            **payload_for(result),
         },
     )
+    new_session = apply_presence_results(new_session, actor.id, results)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -1885,28 +1885,32 @@ def _resolve_presence_attack_group(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """A Presence Attack on everyone who can perceive it.
+    """A Presence Attack on everyone it is meant for.
 
-    6E2 p.129 makes a Presence Attack an effect on those who witness it, so
+    6E2 p.137 makes a Presence Attack an effect on those who witness it, so
     a group attack is the SAME roll judged against each target's PRE --- not
-    a fresh roll per victim. Rolling once and reusing the total is what
-    makes the "one terrifying moment" a single event rather than several.
+    a fresh roll per victim. Each landed tier is applied, exactly as the
+    single-target door applies it (`pre_attacks/landing.py`).
     """
-    from kirby_combat.pre_attacks.presence import base_pre_dice, resolve_presence_attack
+    from kirby_combat.pre_attacks.landing import (
+        apply_presence_results, payload_for, roll_presence_attack,
+    )
     from kirby_combat.roster import Roster
 
-    dice_values = roller.roll_dice(max(1, base_pre_dice(actor)))
-    results = {
-        enemy.id: resolve_presence_attack(actor, enemy, dice_values)
-        for enemy in Roster(session).enemies_of(actor)
-    }
-    if not results:
+    enemies = Roster(session).enemies_of(actor)
+    if not enemies:
         raise UnresolvableAction(action.kind, action.action_id)
-
-    return _recorded(session, actor, action, results, {
+    results = roll_presence_attack(session, actor, enemies, roller)
+    new_session = _record_outcome(session, actor, action, {
         "kind": action.kind,
         "effects": {tid: r.effect for tid, r in results.items()},
+        "targets": {tid: payload_for(r) for tid, r in results.items()},
     })
+    new_session = apply_presence_results(new_session, actor.id, results)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=results, events=_events_since(session, new_session),
+    )
 
 
 @resolves("push")
