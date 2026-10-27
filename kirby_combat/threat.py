@@ -109,6 +109,32 @@ def harm_witnessed(session: Any, ids: set[str]) -> dict[str, float]:
     return out
 
 
+def last_attacker_of(session: Any, target_id: str) -> str | None:
+    """Who last made an attack on ``target_id``, from the record; or None.
+
+    An attack is a resolution that rolled to hit him (its payload names
+    him and carries ``hit``), attributed exactly as `harm_witnessed`
+    attributes harm: through the ``ActionDeclared`` it resolves. A man's
+    attack on himself is not counted. Used by a player's Held Action order
+    whose target is "whoever attacks Lady Blue" (kirby-ai
+    `standing_orders`): the record names him, nothing guesses.
+    """
+    actor_of: dict[str, str] = {}
+    last: str | None = None
+    for event in list(getattr(session, "event_log", None) or []):
+        kind = getattr(event, "kind", "")
+        if kind == "ActionDeclared":
+            actor_of[getattr(event, "id", "")] = getattr(event, "combatant_id", "")
+        elif kind == "ActionResolved":
+            payload = getattr(event, "result_payload", None) or {}
+            if payload.get("target_id") != target_id or "hit" not in payload:
+                continue
+            who = actor_of.get(getattr(event, "declaration_event_id", ""), "")
+            if who and who != target_id:
+                last = who
+    return last
+
+
 def threat_map(enemies: list, session: Any = None) -> dict[str, float]:
     """`enemy id -> how much of a problem that one is`.
 

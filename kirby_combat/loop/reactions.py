@@ -105,6 +105,52 @@ def describe_incoming(attacker_id: str, incoming: LegalAction) -> IncomingAttack
     )
 
 
+def nameable_powers(combatant) -> tuple[str, ...]:
+    """The names a Held Action order may name its action by, in sheet order.
+
+    Peter, 2026-10-27: a held order names its action "by power (or
+    maneuver) plus a target rule" and is matched to the live offer by
+    `LegalAction.power_name` when it fires. These are the SHEET's names ---
+    the attacks this combatant carries, every power of the build in play,
+    every bought maneuver, his Interaction Skills (offered as social
+    combat, APG p34), and the Strike and standard maneuvers (Grab, Trip,
+    Move-By, Move-Through) everyone has --- a superset of
+    what any menu can put on an offer (`tests/loop/test_nameable_powers.py`
+    holds that on real builds). A name with no matching offer when the order
+    fires matches nothing, and the question is asked.
+    """
+    from kirby_combat.identity import build_in_play
+
+    names: list[str] = []
+
+    def add(name) -> None:
+        if name and str(name) not in names:
+            names.append(str(name))
+
+    for attack in getattr(combatant, "attacks", None) or []:
+        add(getattr(attack, "name", None))
+    if getattr(combatant, "state", None) is not None and getattr(combatant, "hero", None) is not None:
+        for power in getattr(build_in_play(combatant), "powers", None) or []:
+            add(getattr(power, "name", None))
+    from kirby_combat.enumeration import INTERACTION_SKILLS, STANDARD_MANEUVER_NAMES
+
+    has_build = (getattr(combatant, "state", None) is not None
+                 and getattr(combatant, "hero", None) is not None)
+    maneuvers = getattr(combatant, "maneuver_view", None)
+    for maneuver in (maneuvers() if callable(maneuvers) else []):
+        add(getattr(maneuver, "name", None))
+    if has_build:
+        skills = {(getattr(s, "xmlid", "") or "").upper()
+                  for s in (getattr(build_in_play(combatant), "skills", None) or [])}
+        for xmlid, (_kind, label) in INTERACTION_SKILLS.items():
+            if xmlid in skills:
+                add(label)
+    add("Strike")
+    for name in STANDARD_MANEUVER_NAMES:
+        add(name)
+    return tuple(names)
+
+
 def _used_his_phase_this_segment(session: "CombatSession", combatant_id: str) -> bool:
     """6E2 p.24: "Once a character has performed an Attack Action or otherwise
     used his full Phase in a particular Segment, he cannot Abort to any
