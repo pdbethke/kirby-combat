@@ -903,6 +903,29 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
 
 
 
+def phase_time_lines(situation: "PhaseSituation") -> list[str]:
+    """On his own Phase: whether this is its second half (6E2 p.20).
+
+    Since the Half Phase economy the same Phase comes back to him after a
+    Half Phase Action, with the menu cut to what fits in the rest. Said, so
+    a reader knows why the menu is shorter and that he has already acted.
+    """
+    if getattr(situation, "out_of_turn", None) is not None or situation.session is None:
+        return []
+    if situation.halves_left != 1:
+        return []
+    from kirby_combat.action_time import phase_so_far
+
+    done = phase_so_far(situation.session, str(situation.actor.id)).half_kinds
+    if done:
+        first = done[0].replace("_", " ")
+        return [f"This is the second half of your Phase: you have taken a Half "
+                f"Phase Action ({first}), and only what fits in a Half Phase is "
+                f"offered (6E2 p.20)."]
+    return ["You have only a Half Phase this Phase (6E2 p.139): only what fits "
+            "in a Half Phase is offered."]
+
+
 def out_of_turn_lines(situation: "PhaseSituation") -> list[str]:
     """Why he is being asked when it is NOT his Phase, and what it costs.
 
@@ -974,6 +997,10 @@ def _held_lines(situation, by_name: str) -> list[str]:
         "start and you are Holding an Action, which you may use now or keep "
         "holding (6E2 p.22).",
     ]
+    if situation.session is not None and situation.halves_left == 1:
+        out.append("What you Hold is only a Half Phase (you took a Half Phase "
+                   "Action first, 6E2 p.22): only what fits in a Half Phase is "
+                   "offered.")
     held = (usable_hold(situation.session, situation.actor.id)
             if situation.session is not None else None)
     if held is not None:
