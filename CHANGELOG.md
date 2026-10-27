@@ -1,6 +1,32 @@
 # Changelog
 
-## Unreleased
+## 0.22.0 — 2026-10-27
+
+**The lift-and-shift the harness refactor skipped.** kirby-api's `70ad60f`
+(2026-09-17) deleted the 12,970-line combat driver, saying each rule "has a home elsewhere", and
+never checked them one by one. This release ports what was lost into the live path. Each item has a
+seam test through `run_phase` / `resolve_chosen`, and each is checked against the book: where
+the driver was wrong it is corrected (noted per item), not copied.
+
+- Martial-arts maneuvers resolve (#5).
+- Mental Illusions, Mental Paralysis, the physical Entangle loop, and Rapid Fire at constructs (#6).
+- Presence Attacks land, take No Time, and impress; Enraged/Berserk (#7).
+- Defender Abort, Block, Held Actions, Hide breaking, and Image decoys (#8).
+- The Brief carries the combatant detail again (#9).
+- Knockback, falls, footing, throws, climbing, and standing up (#10).
+- Area Of Effect, Constant, Damage Over Time, hazard zones, Move By/Through, Side Effects, and Increased END (#12).
+- Aid, Drain, Healing, Dispel, Lockout, the Force Wall event, and half dice (#13).
+- Flash recovery and the Flash menu gate, DR/DN by class, the alternate identity, and the out-of-turn Brief (#14).
+- kirby-world >=0.1.1, where long falls take the velocity at impact (#11).
+
+New event kinds:
+- `PresenceYielded`, `RageRolled`, `RageTargeted`;
+- `LingeringAttackApplied`, `LingeringAttackEnded`;
+- `BarrierRaised`, `PowerDispelled`, `PowerRestarted`;
+- `IdentityChanged`.
+
+New action kinds: 67 in all. The details per PR follow.
+
 
 **Flash, Damage Reduction class, and the Hero ID flip (the lift-and-shift port, batch H).**
 - **A Flash ends.** Nothing called `Flash.recover`, so a Flashed man was blind
