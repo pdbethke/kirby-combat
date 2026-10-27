@@ -165,6 +165,32 @@ class IncreasedEnd:
     unbuilt: tuple[str, ...]
 
 
+class ConcentrationDCV(str, Enum):
+    """6E1 p.374's Concentration Table: "-1/4 1/2 DCV; -1/2 0 DCV"."""
+
+    HALF = "half"
+    ZERO = "zero"
+
+    @property
+    def factor(self) -> float:
+        return 0.5 if self is ConcentrationDCV.HALF else 0.0
+
+
+@dataclass(frozen=True)
+class ConcentrationSpec:
+    """The Concentration Limitation as bought (6E1 p.374-375).
+
+    ``oblivious`` is HD's OBLIVIOUS Adder ("totally unaware of nearby
+    events", the extra -1/4). ``throughout`` is CONTINUOUSCONCENTRATION,
+    "Must Concentrate throughout use of Constant Power".
+    """
+
+    dcv: ConcentrationDCV
+    oblivious: bool
+    throughout: bool
+    unbuilt: tuple[str, ...]
+
+
 # ---------------------------------------------------------------------------
 # Reading them off the build
 # ---------------------------------------------------------------------------
@@ -346,6 +372,41 @@ def side_effects_of(power: Any) -> SideEffectsSpec | None:
     )
 
 
+def concentration_of(power: Any) -> ConcentrationSpec | None:
+    """The power's Concentration Limitation, or None.
+
+    HD's two options are HALF ("1/2 DCV") and ZERO ("0 DCV"); a modifier
+    written with no OPTIONID reads as the template's first option, which is
+    kirby-cost's (and HD's) reading, not this module's.
+
+    THROUGHOUT ON AN INSTANT POWER is the one-Phase kind. 6E1 p.375 doubles
+    the value "If he has to Concentrate throughout the duration of a Constant
+    Power"; an Instant power has no duration to concentrate through. The GM
+    option that extends it to powers with Extra Time of a Turn or more is not
+    taken. THROUGHOUT ON A CONSTANT POWER is not built: he would concentrate
+    for as long as he maintained it, and the loop does not yet hold a man to
+    that ("he can't activate any other powers ... while he's keeping the
+    current power going"), so such a power is not offered.
+    """
+    mod = _find(power, "CONCENTRATION")
+    if mod is None:
+        return None
+    unbuilt: list[str] = []
+    option = _option(mod)
+    try:
+        dcv = ConcentrationDCV(option.lower())
+    except ValueError:
+        dcv = ConcentrationDCV.ZERO
+        unbuilt.append(f"Concentration option {option!r}")
+    throughout = "CONTINUOUSCONCENTRATION" in _sub_modifiers(mod)
+    if throughout and is_constant(power):
+        unbuilt.append("Concentration throughout a Constant power (6E1 p.375)")
+    return ConcentrationSpec(
+        dcv=dcv, oblivious="OBLIVIOUS" in _adders(mod),
+        throughout=throughout, unbuilt=tuple(unbuilt),
+    )
+
+
 def autofire_of(power: Any) -> AutofireSpec | None:
     """The power's Autofire, or None."""
     mod = _find(power, "AUTOFIRE")
@@ -397,7 +458,8 @@ def unbuilt_reasons(power: Any) -> list[str]:
     constant = bool(getattr(power, "constant", False))
     autofire = getattr(power, "autofire", None)
     for spec in (area, dot, getattr(power, "side_effects", None),
-                 getattr(power, "increased_end", None), autofire):
+                 getattr(power, "increased_end", None), autofire,
+                 getattr(power, "concentration", None)):
         if spec is not None:
             out.extend(spec.unbuilt)
     if autofire is not None and (constant or dot is not None):

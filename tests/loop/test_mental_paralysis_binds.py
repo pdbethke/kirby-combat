@@ -31,11 +31,14 @@ from kirby_combat.loop import run_phase
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.effects import entangle_state
 from kirby_dice import RandomRoller
+from kirby_combat.actions.entangle import Transparency
 
 
 def _paralyst(levels: int = 4):
     psi = _brainchild()
     power = _Power("ENTANGLE", levels, mods=("VERSUSEGO", "ACV", "TAKESNODAMAGE"))
+    # 6E1 p.219: "Takes No Damage From Attacks (+3/4)"; HD names an option.
+    power.assigned_modifiers[-1].option_id = "ALL"
     psi.hero.powers.append(power)
     return psi, power
 
@@ -171,7 +174,8 @@ def _physically_entangled():
     mark = _person("mark", "gang", dex=30)
     session = _fight(psi, mark)
     session, _ = Entangle.apply(session, attacker_id="psi", target_id="mark",
-                                entangle_body=5, entangle_pd=5, entangle_ed=5)
+                                entangle_body=5, entangle_pd=5, entangle_ed=5,
+                                transparency=Transparency.NONE, both_take_damage=False)
     return session
 
 

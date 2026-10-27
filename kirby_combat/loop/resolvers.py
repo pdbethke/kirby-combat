@@ -353,7 +353,7 @@ def _resolve_mental_blast(
 ) -> ResolvedAction:
     """A Mental Blast. 6E1 p.249: STUN only, no BODY, no Knockback --- once
     the MCV Attack Roll has hit."""
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
@@ -366,6 +366,14 @@ def _resolve_mental_blast(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
     )
+
+
+def _behind_his_paralysis(session, target):
+    """A mental attack meets the Mental Paralysis's Mental Defense as well as
+    his own (6E1 p.219); see `entangle.mentally_shielded`."""
+    from kirby_combat.actions.entangle import mentally_shielded
+
+    return mentally_shielded(session, target)
 
 
 def _effect_dice(action: LegalAction, roller) -> list[int]:
@@ -398,7 +406,7 @@ def _resolve_mind_control(
 
     if action.order is None:
         raise UnresolvableAction(action.kind, action.action_id)
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
@@ -430,7 +438,7 @@ def _resolve_mind_scan(
     from kirby_combat.mental.mind_scan import COMBAT_SCAN_LEVEL
     from kirby_combat.mental.recording import resolve_mind_scan_in_session
 
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     minds = sum(1 for c in session.combatants.values()
                 if c.id != actor.id and not is_down(c))
     modifier = mind_scan_omcv_modifier(max(1, minds))
@@ -481,7 +489,7 @@ def _resolve_mental_illusion(
     if action.order is None:
         raise UnresolvableAction(action.kind, action.action_id)
     illusion = illusion_named(action.order)
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
@@ -505,7 +513,7 @@ def _resolve_telepathy(
     """Telepathy --- read the target's mind, and possibly be noticed doing it."""
     from kirby_combat.mental.recording import resolve_telepathy_in_session
 
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
@@ -927,7 +935,8 @@ def _resolve_entangle(
     gave the Entangle that sum as its PD and ED too.
     """
     from kirby_combat.actions.entangle import (
-        Entangle, counted_body, entangle_default_defenses,
+        Entangle, both_take_damage, counted_body, entangle_default_defenses,
+        transparency_of,
     )
 
     power = action._attack_view
@@ -964,6 +973,10 @@ def _resolve_entangle(
         entangle_body=body,
         entangle_pd=int(getattr(power, "entangle_pd", 0) or per_die_pd),
         entangle_ed=int(getattr(power, "entangle_ed", 0) or per_die_ed),
+        # WHAT IT WAS BOUGHT WITH, written down (6E1 p.220-221): who may
+        # attack it, and whether the victim may blast his way out.
+        transparency=transparency_of(power),
+        both_take_damage=both_take_damage(power),
         attack_roll=roll_record(to_hit),
     )
     return ResolvedAction(
@@ -1048,7 +1061,7 @@ def _resolve_mental_entangle(
     from kirby_combat.mental.mental_entangle import roll_mental_paralysis
     from kirby_combat.mental.recording import to_hit_payload
 
-    target = session.combatants[action.target_id]
+    target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
@@ -1060,9 +1073,16 @@ def _resolve_mental_entangle(
         "entangle_body": result.body,
         "entangle_md": result.md,
     })
+    from kirby_combat.actions.entangle import Transparency, transparency_of
+
+    bought = transparency_of(action._attack_view)
     new_session, _held = Entangle.apply_mental_paralysis(
         new_session, attacker_id=actor.id, target_id=target.id,
         entangle_body=result.body, entangle_md=result.md,
+        # 6E1 p.219: a Mental Paralysis is built with Takes No Damage From
+        # Attacks; only the +1 STR-only level changes what anyone may do.
+        transparency=(Transparency.STR_ONLY if bought is Transparency.STR_ONLY
+                      else Transparency.ALL),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -1805,6 +1825,13 @@ def _resolve_grab_escape(
         grabber_str=(int(session.combatants[grabber_id].combat_stats().str_)
                      + Grab.holding_str_bonus(session, actor.id)),
     )
+    # The STR he used costs END (6E1 p.43's own example is "Casual STR ... to
+    # break out of a Grab"); Casually, half's worth (6E1 p.134).
+    from kirby_combat.actions.entangle import str_escape_end_cost
+    from kirby_combat.actions.recording import _spend_attack_end
+
+    new_session = _spend_attack_end(
+        new_session, actor, str_escape_end_cost(own_str, casual=casual), template)
     if martial is not None and martial.grabber_falls and result.success:
         # A custom "[DAMAGE] vs Grabs, Target Falls": the break-out throws
         # the man who held him. RULING: on a successful escape, the only
@@ -1850,12 +1877,22 @@ def _resolve_escape_str(
     if hold is None:
         raise UnresolvableAction(action.kind, action.action_id)
     casual = action.action_id.endswith("casual")
-    dice = str_escape_dice(int(actor.combat_stats().str_), casual=casual)
+    strength = int(actor.combat_stats().str_)
+    dice = str_escape_dice(strength, casual=casual)
     new_session, result = Entangle.escape_attempt(
         session, target_id=actor.id,
         damage_body=escape_body(counted_body(roller.roll_dice(dice)) if dice else 0, hold.pd),
         escape_type="casual" if casual else "full",
     )
+    # AND THE STR COSTS END: "1 END per 10 points of STR used" (6E1 p.43),
+    # half's worth Casually (6E1 p.134). `str_escape_end_cost` was written
+    # for this and never called. NOT BUILT: p.43's "only has to pay the END
+    # cost for his STR once per Phase"; each attempt pays for its own STR.
+    from kirby_combat.actions.entangle import str_escape_end_cost
+    from kirby_combat.actions.recording import _spend_attack_end
+
+    new_session = _spend_attack_end(
+        new_session, actor, str_escape_end_cost(strength, casual=casual), template)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -1925,12 +1962,18 @@ def _resolve_escape_ego(
     hold = Entangle.held(session, actor.id, mental_paralysis=True)
     if hold is None:
         raise UnresolvableAction(action.kind, action.action_id)
-    dice = ego_escape_dice(int(actor.combat_stats().ego))
+    ego = int(actor.combat_stats().ego)
+    dice = ego_escape_dice(ego)
     body = counted_body(roller.roll_dice(dice)) if dice else 0
     new_session, result = Entangle.escape_paralysis_attempt(
         session, target_id=actor.id,
         damage_body=escape_body(body, hold.md), method="full_ego",
     )
+    # "this costs 1 END per 10 Character Points of EGO used" (6E1 p.219).
+    from kirby_combat.actions.entangle import ego_escape_end_cost
+    from kirby_combat.actions.recording import _spend_attack_end
+
+    new_session = _spend_attack_end(new_session, actor, ego_escape_end_cost(ego), template)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),

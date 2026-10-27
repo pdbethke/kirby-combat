@@ -15,10 +15,11 @@ fight. This module writes it, two ways:
   whole Phase. RULING: anybody who owns the Skill makes the attempt when
   his Phase begins; a man would always rather be up.
 
-JUDGEMENT, NAMED: this engine's turn loop spends one offer per Phase, and
-has no Half Phase economy to leave the other half in. So `stand_up` takes
-the Phase. A man on the ground who would rather not lose it can fight from
-there, at 6E2 p.129's -2 OCV and half DCV (`cv_modifiers._ground_cv_modifiers`).
+A Half Phase Action since the Phase can be spent in halves
+(`kirby_combat/action_time.py`): he stands, and the same Phase comes back to
+him for an attack or another Half Phase Action. A man on the ground can also
+fight from there, at 6E2 p.129's -2 OCV and half DCV
+(`cv_modifiers._ground_cv_modifiers`).
 """
 from __future__ import annotations
 

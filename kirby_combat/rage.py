@@ -49,10 +49,19 @@ effect ("if hit by electricity") or about anything social is the GM's call,
 and the engine never rolls for it. ``classify`` is the whole of the reading
 and is tested clause by clause.
 
-NOT MODELLED, recorded rather than dropped: the Concentration ban (p.424;
-this engine does not read Concentration on attacks), the CSL-to-DCV ban
-(nothing in the loop allocates Combat Skill Levels to DCV), and recovery when
-"someone attempts to snap him out of it" (no such action exists).
+Also built: the Concentration ban ("An Enraged (or Berserk) character cannot
+use any powers that have the Complication Concentration", p.424; the menu
+drops them, `RageMenu.narrowed`), and recovery when "someone attempts to snap
+him out of it" (the `snap_out_of_rage` offer, `half_phase_offers.py`).
+
+RULING, NO HOLDING. "When a character becomes Enraged, he mindlessly attacks
+the individual (or object) that Enrages him" (p.424). Holding an Action is
+waiting for a better moment, which is the one thing a mindless attack does
+not do; `hold` is not offered while he rages.
+
+NOT MODELLED, recorded rather than dropped: the CSL-to-DCV ban (nothing in the
+loop allocates Combat Skill Levels to DCV), and the GM option against powers
+with Extra Time longer than an Extra Segment.
 """
 from __future__ import annotations
 
@@ -87,6 +96,7 @@ class RecoveryOccasion(enum.Enum):
 
     TARGET_DOWN = "target_down"            # "finishes with his target"
     OUT_OF_END = "out_of_end"              # "runs out of END"
+    SNAPPED_OUT = "snapped_out"            # "when someone attempts to snap him out of it"
     POST_SEGMENT_12 = "post_segment_12"    # the free attempt each Turn
 
 
@@ -381,6 +391,17 @@ def _try_to_recover(session, actor, state: RageState, occasion: RecoveryOccasion
     )
 
 
+def try_to_recover(session: "CombatSession", combatant_id: str,
+                   occasion: RecoveryOccasion, roller) -> "CombatSession":
+    """His recovery roll on ``occasion``. Raises if he is not raging: an
+    occasion to calm down needs a fury to calm."""
+    state = rage_state(session, combatant_id)
+    if not state.raging:
+        raise ValueError(f"{combatant_id!r} is not raging; there is nothing to recover from")
+    return _try_to_recover(session, session.combatants[combatant_id], state,
+                           occasion, roller)
+
+
 def rage_phase_start(session: "CombatSession", actor_id: str, roller) -> "CombatSession":
     """The rolls a rage owes at the top of his Phase (6E1 p.424-425)."""
     actor = session.combatants[actor_id]
@@ -448,6 +469,10 @@ DEFENSIVE_KINDS = frozenset({
 })
 
 
+#: What a mindless attacker does not do: wait (see the module's ruling).
+WAITING_KINDS = frozenset({"hold"})
+
+
 @dataclass(frozen=True)
 class RageMenu:
     """How a rage reshapes who he fights and what he may do."""
@@ -459,6 +484,15 @@ class RageMenu:
     @staticmethod
     def without_defence(menu: Iterable) -> list:
         return [a for a in menu if a.kind not in DEFENSIVE_KINDS]
+
+    @staticmethod
+    def narrowed(menu: Iterable) -> list:
+        """What a raging man may do: no defence, no waiting (the ruling
+        above), and no power bought with Concentration (p.424)."""
+        from kirby_combat.concentration import without_concentration_powers
+
+        return without_concentration_powers(
+            a for a in RageMenu.without_defence(menu) if a.kind not in WAITING_KINDS)
 
 
 def rage_menu(session: "CombatSession", actor, enemies: list, allies: list) -> RageMenu | None:

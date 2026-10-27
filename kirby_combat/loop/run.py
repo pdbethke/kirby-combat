@@ -34,16 +34,21 @@ from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import without_spent_shouts
 from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
-from kirby_combat.standing_areas import RAISE_DAMAGE_SHIELD
 from kirby_combat.pre_attacks.in_the_phase import (
-    PRESENCE_KINDS, can_yield_to, half_phase_only, hesitation_owed,
-    limit_to_half_phase, phase_already_begun, presence_attack_made_this_phase,
+    PRESENCE_KINDS, can_yield_to, hesitation_owed,
+    phase_already_begun, presence_attack_made_this_phase,
     yield_phase,
 )
-from kirby_combat.actions.flash import Flash
-from kirby_combat.identity import (
-    CHANGE_IDENTITY_INSTANT, IDENTITY_KINDS, identity_changed_this_phase,
+from kirby_combat.action_time import (
+    KIND_TIMES, ActionTime, breakout_time, fits_in_a_half, halves_left,
+    holds_only_a_half, is_casual, phase_so_far, record_time, rest_of_phase,
+    time_of,
 )
+from kirby_combat.concentration import begin_if_concentrating, not_after_moving
+from kirby_combat.entangle_offers import attack_entangle_offers, ladder_for
+from kirby_combat.half_phase_offers import half_move_offers, snap_out_offers
+from kirby_combat.actions.flash import Flash
+from kirby_combat.identity import IDENTITY_KINDS, identity_changed_this_phase
 from kirby_combat.rage import RageMenu, rage_menu, rage_phase_start, rage_post_segment_12
 from kirby_combat.actions.reactive.abort import is_aborting
 from kirby_combat.charges import spent_charges
@@ -440,7 +445,8 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     he could have taken" --- the same menu, built the same way, or the two
     would drift. So every narrowing lives here and binds a holder too:
     Mind Control's withdraw, Rage (6E1 p.424-425), the one free Presence
-    Attack and the very-impressed Half Phase (6E2 p.139). The situation
+    Attack, and what is left of a Phase already begun --- the second Half
+    Phase, or the very impressed man's only one (`action_time`). The situation
     carries the menu; an empty menu is returned as one, and the caller
     decides what that means.
     """
@@ -619,10 +625,21 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         observer_flashed_groups=frozenset(
             Flash.is_flashed(session, actor_id)[1]),
     )
+    reach_m = float(getattr(actor.combat_stats(), "reach_m", 1.0))
+    if physical_hold is None and paralysis_hold is None:
+        # WHAT A PHASE IN HALVES ADDS: a Half Move (6E2 p.26), calling a
+        # raging friend back (6E1 p.424), and breaking a friend's Entangle
+        # off him (6E1 p.218-219). Not to a man in an Entangle, whose menu IS
+        # his escape ladder (6E1 p.217).
+        menu = (menu + half_move_offers(session, menu)
+                + snap_out_offers(session, actor, allies)
+                + attack_entangle_offers(session, actor, allies, menu, reach_m))
+    else:
+        menu = ladder_for(session, actor_id, menu)
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if rage is not None:
-        menu = RageMenu.without_defence(menu)
+        menu = RageMenu.narrowed(menu)
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
     if presence_attack_made_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind not in PRESENCE_KINDS]
@@ -638,10 +655,18 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # it is a Zero Phase Action and the Phase comes back to him after it.
     if reallocated_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind != REALLOCATE_KIND]
-    # VERY IMPRESSED. 6E2 p.139: he "only performs a Half Phase Action
-    # during his next Phase". `PresenceTier.half_phase` was never read.
-    if half_phase_only(session, actor_id):
-        menu = limit_to_half_phase(menu)
+    # WHAT IS LEFT OF THE PHASE (6E2 p.20). After a first Half Phase Action
+    # only what fits in the second; and a very impressed man "only performs
+    # a Half Phase Action during his next Phase" (6E2 p.139) from the start.
+    # See `kirby_combat/action_time.py`.
+    menu = rest_of_phase(session, actor_id, menu)
+    # NO CONCENTRATION AFTER MOVING: "He may not move more than 2m per
+    # Phase" (6E1 p.374), so not in a Phase whose first half moved him.
+    menu = not_after_moving(phase_so_far(session, actor_id).half_kinds, menu)
+    # A HELD HALF PHASE is used as one (6E2 p.22: "A character may perform a
+    # Half Phase Action and then Hold a Half Phase").
+    if holds_only_a_half(session, actor_id):
+        menu = [a for a in menu if fits_in_a_half(a)]
     # WHAT THE ENGINE CANNOT CARRY OUT IS NOT OFFERED: a shaped power
     # (Area, Constant, Damage Over Time, Side Effects) on a kind that never
     # reaches the attack door, any modifier part `power_modifiers` cannot
@@ -672,7 +697,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # twice, so a tactic and the offer it names cannot disagree about
         # who is adjacent.
         distances_m=dict(distances or {}),
-        reach_m=float(getattr(actor.combat_stats(), "reach_m", 1.0)),
+        reach_m=reach_m,
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
     )
@@ -934,8 +959,11 @@ def run_phase(
     # act before him that Phase." `presence_state` folded who he yields to
     # and nothing read it. If that man still has a Phase to come in this
     # Segment, this one steps back behind it and the Phase is not spent.
+    # Only before he has done anything with the Phase: a man who has taken
+    # his first Half Phase Action has stopped hesitating.
     owed = hesitation_owed(session, actor_id)
-    if owed is not None and can_yield_to(session, actor_id, owed):
+    if (owed is not None and not phase_so_far(session, actor_id).begun
+            and can_yield_to(session, actor_id, owed)):
         session = yield_phase(session, actor_id, owed)
         return _done(
             session,
@@ -992,58 +1020,51 @@ def run_phase(
             notes=[f"no resolver for {action.kind!r}; Phase spent"],
         )
 
-    if action.kind == CHANGE_IDENTITY_INSTANT:
-        # ZERO PHASE. Instant Change (6E1 p.272) makes the change a Zero
-        # Phase Action, so the slot is NOT spent and the next `run_phase`
-        # hands him the same Phase, in his new identity, without the offer.
-        return _done(
-            resolved.session, action_id=action.action_id, kind=action.kind,
-            result=resolved.result,
-            notes=[f"{actor_id} changed identity with Instant Change, a Zero "
-                   f"Phase Action (6E1 p.272); his Phase goes on"],
-        )
-    if action.kind == REALLOCATE_KIND:
-        # ZERO PHASE. 6E1 p.410: "A character can change the way his
-        # Multipower reserve points are distributed or allocated as a Zero
-        # Phase Action", once a Phase. It spent the whole Phase here, so a
-        # seat that reallocated never fired the slot it chose --- and a
-        # first-offer seat reallocated every Phase of a fight for ever.
-        return _done(
-            resolved.session, action_id=action.action_id, kind=action.kind,
-            result=resolved.result,
-            notes=[f"{actor_id} reallocated his Multipower, a Zero Phase "
-                   f"Action (6E1 p.410); his Phase goes on"],
-        )
-    if action.kind == RAISE_DAMAGE_SHIELD:
-        # ZERO PHASE. 6E1 p.323: "he only has to use a Zero Phase Action to
-        # activate it". The offer is gone once the shield is up
-        # (`standing_areas.standing_offers`), so the Phase comes back once.
-        return _done(
-            resolved.session, action_id=action.action_id, kind=action.kind,
-            result=resolved.result,
-            notes=[f"{actor_id} raised a Damage Shield, a Zero Phase Action "
-                   f"(6E1 p.323); his Phase goes on"],
-        )
-    if action.kind in PRESENCE_KINDS:
-        # NO TIME. 6E2 p.25 rates a Presence Attack "No Time", and p.20 lets
-        # one be made beside a Full Phase Action. So the slot is NOT spent:
-        # the next `run_phase` hands the same man the same Phase, with the
-        # Presence offers gone from his menu.
-        return _done(
-            break_hide(resolved.session, actor_id, by_kind=action.kind),
-            action_id=action.action_id, kind=action.kind,
-            result=resolved.result,
-            notes=[f"{actor_id} made a Presence Attack; it takes No Time "
-                   f"(6E2 p.25) and his Phase goes on"],
-        )
     # AN ATTACK OUT OF HIDING GIVES HIM AWAY --- after it lands, so the
     # attack itself is still Surprised. See `concealment.REVEALING_KINDS`.
     session = break_hide(resolved.session, actor_id, by_kind=action.kind)
+    # A POWER BOUGHT WITH CONCENTRATION holds him at 1/2 or 0 DCV until his
+    # next Phase (6E1 p.374-375). See `kirby_combat/concentration.py`.
+    session = begin_if_concentrating(session, actor_id, action)
+
+    # HOW MUCH OF THE PHASE IT TOOK (6E2 p.20, p.25). The one decision every
+    # exit used to make its own way: four Zero Phase kinds each had a branch
+    # here and everything else spent the slot, so standing up took the Phase
+    # and nobody ever moved and then chose his blow. `action_time` prices
+    # every kind; a break-out is priced by how well it went (6E2 p.126).
+    time = time_of(action)
+    if time is ActionTime.BREAKOUT:
+        time = breakout_time(resolved)
+    if time in (ActionTime.NO_TIME, ActionTime.ZERO, ActionTime.HALF):
+        session = record_time(session, actor_id, action, time)
+        if time is not ActionTime.HALF or halves_left(session, actor_id) > 0:
+            # THE SLOT IS NOT SPENT: the next `run_phase` hands him the same
+            # Phase, with `rest_of_phase` cutting the menu to what is left.
+            return _done(
+                session, action_id=action.action_id, kind=action.kind,
+                result=resolved.result,
+                notes=[_goes_on_note(actor_id, action, time)],
+            )
+        # His last Half Phase Action: the Phase is used up.
     session, spent = _mark_acted(session, actor_id)
     return _done(
         session, action_id=action.action_id, kind=action.kind,
         result=resolved.result,
     )
+
+
+def _goes_on_note(actor_id: str, action, time: ActionTime) -> str:
+    """Say what the Action took, and that the Phase is still his."""
+    if is_casual(action):
+        why = "Use STR Casually: 0 Phase (6E2 p.25), once a Segment (6E1 p.134)"
+    elif KIND_TIMES[action.kind][0] is ActionTime.BREAKOUT:
+        why = ("free by twice the BODY needed, so it took no time"
+               if time is ActionTime.ZERO else "free with a Half Phase to act") + " (6E2 p.126)"
+    else:
+        why = KIND_TIMES[action.kind][1]
+    taken = {ActionTime.NO_TIME: "takes no time", ActionTime.ZERO: "is a Zero Phase Action",
+             ActionTime.HALF: "is a Half Phase Action"}[time]
+    return f"{actor_id}'s {action.kind} {taken} ({why}); his Phase goes on"
 
 
 def _resolve_out_of_turn(
@@ -1076,6 +1097,7 @@ def _resolve_out_of_turn(
             raise
         return session, f"no resolver for {action.kind!r}; {holder_id}'s Held Action lost"
     session = break_hide(resolved.session, holder_id, by_kind=action.kind)
+    session = begin_if_concentrating(session, holder_id, action)
     return session, f"{holder_id} used his Held Action: {action.kind} ({note})"
 
 
@@ -1241,19 +1263,20 @@ def _entangle_holds(session: "CombatSession", actor_id: str):
     driver that did was deleted --- so an Entangled man got his whole menu
     and shot people from inside the glue.
 
-    `takes_no_damage` is False because `EntangleApplied` does not record
-    Takes No Damage From Attacks (6E1 p.221) for a physical Entangle; one
-    bought with it is still offered `escape_attack`. Open, named in the
-    0.22 CHANGELOG.
+    `takes_no_damage` is the +1 Takes No Damage From Attacks (6E1 p.221),
+    which `EntangleApplied` now records: "he can only apply his STR", so no
+    `escape_attack`. The +1/4 and +1/2 levels make it transparent to OUTSIDE
+    attacks only; the victim may still attack it from inside (6E1 p.218).
     """
-    from kirby_combat.actions.entangle import Entangle
+    from kirby_combat.actions.entangle import Entangle, Transparency
     from kirby_combat.enumeration import MentalParalysisState, PhysicalEntangleState
 
     phys = Entangle.held(session, actor_id, mental_paralysis=False)
     para = Entangle.held(session, actor_id, mental_paralysis=True)
     return (
         PhysicalEntangleState(body=phys.body, pd=phys.pd, ed=phys.ed,
-                              no_teleport=phys.no_teleport, takes_no_damage=False)
+                              no_teleport=phys.no_teleport,
+                              takes_no_damage=phys.transparency is Transparency.STR_ONLY)
         if phys is not None else None,
         MentalParalysisState(body=para.body, md=para.md) if para is not None else None,
     )

@@ -121,10 +121,10 @@ def test_a_character_with_one_identity_is_not_offered_a_change():
 
 
 def test_the_change_is_excluded_from_a_half_phase():
-    from kirby_combat.pre_attacks.in_the_phase import HALF_PHASE_EXCLUDED
+    from kirby_combat.action_time import FULL_PHASE_KINDS
 
-    assert CHANGE_IDENTITY in HALF_PHASE_EXCLUDED
-    assert CHANGE_IDENTITY_INSTANT not in HALF_PHASE_EXCLUDED
+    assert CHANGE_IDENTITY in FULL_PHASE_KINDS
+    assert CHANGE_IDENTITY_INSTANT not in FULL_PHASE_KINDS
 
 
 @pytest.mark.parametrize("start", [True, False])

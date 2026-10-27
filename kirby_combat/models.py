@@ -172,6 +172,10 @@ class AttackPower:
     #: size of the pool nor the free-text condition is anything the engine
     #: can carry out.
     uncontrolled: bool = False
+    #: Concentration (6E1 p.374-375), or None. A
+    #: `power_modifiers.ConcentrationSpec`: using it puts him at 1/2 or 0 DCV
+    #: until his next Phase (`kirby_combat/concentration.py`).
+    concentration: Any = None
 
 
 @dataclass

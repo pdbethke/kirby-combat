@@ -663,6 +663,9 @@ ALL_ACTION_KINDS = frozenset({
     # Offered by `standing_areas.standing_offers` (6E1 p.323), which the
     # loop runs over this menu.
     "raise_damage_shield",
+    # Offered by `half_phase_offers` (6E2 p.26; 6E1 p.424) and
+    # `entangle_offers` (6E1 p.218-219), which the loop adds to this menu.
+    "half_move", "snap_out_of_rage", "attack_entangle",
 })
 
 #: Kinds that mean "this offer hits somebody". Used to tell a fighter who

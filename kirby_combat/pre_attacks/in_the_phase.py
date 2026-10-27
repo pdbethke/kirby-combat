@@ -25,7 +25,9 @@ and the engine's loop did not:
 
 3. **Very impressed: a Half Phase Action only** (6E2 p.139, at PRE+10: he
    "only performs a Half Phase Action during his next Phase").
-   `PresenceTier.half_phase` was never read.
+   `PresenceTier.half_phase` was never read. `half_phase_only` answers it;
+   `kirby_combat/action_time.py` gives him one Half Phase instead of two,
+   the same economy every other Phase runs on.
 
 "HIS NEXT PHASE" is read off the log: a result is owed until the target
 next spends a Phase (`PhaseSpent`). That is the driver's "the flag is
@@ -37,55 +39,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kirby_combat.enumeration import LegalAction
     from kirby_combat.session.combat_session import CombatSession
 
 #: The kinds that ARE a Presence Attack.
 PRESENCE_KINDS = frozenset({"presence_attack", "presence_attack_group"})
-
-#: What a Half Phase Action excludes: every offer that is a Full Phase, or
-#: that is two Half Phases (a Half Move AND an attack). 6E2 p.20: "any
-#: Action which requires an Attack Roll" is a Half Phase Action that ends
-#: the Phase, so a very impressed man may still attack --- what he may not
-#: do is move and attack, or do anything that takes the whole Phase.
-HALF_PHASE_EXCLUDED: dict[str, str] = {
-    "recover": "taking a Recovery is a Full Phase Action (6E2 p.20)",
-    "set": "Set takes a Full Phase (6E2 p.81)",
-    "multiple_attack": "the Multiple Attack Maneuver is a Full Phase Action "
-                       "(6E2 p.20, p.75)",
-    "sweep": "a Sweep is the HTH Multiple Attack, a Full Phase Action "
-             "(6E2 p.20, p.75)",
-    "rapid_fire": "Rapid Fire is the Ranged Multiple Attack, a Full Phase "
-                  "Action (6E2 p.20, p.75)",
-    "move": "the offer moves up to his whole movement, a Full Move "
-            "(6E2 p.26)",
-    "disengage": "a full combat move away, a Full Move (6E2 p.26)",
-    "reposition": "moves up to his whole movement, a Full Move (6E2 p.26)",
-    "reposition_vantage": "moves up to his whole movement, a Full Move "
-                          "(6E2 p.26)",
-    "reposition_push": "a Pushed Full Move (6E2 p.26)",
-    "move_by": "a Move By attacks \"while doing a Full Move\" (6E2 p.72)",
-    # 6E2 p.72 allows a Half-Phase Move Through on a Half Move; this
-    # engine's resolver makes the Full-Move one (`actions/move_through.py`,
-    # phase_cost "full"), so that is the one excluded.
-    "move_through": "a Move Through attacks \"at the end of a Full Move\" "
-                    "(6E2 p.72)",
-    "move_strike": "a Half Move AND an attack: two Half Phase Actions "
-                   "(6E2 p.20)",
-    "reposition_strike": "a Half Move AND an attack: two Half Phase Actions "
-                         "(6E2 p.20)",
-    # RULING: 6E1 p.70 rates climbing per Phase and says nothing of halves,
-    # so a climb is read as the Phase's movement.
-    "climb": "climbing is rated per Phase (6E1 p.70); ruled a Full Phase",
-    "climb_fast": "climbing is rated per Phase (6E1 p.70); ruled a Full "
-                  "Phase",
-    "change_identity": "an Only In Alternate Identity change takes at least "
-                       "a Full Phase (6E1 p.389)",
-}
-
 
 def _since_his_last_phase(session: "CombatSession", combatant_id: str) -> list:
     """The log after the last Phase this combatant spent."""
@@ -139,6 +99,12 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
     """
     if presence_attack_made_this_phase(session, combatant_id):
         return True
+    # Any Action that left the Phase his --- a Half Phase Action, a Zero Phase
+    # one, a break-out that took no time (`kirby_combat/action_time.py`).
+    if any(getattr(evt, "kind", None) == "PhaseTimeUsed"
+           and getattr(evt, "combatant_id", None) == combatant_id
+           for evt in _in_this_phase(session, combatant_id)):
+        return True
     # So does a Zero Phase Multipower reallocation (6E1 p.410).
     from kirby_combat.framework import reallocated_this_phase
 
@@ -189,11 +155,6 @@ def hesitation_owed(session: "CombatSession", combatant_id: str) -> str | None:
 def half_phase_only(session: "CombatSession", combatant_id: str) -> bool:
     """Is this Phase limited to a Half Phase Action (6E2 p.139, PRE+10)?"""
     return any(rule.half_phase for rule, _ in _owed_tiers(session, combatant_id))
-
-
-def limit_to_half_phase(menu: Iterable["LegalAction"]) -> list["LegalAction"]:
-    """The offers a very impressed man may still take."""
-    return [a for a in menu if a.kind not in HALF_PHASE_EXCLUDED]
 
 
 def can_yield_to(session: "CombatSession", target_id: str, attacker_id: str) -> bool:

@@ -23,7 +23,7 @@ from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.loop.run import run_phase
-from kirby_combat.pre_attacks.in_the_phase import HALF_PHASE_EXCLUDED
+from kirby_combat.action_time import FULL_PHASE_KINDS
 from kirby_combat.pre_attacks.landing import pre_defense_of
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.session.combat_session import CombatSession
@@ -218,7 +218,7 @@ def test_a_very_impressed_man_takes_only_a_half_phase_action():
     first = next({a.kind for a in menu} for actor, menu in chooser.menus
                  if actor == "virgil")
     assert "attack" in first
-    assert not (first & set(HALF_PHASE_EXCLUDED)), first
+    assert not (first & FULL_PHASE_KINDS), first
 
 
 def test_the_half_phase_limit_lasts_one_phase():
