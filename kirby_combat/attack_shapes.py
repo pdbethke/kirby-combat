@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 SHAPED_DOOR_KINDS = frozenset({
     "attack", "strike", "push", "move_strike", "reposition_strike",
     "multiple_attack", "rapid_fire", "sweep",
+    # An Autofire Area's landings are Area uses through the door (6E2 p.45,
+    # `loop/autofire_resolvers.py`). A spray of one is never offered.
+    "autofire",
 })
 
 #: Kinds whose resolver places a shaped power's AREA itself, on its own

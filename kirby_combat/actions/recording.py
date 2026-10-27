@@ -738,12 +738,15 @@ def resolve_attack_in_session(
     if result.knockback_owed:
         kb_count = knockback_dice_for(session, attack, template)
         kb_roller = roller or session.dice_roller
-        if kb_count and int(result.damage.body) >= kb_count and kb_roller is not None:
+        # 6E1 p.329: an Autofire burst's Knockback is its largest hit's BODY
+        # plus 1 per other hit, rolled once (`AttackInput.knockback_body_bonus`).
+        kb_body = int(result.damage.body) + int(attack.knockback_body_bonus)
+        if kb_count and kb_body >= kb_count and kb_roller is not None:
             from kirby_combat.resolution.knockback import compute_knockback
 
             pool = kb_roller.roll_dice(kb_count)
             kb = compute_knockback(
-                body=int(result.damage.body), knockback_dice=list(pool),
+                body=kb_body, knockback_dice=list(pool),
                 kb_resistance_m=int(result.defense.knockback_resistance),
                 knockback_multiplier=template.knockback_multiplier,
                 template=template,

@@ -322,7 +322,7 @@ class AttackAction:
             # caller-rolled pool (caller is responsible for adding/removing
             # dice per the modifiers table).
             knockback = compute_knockback(
-                body=damage.body,
+                body=damage.body + int(attack.knockback_body_bonus),
                 knockback_dice=list(attack.dice.knockback),
                 kb_resistance_m=defense.knockback_resistance,
                 knockback_multiplier=template.knockback_multiplier,

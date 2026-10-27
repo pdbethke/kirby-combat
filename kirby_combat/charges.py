@@ -78,5 +78,10 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
             payload = getattr(event, "result_payload", None) or {}
             source = payload.get("power_source_id")
             if source:
-                out[str(source)] = out.get(str(source), 0) + 1
+                # 6E1 p.329: an Autofire burst "must ... use up Charges ...
+                # for each shot", and its use row says how many it fired
+                # (`actions/autofire_attack.py`). Every other use is one.
+                shots = payload.get("shots_fired")
+                used = 1 if shots is None else int(shots)
+                out[str(source)] = out.get(str(source), 0) + used
     return out

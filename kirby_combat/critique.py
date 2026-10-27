@@ -33,7 +33,8 @@ if TYPE_CHECKING:
 
 #: The kinds that put a power against a target and can therefore be futile.
 _ATTACK_KINDS = frozenset({"attack", "strike", "move_strike", "move_through",
-                           "haymaker", "rapid_fire", "multiple_attack"})
+                           "haymaker", "rapid_fire", "multiple_attack",
+                           "autofire"})
 
 #: A best-possible d6. Futility is judged on the luckiest roll the dice can
 #: produce, never an average: "usually does nothing" is a bad bet, and this

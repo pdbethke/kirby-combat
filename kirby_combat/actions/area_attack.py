@@ -274,44 +274,26 @@ class AreaUse:
     combat_type: str | None
 
 
-def area_use(session, attack, template, *, roller, declaration_event_id,
-             action_type, combat_type) -> AreaUse:
-    """Make the use: the Activation Roll, the Attack Roll against the target
-    point, the scatter, who and what is in it, the use's own row, its END
-    and its Side Effects. What it does to each man in it is the caller's:
-    damage at the attack door (`resolve_area_attack_in_session`), a Flash or
-    an Entangle (`actions/area_effects.py`)."""
-    from kirby_combat.actions.recording import (
-        _activation_check, _record_failed_activation, _spend_attack_end,
-        apply_side_effects,
-    )
-    from kirby_combat.cv_modifiers import effective_ocv_for
-    from kirby_combat.endurance import end_cost
-    from kirby_combat.resolution.to_hit import resolve_to_hit
-    from kirby_combat.roster import Roster
-    from kirby_combat.sense_penalties import HTH, RANGED
-    from kirby_combat.session.events import (
-        ActionDeclared, ActionResolved, make_author_combatant,
-    )
+@dataclass(frozen=True)
+class _Aim:
+    """Where an Area use goes and what its Attack Roll is made against."""
 
-    spec: AreaSpec = attack.power.area
+    shooter_xyz: Any
+    geo: "AreaGeometry | None"
+    roll_input: Any
+    combat_type: str
+
+
+def _aim(session, attack, combat_type) -> _Aim:
+    """The target point and the roll against it, for `area_use` and for an
+    Autofire burst that must know its margin before it lands
+    (`area_attack_roll`)."""
+    from kirby_combat.cv_modifiers import effective_ocv_for
+    from kirby_combat.sense_penalties import HTH, RANGED
+
     attacker = session.combatants[attack.attacker.id]
     named = attack.target
-    roller = roller or session.dice_roller
     no_range = _no_range(attack.power)
-
-    # 6E1 p.375 first: a power that does not go off covers nobody.
-    activated = _activation_check(session, attack, roller)
-    if activated is not None and not activated["activated"]:
-        s, result = _record_failed_activation(
-            session, attack, activated,
-            declaration_event_id=declaration_event_id, action_type=action_type,
-        )
-        s = apply_side_effects(s, attack, template, roller=roller, failed=True)
-        return AreaUse(session=s, failed=result, use=None, to_hit=None,
-                       geo=None, victims=[], constructs=[], decl_id=None,
-                       landed=False, combat_type=combat_type)
-
     # WHERE THE AREA GOES. No Range: on the attacker (6E1 p.321-322).
     # Otherwise on the named target's own spot --- the offer named a man,
     # and Pulsar's example targets "the spot where Defender ... is standing".
@@ -324,7 +306,7 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
         geo = AreaGeometry(point=point, axis=_axis(shooter_xyz, aimed_xyz))
         range_m = 0.0 if no_range else math.dist(shooter_xyz, aimed_xyz)
     else:
-        shooter_xyz = aimed_xyz = None
+        shooter_xyz = None
         geo = None
         range_m = None
 
@@ -341,8 +323,65 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
         attack, target=_TargetPoint(dcv=point_dcv),
         distance_m=range_m if not no_range else None,
         ocv_modifier=attack.ocv_modifier + ocv_delta, dcv_modifier=0,
+        fixed_to_hit=None,
     )
-    to_hit = resolve_to_hit(roll_input, template)
+    return _Aim(shooter_xyz=shooter_xyz, geo=geo, roll_input=roll_input,
+                combat_type=combat_type)
+
+
+def area_attack_roll(session, attack, template, *, combat_type=None):
+    """The Attack Roll an Area use makes against its target point, made
+    without making the use. An Autofire Area burst rolls once and lands as
+    many times as the roll's margin allows (6E2 p.45)."""
+    from kirby_combat.resolution.to_hit import resolve_to_hit
+
+    return resolve_to_hit(_aim(session, attack, combat_type).roll_input, template)
+
+
+def area_use(session, attack, template, *, roller, declaration_event_id,
+             action_type, combat_type) -> AreaUse:
+    """Make the use: the Activation Roll, the Attack Roll against the target
+    point, the scatter, who and what is in it, the use's own row, its END
+    and its Side Effects. What it does to each man in it is the caller's:
+    damage at the attack door (`resolve_area_attack_in_session`), a Flash or
+    an Entangle (`actions/area_effects.py`)."""
+    from kirby_combat.actions.recording import (
+        _activation_check, _record_failed_activation, _spend_attack_end,
+        apply_side_effects,
+    )
+    from kirby_combat.endurance import end_cost
+    from kirby_combat.resolution.to_hit import resolve_to_hit
+    from kirby_combat.roster import Roster
+    from kirby_combat.session.events import (
+        ActionDeclared, ActionResolved, make_author_combatant,
+    )
+
+    spec: AreaSpec = attack.power.area
+    attacker = session.combatants[attack.attacker.id]
+    named = attack.target
+    roller = roller or session.dice_roller
+    no_range = _no_range(attack.power)
+
+    # AN AUTOFIRE BURST'S LANDING (6E2 p.45) arrives with the burst's one
+    # Attack Roll already made, and its Activation Roll with it
+    # (`actions/autofire_attack.py`): this use rolls neither.
+    burst_roll = attack.fixed_to_hit
+    # 6E1 p.375 first: a power that does not go off covers nobody.
+    activated = None if burst_roll is not None else _activation_check(session, attack, roller)
+    if activated is not None and not activated["activated"]:
+        s, result = _record_failed_activation(
+            session, attack, activated,
+            declaration_event_id=declaration_event_id, action_type=action_type,
+        )
+        s = apply_side_effects(s, attack, template, roller=roller, failed=True)
+        return AreaUse(session=s, failed=result, use=None, to_hit=None,
+                       geo=None, victims=[], constructs=[], decl_id=None,
+                       landed=False, combat_type=combat_type)
+
+    aim = _aim(session, attack, combat_type)
+    shooter_xyz, geo, combat_type = aim.shooter_xyz, aim.geo, aim.combat_type
+    to_hit = (burst_roll if burst_roll is not None
+              else resolve_to_hit(aim.roll_input, template))
 
     now = datetime.now(timezone.utc)
     s = session

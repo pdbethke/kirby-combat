@@ -168,7 +168,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 69   # pick_up_weapon (6E2 p.62), raise_damage_shield (6E1 p.323)
+    assert len(registered_kinds()) == 71   # autofire, autofire_spray (6E2 p.44-45)
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -206,6 +206,7 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "change_identity", "change_identity_instant",  # test_identity_change
         "pick_up_weapon",          # test_maneuvers_complete
         "raise_damage_shield",     # test_standing_areas
+        "autofire", "autofire_spray",  # test_autofire_bursts
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

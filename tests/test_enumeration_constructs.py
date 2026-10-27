@@ -377,6 +377,20 @@ def _destroyed_force_wall(owner_id: str) -> Construct:
     )
 
 
+def _map():
+    """Both men on the board: the wall is placed short of the nearest enemy
+    there (`placing.has_a_place_near_an_enemy`), so with no map there is no
+    offer at all (see `TestForceWallNeedsAPlace`)."""
+    from kirby_combat.scene.scene import AmbientConditions, Scene, SceneBounds
+
+    return Scene(
+        id="s", name="S", bounds=SceneBounds(-50, -50, 0, 50, 50, 20),
+        surfaces=[], walls=[], hazards=[], ambient=AmbientConditions(),
+        combatant_positions={"caster": Position(0.0, 0.0, 0.0),
+                             "enemy": Position(-20.0, 0.0, 0.0)},
+    )
+
+
 class TestForceWallStackingGuard:
 
     def test_offer_suppressed_while_own_wall_alive(self):
@@ -391,7 +405,7 @@ class TestForceWallStackingGuard:
 
         offers = [
             a for a in enumerate_actions(
-                actor, [enemy], has_scene=True, constructs=[live_wall],
+                actor, [enemy], has_scene=True, scene=_map(), constructs=[live_wall],
             )
             if a.kind == "force_wall"
         ]
@@ -411,7 +425,7 @@ class TestForceWallStackingGuard:
 
         offers = [
             a for a in enumerate_actions(
-                actor, [enemy], has_scene=True, constructs=[destroyed_wall],
+                actor, [enemy], has_scene=True, scene=_map(), constructs=[destroyed_wall],
             )
             if a.kind == "force_wall"
         ]
@@ -433,7 +447,7 @@ class TestForceWallStackingGuard:
 
         offers = [
             a for a in enumerate_actions(
-                actor, [enemy], has_scene=True, constructs=[ally_wall],
+                actor, [enemy], has_scene=True, scene=_map(), constructs=[ally_wall],
             )
             if a.kind == "force_wall"
         ]

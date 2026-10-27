@@ -156,6 +156,11 @@ class AttackPower:
     #: Increased Endurance Cost (6E1 p.376), or None. A
     #: `power_modifiers.IncreasedEnd`: END is this many times the usual.
     increased_end: Any = None
+    #: Autofire (6E1 p.329), or None. A `power_modifiers.AutofireSpec`: the
+    #: most shots one Phase may fire. Fired one shot at a time it is any
+    #: attack; a burst is the `autofire` / `autofire_spray` kinds
+    #: (`actions/autofire_attack.py`).
+    autofire: Any = None
     #: Persistent (6E1 p.130, p.334): "it's assumed to be on at all times,
     #: even when the character is unconscious". A Persistent Damage Shield
     #: or No Range aura is up from the first Segment and never needs
@@ -448,6 +453,12 @@ class AttackInput:
     #: power's later damage, which takes "no further Attack Rolls" (6E1
     #: p.129). None --- the ordinary case --- means roll it here.
     fixed_to_hit: "ToHitResult | None" = None
+    #: BODY added to this hit's Knockback roll and to nothing else. 6E1 p.329:
+    #: "To calculate Knockback from an Autofire attack, use the BODY of the
+    #: largest attack and add +1 BODY for each additional hit" (6E2 p.116's
+    #: "+2m for each additional attack that hit", one roll instead of many).
+    #: Set on that one hit by `actions/autofire_attack.py`; 0 everywhere else.
+    knockback_body_bonus: int = 0
 
 
 @dataclass

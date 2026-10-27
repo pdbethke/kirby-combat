@@ -601,36 +601,14 @@ def _point_near_nearest_enemy(
     party absent from it --- and the caller refuses rather than guessing a
     coordinate.
     """
+    from kirby_combat.placing import point_short_of_nearest
     from kirby_combat.roster import Roster
-    from kirby_world.geometry import distance_3d
 
-    scene = session.scene
-    positions = getattr(scene, "combatant_positions", None) or {}
-    here = positions.get(actor.id)
-    if here is None:
-        return None
-
-    reachable = [
-        (distance_3d(here, positions[e.id]), e.id)
-        for e in Roster(session).enemies_of(actor)
-        if e.id in positions
-    ]
-    if not reachable:
-        return None
-
-    _, nearest_id = min(reachable, key=lambda pair: (pair[0], pair[1]))
-    there = positions[nearest_id]
-    gap = distance_3d(here, there)
-    if gap <= standoff_m:
-        # Already nose to nose: put the decoy on the enemy's spot rather
-        # than behind the caster, which is what a negative step would do.
-        return (there.x, there.y, there.z)
-
-    t = (gap - standoff_m) / gap
-    return (
-        here.x + (there.x - here.x) * t,
-        here.y + (there.y - here.y) * t,
-        here.z + (there.z - here.z) * t,
+    positions = getattr(session.scene, "combatant_positions", None) or {}
+    return point_short_of_nearest(
+        positions.get(actor.id),
+        [(e.id, positions.get(e.id)) for e in Roster(session).enemies_of(actor)],
+        standoff_m,
     )
 
 
@@ -883,7 +861,7 @@ def _resolve_flash(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Flash (6E1 p.245): blind a Sense Group for BODY − Flash Defense Segments.
+    """Flash (6E1 p.228): blind a Sense Group for BODY − Flash Defense Segments.
 
     The Sense Group comes off the power via ``flash_groups``, the same
     reader Darkness and Images use. ``Flash.apply`` owns the rest ---
@@ -903,15 +881,32 @@ def _resolve_flash(
         return resolve_area_effect(session, actor, action, template=template,
                                    roller=roller, kind="flash")
 
+    from kirby_combat.actions.entangle import counted_body
+    from kirby_combat.actions.targeted_effects import (
+        effect_attack_roll, record_miss, roll_record,
+    )
+
     target = session.combatants[action.target_id]
+    # 6E1 p.228: "a character must make an Attack Roll. If he succeeds, he
+    # rolls the Flash dice and counts the Normal Damage BODY." This made no
+    # roll and summed the pips. See `actions/targeted_effects.py`.
+    to_hit = effect_attack_roll(session, actor, target, power, roller, template)
+    if not to_hit.hit:
+        new_session = record_miss(session, actor, action, to_hit,
+                                  effect_type="flash_attack")
+        return ResolvedAction(
+            session=new_session, kind=action.kind, action_id=action.action_id,
+            result=to_hit, events=_events_since(session, new_session),
+        )
     groups = sorted(flash_groups(power)) or ["sight"]
-    body = sum(roller.roll_dice(_levels(action)))
+    body = counted_body(roller.roll_dice(_levels(action)))
 
     new_session, result = Flash.apply(
         session,
         attacker_id=actor.id, target_id=target.id,
         sense_group=groups[0], body_dealt=body,
         flash_defense=int(target.combat_stats().flash_defense or 0),
+        attack_roll=roll_record(to_hit),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -945,6 +940,21 @@ def _resolve_entangle(
         return resolve_area_effect(session, actor, action, template=template,
                                    roller=roller, kind="entangle")
 
+    from kirby_combat.actions.targeted_effects import (
+        effect_attack_roll, record_miss, roll_record,
+    )
+
+    # 6E1 p.217: "To use Entangle, a character must make an Attack Roll."
+    # This bound every man it was aimed at. See `actions/targeted_effects.py`.
+    target = session.combatants[action.target_id]
+    to_hit = effect_attack_roll(session, actor, target, power, roller, template)
+    if not to_hit.hit:
+        new_session = record_miss(session, actor, action, to_hit,
+                                  effect_type="entangle_attack")
+        return ResolvedAction(
+            session=new_session, kind=action.kind, action_id=action.action_id,
+            result=to_hit, events=_events_since(session, new_session),
+        )
     dice = _levels(action)
     body = counted_body(roller.roll_dice(dice))
     per_die_pd, per_die_ed = entangle_default_defenses(dice)
@@ -954,6 +964,7 @@ def _resolve_entangle(
         entangle_body=body,
         entangle_pd=int(getattr(power, "entangle_pd", 0) or per_die_pd),
         entangle_ed=int(getattr(power, "entangle_ed", 0) or per_die_ed),
+        attack_roll=roll_record(to_hit),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -1260,6 +1271,8 @@ def _rapid_fire_at_construct(
         None,
     )
     power = action._attack_view
+    if construct is None and power is not None:
+        return _fired_into_rubble(session, actor, action)
     if construct is None or power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
@@ -1293,6 +1306,33 @@ def _rapid_fire_at_construct(
         "body_dealt": sum(s.body_through for s in shots),
         "destroyed": destroyed,
         "collapsed_onto": caught,
+    })
+
+
+def _fired_into_rubble(session, actor, action: LegalAction) -> ResolvedAction:
+    """A shot at a wall that has already come down.
+
+    THE HELD ACTION THAT RAISED. A man Holds an Action and is offered
+    `rapid_fire:wall_5:...` from the menu as it stood; somebody else's Phase
+    brings wall_5 down; he loses the DEX contest and goes straight after
+    (6E2 p.22). His resolver looked for wall_5, found only rubble --- which
+    `constructs_in` rightly drops --- and raised, which under
+    `on_unresolvable="raise"` stops the fight (seen on main as
+    `rapid_fire:wall_5:1270951759401:3`).
+
+    RULING, labelled: he fires at where it stood. The action is his and the
+    Phase is spent; there is nothing left to damage, so nothing is. An id
+    that was never in the place still raises (`constructs.already_destroyed`
+    tells the two apart): that offer was never true.
+    """
+    from kirby_combat.constructs import already_destroyed
+
+    if not already_destroyed(session.scene, session, action.target_id):
+        raise UnresolvableAction(action.kind, action.action_id)
+    return _recorded(session, actor, action, None, {
+        "kind": action.kind, "target_id": action.target_id,
+        "targets_construct": True, "body_dealt": 0, "destroyed": False,
+        "already_destroyed": True,
     })
 
 
@@ -1954,6 +1994,8 @@ def _resolve_attack_construct(
          if getattr(c, "obj_id", None) == target_id),
         None,
     )
+    if construct is None and action._attack_view is not None:
+        return _fired_into_rubble(session, actor, action)
     if construct is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
