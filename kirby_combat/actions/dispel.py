@@ -27,10 +27,23 @@ a power bought with Extra Time to start comes back as quickly as any other.
 NOT BUILT, so not offered:
 - a Dispel whose INPUT names a special-effect group ("Fire", "Magic",
   "Technological Object" --- most of the corpus): which of the target's
-  powers are Fire is not something a build records;
+  powers are Fire is not something a build records. HD has a per-power
+  ``SFX`` attribute, and in the local corpus 67,417 of its 67,488 values are
+  "Default"; the 71 others are Light, Ice/Cold, Mutant, Electricity,
+  Darkness, Vibration, Water, Miscellaneous, Magic/Mystic, Light or Radio
+  and Botany. Not one is Fire or Magic, the groups most Dispels name, and
+  matching "Electricity Powers" to "Electricity" would be a string guess.
+  (Checked 2026-10-27; the same holds for Drain/Aid inputs like "Magic
+  Powers" and "Energy Powers");
 - a Dispel on a combatant rebuilt from a snapshot, whose views were
   recorded rather than derived and cannot leave a power out;
-- Dispelling an incoming attack with a Held Action (6E1 p.195).
+- Dispelling an incoming attack with a Held Action (6E1 p.195). "Assuming
+  the Dispel applies to the attack" --- and no corpus Dispel names an attack
+  power: the 13 INPUTs are Magic, Magic Powers, Technological Object,
+  Summon, Invisibility, Fire, Fire Powers, Holy Powers, Electronic Devices,
+  Electricity Powers, Electrical Device Powers, EM Spectrum-Based Powers and
+  Desolidification. With nothing that could ever be offered, the door is
+  not built.
 """
 from __future__ import annotations
 
