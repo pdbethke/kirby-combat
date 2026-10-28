@@ -168,3 +168,33 @@ def test_an_area_mind_control_gives_everyone_in_it_the_same_order():
     use = [e.result_payload for e in out.session.event_log if e.kind == "ActionResolved"
            and e.result_payload.get("area_use")]
     assert use[0]["target_dcv"] == 3
+
+
+def test_an_area_mind_control_meets_a_mental_paralysis_as_well():
+    """6E1 p.219: a Mental Paralysis's Mental Defense "also protects the
+    Entangled character if anyone tries to attack him mentally" --- in an
+    Area as on one target. The same 36 that takes b and e meets c's EGO + 10
+    plus the paralysis's MD 30, and fails on him alone."""
+    from test_area_flash_and_entangle import POSITIONS, _Power as _AreaPower, _area
+    from shaped import Dice, armed, encounter_on, scene_with
+
+    from kirby_combat.actions.entangle import Entangle, Transparency
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.loop.registry import resolve_chosen
+
+    siren = _AreaPower("MINDCONTROL", "Siren Song", 12, assigned_modifiers=[_area(7)])
+    offer = LegalAction(action_id=f"mind_control:b:{siren.id}:spare", kind="mind_control",
+                        target_id="b", power_xmlid="MINDCONTROL", power_name=siren.name,
+                        summary="", _attack_view=siren, order="spare")
+    people = [armed("a", None, side=VILLAINS, dex=30, is_mentalist=True),
+              armed("b", None, side=HEROES), armed("c", None, side=HEROES),
+              armed("e", None, side=VILLAINS), armed("d", None, side=HEROES)]
+    enc = encounter_on(scene_with(POSITIONS), *people)
+    s, _ = Entangle.apply_mental_paralysis(
+        enc.sessions[0], attacker_id="e", target_id="c", entangle_body=3,
+        entangle_md=30, transparency=Transparency.ALL)
+    out = resolve_chosen(s, s.combatants["a"], offer, template=TEMPLATE_,
+                         roller=Dice(face=3))
+    held = {e.result_payload["target_id"] for e in out.session.event_log
+            if e.kind == "ActionResolved" and e.result_payload.get("established")}
+    assert held == {"b", "e"}

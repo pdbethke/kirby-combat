@@ -318,6 +318,7 @@ def resolve_area_mind_control(session, actor, action: "LegalAction", *,
     rolls again, OMCV against each victim's own DMCV (6E1 p.326).
     """
     from kirby_combat.actions.area_attack import area_use
+    from kirby_combat.actions.entangle import mentally_shielded
     from kirby_combat.cv_modifiers import effective_omcv_for
     from kirby_combat.enumeration import _src_id
     from kirby_combat.loop.registry import ResolvedAction, UnresolvableAction
@@ -352,7 +353,8 @@ def resolve_area_mind_control(session, actor, action: "LegalAction", *,
         per_target = spec.targeting in (AreaTargeting.SELECTIVE,
                                         AreaTargeting.NONSELECTIVE)
         for victim_id, _distance in placed.victims:
-            victim = s.combatants[victim_id]
+            # Behind a Mental Paralysis's Mental Defense too (6E1 p.219).
+            victim = mentally_shielded(s, s.combatants[victim_id])
             roll = (mental_attack_roll(s, s.combatants[actor.id], victim, roller)
                     if per_target else to_hit)
             if not roll.hit:
