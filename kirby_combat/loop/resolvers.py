@@ -406,6 +406,14 @@ def _resolve_mind_control(
 
     if action.order is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    from kirby_combat.actions.area_effects import (
+        is_area_effect, resolve_area_mind_control,
+    )
+
+    if is_area_effect(action._attack_view):
+        # One order on everyone in the Area, OMCV against DMCV 3 (6E1 p.154).
+        return resolve_area_mind_control(session, actor, action,
+                                         template=template, roller=roller)
     target = _behind_his_paralysis(session, session.combatants[action.target_id])
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
@@ -1389,10 +1397,14 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
       he got out of the Thrower's grasp and is still within Reach" -- this
       engine rules the second.
 
-    NOT BUILT: the Thrower acting first when both next act in one Segment
-    (p.84), an Acrobatics roll to keep his feet (p.84 names it, prices it
-    nowhere), and the fall's own Stun check (its damage is taken, after the
-    Throw's row).
+    - THE THROWER ACTS FIRST when both men's next Phases share a Segment
+      (p.84), recorded on the row (`throw_effects.THROWER_FIRST`) and
+      folded when that Segment is ordered.
+    - ACROBATICS at -3 keeps his feet (p.85), rolled as the Throw is made,
+      like Breakfall; it does not stop the damage, and a fall off an edge
+      still lands him prone.
+    - A FALL OFF AN EDGE is checked against CON on its own (6E2 p.105), on
+      a row of its own (`throw_effects.record_landing`).
     """
     from dataclasses import replace as _replace
 
@@ -1440,6 +1452,14 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
         save = skill_roll(session, target.id, BREAKFALL,
                           modifier=-(dice // 2), roller=roller)
     halved = save is not None and save["made"]
+    from kirby_combat.throw_effects import (
+        THROWER_FIRST, keep_feet_roll, record_landing, shared_next_phase,
+    )
+
+    keep_feet = keep_feet_roll(session, target.id, roller=roller)
+    on_feet = (keep_feet is not None and keep_feet["made"]
+               and not (moved is not None and moved.fall is not None))
+    thrower_first = shared_next_phase(session, actor.id, target.id)
 
     grab = _grab_cv(session, actor, target)
     attack = AttackInput(
@@ -1463,7 +1483,9 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
             "landing": ([landing.x, landing.y, landing.z]
                         if landing is not None else None),
             "wall_id": wall.wall_id if (wall is not None and result.hit) else None,
-            FELL: [target.id] if result.hit else [],
+            "acrobatics": keep_feet if result.hit else None,
+            THROWER_FIRST: thrower_first if result.hit else None,
+            FELL: [target.id] if (result.hit and not on_feet) else [],
         }
 
     new_session, result = resolve_attack_in_session(
@@ -1475,9 +1497,15 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
                                    moved.travel_end, move_type="thrown",
                                    distance_m=moved.distance_traveled_m)
         if moved.fall is not None:
-            new_session, _landed = fall(new_session, target.id, moved.travel_end,
-                                        roller=roller, template=template,
-                                        landing=moved.fall)
+            new_session, landed = fall(new_session, target.id, moved.travel_end,
+                                       roller=roller, template=template,
+                                       landing=moved.fall)
+            throw_row = next(e for e in reversed(new_session.event_log)
+                             if e.kind == "ActionResolved"
+                             and e.result_payload.get("kind") == "throw")
+            new_session = record_landing(
+                new_session, thrower_id=actor.id, thrown_id=target.id,
+                landed=landed, declaration_event_id=throw_row.declaration_event_id)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -3273,8 +3301,8 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
       while he is off the ground, he falls (`impact.fall`) and lands prone.
       A man who never left the ground has nothing to fall from.
 
-    NOT BUILT: the climbing CV penalties (6E2 p.48-49, `climbing.py`) are
-    still read by nothing -- nothing folds which wall a man is on.
+    - ON THE WALL: until he tops out, falls or is moved off it, he fights
+      at the face's penalties (6E2 p.48-49; `climbing_state`).
     """
     from kirby_combat.climbing import CLIMB_FAST_PENALTY
     from kirby_combat.impact import fall, skill_roll
@@ -3329,10 +3357,18 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
         if is_prone(new_session, actor.id):
             new_session = _on_his_feet(new_session, actor.id)
         top_z = min(wall.segment[0].z, wall.segment[1].z) + wall.height_m
+        topped_out = outcome.landing.z >= top_z - 1e-6
         payload.update({
             "climbed": bool(outcome.reachable),
             "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
-            "topped_out": outcome.landing.z >= top_z - 1e-6,
+            "topped_out": topped_out,
+            # 6E2 p.49: "a character can eliminate these penalties with a
+            # successful Climbing roll ... separate from any roll needed to
+            # keep climbing". RULING in `climbing_state`: made with each
+            # climb by a man with the Skill, at the face's difficulty.
+            "penalties_roll": (None if topped_out else skill_roll(
+                new_session, actor.id, "CLIMBING", modifier=-difficulty,
+                roller=roller)),
         })
         out = _recorded(new_session, actor, action, outcome, payload)
         return replace(out, events=_events_since(session, out.session))

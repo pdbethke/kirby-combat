@@ -79,10 +79,18 @@ def _in_range(actor, other, power, scene, distances) -> bool:
 
 
 def _has_lost(target, chars) -> bool:
+    """Has he lost something this Healing restores: damage, or a Drain
+    (6E1 p.234, "lost in any manner, such as ... Drains")? A live net Drain
+    is on his ``state.drains`` (`adjustments.project_onto`)."""
+    from kirby_combat.adjustments import _stat_attr
+
     for c in chars:
-        vital = {"STUN": "stun", "BODY": "body", "END": "end"}[c.xmlid]
-        maximum = int(getattr(target.combat_stats(), f"max_{vital}"))
-        if int(getattr(target.state, f"current_{vital}")) < maximum:
+        vital = {"STUN": "stun", "BODY": "body", "END": "end"}.get(c.xmlid)
+        if vital is not None:
+            maximum = int(getattr(target.combat_stats(), f"max_{vital}"))
+            if int(getattr(target.state, f"current_{vital}")) < maximum:
+                return True
+        if int((getattr(target.state, "drains", None) or {}).get(_stat_attr(c.xmlid), 0)) > 0:
             return True
     return False
 

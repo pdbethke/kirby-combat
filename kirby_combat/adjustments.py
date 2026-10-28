@@ -326,28 +326,25 @@ class LiveAdjustment:
 
 
 def live_adjustments(session: "CombatSession", combatant_id: str) -> list[LiveAdjustment]:
-    """Every Adjustment in force on this combatant, folded forward.
+    """Every Adjustment in force on this combatant, one per stat.
 
-    `AdjustmentApplied` adds its Character Points; `AdjustmentFaded` SETS the
-    remaining total (the absolute-value discipline of `session/effects.py`).
-    An `AdjustmentApplied` with no ``cost_per_point`` was written before
-    kirby-combat recorded one, always with ``stat="STUN"`` and read by
-    nothing; it is kept in the log and still changes nothing.
+    The per-stat total of its instances (`session.effects.adjustment_instances`,
+    each of which fades on its own, 6E1 p.139): the increments a stat moves
+    by are counted on that total, so "the remainder can be added to by
+    another use of the Power later on" (6E1 p.140). An `AdjustmentApplied`
+    with no ``cost_per_point`` was written before kirby-combat recorded one,
+    always with ``stat="STUN"`` and read by nothing; it is kept in the log
+    and still changes nothing.
     """
+    from kirby_combat.session.effects import adjustment_instances
+
     net: dict[str, int] = {}
     per_point: dict[str, float] = {}
-    for evt in session.event_log:
-        if getattr(evt, "target_id", None) != combatant_id:
+    for inst in adjustment_instances(session, combatant_id):
+        if inst.cost_per_point <= 0:
             continue
-        kind = getattr(evt, "kind", None)
-        if kind == "AdjustmentApplied":
-            cpp = float(getattr(evt, "cost_per_point", 0) or 0)
-            if cpp <= 0:
-                continue
-            net[evt.stat] = net.get(evt.stat, 0) + int(evt.delta)
-            per_point[evt.stat] = cpp
-        elif kind == "AdjustmentFaded" and evt.stat in net:
-            net[evt.stat] = int(evt.remaining_delta)
+        net[inst.stat] = net.get(inst.stat, 0) + inst.character_points
+        per_point[inst.stat] = inst.cost_per_point
     return [LiveAdjustment(s, cp, per_point[s]) for s, cp in net.items() if cp]
 
 

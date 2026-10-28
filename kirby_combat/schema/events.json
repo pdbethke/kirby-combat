@@ -301,6 +301,9 @@
         "delta": {
           "type": "integer"
         },
+        "fade_interval_turns": {
+          "type": "integer"
+        },
         "fade_rate_per_turn": {
           "type": "integer"
         },
@@ -347,7 +350,8 @@
         "delta",
         "fade_rate_per_turn",
         "source_event_id",
-        "cost_per_point"
+        "cost_per_point",
+        "fade_interval_turns"
       ],
       "title": "AdjustmentApplied",
       "type": "object"
@@ -360,6 +364,9 @@
           "enum": [
             "AdjustmentFaded"
           ],
+          "type": "string"
+        },
+        "adjustment_id": {
           "type": "string"
         },
         "author": {
@@ -405,7 +412,8 @@
         "kind",
         "target_id",
         "stat",
-        "remaining_delta"
+        "remaining_delta",
+        "adjustment_id"
       ],
       "title": "AdjustmentFaded",
       "type": "object"

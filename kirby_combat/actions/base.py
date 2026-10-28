@@ -9,7 +9,9 @@ from kirby_combat.resolution.hit_location import (
 )
 from kirby_combat.resolution.damage import compute_damage, stun_for_body_taken
 from kirby_combat.resolution.defense import compute_defense
-from kirby_combat.resolution.knockback import compute_knockback, does_knockback
+from kirby_combat.resolution.knockback import (
+    compute_knockback, does_knockback, knockback_body,
+)
 from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.resolution.to_hit import resolve_to_hit
 from kirby_combat.template import CombatTemplate
@@ -83,9 +85,16 @@ class AttackAction:
         # ------------------------------------------------------------------
         effective_power = power
         effective_dice = attack.dice
-        if defense.damage_negation > 0:
+        # AND THE ATTACKER'S OWN DC PENALTY (6E2 p.48-49's -2 DCs from a
+        # difficult climb, `climbing_state`), trimmed the same way. A DC
+        # BONUS on this channel has no reader: raise rather than ignore it.
+        if attack.dc_modifier > 0:
+            raise ValueError(
+                f"AttackInput.dc_modifier {attack.dc_modifier} is a bonus; "
+                "only a DC penalty is read here")
+        if defense.damage_negation > 0 or attack.dc_modifier < 0:
             from dataclasses import replace as _replace
-            dcs_remove = defense.damage_negation
+            dcs_remove = defense.damage_negation - int(attack.dc_modifier)
             new_full = power.damage_dice
             new_half = power.half_die
             if power.damage_type == "killing":
@@ -108,7 +117,7 @@ class AttackAction:
                 attack.dice, damage=list(attack.dice.damage[:n_keep]),
             )
             audit_trail.append(
-                f"Damage Negation applied pre-roll: -{dcs_remove} DC "
+                f"Damage Negation / DC penalty applied pre-roll: -{dcs_remove} DC "
                 f"({power.damage_dice}{'+½' if power.half_die else ''}d6 → "
                 f"{new_full}{'+½' if new_half else ''}d6 {power.damage_type})"
             )
@@ -322,7 +331,7 @@ class AttackAction:
             # caller-rolled pool (caller is responsible for adding/removing
             # dice per the modifiers table).
             knockback = compute_knockback(
-                body=damage.body + int(attack.knockback_body_bonus),
+                body=knockback_body(power, damage.body, attack.knockback_body_bonus),
                 knockback_dice=list(attack.dice.knockback),
                 kb_resistance_m=defense.knockback_resistance,
                 knockback_multiplier=template.knockback_multiplier,

@@ -2641,6 +2641,9 @@ def _build_attack_power(
     # 6E1 p.147, No Knockback (-1/4). HD writes it NOKB; until this line a
     # power bought with it knocked people about like any other.
     no_knockback = _has_modifier(power, "NOKB")
+    # 6E1 p.336 and p.335. Read here beside NOKB for the same reason.
+    double_knockback = _has_modifier(power, "DOUBLEKB")
+    does_knockback_adv = _has_modifier(power, "DOESKB")
     # 6E1 p.388. Parsed beside BEAM for the same reason: the limitation
     # reaches the menu only if the view carries it (`kirby_combat.lockout`).
     lockout = _has_modifier(power, "LOCKOUT")
@@ -2728,6 +2731,8 @@ def _build_attack_power(
         no_range_modifier=no_range_modifier,
         beam=beam,
         no_knockback=no_knockback,
+        double_knockback=double_knockback,
+        does_knockback=does_knockback_adv,
         area=area,
         constant=constant,
         damage_over_time=damage_over_time,

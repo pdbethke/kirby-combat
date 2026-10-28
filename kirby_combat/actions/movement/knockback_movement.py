@@ -107,6 +107,32 @@ def resolve_forced_movement(
     ... he takes no damage at all", and a flyer is able "to right himself
     and fly under his own power".
     """
+    return resolve_forced_movement_past(
+        combatant_id=combatant_id, start=start, direction_xy=direction_xy,
+        distance_m=distance_m, scene=scene, gravity_scale=gravity_scale,
+        airborne=airborne, passed_through=frozenset(),
+    )
+
+
+def resolve_forced_movement_past(
+    *,
+    combatant_id: str,
+    start: Position,
+    direction_xy: tuple[float, float],
+    distance_m: float,
+    scene: Scene,
+    gravity_scale: float,
+    airborne: bool,
+    passed_through: frozenset[str],
+) -> ForcedMovement:
+    """`resolve_forced_movement`, ignoring the walls in ``passed_through``.
+
+    A man Knocked Back through a structure he shattered "continues through
+    the hole" (6E2 p.118): the next leg of his flight starts ON the wall he
+    broke, and that wall must not stop him a second time. A breached face
+    stays on the board (`collapse._breach`) and still blocks other movement,
+    so it is named here rather than removed.
+    """
     tentative_end = Position(
         x=start.x + direction_xy[0] * distance_m,
         y=start.y + direction_xy[1] * distance_m,
@@ -130,6 +156,8 @@ def resolve_forced_movement(
     closest_dist = math.inf
     if distance_m > 0:
         for wall in collision_walls:
+            if wall.id in passed_through:
+                continue
             if not wall.blocks_movement:
                 continue
             if not wall_height_blocks(start.z, wall):

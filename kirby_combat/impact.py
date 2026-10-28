@@ -267,16 +267,81 @@ def fall(session, combatant_id: str, from_pos: "Position", *, roller, template,
 # Knockback (6E2 p.116-119)
 # ---------------------------------------------------------------------------
 
-def knockback_dice_for(session, attack: "AttackInput", template) -> int:
+def in_water(session, combatant_id: str) -> bool:
+    """Is he in the water where he is now?
+
+    RULING: a Scene's water is one level (`Surface.surface_type == "water"`,
+    the surface `kirby_world.movement_legality` lets a swimmer move on), with
+    no depth below it. A man standing in a water surface is in the water,
+    and that is 6E2 p.117's "Target is underwater" and p.170's "targets who
+    are underwater" --- the place has nothing finer to say.
+    """
+    from kirby_world.geometry import point_in_polygon_xy
+
+    pos = _position_of(session, combatant_id)
+    if pos is None:
+        return False
+    for surf in getattr(session.scene, "surfaces", None) or []:
+        if surf.surface_type != "water":
+            continue
+        if abs(surf.elevation_m - pos.z) > 1e-6:
+            continue
+        if point_in_polygon_xy((pos.x, pos.y), surf.polygon_xy):
+            return True
+    return False
+
+
+#: Limitations that keep a Clinging from resisting Knockback here.
+#: CANNOTRESISTKB is the book's own (6E1 p.184's "cannot resist knockback").
+#: RULING for the other two: a Clinging that Requires A Roll works only on a
+#: roll nobody makes for it here, and one that Costs Endurance runs only
+#: while END is paid that nothing pays --- so neither is counted, rather
+#: than counting a power the engine has not switched on.
+_CLINGING_DOES_NOT_HOLD = ("CANNOTRESISTKB", "REQUIRESASKILLROLL", "COSTSEND")
+
+
+def clinging_holds(session, combatant_id: str) -> bool:
+    """Does his Clinging resist this Knockback (6E1 p.184)?
+
+    "A character using Clinging subtracts an extra 1d6 from all Knockback
+    rolls, as long as he's in contact with a solid surface."
+
+    RULING, on "using": Clinging is Constant and "does not cost END to use"
+    (6E1 p.184), so a man who owns it keeps it on, and the book's DEX Roll
+    contest for switching it on in time is never needed. He is in contact
+    with a solid surface when he is standing on one (not in the air, not
+    in the water). A Clinging bought in a framework slot or Only In Hero ID
+    follows the readers every other purchase follows (`build_in_play`);
+    a Dispelled one is off (`HeroWithPowersOff`).
+    """
+    from kirby_combat.hero_view import _has_modifier
+    from kirby_combat.identity import _purchases, build_in_play
+
+    combatant = session.combatants.get(combatant_id)
+    if combatant is None or getattr(combatant, "hero", None) is None:
+        return False
+    if getattr(session, "scene", None) is not None and (
+            is_airborne(session, combatant_id) or in_water(session, combatant_id)):
+        return False
+    for purchase in _purchases(build_in_play(combatant)):
+        if (getattr(purchase, "xmlid", "") or "").upper() != "CLINGING":
+            continue
+        if any(_has_modifier(purchase, m) for m in _CLINGING_DOES_NOT_HOLD):
+            continue
+        return True
+    return False
+
+
+def knockback_dice_for(session, attack: "AttackInput", template, *,
+                       rolled_with_punch: bool) -> int:
     """How many d6 the attacker subtracts from the BODY (6E2 p.117's table).
 
     2d6, +1d6 for a Killing attack, +1d6 for a Martial Maneuver, -1d6 for a
-    target in the air, -1d6 in zero gravity; "the modifiers are
-    cumulative". 0 when this attack can do no Knockback, so nothing is
-    rolled for it.
-
-    NOT BUILT: Rolled With The Punch (-1d6), underwater (+1d6), Clinging
-    (+1d6): the engine has no record of any of them.
+    target in the air, -1d6 in zero gravity, -1d6 when he Rolled With The
+    Punch (6E2 p.90, `actions/reactive/roll_with_punch.py`), +1d6 underwater
+    (p.117, p.170; `in_water`), +1d6 using Clinging (p.117; 6E1 p.184,
+    `clinging_holds`); "the modifiers are cumulative". 0 when this attack
+    can do no Knockback, so nothing is rolled for it.
     """
     from kirby_combat.resolution.knockback import does_knockback
 
@@ -287,9 +352,16 @@ def knockback_dice_for(session, attack: "AttackInput", template) -> int:
         count += 1
     if attack.power.xmlid == "MANEUVER":
         count += 1
-    target_id = getattr(attack.target, "id", None)
-    if target_id in session.combatants and is_airborne(session, target_id):
+    if rolled_with_punch:
         count -= 1
+    target_id = getattr(attack.target, "id", None)
+    if target_id in session.combatants:
+        if is_airborne(session, target_id):
+            count -= 1
+        if in_water(session, target_id):
+            count += 1
+        if clinging_holds(session, target_id):
+            count += 1
     scene = getattr(session, "scene", None)
     if scene is not None and _gravity(scene) == 0.0:
         count -= 1
@@ -329,13 +401,31 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
     the ground ... and must spend a Half Phase to get up"). The driver set
     nobody prone.
 
-    NOT BUILT, and named: a structure shattered by Knockback (more than
-    2x its PD + BODY) lets him "continue through the hole" -- here he stops
-    at it, takes its PD + BODY dice, and the structure takes no damage.
+    THROUGH THE WALL (6E2 p.118): "If he's Knocked Back for more meters
+    than two times (2x) the structure's PD + BODY, he takes PD + BODY dice
+    of damage, the structure (or part thereof) shatters, and he continues
+    through the hole (otherwise, he stops). For every PD + BODY total worth
+    of structure a character is Knocked Back through, he flies back 2m
+    less." The worked example (Mechanon, 22m, a 6/2 wall 2m behind him)
+    "continues 22-2-8 = 12m more" --- the metres to the wall and then the
+    wall's PD + BODY in metres. The sentence and its own arithmetic do not
+    agree ("2m less" against the 8m taken off); this follows the
+    arithmetic, the only reading that produces a number (RULING). Each
+    further structure is judged on the Knockback he still has when he
+    reaches it, and the ground he finally lands on the same way.
+
+    "Both he and the structure take damage" (p.118). RULING: the structure
+    takes the impact roll he took --- one roll, one collision --- as Normal
+    Damage BODY against its DEF (6E2 p.172's objects rule). A structure he
+    goes through has shattered whatever that roll says, and comes down
+    (`collapse.bring_it_down`: a face is breached, a stack of barrels is
+    gone) once his flight is over, so the rubble lands on whoever is
+    standing there then. The BODY is recorded on this row's ``walls``,
+    which `constructs.damage_by_object` folds like any shot at the wall.
     """
     from kirby_combat.actions.movement.knockback_movement import (
         away_from,
-        resolve_forced_movement,
+        resolve_forced_movement_past,
     )
     from kirby_combat.resolution.knockback import (
         ImpactTarget,
@@ -373,34 +463,74 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
     source = _position_of(session, attacker_id)
     airborne = is_airborne(session, target_id)
     moved = None
+    # What he still has to fly, and the structures he has gone through.
+    left = meters
+    stopped_by_wall = False
     if start is not None and source is not None:
-        moved = resolve_forced_movement(
-            combatant_id=target_id, start=start,
-            direction_xy=away_from(source, start), distance_m=meters,
-            scene=session.scene, gravity_scale=_gravity(session.scene),
-            airborne=airborne,
-        )
-        session = _record_move(session, target_id, start, moved.travel_end,
-                               move_type="knockback",
-                               distance_m=moved.distance_traveled_m)
+        direction = away_from(source, start)
+        leg_start = start
+        passed: frozenset[str] = frozenset()
+        walls: list[dict[str, Any]] = []
+        shattered: list[str] = []
+        while True:
+            moved = resolve_forced_movement_past(
+                combatant_id=target_id, start=leg_start,
+                direction_xy=direction, distance_m=left,
+                scene=session.scene, gravity_scale=_gravity(session.scene),
+                airborne=airborne, passed_through=passed,
+            )
+            session = _record_move(session, target_id, leg_start, moved.travel_end,
+                                   move_type="knockback",
+                                   distance_m=moved.distance_traveled_m)
+            wall = moved.wall_collision
+            if wall is None:
+                break
+            object_id, standing = _struck_structure(session, wall.wall_id)
+            if wall.pd is None:
+                # Authored with no DEF: indestructible, uncapped (RULING).
+                dice, through = int(left) // 2, False
+                pd = body = 0
+            else:
+                # The structure as this fight has left it: a wall already
+                # shot half through shatters sooner, and a breached face
+                # still standing in the way has no BODY left (RULING).
+                pd = int(standing.def_value or 0) if standing is not None else int(wall.pd)
+                body = max(0, int(standing.body or 0)) if standing is not None else 0
+                dice, through = compute_impact_damage_dice(
+                    left, ImpactTarget(pd=pd, body=body, breakable=True))
+            session, impact = impact_damage(
+                session, target_id, dice, roller=roller, template=template,
+                reason="knockback", double_stun=double_stun, halved=False,
+            )
+            struck = _structure_takes(standing, int(impact.get("raw_body", 0) or 0),
+                                      shattered=through)
+            walls.append({"wall_id": wall.wall_id, "object_id": object_id,
+                          "impact": impact, "shattered": through, **struck})
+            if struck.get("destroyed"):
+                shattered.append(standing)
+            if not through:
+                stopped_by_wall = True
+                payload["wall_id"] = wall.wall_id
+                payload["impact"] = impact
+                break
+            left = left - moved.distance_traveled_m - (pd + body)
+            # Through the whole thing: a wagon's far side is the same wagon.
+            passed = passed | _faces_of(session, wall.wall_id, object_id)
+            leg_start = moved.travel_end
+            if left <= 0:
+                left = 0.0
+                break
         payload["from"] = [start.x, start.y, start.z]
         payload["to"] = [moved.travel_end.x, moved.travel_end.y, moved.travel_end.z]
+        if walls:
+            payload["walls"] = walls
+        if shattered:
+            session, payload["collapsed_onto"] = _bring_down(
+                session, shattered, roller=roller, template=template)
 
     fell = [target_id]
-    if moved is not None and moved.wall_collision is not None:
-        wall = moved.wall_collision
-        if wall.pd is None:
-            dice = int(meters) // 2
-        else:
-            dice, _through = compute_impact_damage_dice(
-                meters, ImpactTarget(pd=int(wall.pd), body=int(wall.body),
-                                     breakable=True))
-        payload["wall_id"] = wall.wall_id
-        session, payload["impact"] = impact_damage(
-            session, target_id, dice, roller=roller, template=template,
-            reason="knockback", double_stun=double_stun,
-            halved=False,
-        )
+    if stopped_by_wall:
+        pass
     elif moved is not None and moved.fall is not None:
         session, payload["fall"] = fall(
             session, target_id, moved.travel_end, roller=roller,
@@ -412,18 +542,95 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
         save = None
         if can_save(session, target_id):
             save = skill_roll(session, target_id, BREAKFALL,
-                              modifier=-math.ceil(meters / 4.0), roller=roller)
+                              modifier=-math.ceil(left / 4.0), roller=roller)
         payload["breakfall"] = save
         if save is not None and save["made"]:
             fell = []
         else:
             session, payload["impact"] = impact_damage(
-                session, target_id, int(meters) // 4, roller=roller,
+                session, target_id, int(left) // 4, roller=roller,
                 template=template, reason="knockback", double_stun=double_stun,
                 halved=False,
             )
     payload["prone"] = bool(fell)
     return session, payload, fell
+
+
+def _structure_takes(here, body_rolled: int, *, shattered: bool) -> dict[str, Any]:
+    """What a body Knocked Back into a structure does to it.
+
+    ``here`` is the structure as this fight has left it (`_struck_structure`,
+    rubble dropped, BODY already lost taken off). A wall authored with no
+    DEF is not in that list --- nothing can hurt it --- and takes nothing.
+    """
+    if here is None or here.body is None:
+        return {"body_dealt": 0, "destroyed": False}
+    remaining = max(0, int(here.body))
+    if shattered:
+        through = remaining
+    else:
+        through = min(remaining, max(0, int(body_rolled) - int(here.def_value or 0)))
+    return {"body_dealt": through, "destroyed": through >= remaining and remaining > 0,
+            "def_value": int(here.def_value or 0)}
+
+
+def _struck_structure(session, wall_id: str):
+    """``(object_id, construct)``: what takes the BODY when he hits the face
+    ``wall_id``, as this fight has left it.
+
+    A Furnishing's faces are walls named for it (`Furnishing.as_walls`,
+    ``part_of`` its id), but `constructs_in` lists the wagon once, under its
+    own id, and not its planks. So a face of a furnishing is the furnishing.
+    A face no list holds is None: a wall authored with no DEF, or a breached
+    face still in the way (RULING, above)."""
+    standing = _standing(session, wall_id)
+    if standing is not None:
+        return wall_id, standing
+    owner = _furnishing_owning(session.scene, wall_id)
+    if owner is None:
+        return wall_id, None
+    return owner, _standing(session, owner)
+
+
+def _standing(session, wall_id: str):
+    """The structure ``wall_id`` as this fight has left it, or None when
+    nothing can hurt it (`constructs.constructs_in`)."""
+    from kirby_combat.constructs import constructs_in
+
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return None
+    return next((c for c in constructs_in(scene, session=session)
+                 if getattr(c, "obj_id", None) == wall_id), None)
+
+
+def _furnishing_owning(scene, wall_id: str) -> str | None:
+    wall = next((w for w in scene.walls if w.id == wall_id), None)
+    owner = getattr(wall, "part_of", None)
+    if owner and any(f.id == owner for f in (scene.furnishings or ())):
+        return owner
+    return None
+
+
+def _faces_of(session, wall_id: str, object_id: str) -> frozenset[str]:
+    """Every face of what he went through: the one he hit, and, for a
+    furnishing, the rest of its edges."""
+    if object_id == wall_id:
+        return frozenset({wall_id})
+    return frozenset({wall_id} | {w.id for w in session.scene.walls
+                                  if getattr(w, "part_of", None) == object_id})
+
+
+def _bring_down(session, structures: list, *, roller, template):
+    """Bring down what his flight destroyed, after he has landed."""
+    from kirby_combat.collapse import bring_it_down
+
+    caught: list[dict[str, Any]] = []
+    for structure in structures:
+        session, under = bring_it_down(session, structure, roller=_dice(roller),
+                                       template=template)
+        caught.extend(under)
+    return session, caught
 
 
 # ---------------------------------------------------------------------------

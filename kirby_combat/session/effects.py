@@ -31,64 +31,109 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class AdjustmentEffect:
     """Net adjustment delta on a single (target, stat) pair, summed across
-    all AdjustmentApplied events minus any AdjustmentFaded reversions."""
+    every live instance (`adjustment_instances`). A SUMMARY for readers that
+    want one line per stat (the Brief); the fade works per instance."""
     target_id: str
     stat: str
     net_delta: int
     fade_rate_per_turn: int
 
 
-def adjustment_delta(session: "CombatSession", combatant_id: str, stat: str) -> int:
-    """Net delta on one stat after summing AdjustmentApplied / AdjustmentFaded.
+@dataclass(frozen=True)
+class AdjustmentInstance:
+    """One Adjustment on one stat, tracked on its own (6E1 p.139: "each one
+    affects a character separately for purposes of determining when the
+    character recovers lost points - they don't all lump together ... track
+    each use of Drain separately", and "You should also apply this rule to
+    positive Adjustment Powers").
 
-    AdjustmentApplied contributes +delta. AdjustmentFaded sets the
-    *remaining* delta (replaces the running sum) per its remaining_delta field.
-
-    A combatant can have multiple unfaded applications on the same stat; their
-    deltas sum. When AdjustmentFaded fires, it asserts the new running total.
+    ``id`` is the `AdjustmentApplied` that started it. ``turn_ends`` counts
+    the Post-Segment 12s that have passed since it landed (a
+    `SegmentAdvanced` out of Segment 12), which is what a Delayed Return
+    Rate's interval is counted in.
     """
-    running = 0
+    id: str
+    target_id: str
+    stat: str
+    character_points: int
+    fade_rate_per_turn: int
+    fade_interval_turns: int
+    cost_per_point: float
+    turn_ends: int
+
+
+def adjustment_instances(session: "CombatSession", combatant_id: str) -> list[AdjustmentInstance]:
+    """Every Adjustment on this combatant, one per `AdjustmentApplied`, with
+    what is left of it, oldest first. Spent ones (0 left) are dropped.
+
+    `AdjustmentFaded` SETS one instance's remaining Character Points (the
+    absolute-value discipline). A row written before instances were tracked
+    names no ``adjustment_id``: it set the whole stat's total, and is read
+    that way --- the stat's earlier instances to 0 and its latest to the
+    total --- so an old log replays to the numbers it ran with.
+    """
+    records: dict[str, dict] = {}
     for evt in session.event_log:
         kind = getattr(evt, "kind", None)
-        target = getattr(evt, "target_id", None)
-        if target != combatant_id:
+        if kind == "SegmentAdvanced" and getattr(evt, "from_segment", None) == 12:
+            for r in records.values():
+                r["turn_ends"] += 1
             continue
-        if kind == "AdjustmentApplied" and getattr(evt, "stat", None) == stat:
-            running += int(getattr(evt, "delta", 0) or 0)
-        elif kind == "AdjustmentFaded" and getattr(evt, "stat", None) == stat:
-            running = int(getattr(evt, "remaining_delta", 0) or 0)
-    return running
+        if getattr(evt, "target_id", None) != combatant_id:
+            continue
+        if kind == "AdjustmentApplied":
+            interval = int(getattr(evt, "fade_interval_turns", 1))
+            if interval < 1:
+                raise ValueError(
+                    f"AdjustmentApplied {evt.id!r} fades every {interval} Turns; "
+                    "an interval is at least 1")
+            records[evt.id] = {
+                "stat": evt.stat, "cp": int(evt.delta or 0),
+                "rate": int(getattr(evt, "fade_rate_per_turn", 5)),
+                "interval": interval,
+                "cpp": float(getattr(evt, "cost_per_point", 0) or 0),
+                "turn_ends": 0,
+            }
+        elif kind == "AdjustmentFaded":
+            which = getattr(evt, "adjustment_id", "") or ""
+            if which:
+                if which in records:
+                    records[which]["cp"] = int(evt.remaining_delta)
+                continue
+            same = [r for r in records.values() if r["stat"] == evt.stat]
+            for r in same:
+                r["cp"] = 0
+            if same:
+                same[-1]["cp"] = int(evt.remaining_delta)
+    return [
+        AdjustmentInstance(
+            id=i, target_id=combatant_id, stat=r["stat"], character_points=r["cp"],
+            fade_rate_per_turn=r["rate"], fade_interval_turns=r["interval"],
+            cost_per_point=r["cpp"], turn_ends=r["turn_ends"],
+        )
+        for i, r in records.items() if r["cp"] != 0
+    ]
+
+
+def adjustment_delta(session: "CombatSession", combatant_id: str, stat: str) -> int:
+    """Net delta on one stat: the sum of its live instances."""
+    return sum(i.character_points for i in adjustment_instances(session, combatant_id)
+               if i.stat == stat)
 
 
 def adjustments_for(session: "CombatSession", combatant_id: str) -> list[AdjustmentEffect]:
-    """List of net AdjustmentEffect entries for combatant_id (one per stat)."""
-    by_stat: dict[str, dict] = {}
-    for evt in session.event_log:
-        kind = getattr(evt, "kind", None)
-        target = getattr(evt, "target_id", None)
-        if target != combatant_id:
-            continue
-        if kind == "AdjustmentApplied":
-            stat = getattr(evt, "stat", "")
-            entry = by_stat.setdefault(
-                stat, {"delta": 0, "fade_rate": int(getattr(evt, "fade_rate_per_turn", 5))}
-            )
-            entry["delta"] += int(getattr(evt, "delta", 0) or 0)
-            entry["fade_rate"] = int(getattr(evt, "fade_rate_per_turn", 5))
-        elif kind == "AdjustmentFaded":
-            stat = getattr(evt, "stat", "")
-            entry = by_stat.setdefault(stat, {"delta": 0, "fade_rate": 5})
-            entry["delta"] = int(getattr(evt, "remaining_delta", 0) or 0)
-    return [
-        AdjustmentEffect(
-            target_id=combatant_id,
-            stat=stat,
-            net_delta=v["delta"],
-            fade_rate_per_turn=v["fade_rate"],
-        )
-        for stat, v in by_stat.items()
-        if v["delta"] != 0
-    ]
+    """One `AdjustmentEffect` per stat, summed over its instances."""
+    by_stat: dict[str, list[AdjustmentInstance]] = {}
+    for inst in adjustment_instances(session, combatant_id):
+        by_stat.setdefault(inst.stat, []).append(inst)
+    out = []
+    for stat, insts in by_stat.items():
+        net = sum(i.character_points for i in insts)
+        if net:
+            out.append(AdjustmentEffect(target_id=combatant_id, stat=stat,
+                                        net_delta=net,
+                                        fade_rate_per_turn=insts[-1].fade_rate_per_turn))
+    return out
 
 
 # ---------------------------------------------------------------------------

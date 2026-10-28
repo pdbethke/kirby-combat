@@ -91,6 +91,18 @@ class AttackPower:
     #: impact itself never knocks anybody further. Defaults False, the same
     #: reading as `beam`: a power that does not declare it does Knockback.
     no_knockback: bool = False
+    #: Double Knockback (+1/2), HD's DOUBLEKB. 6E1 p.336: "the amount of
+    #: BODY is doubled for the purposes of determining Knockback before the
+    #: Knockback Roll is made". Bought once: "Characters can only buy Double
+    #: Knockback once for any given power" (the multiple purchases after it
+    #: are a GM's Stop Sign option, and no corpus power has two).
+    double_knockback: bool = False
+    #: Does Knockback (+1/4), HD's DOESKB. 6E1 p.335: a power that would do
+    #: none counts "the Normal Damage BODY on the effect dice" and rolls
+    #: Knockback as usual. Read by the physical attack door only (an AVAD,
+    #: a no-BODY attack). NOT BUILT for Mental Blast: `mental_blast` moves
+    #: nobody, so the flag is carried there and has no effect yet.
+    does_knockback: bool = False
     #: Lockout (6E1 p.388): "A power with this Limitation prevents the
     #: character from using some or all of his other powers when it's in
     #: use. It's most commonly taken for a slot in a Power Framework that

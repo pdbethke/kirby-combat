@@ -154,20 +154,21 @@ def test_knockback_uses_body_rolled_not_body_dealt():
     assert _where(out.session) == (32.0, 10.0, 0.0)
 
 
-def test_into_a_wall_he_stops_and_takes_half_metres_capped_at_pd_plus_body():
+def test_into_a_wall_he_stops_and_takes_half_metres_of_the_whole_knockback():
     """6E2 p.118: 1d6 per 2m of the WHOLE 20m (10d6), at most the wall's
-    PD + BODY (3 + 5 = 8d6), and he stops where he hit it. Breakfall cannot
-    help against a wall, so his skill rolls nothing."""
+    PD + BODY (5 + 5 = 10d6); 20m is not MORE than 2 x 10, so the wall
+    holds and he stops where he hit it. Breakfall cannot help against a
+    wall, so his skill rolls nothing."""
     wall = Wall(id="w", name="brick", segment=(Position(20, 0, 0), Position(20, 100, 0)),
-                height_m=5.0, body=5, def_value=3)
+                height_m=5.0, body=5, def_value=5)
     session = _session(_scene(walls=[wall]), target=_target(skills={"BREAKFALL": 18}))
     out = _resolve(session, _blast_at_t(),
-                   [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [2] * 8])
+                   [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [1] * 10])
     s = out.session
     assert _where(s) == (20.0, 10.0, 0.0)
     kb = _attack_row(out)["knockback"]
     assert kb["wall_id"] == "w"
-    assert kb["impact"]["dice"] == 8
+    assert kb["impact"]["dice"] == 10
     assert PRONE in statuses_for(s, "t")
 
 
@@ -503,9 +504,10 @@ def _climber(at=Position(13, 10, 0), difficulty=2, skill=12):
 
 def test_a_climb_rolls_and_goes_up():
     """A difficult face is a Climbing roll at minus its difficulty (12-2:
-    10); a 9 makes it and he is 2m up the face."""
+    10); a 9 makes it and he is 2m up the face. (The 18 after it is his
+    separate roll to shed the climbing penalties, 6E2 p.49, which fails.)"""
     s = _climber()
-    out = _resolve(s, _climb_offer(s), [[3, 3, 3]])
+    out = _resolve(s, _climb_offer(s), [[3, 3, 3], [6, 6, 6]])
     assert out.session.scene.combatant_positions["a"].z == pytest.approx(2.0)
     assert out.events[-1].result_payload["climbing_roll"]["target"] == 10
 
@@ -528,10 +530,12 @@ def test_a_spectacular_miss_off_the_ground_is_a_fall():
 
 def test_an_ordinary_face_needs_no_roll():
     """6E1 p.70: "Most characters can climb ordinary things (like ladders)
-    without a Skill." No dice are scripted, so a roll would fail the test --
-    and that holds for a man who HAS the Skill too (the driver made him roll)."""
+    without a Skill." Only his separate roll to shed the -1 DCV (6E2 p.49) is
+    scripted, so a climbing roll would fail the test -- and that holds for a
+    man who HAS the Skill too (the driver made him roll)."""
     s = _climber(difficulty=0)
-    out = _resolve(s, _climb_offer(s), [])
+    out = _resolve(s, _climb_offer(s), [[6, 6, 6]])
+    assert out.events[-1].result_payload["climbing_roll"] is None
     assert out.session.scene.combatant_positions["a"].z == pytest.approx(2.0)
 
 

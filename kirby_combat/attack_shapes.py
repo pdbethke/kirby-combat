@@ -100,6 +100,16 @@ def offer_is_buildable(session, actor_id: str, action: "LegalAction") -> bool:
         from kirby_combat.actions.area_effects import area_effect_unbuilt
 
         return not area_effect_unbuilt(power)
+    if action.kind == "drain" and _shaped(power):
+        # An Instant Area Drain (6E1 p.143); the rest stay unoffered.
+        from kirby_combat.actions.area_effects import area_drain_unbuilt
+
+        return not area_drain_unbuilt(power)
+    if action.kind == "mind_control" and _shaped(power):
+        # An Instant Area Mind Control (6E1 p.154); the rest stay unoffered.
+        from kirby_combat.actions.area_effects import area_mind_control_unbuilt
+
+        return not area_mind_control_unbuilt(power)
     if _shaped(power) and action.kind not in SHAPED_DOOR_KINDS:
         return False
     if _shaped(power) and getattr(action, "targets_construct", False):

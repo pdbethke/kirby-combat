@@ -114,10 +114,14 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
 
 
 def _impact_stunned(landed: dict) -> bool:
-    """Did a Knockback impact or a fall, on its own, beat his CON?"""
+    """Did a Knockback impact or a fall, on its own, beat his CON?
+
+    Every impact is its own instance of damage (6E2 p.105), so each wall he
+    went through counts, not only the one that stopped him or the ground."""
     kb = landed.get("knockback") or {}
     footing = landed.get("footing") or {}
-    parts = [kb.get("impact"), kb.get("fall"), footing.get("fall")]
+    parts = [kb.get("impact"), kb.get("fall"), footing.get("fall"),
+             *(w.get("impact") for w in kb.get("walls") or ())]
     return any(bool(p and p.get("stunned")) for p in parts)
 
 
@@ -572,11 +576,17 @@ def _fold_session_cvs(
 
     dcv_delta += maneuver_dcv_delta(session, target_id)
 
+    # 6E2 p.49: from a difficult face he "subtract[s] 2 DCs from all
+    # attacks". A condition of the ATTACKER's, on the DC channel the pure
+    # resolver trims (`actions/base.py`). See `climbing_state`.
+    from kirby_combat.climbing_state import climbing_dc_penalty
+
     return replace(
         attack,
         surprise=surprise,
         ocv_modifier=attack.ocv_modifier + ocv_delta,
         dcv_modifier=attack.dcv_modifier + dcv_delta,
+        dc_modifier=attack.dc_modifier + climbing_dc_penalty(session, attacker_id),
     )
 
 
@@ -726,6 +736,23 @@ def resolve_attack_in_session(
 
     result = resolve_attack(attack, template)
 
+    # ROLLING WITH THE PUNCH (6E2 p.90): "after the opponent's Attack Roll
+    # succeeds, but before he rolls damage". A defender who chose it when
+    # asked (`loop/reactions.py`) rolls here, and a success halves what he
+    # takes "after defenses" --- the same `damage_taken_factor` a Thrown
+    # man's Breakfall uses --- so the pure resolver is asked again with
+    # the same dice. See `actions/reactive/roll_with_punch.py`.
+    rolled_with = None
+    if result.hit and attack.damage_taken_factor == 1.0:
+        from kirby_combat.actions.reactive.roll_with_punch import try_roll_with_punch
+
+        session, rolled_with = try_roll_with_punch(
+            session, attack, template, roller=roller or session.dice_roller)
+        if rolled_with is not None and rolled_with["success"]:
+            attack = replace(attack, damage_taken_factor=0.5)
+            result = resolve_attack(attack, template)
+    rolled_with_punch = bool(rolled_with is not None and rolled_with["success"])
+
     # THE KNOCKBACK ROLL (6E2 p.116), made here and only for a blow that
     # landed with BODY on its dice: only the session knows two of p.117's
     # modifiers (is the target in the air; is there gravity), and a roll
@@ -736,11 +763,16 @@ def resolve_attack_in_session(
     from kirby_combat.impact import after_the_blow, knockback_dice_for
 
     if result.knockback_owed:
-        kb_count = knockback_dice_for(session, attack, template)
+        from kirby_combat.resolution.knockback import knockback_body
+
+        kb_count = knockback_dice_for(session, attack, template,
+                                      rolled_with_punch=rolled_with_punch)
         kb_roller = roller or session.dice_roller
         # 6E1 p.329: an Autofire burst's Knockback is its largest hit's BODY
-        # plus 1 per other hit, rolled once (`AttackInput.knockback_body_bonus`).
-        kb_body = int(result.damage.body) + int(attack.knockback_body_bonus)
+        # plus 1 per other hit, rolled once (`AttackInput.knockback_body_bonus`);
+        # Double Knockback doubles the total (6E1 p.336).
+        kb_body = knockback_body(attack.power, result.damage.body,
+                                 attack.knockback_body_bonus)
         if kb_count and kb_body >= kb_count and kb_roller is not None:
             from kirby_combat.resolution.knockback import compute_knockback
 
@@ -910,6 +942,9 @@ def resolve_attack_in_session(
         "target_dcv": result.to_hit.effective_dcv,
         "margin": result.to_hit.margin,
     }
+
+    if rolled_with is not None:
+        result_payload["rolled_with_punch"] = rolled_with
 
     if activated is not None:
         # The Activation Roll it MADE, in the same keys the failure writes.

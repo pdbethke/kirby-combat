@@ -166,7 +166,7 @@ def _per_point(target, adjusted) -> float:
 
 def apply_adjustment(
     session: "CombatSession", actor_id: str, target_id: str, adjusted,
-    character_points: int, *, fade_rate_per_turn: int,
+    character_points: int, *, fade_rate_per_turn: int, fade_interval_turns: int,
 ) -> tuple["CombatSession", int]:
     """Record ``character_points`` (signed) on one stat of the target, and
     move the current value of an expendable one with it.
@@ -188,6 +188,7 @@ def apply_adjustment(
         author=make_author_combatant(actor_id), target_id=target_id,
         stat=adjusted.stat, delta=int(character_points),
         fade_rate_per_turn=int(fade_rate_per_turn), cost_per_point=per_point,
+        fade_interval_turns=int(fade_interval_turns),
     ))
     after = points_for(_live_cp(session, target_id, adjusted.stat), per_point)
     moved = after - before
@@ -201,10 +202,47 @@ def apply_adjustment(
 
 #: 6E1 p.141: "The Character Points gained or lost via an Adjustment Power
 #: (except Healing) fade/return at the rate of 5 Character Points per Turn."
-#: Delayed Return Rate (6E1 p.142) moves it down the Time Chart, which this
-#: engine's Turn-granular fade cannot express; a power bought with it is
-#: recorded at the standard rate and SAYS SO in its payload.
 STANDARD_FADE_PER_TURN = 5
+
+#: Delayed Return Rate (6E1 p.142; HD's DELAYEDRETURNRATE options): still 5
+#: Character Points, once per this many Turns. A Turn is 12 Segments of one
+#: second (6E2 p.18), so a Minute is 5 Turns. RULING for the calendar steps
+#: the Time Chart names without a length: a Month is 30 Days, a Season 3
+#: Months, a Year 365 Days. None of them ends inside a fight.
+_TURN_S = 12
+_DAY_S = 24 * 3600
+DELAYED_RETURN_TURNS = {
+    "MINUTE": 60 // _TURN_S,
+    "FIVEMINUTES": 5 * 60 // _TURN_S,
+    "20MINUTES": 20 * 60 // _TURN_S,
+    "HOUR": 3600 // _TURN_S,
+    "6HOURS": 6 * 3600 // _TURN_S,
+    "DAY": _DAY_S // _TURN_S,
+    "WEEK": 7 * _DAY_S // _TURN_S,
+    "MONTH": 30 * _DAY_S // _TURN_S,
+    "SEASON": 90 * _DAY_S // _TURN_S,
+    "YEAR": 365 * _DAY_S // _TURN_S,
+    "FIVEYEARS": 5 * 365 * _DAY_S // _TURN_S,
+    "TWENTYFIVEYEARS": 25 * 365 * _DAY_S // _TURN_S,
+    "CENTURY": 100 * 365 * _DAY_S // _TURN_S,
+}
+
+
+def fade_interval_turns(power) -> int:
+    """Turns between fades for this Adjustment Power: 1, or its Delayed
+    Return Rate's step. Raises on an option HD might write that is not on
+    the Time Chart above, rather than fading it at the standard rate."""
+    from kirby_cost.model.modifiers import find_modifier
+
+    drr = find_modifier(power, "DELAYEDRETURNRATE")
+    if drr is None:
+        return 1
+    option = str(drr.option_id or "").upper()
+    if option not in DELAYED_RETURN_TURNS:
+        raise ValueError(
+            f"{getattr(power, 'name', power)!r}: Delayed Return Rate option "
+            f"{option!r} is not on the Time Chart this engine reads")
+    return DELAYED_RETURN_TURNS[option]
 
 
 def _record(session, actor, action, payload: dict):
@@ -235,11 +273,17 @@ def _record(session, actor, action, payload: dict):
 
 def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template):
     """Aid (6E1 p.169) or Drain (6E1 p.197). Returns (session, payload)."""
-    from kirby_combat.hero_view import _has_modifier
-
     if action.target_id is None:
         raise ValueError(f"{action.action_id!r}: an Adjustment names its target")
     power = action._attack_view
+    from kirby_combat.actions.area_effects import is_area_effect
+
+    if which == DRAIN and is_area_effect(power):
+        # Everyone in the Area (6E1 p.143), from one roll.
+        from kirby_combat.actions.area_effects import resolve_area_drain
+
+        return resolve_area_drain(session, actor, action, template=template,
+                                  roller=roller)
     target = session.combatants[action.target_id]
     adjusted = targets_for(action, power, target)
 
@@ -247,7 +291,8 @@ def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template
         "kind": action.kind, "target_id": target.id,
         "power_source_id": str(getattr(power, "id", "") or ""),
         "stats": [a.stat for a in adjusted],
-        "delayed_return_rate_not_modelled": _has_modifier(power, "DELAYEDRETURNRATE"),
+        # 6E1 p.142: how many Turns between each 5-point return.
+        "fade_interval_turns": fade_interval_turns(power),
     }
     if which == DRAIN:
         to_hit = attack_roll(session, actor, target, power, roller, template)
@@ -298,6 +343,7 @@ def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template
             session, _ = apply_adjustment(
                 session, actor.id, target.id, element, signed,
                 fade_rate_per_turn=STANDARD_FADE_PER_TURN,
+                fade_interval_turns=fade_interval_turns(power),
             )
     return session, payload
 
@@ -319,19 +365,59 @@ def is_simplified(power) -> bool:
 def healing_targets(power) -> tuple[AdjustedCharacteristic, ...] | None:
     """What a Healing restores, or None when it is not built here.
 
-    The expendable characteristics only --- BODY, STUN and END, the ones a
-    fight takes away. Healing a Drained characteristic back (6E1 p.234:
-    "restore Characteristics and Powers that have been lost or reduced by
-    any cause") is NOT BUILT: it would have to cancel a Drain's points out of
-    the log, and nothing in the corpus buys it (35 Healing BODY, 17
-    Simplified, 1 STUN, 1 BODY and END).
+    Any characteristic: 6E1 p.234, "Healing can Heal back BODY or other
+    Characteristics lost in any manner, such as injuries, diseases,
+    poisons, Drains". A fight takes away only BODY, STUN and END by damage;
+    every characteristic can be Drained, and Healing cancels what a Drain
+    took (`drained_points`).
     """
     if is_simplified(power):
         return (AdjustedCharacteristic("STUN"), AdjustedCharacteristic("BODY"))
-    chars = characteristic_targets(power)
-    if chars is None or any(expendable_vital(c.xmlid) is None for c in chars):
-        return None
-    return chars
+    return characteristic_targets(power)
+
+
+def drained_points(session, target_id: str, stat: str) -> int:
+    """Points of ``stat`` a Drain holds him below his starting value: the net
+    of every Adjustment on it, when negative. 6E1 p.236: a characteristic an
+    Aid holds above its starting value "cannot be Healed, even if the effect
+    of the positive Adjustment Power has been slightly reduced by a
+    competing negative Adjustment Power" --- so the NET is what counts."""
+    for live in live_adjustments(session, target_id):
+        if live.stat == stat and live.character_points < 0:
+            return -live.points
+    return 0
+
+
+def _cancel_drains(session, actor_id: str, target_id: str, stat: str, points: int):
+    """Heal ``points`` of a Drained ``stat`` away: the Drains' Character Points
+    come off, oldest Drain first (RULING: the book treats a loss as "a single
+    unit", 6E1 p.235, and says nothing of which Drain goes first), recorded
+    as what is LEFT of each (`AdjustmentFaded`). Healed points do not fade
+    back (6E1 p.234), and a Drain that is gone returns nothing."""
+    import math as _math
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.effects import adjustment_instances
+    from kirby_combat.session.events import AdjustmentFaded, make_author_combatant
+
+    live = next(a for a in live_adjustments(session, target_id) if a.stat == stat)
+    to_cancel = min(-live.character_points,
+                    _math.ceil(points * live.per_point - 1e-9))
+    for inst in adjustment_instances(session, target_id):
+        if to_cancel <= 0:
+            break
+        if inst.stat != stat or inst.character_points >= 0:
+            continue
+        take = min(to_cancel, -inst.character_points)
+        to_cancel -= take
+        session = apply_event(session, AdjustmentFaded(
+            id=str(uuid.uuid4()), session_id=session.id,
+            sequence=len(session.event_log) + 1, timestamp=_now(),
+            author=make_author_combatant(actor_id), target_id=target_id,
+            stat=stat, remaining_delta=inst.character_points + take,
+            adjustment_id=inst.id,
+        ))
+    return session
 
 
 def _best_prior_roll(session, target_id: str, stat: str) -> int:
@@ -401,24 +487,42 @@ def resolve_heal(session, actor, action, *, roller, template):
     stats = target.combat_stats()
     maxima = {"STUN": stats.max_stun, "BODY": stats.max_body, "END": stats.max_end}
     healed: dict[str, int] = {}
+    undrained: dict[str, int] = {}
     for element in targets:
         cp = margins[element.stat]
         if halving:
             cp = halved_for(element, cp)
         points = points_for(cp, per_point[element.stat])
         vital = expendable_vital(element.xmlid)
-        current = int(getattr(target.state, f"current_{vital}"))
-        healed[element.stat] = max(0, min(points, int(maxima[element.xmlid]) - current))
+        # THE DAMAGE FIRST, THEN THE DRAIN (RULING). Both are one loss
+        # (6E1 p.235) and Healing restores either (p.234); his current
+        # value rises the same either way, but a Drain comes back on its own
+        # (6E1 p.141) and an injury does not, so the healer mends what would
+        # stay lost.
+        damage_part = 0
+        if vital is not None:
+            current = int(getattr(target.state, f"current_{vital}"))
+            damage_part = max(0, min(points, int(maxima[element.xmlid]) - current))
+        drain_part = min(points - damage_part,
+                         drained_points(session, target.id, element.stat))
+        healed[element.stat] = damage_part + drain_part
+        undrained[element.stat] = drain_part
 
     payload: dict = {
         "kind": action.kind, "target_id": target.id, "hit": True,
         "power_source_id": str(getattr(power, "id", "") or ""),
         "rolled": total, "rolled_by_stat": dict(rolled_by_stat),
-        "healed": dict(healed),
+        "healed": dict(healed), "drain_healed": dict(undrained),
     }
     session = _record(session, actor, action, dict(payload))
     for element in targets:
-        session = _vitals(session, actor.id, target.id,
-                          expendable_vital(element.xmlid), healed[element.stat],
-                          reason="healing")
+        # The Drain off first, so his maximum is back before his current
+        # value rises to meet it (6E1 p.138: returning points raise both).
+        if undrained[element.stat]:
+            session = _cancel_drains(session, actor.id, target.id, element.stat,
+                                     undrained[element.stat])
+        vital = expendable_vital(element.xmlid)
+        if vital is not None:
+            session = _vitals(session, actor.id, target.id, vital,
+                              healed[element.stat], reason="healing")
     return session, payload

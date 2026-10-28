@@ -315,18 +315,26 @@ def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
     safely: `AdjustmentFaded` SETS the running total rather than adjusting
     it. A delta would be unrecoverable the moment one was missed.
     """
-    from kirby_combat.session.effects import adjustments_for
+    from kirby_combat.session.effects import adjustment_instances
     from kirby_combat.session.events import AdjustmentFaded
 
+    # EACH ADJUSTMENT ON ITS OWN (6E1 p.139: "The character recovers 5
+    # points per Turn from each Drain separately"), and each on its own
+    # clock: a Delayed Return Rate fades only every ``fade_interval_turns``
+    # Post-Segment 12s (6E1 p.142), counting this one.
     for combatant_id in list(session.combatants):
-        for effect in adjustments_for(session, combatant_id):
-            magnitude = abs(effect.net_delta)
-            rate = max(0, int(effect.fade_rate_per_turn))
-            if magnitude == 0 or rate == 0:
+        due = []
+        for inst in adjustment_instances(session, combatant_id):
+            rate = max(0, int(inst.fade_rate_per_turn))
+            if rate == 0 or (inst.turn_ends + 1) % inst.fade_interval_turns:
                 continue
-            remaining = max(0, magnitude - rate)
-            signed = remaining if effect.net_delta > 0 else -remaining
-            before = _expendable_points(session, combatant_id, effect.stat)
+            due.append(inst)
+        before = {inst.stat: _expendable_points(session, combatant_id, inst.stat)
+                  for inst in due}
+        for inst in due:
+            magnitude = abs(inst.character_points)
+            remaining = max(0, magnitude - int(inst.fade_rate_per_turn))
+            signed = remaining if inst.character_points > 0 else -remaining
             session = apply_event(session, AdjustmentFaded(
                 id=str(uuid.uuid4()),
                 session_id=session.id,
@@ -334,11 +342,13 @@ def _apply_adjustment_fade(session: "CombatSession") -> "CombatSession":
                 timestamp=datetime.now(timezone.utc),
                 author=make_author_engine(),
                 target_id=combatant_id,
-                stat=effect.stat,
+                stat=inst.stat,
                 remaining_delta=signed,
+                adjustment_id=inst.id,
             ))
-            if before is not None:
-                session = _expendable_fade(session, combatant_id, effect.stat, before)
+        for stat, points in before.items():
+            if points is not None:
+                session = _expendable_fade(session, combatant_id, stat, points)
     return session
 
 
@@ -876,10 +886,21 @@ class Encounter:
             else self.carried_block_priority()
         )
 
+        # A THROWER ACTS FIRST in the Segment both men's next Phases share
+        # (6E2 p.84; `throw_effects`). Folded off the Throw rows for THIS
+        # Segment only, and merged into the order without being carried:
+        # the book's rule is about those two next Phases, so a priority
+        # that does not fall in this Segment lapses rather than waits.
+        from kirby_combat.throw_effects import thrower_first_in
+
+        throws: dict[str, str] = {}
+        for session in self.sessions:
+            throws.update(thrower_first_in(session, self.turn, self.segment))
+
         provisional = build_provisional_order_for_segment(all_combatants, self.segment)
         resolved = resolve_acting_order(
             provisional, intents, tie_rule=template.tie_rule, roller=roller,
-            acts_first=acts_first_used,
+            acts_first={**acts_first_used, **throws},
         )
         remaining_acts_first = consume_block_priority(
             acts_first_used, all_combatants, self.segment,

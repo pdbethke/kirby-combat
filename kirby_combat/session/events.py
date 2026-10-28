@@ -377,14 +377,27 @@ class AdjustmentApplied(BaseEvent):
     fade_rate_per_turn: int = 5
     source_event_id: str = ""
     cost_per_point: float = 0.0
+    #: How many Turns between fades: 1 is 6E1 p.141's "5 Character Points
+    #: per Turn"; Delayed Return Rate (6E1 p.142) moves it down the Time
+    #: Chart, e.g. 5 per Minute = every 5 Turns (`actions/adjust.py`). 1 on
+    #: rows written before it was recorded, which faded every Turn.
+    fade_interval_turns: int = 1
 
 
 @dataclass
 class AdjustmentFaded(BaseEvent):
+    """What is LEFT of one Adjustment after it fades (or is Healed away).
+
+    ``adjustment_id`` names the `AdjustmentApplied` it belongs to: two Drains
+    on one stat fade separately (6E1 p.139). Empty only on rows written
+    before instances were tracked, which set the whole stat's total
+    (`session.effects.adjustment_instances`).
+    """
     kind: Literal["AdjustmentFaded"] = field(default="AdjustmentFaded", init=False)
     target_id: str = ""
     stat: str = ""
     remaining_delta: int = 0
+    adjustment_id: str = ""
 
 
 @dataclass
