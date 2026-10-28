@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.23.0 — 2026-10-28
 
 - **Knockback, throws, climbing and Adjustment: the pieces #10 and #13 left unbuilt** (follow-up K2b). New action kind `roll_with_punch`. `AdjustmentApplied` gains `fade_interval_turns` and `AdjustmentFaded` gains `adjustment_id`, both defaulted, so rows written before them replay as before (schema regenerated). Seam tests: `tests/loop/test_knockback_throw_climb_extras.py`, `tests/loop/test_adjustment_extras.py`.
   - Knockback: a man knocked into a wall he shatters flies on through it. A wall that holds still takes the impact, and he takes half the metres of the whole knockback. Double Knockback doubles the BODY before the roll. Does Knockback lets an attack that does no BODY knock him back (not yet on a Mental Blast, which moves nobody). Underwater adds a die, and so does Clinging unless it was bought unable to resist knockback.
