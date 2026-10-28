@@ -75,6 +75,63 @@ def test_a_wall_he_does_not_shatter_still_takes_the_impact():
     assert damage_by_object(out.session)["w"] == 5
 
 
+def _wagon_scene(pd: int, body: int):
+    """A wagon 2m wide whose near face is 2m behind him. A Furnishing's
+    faces are walls named `<id>#edge<n>` (`kirby_world.Furnishing.as_walls`);
+    what takes the BODY is the wagon, not the plank he hit."""
+    from kirby_world.scene import AmbientConditions, Furnishing, Scene, SceneBounds
+
+    wagon = Furnishing(id="wagon", name="wagon",
+                       polygon_xy=[(14, 0), (16, 0), (16, 100), (14, 100)],
+                       height_m=1.0, pd=pd, ed=pd, body=body)
+    return Scene(id="lot", name="lot", bounds=SceneBounds(0, 0, 0, 100, 100, 50),
+                 surfaces=[_ground()], walls=[], hazards=[], furnishings=[wagon],
+                 ambient=AmbientConditions(gravity_scale=1.0),
+                 combatant_positions={"a": Position(10, 10, 0), "t": Position(12, 10, 0)})
+
+
+def test_a_wagon_he_does_not_shatter_is_the_wagon_not_a_plank():
+    """20m into a 6 PD / 6 BODY wagon: not MORE than 2 x 12 (6E2 p.118), so
+    it holds and he stops at its face. The 10d6 of twos is 10 BODY, 4
+    through its DEF 6 (6E2 p.172), and the wagon is what took it."""
+    out = _resolve(_session(_wagon_scene(6, 6)), _blast_at_t(),
+                   [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [2] * 10])
+    struck = _attack_row(out)["knockback"]["walls"][0]
+    assert not struck["shattered"] and struck["body_dealt"] == 4
+    assert struck["object_id"] == "wagon"
+    assert _where(out.session) == (14.0, 10.0, 0.0)
+    assert damage_by_object(out.session) == {"wagon": 4}
+
+
+def test_a_wagon_he_shatters_goes_entirely_and_he_flies_on():
+    """20m into a 2/2 wagon: more than 2 x 4, so he takes 4d6, the wagon
+    is smashed, and he flies on 20 - 2 - 4 = 14m, through its far face as
+    well, to x=28 (then 3d6 on open ground, 1d6 per 4m)."""
+    out = _resolve(_session(_wagon_scene(2, 2)), _blast_at_t(),
+                   [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [1] * 4, [1] * 3])
+    kb = _attack_row(out)["knockback"]
+    assert [w["object_id"] for w in kb["walls"]] == ["wagon"]
+    assert kb["walls"][0]["shattered"] and kb["walls"][0]["impact"]["dice"] == 4
+    assert _where(out.session) == (28.0, 10.0, 0.0)
+    assert damage_by_object(out.session) == {"wagon": 2}
+    assert not any(w.id.startswith("wagon#") for w in out.session.scene.walls)
+
+
+def test_a_wall_he_goes_through_can_stun_him_on_its_own():
+    """6E2 p.105: each instance of damage is checked against CON on its own.
+    8d6 of sixes going through the fence is 48 STUN over CON 35; the
+    Breakfall afterwards takes nothing away from that."""
+    wall = Wall(id="w", name="board fence", segment=(Position(14, 0, 0), Position(14, 100, 0)),
+                height_m=1.0, body=2, def_value=6)
+    tough = synthetic_combatant(id="t", name="t", ocv=9, dcv=5, spd=4, dex=20, str_=15,
+                                con=35, pd=4, ed=4, max_stun=300, max_body=60, max_end=40,
+                                side=Side.named("villains"))
+    out = _resolve(_session(_scene(walls=[wall]), target=tough), _blast_at_t(),
+                   [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [6] * 8, [1, 1]])
+    assert _attack_row(out)["knockback"]["walls"][0]["impact"]["stunned"]
+    assert STUNNED in statuses_for(out.session, "t")
+
+
 # ---------------------------------------------------------------------------
 # What changes the Knockback roll (6E2 p.117, 6E1 p.335-336)
 # ---------------------------------------------------------------------------

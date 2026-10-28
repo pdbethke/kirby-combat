@@ -98,8 +98,10 @@ class AttackPower:
     #: are a GM's Stop Sign option, and no corpus power has two).
     double_knockback: bool = False
     #: Does Knockback (+1/4), HD's DOESKB. 6E1 p.335: a power that would do
-    #: none (a Mental Blast, an AVAD) counts "the Normal Damage BODY on the
-    #: effect dice" and rolls Knockback as usual.
+    #: none counts "the Normal Damage BODY on the effect dice" and rolls
+    #: Knockback as usual. Read by the physical attack door only (an AVAD,
+    #: a no-BODY attack). NOT BUILT for Mental Blast: `mental_blast` moves
+    #: nobody, so the flag is carried there and has no effect yet.
     does_knockback: bool = False
     #: Lockout (6E1 p.388): "A power with this Limitation prevents the
     #: character from using some or all of his other powers when it's in

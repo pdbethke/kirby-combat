@@ -114,10 +114,14 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
 
 
 def _impact_stunned(landed: dict) -> bool:
-    """Did a Knockback impact or a fall, on its own, beat his CON?"""
+    """Did a Knockback impact or a fall, on its own, beat his CON?
+
+    Every impact is its own instance of damage (6E2 p.105), so each wall he
+    went through counts, not only the one that stopped him or the ground."""
     kb = landed.get("knockback") or {}
     footing = landed.get("footing") or {}
-    parts = [kb.get("impact"), kb.get("fall"), footing.get("fall")]
+    parts = [kb.get("impact"), kb.get("fall"), footing.get("fall"),
+             *(w.get("impact") for w in kb.get("walls") or ())]
     return any(bool(p and p.get("stunned")) for p in parts)
 
 

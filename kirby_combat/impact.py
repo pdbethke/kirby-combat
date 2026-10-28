@@ -485,7 +485,7 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
             wall = moved.wall_collision
             if wall is None:
                 break
-            standing = _standing(session, wall.wall_id)
+            object_id, standing = _struck_structure(session, wall.wall_id)
             if wall.pd is None:
                 # Authored with no DEF: indestructible, uncapped (RULING).
                 dice, through = int(left) // 2, False
@@ -502,20 +502,20 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
                 session, target_id, dice, roller=roller, template=template,
                 reason="knockback", double_stun=double_stun, halved=False,
             )
-            struck = _structure_takes(session, wall.wall_id,
-                                      int(impact.get("raw_body", 0) or 0),
+            struck = _structure_takes(standing, int(impact.get("raw_body", 0) or 0),
                                       shattered=through)
-            walls.append({"wall_id": wall.wall_id, "impact": impact,
-                          "shattered": through, **struck})
+            walls.append({"wall_id": wall.wall_id, "object_id": object_id,
+                          "impact": impact, "shattered": through, **struck})
             if struck.get("destroyed"):
-                shattered.append(wall.wall_id)
+                shattered.append(standing)
             if not through:
                 stopped_by_wall = True
                 payload["wall_id"] = wall.wall_id
                 payload["impact"] = impact
                 break
             left = left - moved.distance_traveled_m - (pd + body)
-            passed = passed | {wall.wall_id}
+            # Through the whole thing: a wagon's far side is the same wagon.
+            passed = passed | _faces_of(session, wall.wall_id, object_id)
             leg_start = moved.travel_end
             if left <= 0:
                 left = 0.0
@@ -556,15 +556,13 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
     return session, payload, fell
 
 
-def _structure_takes(session, wall_id: str, body_rolled: int, *,
-                     shattered: bool) -> dict[str, Any]:
+def _structure_takes(here, body_rolled: int, *, shattered: bool) -> dict[str, Any]:
     """What a body Knocked Back into a structure does to it.
 
-    The structure as this fight has left it (`constructs.constructs_in`,
+    ``here`` is the structure as this fight has left it (`_struck_structure`,
     rubble dropped, BODY already lost taken off). A wall authored with no
     DEF is not in that list --- nothing can hurt it --- and takes nothing.
     """
-    here = _standing(session, wall_id)
     if here is None or here.body is None:
         return {"body_dealt": 0, "destroyed": False}
     remaining = max(0, int(here.body))
@@ -574,6 +572,24 @@ def _structure_takes(session, wall_id: str, body_rolled: int, *,
         through = min(remaining, max(0, int(body_rolled) - int(here.def_value or 0)))
     return {"body_dealt": through, "destroyed": through >= remaining and remaining > 0,
             "def_value": int(here.def_value or 0)}
+
+
+def _struck_structure(session, wall_id: str):
+    """``(object_id, construct)``: what takes the BODY when he hits the face
+    ``wall_id``, as this fight has left it.
+
+    A Furnishing's faces are walls named for it (`Furnishing.as_walls`,
+    ``part_of`` its id), but `constructs_in` lists the wagon once, under its
+    own id, and not its planks. So a face of a furnishing is the furnishing.
+    A face no list holds is None: a wall authored with no DEF, or a breached
+    face still in the way (RULING, above)."""
+    standing = _standing(session, wall_id)
+    if standing is not None:
+        return wall_id, standing
+    owner = _furnishing_owning(session.scene, wall_id)
+    if owner is None:
+        return wall_id, None
+    return owner, _standing(session, owner)
 
 
 def _standing(session, wall_id: str):
@@ -588,23 +604,32 @@ def _standing(session, wall_id: str):
                  if getattr(c, "obj_id", None) == wall_id), None)
 
 
-def _bring_down(session, wall_ids: list[str], *, roller, template):
+def _furnishing_owning(scene, wall_id: str) -> str | None:
+    wall = next((w for w in scene.walls if w.id == wall_id), None)
+    owner = getattr(wall, "part_of", None)
+    if owner and any(f.id == owner for f in (scene.furnishings or ())):
+        return owner
+    return None
+
+
+def _faces_of(session, wall_id: str, object_id: str) -> frozenset[str]:
+    """Every face of what he went through: the one he hit, and, for a
+    furnishing, the rest of its edges."""
+    if object_id == wall_id:
+        return frozenset({wall_id})
+    return frozenset({wall_id} | {w.id for w in session.scene.walls
+                                  if getattr(w, "part_of", None) == object_id})
+
+
+def _bring_down(session, structures: list, *, roller, template):
     """Bring down what his flight destroyed, after he has landed."""
     from kirby_combat.collapse import bring_it_down
 
     caught: list[dict[str, Any]] = []
-    scene = session.scene
-    for wall_id in wall_ids:
-        wall = next((w for w in scene.walls if w.id == wall_id), None)
-        if wall is None:
-            wall = next((c for c in (scene.constructs or [])
-                         if getattr(c, "obj_id", None) == wall_id), None)
-        if wall is None:
-            continue
-        session, under = bring_it_down(session, wall, roller=_dice(roller),
+    for structure in structures:
+        session, under = bring_it_down(session, structure, roller=_dice(roller),
                                        template=template)
         caught.extend(under)
-        scene = session.scene
     return session, caught
 
 

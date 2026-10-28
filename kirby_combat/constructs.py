@@ -44,8 +44,8 @@ def damage_by_object(session) -> dict[str, int]:
         knockback = payload.get("knockback")
         if isinstance(knockback, dict):
             for struck in knockback.get("walls") or ():
-                wall_id = struck.get("wall_id")
-                totals[wall_id] = totals.get(wall_id, 0) + int(struck.get("body_dealt", 0) or 0)
+                obj_id = struck["object_id"]
+                totals[obj_id] = totals.get(obj_id, 0) + int(struck.get("body_dealt", 0) or 0)
         # Rapid Fire is aimed at people too, so only its construct-targeted
         # payload (which says so) is a hit on a thing.
         if payload.get("kind") not in ("attack_construct", "throw_object") and not (

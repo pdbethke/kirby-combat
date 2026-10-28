@@ -249,11 +249,21 @@ def _off_the_board(session: Any, construct: Any):
               or getattr(construct, "id", None))
     if scene is None or obj_id is None:
         return session
-    walls = [w for w in (getattr(scene, "walls", None) or []) if w.id != obj_id]
+    # A FURNISHING IS ITS FOOTPRINT AND ITS FACES. `constructs_in` lists a
+    # wagon under its own id, but what blocks movement and gives cover is
+    # its projected edges (`Furnishing.as_walls`, ``part_of`` the wagon),
+    # and the Scene re-projects any furnishing still listed. Removing only
+    # the id left a smashed wagon standing for the rest of the fight.
+    furnishings = [f for f in (getattr(scene, "furnishings", None) or [])
+                   if f.id != obj_id]
+    gone_furnishing = len(furnishings) != len(getattr(scene, "furnishings", None) or [])
+    walls = [w for w in (getattr(scene, "walls", None) or []) if w.id != obj_id
+             and not (gone_furnishing and getattr(w, "part_of", None) == obj_id)]
     constructs = [c for c in (getattr(scene, "constructs", None) or [])
                   if getattr(c, "obj_id", None) != obj_id]
     if (len(walls) == len(getattr(scene, "walls", None) or [])
-            and len(constructs) == len(getattr(scene, "constructs", None) or [])):
+            and len(constructs) == len(getattr(scene, "constructs", None) or [])
+            and not gone_furnishing):
         return session
-    return replace(session, scene=replace(scene, walls=walls,
-                                          constructs=constructs))
+    return replace(session, scene=replace(scene, walls=walls, constructs=constructs,
+                                          furnishings=furnishings))
