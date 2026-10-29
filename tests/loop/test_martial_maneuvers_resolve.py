@@ -514,7 +514,8 @@ def test_martial_grabs_holding_str_resists_the_escape():
     escape = next(a for a in _menu(held, "mark") if a.action_id == "escape:grab:full")
     after = resolve_chosen(held, held.combatants["mark"], escape,
                            template=TEMPLATE, roller=_AlwaysLow(seed=1)).session
-    payload = after.event_log[-1].result_payload
+    payload = next(e.result_payload for e in reversed(after.event_log)
+                   if e.kind == "ActionResolved")
     assert payload["grabber_str"] == 10 + 15
 
 

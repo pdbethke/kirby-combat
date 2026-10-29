@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Superheroic counts END** (Peter's ruling, 2026-10-29). `RAW_SUPERHEROIC` (`6e-superheroic`, the template every fight used) shipped `manage_endurance=False` as "END optional", so nobody ever paid END for anything. 6E2 p.133: "In Superheroic campaigns, many characters pay END just to maintain their Powers, so END is very important." Both flags are now True, for player characters and NPCs. A table that hand-waves END says so with its own template. **Behaviour change** for every consumer: attacks, movement, Pushes and Constant powers now spend END in superheroic fights.
 - **Moving costs END** (6E1 p.158). Nothing in the loop charged it: closing, repositioning, the Half Move, move-and-strike, Move By/Through and climbing all went through `placement.move_toward`, which took no END; only a Push's extra was ever paid. Seam tests: `tests/loop/test_movement_costs_end.py`.
   - A full move costs 1 END per 10 Active Points of the movement, free Running 12m included. A movement power's figure is the cost engine's own END column (`end_usage`: Reduced Endurance ½/0, Increased Endurance Cost and Charges already in it). Running and Leaping bought as characteristics price their metres at the template's rate (Running 1 point/m, Leaping 1 per 2m). The book's sheets agree: Running 14m and Leaping 8m are each 1 END (6E2 p.180).
   - A part move pays its share ("half the power's full END cost when making a Half Move"), rounded as 6E1 p.132 rounds END, at least 1. Metres past a full move are a Push and are paid by the Push.

@@ -192,12 +192,21 @@ def test_a_full_move_is_paid_for_in_the_log():
 
 
 def test_a_campaign_that_does_not_count_end_charges_none():
-    """`manage_endurance=False` --- the superheroic template's setting ---
-    is honoured for movement exactly as it is for an attack."""
+    """`manage_endurance=False` is honoured for movement exactly as it is
+    for an attack."""
+    off = replace(RAW_SUPERHEROIC, manage_endurance=False, manage_endurance_npc=False)
+    session = _session(off)
+    out = resolve_chosen(session, session.combatants["r"], _move_at_e(),
+                         template=off, roller=FakeRoller([]))
+    assert _end_rows(out) == []
+
+
+def test_superheroic_counts_it():
+    """Peter's ruling, 2026-10-29 (6E2 p.133: END "is very important")."""
     session = _session(RAW_SUPERHEROIC)
     out = resolve_chosen(session, session.combatants["r"], _move_at_e(),
                          template=RAW_SUPERHEROIC, roller=FakeRoller([]))
-    assert _end_rows(out) == []
+    assert _end_rows(out) == [(-4, "end_spent")]
 
 
 def test_a_short_move_pays_a_share():

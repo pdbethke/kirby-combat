@@ -149,10 +149,9 @@ def test_an_attacker_takes_no_damage_from_their_own_attack():
         before.current_stun, before.current_body
     ), "an attacker takes no damage from their own attack"
 
-    # END is the campaign's call, not this test's: `RAW_SUPERHEROIC` ships
-    # `manage_endurance=False` ("END optional"), so nothing is charged
-    # here. Computed from the template rather than assumed, so this stays
-    # true whichever template the fixture moves to.
+    # END is the campaign's call, not this test's (`manage_endurance`).
+    # Computed from the template rather than assumed, so this stays true
+    # whichever template the fixture moves to.
     from kirby_combat.actions.recording import _tracks_endurance
 
     template = _no_knockback()
