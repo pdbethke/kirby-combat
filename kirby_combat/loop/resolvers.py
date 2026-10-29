@@ -2358,12 +2358,16 @@ def _resolve_force_wall(
 def _move_capacity(actor, mode: str) -> float:
     """How far this mover can go in a Phase, by mode.
 
-    RUNNING is the characteristic every character has; other modes are
-    powers, read off the build by the same name. A mode the build cannot do
-    has no capacity, which `movement_reach` then treats as "cannot get
-    there" rather than as an error.
+    Off `movement_view`, the same view the menu made the offer from. This
+    read `characteristic_value(mode.upper())`, which answers for RUNNING and
+    LEAPING and is 0 for FLIGHT, TELEPORTATION, SWIMMING and TUNNELING ---
+    they are powers, not characteristics (`hero_view`'s own note says so) ---
+    so every full move by a flier went nowhere while the menu kept offering
+    it. A mode he does not have has no capacity, which `movement_reach` then
+    treats as "cannot get there" rather than as an error.
     """
-    return float(actor.hero.characteristic_value(mode.upper()) or 0)
+    caps = [c for c in actor.movement_view() if c.mode == mode]
+    return max((float(c.combat_m) for c in caps), default=0.0)
 
 
 def _reach_of(actor, action) -> float:

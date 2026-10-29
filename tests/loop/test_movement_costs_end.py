@@ -239,3 +239,28 @@ def test_running_he_never_bought_is_priced_off_the_template():
     caps = {c.mode: c for c in HeroCombatant.from_build(hero, id="w").movement_view()}
     assert (caps["running"].combat_m, caps["running"].end_cost) == (12.0, 1)
     assert (caps["leaping"].combat_m, caps["leaping"].end_cost) == (4.0, 1)
+
+
+def test_a_flier_who_chooses_to_fly_flies():
+    """`_move_capacity` read the mode as a CHARACTERISTIC
+    (`characteristic_value("FLIGHT")`), and Flight, Teleportation, Swimming
+    and Tunneling are powers --- so every full `move` by them went nowhere,
+    while the menu (which reads `movement_view`) kept offering it. The
+    distance is the mode's own, off the same view the offer came from."""
+    from dataclasses import replace as _replace
+
+    from kirby_combat.loop.resolvers import _move_capacity
+    from kirby_combat.models import MovementCapability
+
+    runner = _session(RAW_HEROIC).combatants["r"]
+
+    class _Flier(type(runner)):
+        def movement_view(self):
+            return [*super().movement_view(),
+                    MovementCapability(mode="flight", combat_m=30.0,
+                                       noncombat_m=120.0, end_cost=3)]
+
+    flier = _Flier(**{f: getattr(runner, f) for f in runner.__dataclass_fields__})
+    assert _move_capacity(flier, "flight") == 30.0
+    assert _move_capacity(flier, "running") == 40.0
+    assert _move_capacity(flier, "teleportation") == 0.0, "a mode he lacks"
