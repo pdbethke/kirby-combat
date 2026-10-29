@@ -751,6 +751,7 @@ def enumerate_actions(
     mental_paralysis: MentalParalysisState | None = None,
     can_abort: bool = True,
     spent_charges: dict[str, int] | None = None,
+    reserve_end_left: int | None = None,
     allies: list[HeroCombatant] | None = None,
     mind_scan_locks: frozenset[str] | None = None,
     prone: bool = False,
@@ -904,6 +905,23 @@ def enumerate_actions(
     # nothing.
     if spent_charges:
         attack_powers = [ap for ap in attack_powers if _has_ammunition(ap)]
+
+    # AN EMPTY BATTERY RUNS NOTHING. 6E1 p.207: "If an Endurance Reserve
+    # doesn't function for any reason, a character can draw no END from
+    # it. That means he can't use any power that draws END only from the
+    # Endurance Reserve" --- and "A character cannot spend STUN in the place
+    # of Endurance Reserve END." Filtered at the source with the ammunition,
+    # for the same reason. ``reserve_end_left`` is the END in the Reserve he
+    # would draw on (`endurance.drawing_reserve`), or None when the campaign
+    # does not count END.
+    if reserve_end_left is not None:
+        from kirby_combat.endurance import end_cost
+
+        attack_powers = [
+            ap for ap in attack_powers
+            if not getattr(ap, "uses_end_reserve", False)
+            or end_cost(ap) <= reserve_end_left
+        ]
 
     if not attack_powers and s.str_ >= 5:
         try:

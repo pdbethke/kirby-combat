@@ -594,8 +594,8 @@ def maintain_standing_areas(session, actor_id: str, *, template, roller):
 
     Maintaining takes no Action (6E1 p.129), so the Phase is still his.
     """
-    from kirby_combat.actions.recording import _spend_attack_end, _tracks_endurance
-    from kirby_combat.endurance import end_cost
+    from kirby_combat.actions.recording import _spend_attack_end
+    from kirby_combat.endurance import end_available, end_cost
 
     for area in active_standing_areas(session, owner_id=actor_id,
                                       mode=StandingMode.CONSTANT):
@@ -607,13 +607,13 @@ def maintain_standing_areas(session, actor_id: str, *, template, roller):
             continue
         owner = session.combatants[actor_id]
         cost = end_cost(power)
-        if cost and _tracks_endurance(template, owner) and int(
-                owner.state.current_end) < cost:
+        left = end_available(session, actor_id, power=power, template=template)
+        if cost and left is not None and left < cost:
             # RULING (as `lingering.maintain_constant_attacks`): he stops
             # rather than burn STUN for END (6E2 p.133 permits it).
             session = end_area(session, area.id, StandingEnd.NO_END)
             continue
-        session = _spend_attack_end(session, owner, cost, template)
+        session = _spend_attack_end(session, owner, cost, template, power=power)
         if area.shape is AreaShape.SURFACE:
             # A Damage Shield does its work on contact --- and a man he
             # holds is in contact with it: "A Grabbed character takes the
@@ -1032,7 +1032,7 @@ def raise_damage_shield(session, actor, power, *, template, roller):
         },
     ))
     session = _spend_attack_end(session, session.combatants[actor.id],
-                                end_cost(power), template)
+                                end_cost(power), template, power=power)
     return establish(session, owner_id=actor.id, power=power, point=None,
                      axis=(1.0, 0.0), covered_id=actor.id, affected=(),
                      use_event_id=declared.id)

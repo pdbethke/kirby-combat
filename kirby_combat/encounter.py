@@ -116,7 +116,13 @@ def _apply_post_12_recovery(
             end_recovered=end_delta,
         ))
 
-    return session
+    # AND EVERY ENDURANCE RESERVE, on the same hook: "An Endurance Reserve
+    # normally Recovers its REC in END each Turn ... during every
+    # Post-Segment 12 Recovery" (6E1 p.207). Its own row, because it is
+    # not his END. See `endurance.recover_reserves`.
+    from kirby_combat.endurance import recover_reserves
+
+    return recover_reserves(session)
 
 
 def _apply_bleeding(session: "CombatSession") -> "CombatSession":

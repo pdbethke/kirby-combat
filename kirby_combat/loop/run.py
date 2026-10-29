@@ -167,6 +167,16 @@ def distances_from(scene, actor, others) -> dict[str, float] | None:
     return out
 
 
+def _reserve_end_left(session: "CombatSession", actor) -> int | None:
+    """END in the Endurance Reserve his reserve-powered powers would draw
+    on, or None: no Reserve, or a campaign that does not count END."""
+    from kirby_combat.endurance import drawing_reserve, tracks_endurance
+
+    if not actor.reserves() or not tracks_endurance(session.template, actor):
+        return None
+    return drawing_reserve(session, actor.id)[1]
+
+
 def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
     """Why this combatant cannot use the Phase he has --- or None.
 
@@ -526,7 +536,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # mentalist with 30 m of Flight was never offered a metre of it
         # (prod fight 33bf8bee, 2026-10-26), and closing offers walked into
         # walls. Same shape as `scene` and `concealment` above.
-        movement=list(actor.movement_view()),
+        # A movement power that draws on an empty Reserve goes nowhere
+        # (6E1 p.207). RULING: offered only while the Reserve can pay for a
+        # full move, so no offer promises metres it cannot buy.
+        movement=[c for c in actor.movement_view()
+                  if not getattr(c, "uses_end_reserve", False)
+                  or _reserve_end_left(session, actor) is None
+                  or c.end_cost <= _reserve_end_left(session, actor)],
         held_target_ids=held_by_actor or None,
         # AND WHO IS HOLDING HIM. 6E2 p.64 gives a grabbed man an
         # immediate Casual STR roll to break free; the ladder below was
@@ -559,6 +575,10 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # and read by nothing, so nobody ever had to reload. Folded from
         # the log here for the same reason everything else is.
         spent_charges=spent_charges(session, actor_id),
+        # AND WHAT IS LEFT IN HIS BATTERY (6E1 p.207): a power that draws on
+        # an Endurance Reserve is not offered when the Reserve cannot pay
+        # for it. Folded from the log like the ammunition above.
+        reserve_end_left=_reserve_end_left(session, actor),
         # WHAT HE IS CARRYING. `throw_object` is offered only when these
         # two are supplied, and nothing supplied them --- so a fighter
         # picked a wagon up and the next Phase's menu had no idea, offered
