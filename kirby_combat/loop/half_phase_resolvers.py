@@ -42,7 +42,7 @@ def _resolve_half_move(
         raise UnresolvableAction(action.kind, action.action_id)
     moved, outcome = move_toward(
         session, actor.id, destination, mode=mode,
-        distance_m=_half_move(actor, mode),
+        distance_m=_half_move(actor, mode), template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)

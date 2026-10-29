@@ -1597,10 +1597,10 @@ def _base_reach_m(hero) -> float:
 #   characteristic; levels map 1:1 to metres). Applies equally to
 #   TELEPORTATION, SWIMMING, and TUNNELING.
 #
-# END/NCM table — sourced directly from the movement classes:
-#   running, leaping, flight, swimming: end_per_10m=1, noncombat_multiplier=4
-#   teleportation:                       end_per_10m=2, noncombat_multiplier=1
-#   tunneling:                           end_per_10m=1, noncombat_multiplier=1
+# NCM table — sourced directly from the movement classes:
+#   running, leaping, flight, swimming: noncombat_multiplier=4
+#   teleportation, tunneling, climbing:  noncombat_multiplier=1
+# END is not in it: see `_full_move_end`.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _MOVE_M_PER_LEVEL: float = 1.0
@@ -1610,17 +1610,37 @@ _MOVE_POWER_XMLIDS: frozenset[str] = frozenset(
     {"FLIGHT", "TELEPORTATION", "SWIMMING", "TUNNELING"}
 )
 
-# Per-mode END cost + noncombat multiplier
-# Format: mode_name → (end_per_10m, noncombat_multiplier)
-_MOVE_MODE_PARAMS: dict[str, tuple[int, int]] = {
-    "running":      (1, 4),
-    "leaping":      (1, 4),
-    "flight":       (1, 4),
-    "swimming":     (1, 4),
-    "teleportation": (2, 1),
-    "tunneling":    (1, 1),
-    "climbing":     (1, 1),     # end_per_10m=1; no noncombat climb multiplier
+# Per-mode noncombat multiplier.
+_MOVE_NCM: dict[str, int] = {
+    "running":      4,
+    "leaping":      4,
+    "flight":       4,
+    "swimming":     4,
+    "teleportation": 1,
+    "tunneling":    1,
+    "climbing":     1,
 }
+
+
+def _characteristic_move_end(hero, xmlid: str, combat_m: float) -> int:
+    """A full move's END for Running or Leaping bought as a characteristic.
+
+    Hero Designer prints no END for these, so there is no cost-engine
+    figure to take. 6E1 p.158 prices it all the same: "1 END per 10 Active
+    Points in the Movement Power ... (This includes movement the character
+    receives for 'free,' such as the standard Running 12m.)" The points'
+    worth of his whole move is the metres at the TEMPLATE's rate (LVLCOST
+    per LVLVAL: Running 1 per metre, Leaping 1 per 2m) --- read off the
+    characteristic, never written here. The book's own sheets: Running 14m
+    1 END, Leaping 8m 1 END (6E2 p.180).
+    """
+    from kirby_combat.endurance import end_for_points
+
+    char = next((c for c in getattr(hero, "characteristics", []) or []
+                 if (getattr(c, "xmlid", "") or "").upper() == xmlid), None)
+    if char is None:
+        raise ValueError(f"{xmlid} has a value and no characteristic to price it")
+    return end_for_points(combat_m * float(char.level_cost) / float(char.level_value))
 
 # 6E1 p70: "Climbing speed varies according to the structure being climbed, but
 # the base speed is 2m per Phase (at most)." There is no CLIMBING characteristic
@@ -1699,13 +1719,13 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         combat_m = float(hero.characteristic_value(xmlid))
         if combat_m <= 0:
             continue
-        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        ncm = _MOVE_NCM[mode]
         vertical_m = combat_m * _MOVE_VERTICAL_FRACTION[mode]
         out.append(MovementCapability(
             mode=mode,
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
-            end_per_10m=end_per_10m,
+            end_cost=_characteristic_move_end(hero, xmlid, combat_m),
             vertical_m=vertical_m,
         ))
 
@@ -1718,7 +1738,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         if combat_m <= 0:
             continue
         mode = _MOVE_XMLID_TO_MODE[xmlid]
-        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        ncm = _MOVE_NCM[mode]
         try:
             active_cost = float(getattr(p, "active_cost", None))
         except (TypeError, ValueError):
@@ -1729,7 +1749,8 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             mode=mode,
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
-            end_per_10m=end_per_10m,
+            # The cost engine's END column, modifiers and all (6E1 p.158).
+            end_cost=int(getattr(p, "end_usage", 0) or 0),
             vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
             active_cost=active_cost,
         ))
@@ -1739,12 +1760,13 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
     # block: EVERY hero can climb ordinary things without the Skill. Having the
     # Climbing Skill gates DIFFICULT faces (enforced by the consumer against a
     # face's climb_difficulty), not whether the mode exists.
-    _climb_end, _climb_ncm = _MOVE_MODE_PARAMS["climbing"]
+    # RULING: no END. Climbing is a Skill (6E1 p.70), not a Movement Power,
+    # and the book prints no END for it; Skills cost none (6E2 p.133).
     out.append(MovementCapability(
         mode="climbing",
         combat_m=_CLIMB_BASE_M,
-        noncombat_m=_CLIMB_BASE_M * _climb_ncm,
-        end_per_10m=_climb_end,
+        noncombat_m=_CLIMB_BASE_M * _MOVE_NCM["climbing"],
+        end_cost=0,
         vertical_m=_CLIMB_BASE_M * _MOVE_VERTICAL_FRACTION["climbing"],
         active_cost=None,
     ))

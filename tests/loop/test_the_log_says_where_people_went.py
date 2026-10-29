@@ -64,7 +64,8 @@ def test_moving_somebody_records_it():
     session = _session()
     assert _moves(session) == []
     session, outcome = move_toward(session, "tom", Position(4.0, 0.0, 0.0),
-                                   mode="running", distance_m=6.0)
+                                   mode="running", distance_m=6.0,
+                                   template=session.template)
     events = _moves(session)
     assert len(events) == 1, "a move that happened must appear in the log"
     assert events[0].combatant_id == "tom"
@@ -76,7 +77,8 @@ def test_it_records_where_from_and_where_to():
 
     session = _session()
     session, _ = move_toward(session, "tom", Position(4.0, 0.0, 0.0),
-                             mode="running", distance_m=6.0)
+                             mode="running", distance_m=6.0,
+                                   template=session.template)
     event = _moves(session)[0]
     assert event.from_pos["x"] == 0.0
     assert event.to_pos["x"] == 4.0
@@ -89,7 +91,8 @@ def test_standing_still_is_not_a_move():
 
     session = _session()
     session, _ = move_toward(session, "tom", Position(0.0, 0.0, 0.0),
-                             mode="running", distance_m=6.0)
+                             mode="running", distance_m=6.0,
+                                   template=session.template)
     assert _moves(session) == []
 
 

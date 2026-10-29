@@ -573,7 +573,17 @@ class MovementCapability:
                        teleportation | swimming | tunneling
         combat_m     — full-phase combat movement distance in metres
         noncombat_m  — noncombat distance (combat_m × NCM per mode)
-        end_per_10m  — END cost per 10 metres moved (1 or 2)
+        end_cost     — END for a FULL combat move (6E1 p.158: 1 END per 10
+                       Active Points of the movement, the free Running
+                       12m included). A movement power's is the cost
+                       engine's own END figure (Reduced Endurance,
+                       Increased Endurance Cost and Charges in it); a
+                       characteristic's applies that rule to the template's
+                       rate (Running 1 point per metre, Leaping 1 per 2m).
+                       A part move pays a share (`endurance.movement_end`).
+                       Replaced ``end_per_10m``, a hand-written table (2 per
+                       10m for Teleportation, Leaping priced as Running)
+                       that 6E does not say and nothing read.
         vertical_m   — maximum vertical distance in metres this mode can
                        gain. Per mode: flight / teleportation / tunneling =
                        combat_m (full movement in any direction); leaping =
@@ -595,7 +605,7 @@ class MovementCapability:
     mode: str
     combat_m: float
     noncombat_m: float
-    end_per_10m: int
+    end_cost: int
     vertical_m: float = 0.0
     active_cost: float | None = None
 

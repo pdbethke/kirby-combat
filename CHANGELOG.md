@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Moving costs END** (6E1 p.158). Nothing in the loop charged it: closing, repositioning, the Half Move, move-and-strike, Move By/Through and climbing all went through `placement.move_toward`, which took no END; only a Push's extra was ever paid. Seam tests: `tests/loop/test_movement_costs_end.py`.
+  - A full move costs 1 END per 10 Active Points of the movement, free Running 12m included. A movement power's figure is the cost engine's own END column (`end_usage`: Reduced Endurance ½/0, Increased Endurance Cost and Charges already in it). Running and Leaping bought as characteristics price their metres at the template's rate (Running 1 point/m, Leaping 1 per 2m). The book's sheets agree: Running 14m and Leaping 8m are each 1 END (6E2 p.180).
+  - A part move pays its share ("half the power's full END cost when making a Half Move"), rounded as 6E1 p.132 rounds END, at least 1. Metres past a full move are a Push and are paid by the Push.
+  - Charged only where the campaign counts END (`manage_endurance`), as attacks are. `tracks_endurance` and the clamped, logged `spend_end` moved to `endurance.py` (lift and shift from `recording.py` / `resolvers.py`).
+  - RULING: Climbing costs no END (a Skill; the book prints none).
+  - **Breaking:** `MovementCapability.end_per_10m` is replaced by `end_cost` (a full move's END). The old table (2 per 10m for Teleportation, Leaping priced as Running) was not 6E and nothing read it. `move_toward` now requires `template=`.
+  - **Fixed:** `move`, `move_to_cover` and `disengage` left their own `MovementResolved` (and now the END row) out of `ResolvedAction.events`, the defect `_reposition` had already fixed for itself. `run_phase`'s events, read off the log, were unaffected.
+
 ## 0.23.0 — 2026-10-28
 
 - **Knockback, throws, climbing and Adjustment: the pieces #10 and #13 left unbuilt** (follow-up K2b). New action kind `roll_with_punch`. `AdjustmentApplied` gains `fade_interval_turns` and `AdjustmentFaded` gains `adjustment_id`, both defaulted, so rows written before them replay as before (schema regenerated). Seam tests: `tests/loop/test_knockback_throw_climb_extras.py`, `tests/loop/test_adjustment_extras.py`.
