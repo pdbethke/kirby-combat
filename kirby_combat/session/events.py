@@ -601,6 +601,36 @@ class ConcentrationBegan(BaseEvent):
 
 
 @dataclass
+class ForcedOffTheBoard(BaseEvent):
+    """A man forced past the edge of the map, and how he is coming back.
+
+    PETER'S RULING (2026-10-29): the edge of the map is not the edge of the
+    world. Knockback, a Throw or a shove that carries a man past it leaves
+    him off the board, where nobody can target him, and his Phases are
+    spent bringing him back at COMBAT speed to ``exit_point``, where he
+    crossed. ``mode`` is the movement that gets him back in the fewest
+    Phases (`off_board.way_back`); ``phases`` counts the Half Phase it
+    takes to get up first (6E2 p.116). ``returns_turn`` / ``returns_segment``
+    is the Segment of the Phase he is due back in, by his SPD.
+
+    A projection, written once, when he goes off: each Phase is worked out
+    again when it comes (`off_board.come_back`), so a Stun or a lost
+    Phase delays him and this row does not change. ``cause`` is the
+    forced move's ``move_type``. Folded by `kirby_combat/off_board.py`.
+    """
+    kind: Literal["ForcedOffTheBoard"] = field(default="ForcedOffTheBoard", init=False)
+    combatant_id: str = ""
+    cause: str = ""
+    exit_point: dict[str, float] = field(default_factory=dict)
+    distance_m: float = 0.0
+    mode: str = ""
+    metres_per_phase: float = 0.0
+    phases: int = 0
+    returns_turn: int = 0
+    returns_segment: int = 0
+
+
+@dataclass
 class PresenceYielded(BaseEvent):
     """An impressed man stepping back behind the one who impressed him.
 
@@ -937,6 +967,7 @@ CombatEvent = (
     | PresenceYielded
     | PhaseTimeUsed
     | ConcentrationBegan
+    | ForcedOffTheBoard
     | RageRolled
     | RageTargeted
     | LingeringAttackApplied

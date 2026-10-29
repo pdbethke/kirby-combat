@@ -849,6 +849,11 @@ def run_phase(
             recovered=fields.get("kind") == "recover",
             template=template, roller=roller,
         )
+        # WHO WAS FORCED OFF THE BOARD THIS PHASE, and how long he will be
+        # gone. Here, after everything his Phase and the Holds did.
+        from kirby_combat.off_board import announce
+
+        session = announce(session)
         fields["notes"] = notes + list(fields.get("notes") or [])
         return _phase_result(encounter, session, log_before,
                              actor_id=actor_id, **fields)
@@ -983,6 +988,19 @@ def run_phase(
             session,
             notes=[f"{actor_id} is lost in a Mental Illusion and stands still"],
         )
+
+    # OFF THE BOARD, COMING BACK (Peter's ruling, 2026-10-29). A man
+    # Knocked Back, Thrown or shoved past the map's edge spends his Phase
+    # getting back to where he crossed it, by the way that gets him there
+    # soonest. He is handed no menu: every offer is worked out from a
+    # position on the board. See `kirby_combat/off_board.py`.
+    if _roster.is_off_board(actor_id):
+        from kirby_combat.off_board import come_back
+
+        session, goes_on, note = come_back(session, actor_id)
+        if not goes_on:
+            session, spent = _mark_acted(session, actor_id)
+        return _done(session, notes=[note])
 
     situation = _situation_for(session, actor_id)
     menu = situation.menu

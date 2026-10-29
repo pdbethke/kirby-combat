@@ -1694,6 +1694,91 @@
       "title": "FlashRecovered",
       "type": "object"
     },
+    "ForcedOffTheBoard": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ForcedOffTheBoard",
+          "enum": [
+            "ForcedOffTheBoard"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "cause": {
+          "type": "string"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "distance_m": {
+          "type": "number"
+        },
+        "exit_point": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ForcedOffTheBoard",
+          "enum": [
+            "ForcedOffTheBoard"
+          ],
+          "type": "string"
+        },
+        "metres_per_phase": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "phases": {
+          "type": "integer"
+        },
+        "returns_segment": {
+          "type": "integer"
+        },
+        "returns_turn": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "cause",
+        "exit_point",
+        "distance_m",
+        "mode",
+        "metres_per_phase",
+        "phases",
+        "returns_turn",
+        "returns_segment"
+      ],
+      "title": "ForcedOffTheBoard",
+      "type": "object"
+    },
     "Furnishing": {
       "additionalProperties": false,
       "properties": {
@@ -4108,6 +4193,9 @@
     },
     {
       "$ref": "#/$defs/FlashRecovered"
+    },
+    {
+      "$ref": "#/$defs/ForcedOffTheBoard"
     },
     {
       "$ref": "#/$defs/GMOverride"

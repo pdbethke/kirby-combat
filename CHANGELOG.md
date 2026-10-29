@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Knocked off the board, and coming back** (Peter's ruling, 2026-10-29). Knockback, a Throw or a shove past the map's edge used to put a man out of the fight for good (`Roster.has_left`), after a fall to the bounds' floor that nobody took (4 of 6 demo seeds). New module `off_board.py`; new event kind `ForcedOffTheBoard` (schema regenerated). Seam tests: `tests/loop/test_off_the_board.py`.
+  - Beyond the edge the ground goes on at the height where he crossed it, so there is no phantom fall. A real one (off a roof at the edge) still lands him.
+  - He comes back to the point where he crossed, at COMBAT speed (6E2 p.25-26). Getting up first takes half of his first Phase (6E2 p.116).
+  - He uses the mode that gets him back in the fewest Phases, of running, leaping, flight and teleportation. A tie goes to the lower END per 10m, then to that order. A man in the air flies or teleports.
+  - `ForcedOffTheBoard` records the exit point, distance, mode, metres per Phase, Phases and the Turn/Segment he is due back. His Phases are spent moving him back, with no menu. Each one is worked out again, so a Stun delays him. A return using half his movement or less leaves him a Half Phase to act from the edge (6E2 p.26).
+  - While he is off the board he is no target, ally or patient (`Roster.on_the_board`). He has not left (`Roster.is_off_board`), so his side is not beaten. A man with no way back has left, and walking off is still leaving.
+
 ## 0.23.0 — 2026-10-28
 
 - **Knockback, throws, climbing and Adjustment: the pieces #10 and #13 left unbuilt** (follow-up K2b). New action kind `roll_with_punch`. `AdjustmentApplied` gains `fade_interval_turns` and `AdjustmentFaded` gains `adjustment_id`, both defaulted, so rows written before them replay as before (schema regenerated). Seam tests: `tests/loop/test_knockback_throw_climb_extras.py`, `tests/loop/test_adjustment_extras.py`.

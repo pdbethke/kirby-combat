@@ -99,28 +99,40 @@ class Roster:
         return list(self._session.combatants.values())
 
     def has_left(self, combatant_id: str) -> bool:
-        """Outside the scene's bounds --- i.e. no longer on the field.
+        """Outside the scene's bounds and not coming back --- i.e. no longer
+        on the field.
 
         PUBLIC because leaving is not only a scoreboard question. The
         turn loop has to skip a man who has gone, exactly as it skips one
         who is down, and there must be ONE answer to "has he left" rather
         than a second copy of the bounds test living in the loop.
 
+        NOT a man FORCED off. Knockback, a Throw or a shove past the edge
+        leaves him off the board and on his way back (Peter's ruling,
+        2026-10-29; `kirby_combat/off_board.py`), which is `is_off_board`.
+        Only a man who walked off, or who has no way back, has left.
+
         No scene, no bounds, or no position for this combatant means the
         question does not arise: most fights are on no map at all, and
         they must keep working exactly as before.
         """
-        scene = getattr(self._session, "scene", None)
-        if scene is None:
-            return False
-        bounds = getattr(scene, "bounds", None)
-        pos = (getattr(scene, "combatant_positions", None) or {}).get(combatant_id)
-        if bounds is None or pos is None:
-            return False
-        return not (
-            bounds.min_x <= pos.x <= bounds.max_x
-            and bounds.min_y <= pos.y <= bounds.max_y
-        )
+        from kirby_combat.off_board import is_off_board, outside_the_bounds
+
+        return (outside_the_bounds(self._session, combatant_id)
+                and not is_off_board(self._session, combatant_id))
+
+    def is_off_board(self, combatant_id: str) -> bool:
+        """Forced off the map and coming back: still in the fight, but out of
+        everybody's reach until he is back (`kirby_combat/off_board.py`)."""
+        from kirby_combat.off_board import is_off_board
+
+        return is_off_board(self._session, combatant_id)
+
+    def on_the_board(self, combatant_id: str) -> bool:
+        """Here to be shot, shielded or tended --- neither gone nor away."""
+        from kirby_combat.off_board import outside_the_bounds
+
+        return not outside_the_bounds(self._session, combatant_id)
 
     @property
     def standing(self) -> dict[Side, list[str]]:
@@ -173,7 +185,7 @@ class Roster:
         return [
             c for c in self.combatants
             if Side.of(c) != mine and not is_down(c)
-            and not self.has_left(c.id)
+            and self.on_the_board(c.id)
         ]
 
     def allies_of(self, actor) -> list:
@@ -186,7 +198,7 @@ class Roster:
         return [
             c for c in self.combatants
             if c.id != actor.id and Side.of(c) == mine and not is_down(c)
-            and not self.has_left(c.id)
+            and self.on_the_board(c.id)
         ]
 
     def fallen_allies_of(self, actor) -> list:
@@ -205,7 +217,7 @@ class Roster:
         return [
             c for c in self.combatants
             if c.id != actor.id and Side.of(c) == mine and is_down(c)
-            and not self.has_left(c.id)
+            and self.on_the_board(c.id)
         ]
 
     def decide(self, condition: StopCondition | None = None) -> Verdict:
