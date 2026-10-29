@@ -1639,7 +1639,16 @@ def _characteristic_move_end(hero, xmlid: str, combat_m: float) -> int:
     char = next((c for c in getattr(hero, "characteristics", []) or []
                  if (getattr(c, "xmlid", "") or "").upper() == xmlid), None)
     if char is None:
-        raise ValueError(f"{xmlid} has a value and no characteristic to price it")
+        # NOT BOUGHT UP, so not on the build: a .hdc lists Running and
+        # Leaping only when they are, and the cost engine seeds the base
+        # (12m, 4m) from the template (`LoadedHero.compute_characteristic_
+        # values`). The rate comes from that same template, asked the same
+        # way.
+        from kirby_cost.template.hdt_provider import HDTTemplateProvider
+
+        char = HDTTemplateProvider().get_template_data(xmlid)
+        if char is None:
+            raise ValueError(f"{xmlid} has a value and the template does not define it")
     return end_for_points(combat_m * float(char.level_cost) / float(char.level_value))
 
 # 6E1 p70: "Climbing speed varies according to the structure being climbed, but

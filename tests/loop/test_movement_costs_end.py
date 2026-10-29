@@ -218,3 +218,24 @@ def test_a_short_move_pays_a_share():
     out = resolve_chosen(session, session.combatants["r"], _move_at_e(),
                          template=RAW_HEROIC, roller=FakeRoller([]))
     assert _end_rows(out) == [(-1, "end_spent")]
+
+
+def test_running_he_never_bought_is_priced_off_the_template():
+    """A .hdc lists Running only when it is bought up (kirby-cost seeds the
+    12m base from the template): the rate comes from the same template."""
+    from kirby_cost.io.build_json import build_from_json
+
+    from kirby_combat.hero_view import HeroCombatant
+    from tests.corpus import require_template
+
+    require_template()
+    hero = build_from_json({
+        "name": "Walker", "template": "Main6E",
+        "base_points": 400, "disad_points": 75, "experience": 0,
+        "characteristics": [{"xmlid": "DEX", "levels": 5}],
+        "powers": [], "skills": [], "perks": [], "talents": [],
+        "disadvantages": [],
+    })
+    caps = {c.mode: c for c in HeroCombatant.from_build(hero, id="w").movement_view()}
+    assert (caps["running"].combat_m, caps["running"].end_cost) == (12.0, 1)
+    assert (caps["leaping"].combat_m, caps["leaping"].end_cost) == (4.0, 1)
