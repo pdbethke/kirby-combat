@@ -1,18 +1,11 @@
-"""Movement actions — base class + six concrete powers.
+"""Movement actions: what moves a man that he did not choose (knockback).
 
-Per HERO 6E2 pg 53, all movement supports half-move / full-move / noncombat
-modes. Each concrete power is a thin factory over MovementAction with
-power-specific defaults for `name`, `end_per_10m`, and `noncombat_multiplier`.
+The `MovementAction` family (`Running`, `Leaping`, `Flight`, `Swimming`,
+`Teleportation`, `Tunneling`) lived here, unused since the loop moved people
+through `placement.move_toward`, with an END rule that was not 6E (`ceil(m /
+10) x end_per_10m`) and a x4/x1 noncombat table nothing cited. Deleted in
+0.26.0. Each of its jobs has a live home: the distance a mode allows is
+`HeroCombatant.movement_view` (`combat_m`, `noncombat_m`); its END is
+`endurance.movement_end` (6E1 p.158); the move itself, with a destination,
+is `placement.move_toward`.
 """
-from kirby_combat.actions.movement.base import MovementAction
-from kirby_combat.actions.movement.running import Running
-from kirby_combat.actions.movement.leaping import Leaping
-from kirby_combat.actions.movement.flight import Flight
-from kirby_combat.actions.movement.swimming import Swimming
-from kirby_combat.actions.movement.teleportation import Teleportation
-from kirby_combat.actions.movement.tunneling import Tunneling
-
-__all__ = [
-    "MovementAction",
-    "Running", "Leaping", "Flight", "Swimming", "Teleportation", "Tunneling",
-]

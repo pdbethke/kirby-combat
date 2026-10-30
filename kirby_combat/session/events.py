@@ -247,8 +247,9 @@ class MovementResolved(BaseEvent):
     the right spot pointing the wrong way, which a board draws.
 
     `to_pos is None` is not a missing value: it means this row records a
-    movement that CHOSE NO DESTINATION (`MovementAction.resolve` spends
-    END for a distance), so the fold moves nobody.
+    movement that CHOSE NO DESTINATION (the deleted `MovementAction.resolve`
+    wrote these until 0.26.0; old logs still hold them), so the fold moves
+    nobody.
     """
     kind: Literal["MovementResolved"] = field(default="MovementResolved", init=False)
     combatant_id: str = ""

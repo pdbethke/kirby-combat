@@ -54,9 +54,24 @@ class AttackPower:
     #: "has a clip" must never be the same answer. A charged power costs
     #: no END (6E1 p.132); see `kirby_combat.endurance`.
     charges: int | None = None
+    #: Whose Charges those are: this power's id, or its framework reserve's
+    #: when the reserve carries them and every slot shares one supply (6E1
+    #: p.409). `charges.spent_charges` counts uses by this key. None for an
+    #: attack stated by hand, which counts by its own `source_id`.
+    charge_pool: str | None = None
     #: Reduced Endurance (0 END). `hero_view` has parsed this modifier for
     #: a long time and discarded it, with the comment "(END calc TBD)".
+    #: Read only for an attack stated by hand: a built one carries
+    #: `end_per_use`, which already has it.
     reduced_end: bool = False
+    #: END for one use, as the character's sheet states it: the cost
+    #: engine's `end_usage`, Hero Designer's END column (½ and 0 END,
+    #: Increased Endurance Cost, Charges, Costs Endurance and a framework's
+    #: own modifiers already in it). Set by `hero_view` for every attack
+    #: built from a character; None for an attack stated by hand (a
+    #: synthetic fighter, a martial maneuver), which prices from its stated
+    #: `active_points` instead. See `kirby_combat.endurance.end_cost`.
+    end_per_use: int | None = None
     #: Draws its END from an Endurance Reserve, not from the character (6E1
     #: p.207: "A character with an Endurance Reserve must decide which powers
     #: draw energy from the Reserve"). HD's USE_END_RESERVE, read off the

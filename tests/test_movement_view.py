@@ -4,8 +4,8 @@ Stubs mirror tests/test_reach.py: _Hero.characteristic_value reads a _cv dict;
 _Pow carries xmlid/levels. No HDC needed.
 
 NCM confirmed from movement class sources:
-  running, leaping, flight, swimming: noncombat_multiplier=4
-  teleportation, tunneling:            noncombat_multiplier=1
+  every movement mode: noncombat x2, doubled per Improved Noncombat level
+  (6E1 p.157, p.159, p.302; tests/test_noncombat_movement.py)
 END is a full move's (6E1 p.158): a power's is the cost engine's
 `end_usage`; Running/Leaping price their metres at the template's rate.
 See tests/loop/test_movement_costs_end.py.
@@ -79,7 +79,7 @@ def test_running_and_leaping_from_characteristics():
     assert "running" in modes
     assert modes["running"].combat_m == 12.0
     assert modes["running"].end_cost == 1          # 12 points' worth
-    assert modes["running"].noncombat_m == 48.0  # 12 * 4 (NCM)
+    assert modes["running"].noncombat_m == 24.0  # 12 * 2 (6E1 p.157)
     assert "leaping" in modes
     assert modes["leaping"].combat_m == 4.0
     assert modes["leaping"].vertical_m == 2.0    # vertical = half horizontal (6E)
@@ -98,12 +98,12 @@ def test_flight_teleport_from_powers():
     # Flight: the cost engine's END, NCM 4×
     assert "flight" in modes
     assert modes["flight"].combat_m == 20.0
-    assert modes["flight"].noncombat_m == 80.0   # 20 * 4
+    assert modes["flight"].noncombat_m == 40.0   # 20 * 2
     assert modes["flight"].end_cost == 2
-    # Teleportation: the cost engine's END, NCM 1× (teleport doesn't scale noncombat)
+    # Teleportation: the cost engine's END; noncombat x2 like every mode (6E1 p.302)
     assert "teleportation" in modes
     assert modes["teleportation"].combat_m == 15.0
-    assert modes["teleportation"].noncombat_m == 15.0  # 15 * 1
+    assert modes["teleportation"].noncombat_m == 30.0  # 15 * 2
     assert modes["teleportation"].end_cost == 3
 
 
@@ -118,12 +118,12 @@ def test_swimming_tunneling_from_powers():
     # Swimming: the cost engine's END, NCM 4×
     assert "swimming" in modes
     assert modes["swimming"].combat_m == 10.0
-    assert modes["swimming"].noncombat_m == 40.0
+    assert modes["swimming"].noncombat_m == 20.0
     assert modes["swimming"].end_cost == 1
-    # Tunneling: the cost engine's END, NCM 1× (noncombat speedup doesn't apply)
+    # Tunneling: the cost engine's END; noncombat x2 like every Movement Power
     assert "tunneling" in modes
     assert modes["tunneling"].combat_m == 8.0
-    assert modes["tunneling"].noncombat_m == 8.0   # 8 * 1
+    assert modes["tunneling"].noncombat_m == 16.0  # 8 * 2
     assert modes["tunneling"].end_cost == 4
 
 

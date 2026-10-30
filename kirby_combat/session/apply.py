@@ -426,8 +426,9 @@ def _fold_position(
     starting placement for ever.
 
     A row with no `to_pos` MOVES NOBODY, and that is not a default: it is
-    `MovementAction.resolve`'s row, which spends END for a distance and
-    chooses no destination. A session with no Scene has no board to
+    the row the deleted `MovementAction.resolve` wrote (until 0.26.0),
+    which spent END for a distance and chose no destination. Old logs
+    still hold them. A session with no Scene has no board to
     write on and the row is kept as it stands.
 
     A row addressed to a combatant this session does not know RAISES ---

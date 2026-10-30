@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.26.0 — 2026-10-30
+
+**Behaviour changes** every fight with these powers sees. Measured against every attack in the local character library (2,585): 2,356 already agreed with Hero Designer's END column; now all do.
+
+- **An attack built from a character costs the END its sheet says.** `AttackPower.end_per_use` carries the cost engine's `end_usage` (Hero Designer's END column) and `endurance.end_cost` reads it, as movement has since 0.24.0. The engine recomputed END from Active Points and knew Reduced Endurance only as "on", so **every ½ END power cost nothing** (186 attacks; 6E1 p.347: 1 END per 20 Active Points, the Advantage excluded). Charges that also Cost Endurance now pay it (2). An attack stated by hand (synthetic fighters, martial maneuvers) still prices from its stated Active Points. Tests: `tests/test_attack_end_from_the_build.py`.
+- **A Multipower's Charges are one supply for every slot** (6E1 p.409: "all the slots, taken together, have that many Charges"; p.403: those slots "do not cost END"). `charges.charge_pool`, `AttackPower.charge_pool`; `spent_charges` counts by pool. The slots of a charged Multipower had no Charges at all and fired without limit while paying full END (42 slots).
+- **Noncombat movement is x2**, doubled per Improved Noncombat level along 6E1 p.450's table (x125 at six levels, not x128): `hero_view.noncombat_multiple`. It was an uncited x4 (running, leaping, flight, swimming) / x1 (teleportation, tunneling) table, and Improved Noncombat was not read. 6E1 p.157, p.159, p.302. 165 of 167 adders in the local library agree; the other two, from an older Hero Designer, say x128. RULING: climbing (a Skill) has no noncombat rate.
+- **Breaking:** the dead `MovementAction` family (`kirby_combat.actions.movement.{base,running,leaping,flight,swimming,teleportation,tunneling}`) is deleted: unused since the loop moved people through `placement.move_toward`, with a non-6E END rule. Every job it had has a live home (see `actions/movement/__init__.py`); its one live claim, `from_pos` on the movement row, is now tested through `move_toward`.
+
+Flagged, not changed: nothing checks whether a destination is occupied by another combatant (a man closing on an enemy lands on his point; so does one coming back onto the board). It needs a rules call.
+
 ## 0.25.0 — 2026-10-30
 
 **No default combat template, anywhere** (Peter's no-defaults rule). Which optional rules a fight plays by is the campaign's decision; a default was the engine making it silently. Found the hard way: an Encounter with no template ran under `DEFAULT_TEMPLATE` (Superheroic) whatever its fights were created with, so a heroic sweep charged no END (2026-10-29). Tests: `tests/test_no_default_template.py`. The event schema does not change (templates are not in it).

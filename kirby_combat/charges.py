@@ -14,6 +14,14 @@ four times a fight.
 6E1 p.334: "Each slot of a Charges power lets the character use the power
 the defined number of times per day." Charges are uses.
 
+A FRAMEWORK'S CHARGES ARE ONE SUPPLY. 6E1 p.409: "the Multipower as a
+whole has as many Charges as are bought for the reserve; each slot does not
+have that many Charges --- all the slots, taken together, have that many
+Charges" (and p.403: such slots "do not cost END"). So uses are counted by
+POOL (`charge_pool`): a power's own id when it carries the Charges, its
+framework's when the reserve does. The slots of a charged Multipower had no
+Charges at all here and fired without limit (42 slots in the local library).
+
 COUNTED BY THE POWER'S OWN ID, never its xmlid. Doc carries a Shotgun and
 a Colt Peacemaker and BOTH are RKA, so counting by type would empty one
 gun by firing the other. That is the same "identity is an id" rule
@@ -57,8 +65,40 @@ def charges_on(power: Any) -> int | None:
     return None
 
 
+def charge_pool(power: Any) -> tuple[str, int] | None:
+    """``(pool id, how many uses it holds)`` for a build power, or None when
+    nothing limits it: its own Charges, else its framework reserve's (6E1
+    p.403, p.409). NONE IS NOT ZERO, as for `charges_on`."""
+    own = charges_on(power)
+    if own is not None:
+        return str(getattr(power, "id", "")), own
+    parent = getattr(power, "parent", None)
+    if parent is not None:
+        shared = charges_on(parent)
+        if shared is not None:
+            return str(getattr(parent, "id", "")), shared
+    return None
+
+
+def _pools_of(combatant: Any) -> dict[str, str]:
+    """`power id -> pool id` for every build power that draws on a pool
+    other than its own: the slots of a charged framework."""
+    from kirby_combat.identity import build_in_play
+
+    out: dict[str, str] = {}
+    build = build_in_play(combatant) if combatant is not None else None
+    for power in [*(getattr(build, "powers", None) or []),
+                  *(getattr(build, "equipment", None) or [])]:
+        pool = charge_pool(power)
+        if pool is not None and pool[0] != str(getattr(power, "id", "")):
+            out[str(getattr(power, "id", ""))] = pool[0]
+    return out
+
+
 def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
-    """`power id -> how many times this combatant has fired it`.
+    """`pool id -> how many Charges this combatant has used from it`: a
+    power's own id, or its framework's when the reserve carries the
+    Charges (`charge_pool`).
 
     Folded from the log rather than tracked, like everything else in this
     engine that a caller would otherwise have to keep in step by hand.
@@ -67,6 +107,7 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
     """
     out: dict[str, int] = {}
     mine: set[str] = set()
+    pools = _pools_of((getattr(session, "combatants", None) or {}).get(combatant_id))
     for event in list(getattr(session, "event_log", None) or []):
         kind = getattr(event, "kind", "")
         if kind == "ActionDeclared":
@@ -83,5 +124,6 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
                 # (`actions/autofire_attack.py`). Every other use is one.
                 shots = payload.get("shots_fired")
                 used = 1 if shots is None else int(shots)
-                out[str(source)] = out.get(str(source), 0) + used
+                key = pools.get(str(source), str(source))
+                out[key] = out.get(key, 0) + used
     return out
