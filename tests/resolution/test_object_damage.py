@@ -3,6 +3,8 @@ from kirby_combat.models import AttackPower, DiceValues
 from kirby_combat.template import CombatTemplate
 from kirby_combat.scene import Construct
 from kirby_combat.resolution.object_damage import apply_attack_to_construct
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 def _power(dice=3, damage_type="normal"):
@@ -22,7 +24,7 @@ def _wall_construct(def_value, body):
 
 def test_def_gate_blocks_small_hit():
     # 3 dice rolling [2,2,1] -> BODY 1+1+0 = 2. DEF 6 -> 0 through.
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     r = apply_attack_to_construct(_power(3), _dice([2, 2, 1]), _wall_construct(6, 8), tmpl)
     assert r.body_rolled == 2 and r.body_through == 0
     assert r.body_after == 8 and r.destroyed is False
@@ -30,21 +32,21 @@ def test_def_gate_blocks_small_hit():
 
 def test_big_hit_chips_body():
     # [6,6,6] -> BODY 2+2+2 = 6. DEF 2 -> 4 through. 8 - 4 = 4.
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     r = apply_attack_to_construct(_power(3), _dice([6, 6, 6]), _wall_construct(2, 8), tmpl)
     assert r.body_rolled == 6 and r.body_through == 4
     assert r.body_before == 8 and r.body_after == 4 and r.destroyed is False
 
 
 def test_destroys_at_zero():
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     r = apply_attack_to_construct(_power(3), _dice([6, 6, 6]), _wall_construct(2, 4), tmpl)
     assert r.destroyed is True and r.body_after == 0
 
 
 def test_indestructible_construct_rejected():
     import pytest
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     with pytest.raises(ValueError):
         apply_attack_to_construct(_power(3), _dice([6, 6, 6]),
                                   Construct(obj_id="z", kind="hazard_zone"), tmpl)
@@ -52,7 +54,7 @@ def test_indestructible_construct_rejected():
 
 def test_autofire_applies_def_per_shot():
     from kirby_combat.resolution.object_damage import apply_autofire_to_construct
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     # Each shot: [6,6,6] -> BODY 6, DEF 2 -> 4 through. Wood BODY 4 -> destroyed on shot 1.
     shots = [_dice([6, 6, 6]) for _ in range(5)]
     res = apply_autofire_to_construct(_power(3), shots, _wall_construct(2, 4), tmpl)
@@ -62,7 +64,7 @@ def test_autofire_applies_def_per_shot():
 
 def test_autofire_chips_steel_over_multiple_shots():
     from kirby_combat.resolution.object_damage import apply_autofire_to_construct
-    tmpl = CombatTemplate(name="t")
+    tmpl = replace(PLAIN, name="t")
     # DEF 9 steel: [6,6,6] -> BODY 6 < DEF 9 -> 0 through every shot; never falls.
     shots = [_dice([6, 6, 6]) for _ in range(5)]
     res = apply_autofire_to_construct(_power(3), shots, _wall_construct(9, 10), tmpl)

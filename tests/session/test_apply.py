@@ -21,7 +21,13 @@ from kirby_combat.template import CombatTemplate
 from kirby_dice import FakeRoller
 from kirby_combat.session.timeline import ActingSlot, ActionIntent
 from kirby_combat.talents.lightning_reflexes import LightningReflexesGrant
+from tests.templates import PLAIN
 
+
+
+#: The fight and its Encounter play by ONE template: an Encounter whose
+#: template contradicts its fight's raises. INT_THEN_PRE needs no roller.
+_ONE_PHASE_RULES = replace(PLAIN, name="test-template", tie_rule=TieRule.INT_THEN_PRE)
 
 def _session() -> CombatSession:
     c = synthetic_combatant(
@@ -178,7 +184,7 @@ def _driven_encounter_session():
 
     session = CombatSession.create(
         id="s1", combatants=[c], scene=None,
-        template=CombatTemplate.default_6e_superheroic(),
+        template=_ONE_PHASE_RULES,
         dice_roller=FakeRoller([]),
     ).start()
 
@@ -188,7 +194,7 @@ def _driven_encounter_session():
         # INT_THEN_PRE (not the book-default DEX_ROLL) needs no roller --
         # irrelevant here anyway since there is only one combatant to
         # order, so no tie is ever broken.
-        template=CombatTemplate(name="test-template", tie_rule=TieRule.INT_THEN_PRE),
+        template=_ONE_PHASE_RULES,
     )
     intents = {"alice": ActionIntent("strike", elect_lightning_reflexes=True)}
     new_encounter = encounter.run_segment(intents=intents)
@@ -234,12 +240,12 @@ def test_lightning_reflexes_restriction_fires_at_a_non_segment_12_phase():
     c.hero.talents = list(_hero_with_single_scope_lightning_reflexes().talents)
     session = CombatSession.create(
         id="s1", combatants=[c], scene=None,
-        template=CombatTemplate.default_6e_superheroic(),
+        template=_ONE_PHASE_RULES,
         dice_roller=FakeRoller([]),
     ).start()
     encounter = Encounter(
         id="enc-1", segment=3, sessions=[session],
-        template=CombatTemplate(name="test-template", tie_rule=TieRule.INT_THEN_PRE),
+        template=_ONE_PHASE_RULES,
     )
     intents = {"alice": ActionIntent("strike", elect_lightning_reflexes=True)}
     new_encounter = encounter.run_segment(intents=intents)

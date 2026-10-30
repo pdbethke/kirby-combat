@@ -27,6 +27,7 @@ from kirby_combat.critique import critique
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop.chooser import PhaseSituation
 from kirby_combat.models import AttackPower, StatBlockCombatant
+from kirby_combat.template import RAW_SUPERHEROIC
 
 
 def _power(dice: int, *, killing: bool = False) -> AttackPower:
@@ -68,9 +69,15 @@ def _attack(target_id: str, power: AttackPower, *, construct: bool = False):
     )
 
 
+class _Fight:
+    """The one thing the grader reads off a fight here: its rules."""
+    template = RAW_SUPERHEROIC
+    scene = None
+
+
 def _situation(menu, enemies):
     return PhaseSituation(actor=_fighter("virgil"), menu=menu,
-                          enemies=enemies, segment=12, turn=1)
+                          enemies=enemies, session=_Fight(), segment=12, turn=1)
 
 
 def _kinds(situation, action_id) -> set[str]:
@@ -123,6 +130,7 @@ def _scene_with(construct):
 
     class _Session:
         scene = _Scene()
+        template = RAW_SUPERHEROIC
     return _Session()
 
 

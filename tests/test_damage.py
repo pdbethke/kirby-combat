@@ -4,6 +4,8 @@ import pytest
 from kirby_combat.models import AttackPower, DiceValues
 from kirby_combat.template import CombatTemplate
 from kirby_combat.resolution.damage import compute_damage
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 # ---------------------------------------------------------------------------
@@ -37,8 +39,7 @@ def make_template(
     killing_stun_mult_base: int = 1,
     killing_stun_mult_fixed: int | None = None,
 ) -> CombatTemplate:
-    return CombatTemplate(
-        name="Test Template",
+    return replace(PLAIN, name="Test Template",
         killing_stun_mult_base=killing_stun_mult_base,
         killing_stun_mult_fixed=killing_stun_mult_fixed,
     )

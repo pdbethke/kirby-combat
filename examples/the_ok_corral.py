@@ -484,10 +484,11 @@ def main() -> None:
                   # ON THE ENCOUNTER TOO, and this is not belt-and-braces.
                   # `run_encounter` resolves the template it hands every
                   # resolver from `encounter._resolve_template(campaign)`
-                  # -- the ENCOUNTER's, falling back to DEFAULT_TEMPLATE --
-                  # not from the session's own `template` field. Setting
-                  # only the session left the whole fight resolving under
-                  # the default, so the heroic flags did nothing.
+                  # -- the ENCOUNTER's -- not from the session's own
+                  # `template` field. Setting only the session once left
+                  # the whole fight under a default template, so the
+                  # heroic flags did nothing; an Encounter with no
+                  # template now raises instead.
                   template=RAW_HEROIC),
         _seat(seat_name, {c.id: c for c in fighters}),
         roller=roller, on_unresolvable="skip", max_turns=40)

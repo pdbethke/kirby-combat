@@ -3,12 +3,13 @@ import pytest
 
 from kirby_combat.models import AttackPower, DefenseItem
 from fixtures.synthetic_hero import synthetic_combatant
-from kirby_combat.template import CombatTemplate
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 @pytest.fixture
 def superhero_template():
-    return CombatTemplate(name="Test Superheroic")
+    return replace(PLAIN, name="Test Superheroic")
 
 
 @pytest.fixture

@@ -1,36 +1,50 @@
 """HERO System 6E CombatTemplate — campaign/game-mode configuration."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from kirby_combat.session.tie_rule import TieRule
 
 
-@dataclass
+@dataclass(frozen=True)
 class CombatTemplate:
     """All campaign-level switches that govern combat resolution.
 
     A CombatTemplate is attached to a campaign (or individual encounter)
     and controls which optional rules are active.  Two pre-built instances
     are provided: RAW_SUPERHEROIC and RAW_HEROIC.
+
+    NO DEFAULTS. Every switch is stated by whoever builds a template. A
+    default here is the engine choosing a campaign's optional rules for it
+    without saying so; `DEFAULT_TEMPLATE` was that choice made for every
+    Encounter that lacked one, and a heroic fight ran on Superheroic rules
+    until somebody noticed it charged no END (2026-10-29).
+
+    FROZEN. One template is shared by every campaign and fight that names
+    it, so a change made in place was a change to all of them (and to
+    `RAW_SUPERHEROIC` itself). A campaign's own rules are a
+    `dataclasses.replace` of the one it starts from.
     """
 
     name: str
-    edition: str = "6E"
-    mode: str = "superheroic"           # "superheroic" | "heroic"
+    edition: str
+    mode: str                           # "superheroic" | "heroic"
 
     # Hit location options
-    use_hit_locations: bool = False
-    auto_roll_hit_location_npc: bool = False   # auto-roll for NPCs even if flag is off
-    allowed_hit_locations: list[str] = field(default_factory=list)  # empty = all
+    use_hit_locations: bool
+    auto_roll_hit_location_npc: bool    # auto-roll for NPCs even if flag is off
+    #: Empty is every location. A tuple: a template is shared by every
+    #: campaign that names it, and a list here was one mutable object
+    #: behind all of them.
+    allowed_hit_locations: tuple[str, ...]
 
     # Knockback
-    use_knockback: bool = True
-    knockback_multiplier: float = 1.0   # scale factor on KB distance
+    use_knockback: bool
+    knockback_multiplier: float         # scale factor on KB distance
 
     # Endurance
-    manage_endurance: bool = False
-    manage_endurance_npc: bool = False
+    manage_endurance: bool
+    manage_endurance_npc: bool
 
     # Initiative / DEX ties
     # Was `randomize_dex_ties: bool = False`, declared, defaulted in both
@@ -45,10 +59,8 @@ class CombatTemplate:
     # argument, in place of that function's own `TieRule.INT_THEN_PRE`
     # default. When a `Campaign` is supplied, resolution goes through
     # `campaign.resolve_template` (an Encounter's own `template`, when
-    # set, overrides the Campaign's); with no Campaign, `Encounter.
-    # acting_order` falls back to `self.template or DEFAULT_TEMPLATE`
-    # so a standalone Encounter (no Campaign/World hierarchy built yet)
-    # still resolves a tie rule. A GM changing `tie_rule` on a template
+    # set, overrides the Campaign's); with no Campaign it is the
+    # Encounter's own `template`, and an Encounter with neither raises. A GM changing `tie_rule` on a template
     # now reaches the sort through that path.
     #
     # ALSO WIRED: `Encounter.run_segment()` (kirby_combat/encounter.py)
@@ -63,15 +75,18 @@ class CombatTemplate:
     # INERT, precisely" paragraph, for what remains genuinely unwired
     # around that driver (including a second inert case beyond a
     # never-run session).
-    tie_rule: TieRule = TieRule.DEX_ROLL
+    tie_rule: TieRule
 
     # One-Hit Wonder optional rule
-    one_hit_wonder_enabled: bool = False
-    one_hit_wonder_pct: float = 0.5     # fraction of max STUN to trigger
+    # UNREAD: nothing in the engine applies One-Hit Wonder yet, so
+    # switching it on changes nothing. Kept, and flagged, until it is
+    # built or dropped.
+    one_hit_wonder_enabled: bool
+    one_hit_wonder_pct: float           # fraction of max STUN to trigger
 
     # Killing attack STUN multiplier
-    killing_stun_mult_base: int = 1     # base before the d3 roll
-    killing_stun_mult_fixed: int | None = None  # None → roll d3; int → fixed value
+    killing_stun_mult_base: int         # base before the d3 roll
+    killing_stun_mult_fixed: int | None  # None → roll d3; int → fixed value
 
     # 6E2 p.115's optional Bleeding rules. OFF by default, because the
     # page itself frames them as a choice -- "In situations where a
@@ -83,17 +98,18 @@ class CombatTemplate:
     # 6E2 p.109's bleeding to DEATH is NOT gated by this and never should
     # be: it is a core rule, it applies only at or below 0 BODY, and it
     # takes BODY rather than STUN.
-    use_bleeding_rules: bool = False
+    use_bleeding_rules: bool
     #: 6E2 p.45's optional "firing into melee" rule. OFF by default,
     #: because the page offers it rather than imposing it --- "Gamemasters
     #: may, if they wish, use the normal Behind Cover rules when a
     #: character tries to make a Ranged Attack against a character in the
     #: middle of a HTH Combat" -- and because it can hurt a combatant
     #: nobody aimed at, which no campaign should acquire by default.
-    use_firing_into_melee: bool = False
+    use_firing_into_melee: bool
 
-    # Extension hooks
-    custom_rules: dict = field(default_factory=dict)
+    # `custom_rules: dict` was here, an untyped bag that nothing read. A
+    # house rule is a named, typed field the engine reads, or it is not a
+    # rule.
 
     @classmethod
     def default_6e_superheroic(cls) -> "CombatTemplate":
@@ -149,18 +165,19 @@ RAW_SUPERHEROIC = CombatTemplate(
     mode="superheroic",
     use_hit_locations=False,
     auto_roll_hit_location_npc=False,
+    allowed_hit_locations=(),
     use_knockback=True,
     knockback_multiplier=1.0,
     manage_endurance=True,
     manage_endurance_npc=True,
     tie_rule=TieRule.DEX_ROLL,
     one_hit_wonder_enabled=False,
+    one_hit_wonder_pct=0.5,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
+    use_bleeding_rules=False,
+    use_firing_into_melee=False,
 )
-
-#: The engine's default template when no campaign has chosen one yet.
-DEFAULT_TEMPLATE = RAW_SUPERHEROIC
 
 #: Standard RAW Heroic play (grittier; hit locations and END tracked).
 RAW_HEROIC = CombatTemplate(
@@ -169,14 +186,18 @@ RAW_HEROIC = CombatTemplate(
     mode="heroic",
     use_hit_locations=True,
     auto_roll_hit_location_npc=True,
+    allowed_hit_locations=(),
     use_knockback=True,
     knockback_multiplier=1.0,
     manage_endurance=True,
     manage_endurance_npc=True,
     tie_rule=TieRule.DEX_ROLL,
     one_hit_wonder_enabled=False,
+    one_hit_wonder_pct=0.5,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
+    use_bleeding_rules=False,
+    use_firing_into_melee=False,
 )
 
 

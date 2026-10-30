@@ -25,8 +25,9 @@ from kirby_combat.resolution.hit_location import (
     effect_for, killing_damage, normal_damage,
 )
 from kirby_combat.resolution.surprise import Surprise
+from kirby_combat.template import RAW_HEROIC
 
-CHEST = effect_for("Chest")          # STUNx 3, nSTUNx 1, BODYx 1
+CHEST = effect_for("Chest", template=RAW_HEROIC)  # STUNx 3, nSTUNx 1, BODYx 1
 
 
 def test_killing_stun_doubles_before_defenses():

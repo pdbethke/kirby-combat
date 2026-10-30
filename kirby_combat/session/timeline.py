@@ -363,8 +363,8 @@ def resolve_acting_order(
     roller stay deterministic. The campaign-facing default lives on
     CombatTemplate.tie_rule (template.py). A template-resolving caller now
     exists -- `Encounter.acting_order` (encounter.py) resolves a
-    CombatTemplate (via a Campaign, or `self.template`/DEFAULT_TEMPLATE
-    standalone) and passes its `tie_rule` in here, overriding this
+    CombatTemplate (via a Campaign, or the Encounter's own `template`; an
+    Encounter with neither raises) and passes its `tie_rule` in here, overriding this
     parameter's default. Other direct callers of this function --
     including `build_acting_order_for_segment` -- still pass their own
     `tie_rule` (or accept this parameter's INT_THEN_PRE default) and so

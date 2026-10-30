@@ -59,7 +59,7 @@ class LocationEffect:
     ocv_mod: int
 
 
-def effect_for(location: str | None, *, template: Any = None) -> LocationEffect | None:
+def effect_for(location: str | None, *, template: Any) -> LocationEffect | None:
     """The table row for a location name, or None when there is none.
 
     None is the ordinary case --- most attacks are not aimed and most
@@ -151,7 +151,7 @@ def uses_hit_locations(template: Any, target: Any) -> bool:
     half of the same pair as `manage_endurance` / `manage_endurance_npc`.
     """
     if template is None:
-        return False
+        raise ValueError("uses_hit_locations needs the fight's template, not None")
     if getattr(template, "use_hit_locations", False):
         return True
     return bool(getattr(target, "is_npc", False)

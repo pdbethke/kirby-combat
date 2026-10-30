@@ -115,7 +115,11 @@ def _futile(situation, action) -> Finding | None:
         target = _target_of(situation, action)
         if target is None:
             return None
-        best = _best_case(power, target)
+        if situation.session is None:
+            raise ValueError(
+                "critique prices a shot under the fight's rules: the "
+                "situation carries no session to read its template from")
+        best = _best_case(power, target, situation.session.template)
         what = _name_of(target)
     else:
         return None
@@ -188,7 +192,7 @@ def _wasted(situation, action) -> Finding | None:
 # Reading the fight
 # ---------------------------------------------------------------------
 
-def _best_case(power, target) -> tuple[int, int] | None:
+def _best_case(power, target, template) -> tuple[int, int] | None:
     """(STUN, BODY) through `target`'s defenses on the luckiest roll.
 
     Every number comes from the resolver's own functions. `None` when the
@@ -202,11 +206,12 @@ def _best_case(power, target) -> tuple[int, int] | None:
     from kirby_combat.resolution.hit_location import (
         LocationEffect, killing_damage, normal_damage,
     )
-    from kirby_combat.template import DEFAULT_TEMPLATE
-
     dice_count = int(getattr(power, "damage_dice", 0) or 0)
     if dice_count <= 0:
         return None
+
+    # THE FIGHT'S OWN TEMPLATE (its killing STUN multiplier is read here).
+    # It was graded under `DEFAULT_TEMPLATE` whatever the fight ran under.
 
     # NO HIT LOCATION. A location is rolled per shot and multiplies both
     # ways; grading against the best one would indict an attack that is
@@ -223,7 +228,7 @@ def _best_case(power, target) -> tuple[int, int] | None:
     # anything else is a defect and must surface as one.
     if not hasattr(target, "combat_stats"):
         return None
-    damage = compute_damage(power, dice, DEFAULT_TEMPLATE)
+    damage = compute_damage(power, dice, template)
     defense = compute_defense(target, power)
 
     if getattr(power, "damage_type", "") == "killing":
@@ -254,7 +259,6 @@ def _best_case_against_terrain(situation, power, action) -> tuple[int, int] | No
     from kirby_combat.models import DiceValues
     from kirby_combat.resolution.object_damage import apply_attack_to_construct
     from kirby_combat.constructs import constructs_in
-    from kirby_combat.template import DEFAULT_TEMPLATE
 
     session = getattr(situation, "session", None)
     scene = getattr(session, "scene", None)
@@ -271,7 +275,7 @@ def _best_case_against_terrain(situation, power, action) -> tuple[int, int] | No
     rolled = [_BEST_DIE] * (dice_count + (1 if getattr(power, "half_die", False) else 0))
     hit = apply_attack_to_construct(
         power, DiceValues(damage=rolled, stun_multiplier=[_BEST_STUN_MULT]),
-        target, DEFAULT_TEMPLATE,
+        target, session.template,
     )
     return 0, int(hit.body_through)
 

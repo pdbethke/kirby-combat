@@ -6,14 +6,14 @@ import pytest
 from kirby_combat.actions.recording import resolve_block_in_session
 from kirby_combat.encounter import Encounter
 from kirby_combat.session.combat_session import CombatSession
-from kirby_combat.template import DEFAULT_TEMPLATE
+from kirby_combat.template import RAW_SUPERHEROIC
 from tests.fixtures.synthetic_hero import synthetic_combatant
 
 
 def _scripted_roller():
     """A DEX_ROLL roller that returns a fixed, non-tie-breaking result.
 
-    DEFAULT_TEMPLATE.tie_rule is TieRule.DEX_ROLL (6E2 p.21's default), so
+    RAW_SUPERHEROIC.tie_rule is TieRule.DEX_ROLL (6E2 p.21's default), so
     `resolve_acting_order` calls `roller` once per combatant regardless of
     whether any DEX tie actually exists. None of these tests' fixtures
     share a DEX value, so the actual roll never decides anything -- a
@@ -35,7 +35,7 @@ def _session(session_id, combatants):
             for cid, dex in combatants
         ],
         scene=None,
-        template=DEFAULT_TEMPLATE,
+        template=RAW_SUPERHEROIC,
     )
 
 
@@ -112,12 +112,12 @@ def test_the_campaigns_tie_rule_reaches_the_sort():
 
     from kirby_combat.campaign import Campaign
     from kirby_combat.session.tie_rule import TieRule
-    from kirby_combat.template import DEFAULT_TEMPLATE
+    from kirby_combat.template import RAW_SUPERHEROIC
     from tests.fixtures.synthetic_hero import synthetic_combatant
 
     c = Campaign(
         id="c1", name="X",
-        template=replace(DEFAULT_TEMPLATE, tie_rule=TieRule.INT_THEN_PRE),
+        template=replace(RAW_SUPERHEROIC, tie_rule=TieRule.INT_THEN_PRE),
     )
     e = Encounter(id="e1", segment=3)
     alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
@@ -140,12 +140,12 @@ def test_a_different_tie_rule_produces_a_different_order():
 
     from kirby_combat.campaign import Campaign
     from kirby_combat.session.tie_rule import TieRule
-    from kirby_combat.template import DEFAULT_TEMPLATE
+    from kirby_combat.template import RAW_SUPERHEROIC
     from tests.fixtures.synthetic_hero import synthetic_combatant
 
     c = Campaign(
         id="c2", name="Y",
-        template=replace(DEFAULT_TEMPLATE, tie_rule=TieRule.DEX_ROLL),
+        template=replace(RAW_SUPERHEROIC, tie_rule=TieRule.DEX_ROLL),
     )
     e = Encounter(id="e2", segment=3)
     alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
@@ -168,16 +168,16 @@ def test_a_different_tie_rule_produces_a_different_order():
 
 def test_acting_order_without_a_campaign_falls_back_to_own_template():
     """`acting_order`'s no-`campaign` branch (`self.template or
-    DEFAULT_TEMPLATE`) had zero coverage: both other acting_order tests
+    RAW_SUPERHEROIC`) had zero coverage: both other acting_order tests
     pass `campaign=`. Set `self.template` explicitly and prove it -- not
-    DEFAULT_TEMPLATE -- is what gets consulted, via its `tie_rule`."""
+    RAW_SUPERHEROIC -- is what gets consulted, via its `tie_rule`."""
     from dataclasses import replace
 
     from kirby_combat.session.tie_rule import TieRule
-    from kirby_combat.template import DEFAULT_TEMPLATE
+    from kirby_combat.template import RAW_SUPERHEROIC
     from tests.fixtures.synthetic_hero import synthetic_combatant
 
-    own_template = replace(DEFAULT_TEMPLATE, tie_rule=TieRule.INT_THEN_PRE)
+    own_template = replace(RAW_SUPERHEROIC, tie_rule=TieRule.INT_THEN_PRE)
     e = Encounter(id="e1", segment=3, template=own_template)
     alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
     bob = synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10)
@@ -187,20 +187,18 @@ def test_acting_order_without_a_campaign_falls_back_to_own_template():
     assert [s.combatant_id for s in order] == ["bob", "alice"]
 
 
-def test_acting_order_without_a_campaign_or_own_template_falls_back_to_default_template():
-    """No `campaign`, no `self.template` -> DEFAULT_TEMPLATE, whose
-    `tie_rule` is TieRule.DEX_ROLL (6E2 p.21's book default). DEX_ROLL
-    requires a roller; asserting the ValueError (deliberately, per the
-    task) proves DEFAULT_TEMPLATE -- and not some no-roller-needed rule --
-    is what got resolved."""
+def test_acting_order_without_a_campaign_or_own_template_raises():
+    """No `campaign`, no `self.template`: the Encounter cannot say which
+    tie rule its campaign plays by, so it says so. It used to fall back to
+    `RAW_SUPERHEROIC` (Superheroic) whatever the fights inside it ran."""
     from tests.fixtures.synthetic_hero import synthetic_combatant
 
     e = Encounter(id="e1", segment=3)  # template=None
     alice = synthetic_combatant(id="alice", name="Alice", spd=4, dex=15, int_=10, ego=18)
     bob = synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10)
 
-    with pytest.raises(ValueError):
-        e.acting_order([alice, bob])  # no campaign, no roller
+    with pytest.raises(ValueError, match="no template"):
+        e.acting_order([alice, bob])
 
 
 def test_run_segment_writes_the_resolved_order_onto_each_session():
@@ -251,8 +249,8 @@ def test_run_segment_honors_the_campaigns_tie_rule():
 
     The campaign's template sets TieRule.INT_THEN_PRE ("highest INT acts
     first", 6E2 p.21) -> bob first. If `run_segment` ignored `campaign`
-    and fell back to `self.template or DEFAULT_TEMPLATE`
-    (DEFAULT_TEMPLATE.tie_rule is TieRule.DEX_ROLL), the scripted roller
+    and fell back to `self.template or RAW_SUPERHEROIC`
+    (RAW_SUPERHEROIC.tie_rule is TieRule.DEX_ROLL), the scripted roller
     below returns an identical roll for every combatant, so DEX_ROLL ties
     fall through to alphabetical combatant_id -> alice first. The two
     paths necessarily disagree, so this only passes if the campaign's
@@ -271,11 +269,11 @@ def test_run_segment_honors_the_campaigns_tie_rule():
             synthetic_combatant(id="bob", name="Bob", spd=4, dex=15, int_=18, ego=10),
         ],
         scene=None,
-        template=DEFAULT_TEMPLATE,
+        template=RAW_SUPERHEROIC,
     )
     campaign = Campaign(
         id="c1", name="X",
-        template=replace(DEFAULT_TEMPLATE, tie_rule=TieRule.INT_THEN_PRE),
+        template=replace(RAW_SUPERHEROIC, tie_rule=TieRule.INT_THEN_PRE),
     )
     enc = Encounter(id="e1", segment=3, sessions=[a])
 
@@ -332,7 +330,7 @@ def _session_with_vitals(session_id, *, current_stun, current_end, rec=4,
         current_stun=current_stun, current_end=current_end,
     )
     return CombatSession.create(
-        id=session_id, combatants=[combatant], scene=None, template=DEFAULT_TEMPLATE,
+        id=session_id, combatants=[combatant], scene=None, template=RAW_SUPERHEROIC,
     )
 
 
@@ -480,7 +478,7 @@ def test_post_12_recovery_uses_the_campaigns_resolved_template():
 
     session = _session_with_vitals("s", current_stun=10, current_end=10)
     enc = Encounter(id="e1", segment=12, sessions=[session])
-    campaign = Campaign(id="c1", name="X", template=DEFAULT_TEMPLATE)
+    campaign = Campaign(id="c1", name="X", template=RAW_SUPERHEROIC)
 
     out = enc.advance_segment(campaign=campaign)
 

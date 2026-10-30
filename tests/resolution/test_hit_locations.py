@@ -40,6 +40,7 @@ from kirby_combat.resolution.hit_location import (
     effect_for, killing_damage, location_for_roll, normal_damage,
     uses_hit_locations,
 )
+from kirby_combat.template import RAW_HEROIC
 
 
 # ---- The book's example ----
@@ -47,7 +48,7 @@ from kirby_combat.resolution.hit_location import (
 def test_the_goblins_arm():
     """6E2 p.110, quoted above: 18 STUN and 5 BODY."""
     stun, body = killing_damage(
-        13, total_defense=8, resistant_defense=3, effect=effect_for("Arm"),
+        13, total_defense=8, resistant_defense=3, effect=effect_for("Arm", template=RAW_HEROIC),
     )
     assert (stun, body) == (18, 5)
 
@@ -67,7 +68,7 @@ def test_killing_stun_multiplies_BEFORE_defenses():
     (10 - 10) x 5 = 0. Getting this backwards makes a head shot harmless.
     """
     stun, _ = killing_damage(
-        10, total_defense=10, resistant_defense=0, effect=effect_for("Head"),
+        10, total_defense=10, resistant_defense=0, effect=effect_for("Head", template=RAW_HEROIC),
     )
     assert stun == 40
 
@@ -80,7 +81,7 @@ def test_normal_stun_multiplies_AFTER_defenses():
     not (30 x 2) - 10 = 50.
     """
     stun, _ = normal_damage(
-        30, 6, total_defense=10, effect=effect_for("Head"),
+        30, 6, total_defense=10, effect=effect_for("Head", template=RAW_HEROIC),
     )
     assert stun == 40
 
@@ -88,9 +89,9 @@ def test_normal_stun_multiplies_AFTER_defenses():
 def test_body_always_multiplies_after_defenses():
     """Both paths agree here, and the book says so twice."""
     _, killing_body = killing_damage(
-        13, total_defense=0, resistant_defense=3, effect=effect_for("Arm"))
+        13, total_defense=0, resistant_defense=3, effect=effect_for("Arm", template=RAW_HEROIC))
     _, normal_body = normal_damage(
-        0, 13, total_defense=3, effect=effect_for("Arm"))
+        0, 13, total_defense=3, effect=effect_for("Arm", template=RAW_HEROIC))
     assert killing_body == normal_body == 5
 
 
@@ -104,15 +105,15 @@ def test_body_always_multiplies_after_defenses():
     ("Foot", 1, 0.5),
 ])
 def test_the_table_is_the_books(location, stun_x, body_x):
-    e = effect_for(location)
+    e = effect_for(location, template=RAW_HEROIC)
     assert (e.stun_x, e.body_x) == (stun_x, body_x)
 
 
 def test_an_unknown_location_is_no_location():
     """Most attacks are not aimed. None means "resolve it the way this
     engine always has"."""
-    assert effect_for(None) is None
-    assert effect_for("Elbow") is None
+    assert effect_for(None, template=RAW_HEROIC) is None
+    assert effect_for("Elbow", template=RAW_HEROIC) is None
 
 
 # ---- Whether the campaign uses them at all ----
@@ -306,7 +307,7 @@ def test_a_campaign_can_restrict_which_locations_are_in_play():
 
     from kirby_combat.template import RAW_HEROIC
 
-    only_torso = replace(RAW_HEROIC, allowed_hit_locations=["Chest", "Stomach"])
+    only_torso = replace(RAW_HEROIC, allowed_hit_locations=("Chest", "Stomach"))
     assert effect_for("Head", template=only_torso) is None
     assert effect_for("Chest", template=only_torso) is not None
 
@@ -314,15 +315,15 @@ def test_a_campaign_can_restrict_which_locations_are_in_play():
 def test_an_empty_list_means_every_location():
     from kirby_combat.template import RAW_HEROIC
 
-    assert RAW_HEROIC.allowed_hit_locations == []
+    assert RAW_HEROIC.allowed_hit_locations == ()
     assert effect_for("Head", template=RAW_HEROIC) is not None
 
 
-def test_no_template_restricts_nothing():
-    assert effect_for("Head") is not None
-
-
-# ---- Cover stops the shots that would have hit what it covers ----
+def test_no_template_is_no_answer():
+    """Which locations a campaign allows is the campaign's to say: without
+    a template there is no answer, not an unrestricted one."""
+    with pytest.raises(TypeError):
+        effect_for("Head")  # type: ignore[call-arg]
 
 def test_the_rock_takes_the_low_shots():
     """6E2 p.45, quoted: "Only Andarra's head, arms, shoulders, and chest

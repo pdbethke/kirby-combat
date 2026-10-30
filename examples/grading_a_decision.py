@@ -30,6 +30,8 @@ from kirby_combat import critique
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop.chooser import PhaseSituation
 from kirby_combat.models import AttackPower, StatBlockCombatant
+from kirby_combat.session.combat_session import CombatSession
+from kirby_combat.template import RAW_SUPERHEROIC
 
 
 def a_man(name: str, *, pd: int, rpd: int, stun: int = 20, end: int = 20):
@@ -76,17 +78,21 @@ def verdict(situation: PhaseSituation, action_id: str) -> str:
 def main() -> None:
     ironclad = a_man("Ironclad", pd=30, rpd=30)   # a man in plate
     mark = a_man("Mark", pd=10, rpd=2)            # a man in a shirt
+    # The grader prices every shot under the fight's own rules.
+    fight = CombatSession.create(id="grading", combatants=[ironclad, mark],
+                                 scene=None, template=RAW_SUPERHEROIC,
+                                 dice_roller=None)
 
     print("1. A 1d6 blast at a man in plate")
     peashooter = shot_at("ironclad", a_gun("Blast", 1, killing=False))
-    print(verdict(PhaseSituation(actor=mark, menu=[peashooter],
+    print(verdict(PhaseSituation(session=fight, actor=mark, menu=[peashooter],
                                  enemies=[ironclad], segment=12), peashooter.action_id))
 
     print("\n2. The SAME blast at a man in a shirt — still futile.")
     print("   1d6 maxes at 6 STUN and 2 BODY; 10 PD eats both. A gun")
     print("   can be useless against an ordinary man, not just a tank.")
     shirt = shot_at("mark", a_gun("Blast", 1, killing=False))
-    print(verdict(PhaseSituation(actor=ironclad, menu=[shirt], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[shirt], enemies=[mark],
                                  segment=12), shirt.action_id))
 
     print("\n2b. 2d6 at the same man: maxes at 12 STUN against 10 PD, so")
@@ -94,25 +100,25 @@ def main() -> None:
     print("    A bad bet is NOT a finding — this indicts only what")
     print("    cannot work at all.")
     thin = shot_at("mark", a_gun("Blast", 2, killing=False))
-    print(verdict(PhaseSituation(actor=ironclad, menu=[thin], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[thin], enemies=[mark],
                                  segment=12), thin.action_id))
 
     print("\n3. A Colt at the same shirt: killing BODY answers to")
     print("   RESISTANT defense alone, so 2 rPD is not 10 PD")
     colt = shot_at("mark", a_gun("Colt", 2, killing=True))
-    print(verdict(PhaseSituation(actor=ironclad, menu=[colt], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[colt], enemies=[mark],
                                  segment=12), colt.action_id))
 
     print("\n4. Shooting a building while a man is on the menu")
     wall = shot_at("harwood-interior", a_gun("Colt", 2, killing=True), scenery=True)
     man = shot_at("mark", a_gun("Colt", 2, killing=True))
-    print(verdict(PhaseSituation(actor=ironclad, menu=[wall, man],
+    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[wall, man],
                                  enemies=[mark], segment=12), wall.action_id))
 
     print("\n5. The same shot when the building is all there is")
     print("   (the engine's own words: 'when a wall is all there is,")
     print("    a wall is what he hits')")
-    print(verdict(PhaseSituation(actor=ironclad, menu=[wall], enemies=[],
+    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[wall], enemies=[],
                                  segment=12), wall.action_id))
 
     print("\n5b. Emptying a revolver into a stone bank wall")
@@ -129,6 +135,7 @@ def main() -> None:
 
     class _Session:
         scene = _Scene()
+        template = RAW_SUPERHEROIC
 
     bank = shot_at("stone-bank", a_gun("Colt", 2, killing=True), scenery=True)
     print(verdict(PhaseSituation(actor=ironclad, menu=[bank], enemies=[],
@@ -139,12 +146,12 @@ def main() -> None:
 
     print("\n6. Recovering at full STUN and END")
     whole = a_man("Whole", pd=10, rpd=2)
-    print(verdict(PhaseSituation(actor=whole, menu=[RECOVER], segment=12),
+    print(verdict(PhaseSituation(session=fight, actor=whole, menu=[RECOVER], segment=12),
                   "recover"))
 
     print("\n7. Recovering at 4 STUN and 2 END")
     hurt = a_man("Hurt", pd=10, rpd=2, stun=4, end=2)
-    print(verdict(PhaseSituation(actor=hurt, menu=[RECOVER], segment=12),
+    print(verdict(PhaseSituation(session=fight, actor=hurt, menu=[RECOVER], segment=12),
                   "recover"))
 
 

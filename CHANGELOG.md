@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.25.0 — 2026-10-30
+
+**No default combat template, anywhere** (Peter's no-defaults rule). Which optional rules a fight plays by is the campaign's decision; a default was the engine making it silently. Found the hard way: an Encounter with no template ran under `DEFAULT_TEMPLATE` (Superheroic) whatever its fights were created with, so a heroic sweep charged no END (2026-10-29). Tests: `tests/test_no_default_template.py`. The event schema does not change (templates are not in it).
+
+**Breaking:**
+- `CombatTemplate` has no field defaults: every switch is stated by whoever builds one (`dataclasses.replace(RAW_SUPERHEROIC, ...)` for a variant). It is now **frozen**: one template is shared by every campaign and fight that names it, and a change made in place was a change to all of them. `allowed_hit_locations` is a tuple.
+- `DEFAULT_TEMPLATE` is gone. So is `CombatTemplate.custom_rules`, an untyped dict nothing read: a house rule is a named field the engine reads, or it is not a rule.
+- `Campaign.template` is required (it defaulted to a deep copy of `DEFAULT_TEMPLATE`).
+- `Encounter` resolves its template from a Campaign, else its own `template`, else the one template its fights were created with. Fights under different templates, an Encounter template that contradicts a fight's, or nothing to read at all, **raise**. An Encounter with no fights needs no template to advance.
+- `compute_knockback(body, dice, *, kb_resistance_m, template, impact_target=None)`: `knockback_multiplier` is read off the template (it was a second argument beside it, and every caller passed `template.knockback_multiplier`); `kb_resistance_m` and `template` are required.
+- `effect_for(location, *, template)`, `uses_hit_locations(template, target)` and `endurance.tracks_endurance(template, combatant)` take a template, never None (None used to mean "no restriction", "no hit locations" and "count END").
+- `critique` grades a shot under the situation's own fight's template, so a `PhaseSituation` it grades must carry its `session`; it was graded under `DEFAULT_TEMPLATE`.
+
+Flagged, not changed: `one_hit_wonder_enabled` / `one_hit_wonder_pct` are read by nothing, so switching One-Hit Wonder on does nothing. They are required like every other field until the rule is built or the switch is dropped.
+
 ## 0.24.1 — 2026-10-30
 
 - **Out of END, he pays in STUN** (6E2 p.133: "A character who runs out of END ... and still wishes to perform Actions may use STUN as END. The character takes 1d6 STUN Only damage for every 2 'END' (or fraction thereof) used, and no defense is allowed ... Characters cannot spend END below 0"). `endurance.spend_end` spends what he has, then rolls the rest off the session's dice as STUN (`VitalsChanged` reason `stun_for_end`); he is Knocked Out when it takes him to 0, as any STUN loss does. It used to clamp at 0 and charge nothing more, so a man out of END attacked for free for the rest of the fight: found when kirby-api moved to 0.24.0, where most seeded random fights ran to the turn cap (Bullet emptied his END in Turn 10 and kept blasting every Phase). An Endurance Reserve still never pays in STUN (6E1 p.208). A session with no `dice_roller` that owes STUN raises. Seam tests: `tests/loop/test_stun_for_end.py`. No new event kind; the schema changes only its version.

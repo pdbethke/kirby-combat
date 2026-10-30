@@ -762,7 +762,6 @@ def resolve_attack_in_session(
             kb = compute_knockback(
                 body=kb_body, knockback_dice=list(pool),
                 kb_resistance_m=int(result.defense.knockback_resistance),
-                knockback_multiplier=template.knockback_multiplier,
                 template=template,
             )
             result = _replace(result, knockback=kb,

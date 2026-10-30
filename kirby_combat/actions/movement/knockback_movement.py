@@ -261,7 +261,6 @@ def resolve_knockback_movement(
         body=body_dealt,
         knockback_dice=list(dice.knockback),
         kb_resistance_m=kb_resistance,
-        knockback_multiplier=template.knockback_multiplier,
         template=template,
     )
     intended = kb.distance_m
