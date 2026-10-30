@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.24.0 — 2026-10-30
+
+Movement and END. **Behaviour changes** for every consumer: superheroic fights now spend END on attacks, movement, Pushes and Constant powers; every move costs END; fliers and teleporters actually move; a man knocked off the map comes back instead of leaving. Requires **kirby-cost >= 0.6.3** (the build doc says which powers run off an Endurance Reserve). Two new event kinds, `ForcedOffTheBoard` and `EnduranceReserveChanged` (schema regenerated; Krackle needs folds for both). **Breaking:** `MovementCapability.end_per_10m` → `end_cost`; `placement.move_toward` requires `template=`; `recording._spend_attack_end` requires `power=`.
 
 - **Knocked off the board, and coming back** (Peter's ruling, 2026-10-29). Knockback, a Throw or a shove past the map's edge used to put a man out of the fight for good (`Roster.has_left`), after a fall to the bounds' floor that nobody took (4 of 6 demo seeds). New module `off_board.py`; new event kind `ForcedOffTheBoard` (schema regenerated). Seam tests: `tests/loop/test_off_the_board.py`.
   - Beyond the edge the ground goes on at the height where he crossed it, so there is no phantom fall. A real one (off a roof at the edge) still lands him.
@@ -23,6 +25,8 @@
   - Charged only where the campaign counts END (`manage_endurance`), as attacks are. `tracks_endurance` and the clamped, logged `spend_end` moved to `endurance.py` (lift and shift from `recording.py` / `resolvers.py`).
   - RULING: Climbing costs no END (a Skill; the book prints none).
   - **Breaking:** `MovementCapability.end_per_10m` is replaced by `end_cost` (a full move's END). The old table (2 per 10m for Teleportation, Leaping priced as Running) was not 6E and nothing read it. `move_toward` now requires `template=`.
+  - **Fixed: fliers never flew.** `resolvers._move_capacity` read the mode as a characteristic (`characteristic_value("FLIGHT")`), 0 for Flight, Teleportation, Swimming and Tunneling, which are powers; every full or half move by them went 0m while the menu kept offering it. It now reads `movement_view`, the view the offer comes from.
+  - **Fixed:** Running or Leaping never bought up is absent from the .hdc (kirby-cost seeds the base from the template), and pricing its END raised. Its rate now comes from the same template (`HDTTemplateProvider`).
   - **Fixed:** `move`, `move_to_cover` and `disengage` left their own `MovementResolved` (and now the END row) out of `ResolvedAction.events`, the defect `_reposition` had already fixed for itself. `run_phase`'s events, read off the log, were unaffected.
 
 ## 0.23.0 — 2026-10-28
