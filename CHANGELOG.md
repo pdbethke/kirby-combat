@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.1 — 2026-10-30
+
+- **Out of END, he pays in STUN** (6E2 p.133: "A character who runs out of END ... and still wishes to perform Actions may use STUN as END. The character takes 1d6 STUN Only damage for every 2 'END' (or fraction thereof) used, and no defense is allowed ... Characters cannot spend END below 0"). `endurance.spend_end` spends what he has, then rolls the rest off the session's dice as STUN (`VitalsChanged` reason `stun_for_end`); he is Knocked Out when it takes him to 0, as any STUN loss does. It used to clamp at 0 and charge nothing more, so a man out of END attacked for free for the rest of the fight: found when kirby-api moved to 0.24.0, where most seeded random fights ran to the turn cap (Bullet emptied his END in Turn 10 and kept blasting every Phase). An Endurance Reserve still never pays in STUN (6E1 p.208). A session with no `dice_roller` that owes STUN raises. Seam tests: `tests/loop/test_stun_for_end.py`. No new event kind; the schema changes only its version.
+
 ## 0.24.0 — 2026-10-30
 
 Movement and END. **Behaviour changes** for every consumer: superheroic fights now spend END on attacks, movement, Pushes and Constant powers; every move costs END; fliers and teleporters actually move; a man knocked off the map comes back instead of leaving. Requires **kirby-cost >= 0.6.3** (the build doc says which powers run off an Endurance Reserve). Two new event kinds, `ForcedOffTheBoard` and `EnduranceReserveChanged` (schema regenerated; Krackle needs folds for both). **Breaking:** `MovementCapability.end_per_10m` → `end_cost`; `placement.move_toward` requires `template=`; `recording._spend_attack_end` requires `power=`.

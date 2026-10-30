@@ -129,29 +129,46 @@ def tracks_endurance(template, combatant) -> bool:
 def spend_end(session, combatant_id: str, cost: int):
     """Take END off a combatant --- the one door for a spend.
 
-    Clamped at zero. HERO's rule for spending END you do not have (take
-    STUN instead) is NOT implemented and is not claimed to be; this only
-    refuses to record a negative pool. The clamp is applied BEFORE the
-    event so the number in the log is the number really taken ---
-    `apply_vitals_delta` clamps nothing, and a clamp on one side of the
-    record and not the other is exactly how a replay drifts.
+    WHAT HE HAS, THEN STUN (6E2 p.133). "A character who runs out of END
+    ... and still wishes to perform Actions may use STUN as END. The
+    character takes 1d6 STUN Only damage for every 2 'END' (or fraction
+    thereof) used, and no defense is allowed against this damage. Yes,
+    characters can Knock themselves Out using this rule ... Characters
+    cannot spend END below 0." So the END he has is spent, and whatever is
+    left of ``cost`` is rolled off the session's own dice as STUN
+    (``reason="stun_for_end"``); he is Knocked Out the moment that takes him
+    to 0, as any STUN loss does. Before this, the spend was clamped at zero
+    and nothing more was charged, so a man out of END fired for free for
+    the rest of the fight.
 
-    THE SPEND IS IN THE LOG. Spends used to be folded straight onto the
-    combatant and recorded nowhere, so a fight rebuilt from its rows had
-    everybody's wind back.
+    It is his choice ("may"), and a seat that does not want to pay it does
+    not choose the power: this is the price of the choice, not a gate on it.
+    An Endurance Reserve never pays in STUN (6E1 p.208; `spend_from`).
+
+    THE SPEND IS IN THE LOG, both halves, so a fight rebuilt from its rows
+    has everybody's wind back.
     """
     from kirby_combat.vitals import record_vitals_change
 
     combatant = session.combatants.get(combatant_id)
-    if combatant is None:
+    if combatant is None or cost <= 0:
         return session
     have = int(getattr(combatant.state, "current_end", 0) or 0)
     spend = min(cost, max(0, have))
-    if spend <= 0:
-        return session
-    session, _ = record_vitals_change(
-        session, combatant_id, end=-spend, reason="end_spent",
-    )
+    if spend > 0:
+        session, _ = record_vitals_change(
+            session, combatant_id, end=-spend, reason="end_spent",
+        )
+    short = cost - spend
+    if short > 0:
+        if session.dice_roller is None:
+            raise ValueError(
+                f"{combatant_id!r} owes {short} END in STUN (6E2 p.133) and the "
+                "session has no dice_roller to roll it with")
+        stun = sum(session.dice_roller.roll_dice(math.ceil(short / 2)))
+        session, _ = record_vitals_change(
+            session, combatant_id, stun=-stun, reason="stun_for_end",
+        )
     return session
 
 
