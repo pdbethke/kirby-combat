@@ -75,7 +75,8 @@ def resolve_fmove(session, actor, action: "LegalAction", mv, effect: MartialEffe
         reach = float(mv.reach_m)
         contact = _stop_at_reach(here, there, reach)
         charged, outcome = move_toward(session, actor.id, contact,
-                                       mode="running", distance_m=velocity)
+                                       mode="running", distance_m=velocity,
+                                       template=template)
         if outcome is None or not outcome.reachable or distance_3d(
                 outcome.landing, there) > reach + _REACH_EPS:
             return _recorded(session, actor, action, None, {
@@ -99,7 +100,8 @@ def resolve_fmove(session, actor, action: "LegalAction", mv, effect: MartialEffe
             now_at = position_of(session.scene, actor.id)
             beyond = _point_beyond(now_at, there, left)
             session, _ = move_toward(session, actor.id, beyond,
-                                     mode="running", distance_m=left)
+                                     mode="running", distance_m=left,
+                                     template=template)
     return ResolvedAction(
         session=session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(start_session, session),

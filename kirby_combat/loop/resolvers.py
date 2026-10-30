@@ -2358,12 +2358,16 @@ def _resolve_force_wall(
 def _move_capacity(actor, mode: str) -> float:
     """How far this mover can go in a Phase, by mode.
 
-    RUNNING is the characteristic every character has; other modes are
-    powers, read off the build by the same name. A mode the build cannot do
-    has no capacity, which `movement_reach` then treats as "cannot get
-    there" rather than as an error.
+    Off `movement_view`, the same view the menu made the offer from. This
+    read `characteristic_value(mode.upper())`, which answers for RUNNING and
+    LEAPING and is 0 for FLIGHT, TELEPORTATION, SWIMMING and TUNNELING ---
+    they are powers, not characteristics (`hero_view`'s own note says so) ---
+    so every full move by a flier went nowhere while the menu kept offering
+    it. A mode he does not have has no capacity, which `movement_reach` then
+    treats as "cannot get there" rather than as an error.
     """
-    return float(actor.hero.characteristic_value(mode.upper()) or 0)
+    caps = [c for c in actor.movement_view() if c.mode == mode]
+    return max((float(c.combat_m) for c in caps), default=0.0)
 
 
 def _reach_of(actor, action) -> float:
@@ -2437,16 +2441,19 @@ def _resolve_move(
 
     new_session, outcome = move_toward(
         session, actor.id, destination,
-        mode=mode, distance_m=_move_capacity(actor, mode),
+        mode=mode, distance_m=_move_capacity(actor, mode), template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    return _recorded(new_session, actor, action, outcome, {
+    out = _recorded(new_session, actor, action, outcome, {
         "kind": action.kind, "target_id": action.target_id, "mode": mode,
         "reached": outcome.reachable,
         "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
     })
+    # THE MOVE IS PART OF THIS STEP, and so is the END it cost: `_recorded`
+    # measures from the session after the move (see `_reposition`).
+    return replace(out, events=_events_since(session, out.session))
 
 
 def _reposition(session, actor, action, *, template, roller, then_attack: bool):
@@ -2479,7 +2486,7 @@ def _reposition(session, actor, action, *, template, roller, then_attack: bool):
                  else _move_capacity(actor, mode))
     new_session, outcome = move_toward(
         session, actor.id, Position(x, y, z),
-        mode=mode, distance_m=allowance,
+        mode=mode, distance_m=allowance, template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -2551,33 +2558,11 @@ def _resolve_reposition(
 
 
 def _spend_end(session, combatant_id: str, cost: int):
-    """Take END off a combatant --- THE one door for a spend in this module.
+    """Take END off a combatant: the Pushed reposition (6E2 p.135) and the
+    Pushed attack (6E2 p.133). See `kirby_combat.endurance.spend_end`."""
+    from kirby_combat.endurance import spend_end
 
-    Every END cost the loop charges goes through here: the Pushed
-    reposition (6E2 p.135) and the Pushed attack (6E2 p.133). Both used
-    to fold the spend straight onto the combatant and record nothing, so
-    a fight rebuilt from its rows had everybody's wind back.
-
-    Clamped at zero. HERO's rule for spending END you do not have (take
-    STUN instead) is NOT implemented and is not claimed to be; this only
-    refuses to record a negative pool. The clamp is applied BEFORE the
-    event so the number in the log is the number really taken ---
-    `apply_vitals_delta` clamps nothing, and a clamp on one side of the
-    record and not the other is exactly how a replay drifts.
-    """
-    from kirby_combat.vitals import record_vitals_change
-
-    combatant = session.combatants.get(combatant_id)
-    if combatant is None:
-        return session
-    have = int(getattr(combatant.state, "current_end", 0) or 0)
-    spend = min(cost, max(0, have))
-    if spend <= 0:
-        return session
-    session, _ = record_vitals_change(
-        session, combatant_id, end=-spend, reason="end_spent",
-    )
-    return session
+    return spend_end(session, combatant_id, cost)
 
 
 @resolves("reposition_strike", "move_strike")
@@ -2914,7 +2899,7 @@ def _resolve_pick_up_weapon(
             dest = Position(*action.reposition_dest)
             session, _ = move_toward(session, actor.id, _stop_at_reach(
                 position_of(session.scene, actor.id), dest, reach),
-                mode="running", distance_m=_half_move(actor))
+                mode="running", distance_m=_half_move(actor), template=template)
         here = position_of(session.scene, actor.id)
         if here is None or distance_3d(here, spot) > reach + 1e-6:
             raise UnresolvableAction(action.kind, action.action_id)
@@ -3351,6 +3336,7 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
         distance = _math.dist((start.x, start.y, start.z), (x, y, z))
         new_session, outcome = move_toward(
             session, actor.id, dest, mode="climbing", distance_m=distance,
+            template=template,
         )
         if outcome is None:
             raise UnresolvableAction(action.kind, action.action_id)
@@ -3492,18 +3478,19 @@ def _resolve_move_to_cover(
     mode = action.mode or "running"
     new_session, outcome = move_toward(
         session, actor.id, Position(x, y, z),
-        mode=mode, distance_m=_half_move(actor, mode),
+        mode=mode, distance_m=_half_move(actor, mode), template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
     wall_id = action.action_id.split(":", 1)[1] if ":" in action.action_id else ""
-    return _recorded(new_session, actor, action, outcome, {
+    out = _recorded(new_session, actor, action, outcome, {
         "kind": action.kind,
         "wall_id": wall_id,
         "reached": outcome.reachable,
         "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
     })
+    return replace(out, events=_events_since(session, out.session))
 
 
 @resolves("disengage")
@@ -3537,17 +3524,18 @@ def _resolve_disengage(
     mode = action.mode or "running"
     new_session, outcome = move_toward(
         session, actor.id, Position(x, y, z),
-        mode=mode, distance_m=_full_move(actor, mode),
+        mode=mode, distance_m=_full_move(actor, mode), template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    return _recorded(new_session, actor, action, outcome, {
+    out = _recorded(new_session, actor, action, outcome, {
         "kind": action.kind,
         "reached": outcome.reachable,
         "landing": [outcome.landing.x, outcome.landing.y, outcome.landing.z],
         "left_field": _off_the_field(new_session, actor.id),
     })
+    return replace(out, events=_events_since(session, out.session))
 
 
 def _off_the_field(session: "CombatSession", combatant_id: str) -> bool:
