@@ -254,11 +254,13 @@ def test_committing_with_no_scene_is_a_no_op_not_a_crash():
 
 def test_the_movement_event_carries_the_starting_position():
     """`from_pos` was hardcoded to None since the event was written, so a
-    replayer could see THAT a move happened and never where from."""
-    from kirby_combat.actions.movement.running import Running
+    replayer could see THAT a move happened and never where from. Proved
+    through `MovementAction` until that dead class was deleted (0.26.0);
+    the live path is `placement.move_toward`."""
+    from kirby_combat.placement import move_toward
 
     session = _session()
-    _new, event = Running.make(distance_m=6.0, move_type="half", base_inches=12).resolve(
-        session, "actor",
-    )
+    moved, _ = move_toward(session, "actor", Position(6.0, 0.0, 0.0),
+                           mode="running", distance_m=6.0, template=TEMPLATE)
+    (event,) = [e for e in moved.event_log if e.kind == "MovementResolved"]
     assert event.from_pos == {"x": 0.0, "y": 0.0, "z": 0.0, "facing": 0.0}

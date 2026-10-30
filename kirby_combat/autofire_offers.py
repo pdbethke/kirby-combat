@@ -28,7 +28,8 @@ def _shots_available(power: Any, spent_charges: dict[str, int] | None) -> int:
     shots = int(power.autofire.shots)
     capacity = getattr(power, "charges", None)
     if capacity is not None:
-        used = (spent_charges or {}).get(str(getattr(power, "source_id", "")), 0)
+        pool = getattr(power, "charge_pool", None) or getattr(power, "source_id", "")
+        used = (spent_charges or {}).get(str(pool), 0)
         shots = min(shots, int(capacity) - int(used))
     return shots
 

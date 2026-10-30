@@ -50,10 +50,13 @@ MINIMUM_END = 1
 def costs_end(power: Any) -> bool:
     """Whether using this power costs the character anything at all.
 
-    Charges and Reduced Endurance (0 END) are the two ways an attack in
-    this engine is free. Both are read off the build; neither is inferred
-    from the shape of the power.
+    A built attack answers from its sheet (`end_per_use`). For one stated
+    by hand, Charges and Reduced Endurance (0 END) are the two ways it is
+    free.
     """
+    per_use = getattr(power, "end_per_use", None)
+    if per_use is not None:
+        return int(per_use) > 0
     if getattr(power, "reduced_end", False):
         return False
     charges = getattr(power, "charges", None)
@@ -63,7 +66,16 @@ def costs_end(power: Any) -> bool:
 
 
 def end_cost(power: Any) -> int:
-    """END this power costs for one Phase's use (6E1 p.132)."""
+    """END this power costs for one Phase's use (6E1 p.132).
+
+    A built attack's is its sheet's (`AttackPower.end_per_use`, the cost
+    engine's END column: ½ END is 1 per 20 Active Points less the
+    Advantage, 6E1 p.347). One stated by hand is priced here from its
+    stated Active Points, x its Increased Endurance Cost.
+    """
+    per_use = getattr(power, "end_per_use", None)
+    if per_use is not None:
+        return int(per_use)
     if not costs_end(power):
         return 0
     active = int(getattr(power, "active_points", 0) or 0)

@@ -1607,10 +1607,9 @@ def _base_reach_m(hero) -> float:
 #   characteristic; levels map 1:1 to metres). Applies equally to
 #   TELEPORTATION, SWIMMING, and TUNNELING.
 #
-# NCM table — sourced directly from the movement classes:
-#   running, leaping, flight, swimming: noncombat_multiplier=4
-#   teleportation, tunneling, climbing:  noncombat_multiplier=1
-# END is not in it: see `_full_move_end`.
+# Noncombat movement: `noncombat_multiple`. It was a table of x4 (running,
+# leaping, flight, swimming) and x1 (teleportation, tunneling) that nothing
+# cited and the book contradicts; see that function.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _MOVE_M_PER_LEVEL: float = 1.0
@@ -1620,16 +1619,32 @@ _MOVE_POWER_XMLIDS: frozenset[str] = frozenset(
     {"FLIGHT", "TELEPORTATION", "SWIMMING", "TUNNELING"}
 )
 
-# Per-mode noncombat multiplier.
-_MOVE_NCM: dict[str, int] = {
-    "running":      4,
-    "leaping":      4,
-    "flight":       4,
-    "swimming":     4,
-    "teleportation": 1,
-    "tunneling":    1,
-    "climbing":     1,
-}
+#: HERO's doubling progression, 6E1 p.450's table: x64, then x125, x250,
+#: x500, x1,000 ... x64,000, x125,000. It repeats every ten doublings at
+#: x1,000. 165 of 167 Improved Noncombat adders in the local library agree;
+#: the other two, from an older Hero Designer, say x128 where the book says
+#: x125.
+_DOUBLING = (1, 2, 4, 8, 16, 32, 64, 125, 250, 500)
+
+
+def noncombat_multiple(improved_levels: int) -> int:
+    """Noncombat movement as a multiple of combat movement.
+
+    6E1 p.157: "his Noncombat Movement rate is double his Combat Movement
+    rate"; p.159, Improved Noncombat: "For every +5 Character Points, a
+    character's rate of Noncombat Movement with a single mode of movement
+    doubles"; p.302: "Teleportation has a Noncombat Movement mode like other
+    Movement Powers". So x2, doubled once per level.
+    """
+    doublings = 1 + int(improved_levels)
+    return 1000 ** (doublings // 10) * _DOUBLING[doublings % 10]
+
+
+def _improved_noncombat_levels(obj) -> int:
+    """Levels of IMPROVEDNONCOMBAT bought on this power or characteristic."""
+    return sum(int(getattr(a, "levels", 0) or 0)
+               for a in (getattr(obj, "assigned_adders", None) or [])
+               if (getattr(a, "xmlid", "") or "").upper() == "IMPROVEDNONCOMBAT")
 
 
 def _characteristic_move_end(hero, xmlid: str, combat_m: float) -> int:
@@ -1738,7 +1753,9 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         combat_m = float(hero.characteristic_value(xmlid))
         if combat_m <= 0:
             continue
-        ncm = _MOVE_NCM[mode]
+        char = next((c for c in getattr(hero, "characteristics", []) or []
+                     if (getattr(c, "xmlid", "") or "").upper() == xmlid), None)
+        ncm = noncombat_multiple(_improved_noncombat_levels(char))
         vertical_m = combat_m * _MOVE_VERTICAL_FRACTION[mode]
         out.append(MovementCapability(
             mode=mode,
@@ -1757,7 +1774,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         if combat_m <= 0:
             continue
         mode = _MOVE_XMLID_TO_MODE[xmlid]
-        ncm = _MOVE_NCM[mode]
+        ncm = noncombat_multiple(_improved_noncombat_levels(p))
         try:
             active_cost = float(getattr(p, "active_cost", None))
         except (TypeError, ValueError):
@@ -1785,7 +1802,9 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
     out.append(MovementCapability(
         mode="climbing",
         combat_m=_CLIMB_BASE_M,
-        noncombat_m=_CLIMB_BASE_M * _MOVE_NCM["climbing"],
+        # RULING: climbing has no noncombat rate. It is a Skill, not a
+        # Movement Power, and 6E1 p.157's doubling is a Movement rule.
+        noncombat_m=_CLIMB_BASE_M,
         end_cost=0,
         vertical_m=_CLIMB_BASE_M * _MOVE_VERTICAL_FRACTION["climbing"],
         active_cost=None,
@@ -2788,9 +2807,12 @@ def _build_attack_power(
     concentration = concentration_of(power)
     persistent = _has_modifier(power, "PERSISTENT")
     uncontrolled = _has_modifier(power, "UNCONTROLLED")
-    from kirby_combat.charges import charges_on
+    from kirby_combat.charges import charge_pool
 
-    charges = charges_on(power)
+    # Its own Charges, or its framework reserve's (6E1 p.409): one supply.
+    pool = charge_pool(power)
+    charges = pool[1] if pool is not None else None
+    charge_pool_id = pool[0] if pool is not None else None
     try:
         active_points = int(float(getattr(power, "active_cost", 0) or 0))
     except (TypeError, ValueError):
@@ -2845,7 +2867,12 @@ def _build_attack_power(
         avad_defense=(avad_def or ""),
         avad_does_body=avad_does_body,
         charges=charges,
+        charge_pool=charge_pool_id,
         reduced_end=reduced_end,
+        # The sheet's own END column (6E1 p.132, p.347, p.376). The engine
+        # recomputed it from Active Points and knew Reduced Endurance only
+        # as "on": every ½ END power cost nothing.
+        end_per_use=int(getattr(power, "end_usage", 0) or 0),
         uses_end_reserve=bool(getattr(power, "use_end_reserve", False)),
         activation_roll=activation_roll,
         no_range_modifier=no_range_modifier,

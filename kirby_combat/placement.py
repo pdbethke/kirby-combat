@@ -4,8 +4,9 @@ THE GAP THIS CLOSES. The engine could decide a move completely and then
 forget it. `kirby_world.movement_legality.movement_reach` is a full pure
 resolver: it takes a mode, a start, a destination and a movement capacity,
 and returns where the mover actually ends up, clamped by walls, supporting
-surfaces and reach, with any resulting fall. `MovementAction.resolve`
-charges the END and emits a `MovementResolved`.
+surfaces and reach, with any resulting fall. `move_toward` charges the END
+(`endurance.pay_for_movement`) and emits the `MovementResolved`; the old
+`MovementAction`, which did that with no destination, is deleted (0.26.0).
 
 And nothing wrote the position down. Measured 2026-09-06:
 

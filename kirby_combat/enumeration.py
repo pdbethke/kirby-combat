@@ -887,15 +887,16 @@ def enumerate_actions(
         his Colt are both RKA, and counting by type would empty one gun by
         firing the other.
         """
-        from kirby_combat.charges import charges_on
+        from kirby_combat.charges import charge_pool
 
         source = _source_power(ap)
         if source is None:
             return True
-        capacity = charges_on(source)
-        if capacity is None:
+        pool = charge_pool(source)
+        if pool is None:
             return True                      # innate: never runs dry
-        return (spent_charges or {}).get(str(getattr(source, "id", "")), 0) < capacity
+        key, capacity = pool                 # a framework's slots share one
+        return (spent_charges or {}).get(key, 0) < capacity
 
     # AN EMPTY GUN IS NOT A WEAPON. Filtered at the source rather than at
     # each offer site, so every kind built from an attack power --- attack,
