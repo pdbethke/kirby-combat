@@ -101,7 +101,7 @@ _CHARACTERISTIC_FOR_STAT: dict[str, str] = {
 if TYPE_CHECKING:                                  # pragma: no cover
     # Named in `framework_view`'s return annotation and imported only
     # inside the method body, so the annotation referred to nothing.
-    from kirby_combat.models import FrameworkView
+    from kirby_combat.models import EnduranceReserve, FrameworkView
     # Avoid forcing kirby-cost import at module load time;
     # callers that don't use the new path won't pay the dep.
     from kirby_cost.io.hdc_loader import LoadedHero
@@ -374,6 +374,9 @@ class CombatantSnapshot:
     csls: list
     senses: list
     movement: list[MovementCapability]
+    #: His Endurance Reserves (6E1 p.207); their END left is folded from
+    #: the log, not stored here.
+    reserves: list
     maneuvers: list
     frameworks: list
     is_npc: bool
@@ -448,6 +451,7 @@ class CombatantSnapshot:
             csls=list(combatant.csls),
             senses=list(combatant.senses()),
             movement=list(combatant.movement_view()),
+            reserves=list(combatant.reserves()),
             maneuvers=list(combatant.maneuver_view()),
             frameworks=list(combatant.framework_view()),
             is_npc=combatant.is_npc,
@@ -1440,6 +1444,12 @@ class HeroCombatant(Stunnable, CombatParticipant):
             ))
         return out
 
+    def reserves(self) -> "list[EnduranceReserve]":
+        """His Endurance Reserves (6E1 p.207), read off the build."""
+        if self.snapshot is not None:
+            return self._recorded().reserves
+        return _endurance_reserves(self._build())
+
     def framework_view(self) -> "list[FrameworkView]":
         """Power frameworks (Multipower / Elemental Control / VPP) with
         reserve/pool + typed slots, each attack slot linked to its
@@ -1762,6 +1772,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             end_cost=int(getattr(p, "end_usage", 0) or 0),
             vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
             active_cost=active_cost,
+            uses_end_reserve=bool(getattr(p, "use_end_reserve", False)),
         ))
 
     # ── Climbing (6E1 p70) ──────────────────────────────────────────────────
@@ -1780,6 +1791,83 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         active_cost=None,
     ))
 
+    return out
+
+
+#: Extra Time on a Reserve's REC (HD's EXTRATIME options) -> the Time
+#: Chart key in `actions.adjust.DELAYED_RETURN_TURNS`, which measures the
+#: chart in Turns. The steps of a Turn or less are absent on purpose: an
+#: Endurance Reserve "cannot Recover more frequently than once per Turn"
+#: (6E1 p.207), so those Recover every Turn.
+_EXTRA_TIME_TO_CHART = {
+    "1MINUTE": "MINUTE", "5MINUTES": "FIVEMINUTES", "20MINUTES": "20MINUTES",
+    "1HOUR": "HOUR", "6HOURS": "6HOURS", "1DAY": "DAY", "1WEEK": "WEEK",
+    "1MONTH": "MONTH", "1SEASON": "SEASON", "1YEAR": "YEAR",
+    "5YEARS": "FIVEYEARS", "25YEARS": "TWENTYFIVEYEARS", "1CENTURY": "CENTURY",
+}
+_A_TURN_OR_LESS = frozenset({"PHASE", "SEGMENT", "FULL", "EXTRA", "TURN"})
+
+
+def _reserve_recovers_every(reserve) -> int | None:
+    """Turns between a Reserve's Recoveries, or None if it never Recovers in
+    a fight (6E1 p.207-208).
+
+    - No REC, or REC 0: nothing to Recover.
+    - Limited Recovery (6E1 p.208: "can only Recover END in certain
+      circumstances, such as only when plugged into an electrical socket"):
+      RULING, never in a fight --- the circumstance is the build's prose,
+      which no engine reads, and a fight is not where one recharges.
+    - Extra Time: its step on the Time Chart, in Turns.
+    - Otherwise every Turn.
+    Custom Limitations (HD's free-text LIMITEDPOWER, a bare MODIFIER) say
+    nothing machine-readable about timing and are not read for it.
+    """
+    from kirby_cost.model.modifiers import find_modifier
+
+    from kirby_combat.actions.adjust import DELAYED_RETURN_TURNS
+
+    rec = getattr(reserve, "rec", None)
+    if rec is None or int(getattr(rec, "levels", 0) or 0) <= 0:
+        return None
+    if find_modifier(rec, "LIMITEDRECOVERY") is not None:
+        return None
+    extra = find_modifier(rec, "EXTRATIME")
+    if extra is None:
+        return 1
+    option = str(extra.option_id or "").upper()
+    if option in _A_TURN_OR_LESS:
+        return 1
+    if option not in _EXTRA_TIME_TO_CHART:
+        raise ValueError(
+            f"Endurance Reserve {getattr(reserve, 'id', '?')!r}: its REC's "
+            f"Extra Time option {option!r} is not on the Time Chart this "
+            "engine reads")
+    return DELAYED_RETURN_TURNS[_EXTRA_TIME_TO_CHART[option]]
+
+
+def _endurance_reserves(hero) -> "list[EnduranceReserve]":
+    """Every ENDURANCERESERVE on the build, wherever a List puts it."""
+    from kirby_combat.models import EnduranceReserve
+
+    out: list = []
+
+    def walk(objs):
+        for o in objs or []:
+            if (getattr(o, "xmlid", "") or "").upper() == "ENDURANCERESERVE":
+                rec = getattr(o, "rec", None)
+                out.append(EnduranceReserve(
+                    id=str(getattr(o, "id", "") or ""),
+                    name=str(getattr(o, "name", "") or getattr(o, "alias", "") or ""),
+                    max_end=int(getattr(o, "levels", 0) or 0),
+                    rec=int(getattr(rec, "levels", 0) or 0) if rec is not None else 0,
+                    recovers_every_turns=_reserve_recovers_every(o),
+                ))
+            walk(getattr(o, "objects", None))
+
+    walk(getattr(hero, "powers", None))
+    for r in out:
+        if not r.id:
+            raise ValueError("an Endurance Reserve on the build has no id to be spent by")
     return out
 
 
@@ -2758,6 +2846,7 @@ def _build_attack_power(
         avad_does_body=avad_does_body,
         charges=charges,
         reduced_end=reduced_end,
+        uses_end_reserve=bool(getattr(power, "use_end_reserve", False)),
         activation_roll=activation_roll,
         no_range_modifier=no_range_modifier,
         beam=beam,

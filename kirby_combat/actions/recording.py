@@ -133,7 +133,7 @@ def _tracks_endurance(template, attacker) -> bool:
 
 
 def _spend_attack_end(session: CombatSession, attacker, cost: int,
-                      template) -> CombatSession:
+                      template, *, power) -> CombatSession:
     """Take an attack's END off the attacker, when the campaign counts it.
 
     Clamped at zero. HERO's rule for acting without the END to pay (take
@@ -153,14 +153,15 @@ def _spend_attack_end(session: CombatSession, attacker, cost: int,
     THE SPEND IS IN THE LOG. It was folded onto the combatant and
     recorded nowhere at all, so a replayed fighter threw blasts for free.
     """
-    from kirby_combat.endurance import spend_end
+    from kirby_combat.endurance import pay_end
 
-    if cost <= 0 or not _tracks_endurance(template, attacker):
-        return session
     combatant = session.combatants.get(getattr(attacker, "id", None))
     if combatant is None:
         return session
-    return spend_end(session, combatant.id, cost)
+    # FROM THE POOL THE POWER DRAWS ON: his own END, or an Endurance
+    # Reserve (6E1 p.207). ``power`` is required, so every spend says which;
+    # None is a spend with no power behind it (STR, an EGO escape).
+    return pay_end(session, combatant.id, cost, power=power, template=template)
 
 
 def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
@@ -390,7 +391,8 @@ def _record_blocked_attack(
     # priced by; its dice were rolled into `attack.dice` already, so asking
     # draws nothing.
     end_spent = int(resolve_attack(attack, template).end_spent or 0)
-    s = _spend_attack_end(session, attack.attacker, end_spent, template)
+    s = _spend_attack_end(session, attack.attacker, end_spent, template,
+                          power=attack.power)
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
@@ -791,7 +793,8 @@ def resolve_attack_in_session(
     # Recorded here beside the damage, and through the same door: an END
     # spend is a `VitalsChanged` row and `apply_event` applies it.
     if not paid:
-        s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
+        s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0),
+                              template, power=attack.power)
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
     # resolver with no session, so it read the build's CON and could not

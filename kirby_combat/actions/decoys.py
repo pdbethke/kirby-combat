@@ -105,7 +105,8 @@ def attack_decoy(
         parameters={"power_xmlid": getattr(power, "xmlid", None)},
     )
     s = apply_event(session, declared)
-    s = _spend_attack_end(s, s.combatants[actor.id], int(end_cost(power)), template)
+    s = _spend_attack_end(s, s.combatants[actor.id], int(end_cost(power)), template,
+                          power=power)
     payload: dict[str, Any] = {
         "kind": action_kind,
         "target_id": image_id,

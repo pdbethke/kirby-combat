@@ -25,7 +25,7 @@ def _ensure_registry() -> None:
         StatBlockCombatant, AttackPower, DefenseItem, CombatSkillLevel,
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
-        MovementCapability, FrameworkView, SlotView,
+        MovementCapability, FrameworkView, SlotView, EnduranceReserve,
     )
     # The rest of a combatant's derived views (see hero_view.CombatantSnapshot).
     from kirby_combat.hero_view import MartialManeuverView
@@ -69,7 +69,7 @@ def _ensure_registry() -> None:
         Vehicle, Passenger, Unit, ObjectCombatant,
         Timeline, ActingSlot, ActionIntent, HeldAction, AbortWindow,
         CombatSession, CombatTemplate, EventAuthor,
-        MovementCapability, FrameworkView, SlotView,
+        MovementCapability, FrameworkView, SlotView, EnduranceReserve,
         MartialManeuverView, SenseCapability, Side,
     ]:
         _register(cls)
@@ -332,8 +332,8 @@ def _hero_combatant_from_dict(data: dict) -> Any:
 _REQUIRED_SNAPSHOT_KEYS = (
     "rpd", "red", "md", "power_defense", "flash_defense",
     "reach_m", "swimming_m", "str_source_id", "side",
-    "attacks", "defenses", "csls", "senses", "movement", "maneuvers",
-    "frameworks", "is_npc", "is_mentalist", "has_combat_sense",
+    "attacks", "defenses", "csls", "senses", "movement", "reserves",
+    "maneuvers", "frameworks", "is_npc", "is_mentalist", "has_combat_sense",
     "has_self_contained_breathing", "skill_rolls",
 )
 
@@ -346,11 +346,12 @@ def _snapshot_from_dict(data: dict) -> Any:
     if missing:
         raise ValueError(
             f"combatant snapshot {data.get('id')!r} is missing "
-            f"{missing} -- it was recorded before kirby-combat 0.18.1, when "
-            f"a rebuilt combatant carried no attacks, defenses, skills, "
-            f"senses, movement, maneuvers, frameworks or Combat Skill "
-            f"Levels and so could not fight. Re-record it from the "
-            f"canonical character with HeroCombatant.from_build(...)."
+            f"{missing} -- it was recorded by an older kirby-combat that "
+            f"did not carry them (before 0.18.1 a snapshot carried no "
+            f"attacks, defenses, skills, senses, movement, maneuvers, "
+            f"frameworks or Combat Skill Levels; Endurance Reserves came "
+            f"later still). Re-record it from the canonical character with "
+            f"HeroCombatant.from_build(...)."
         )
     from kirby_combat.hero_view import IdentityRecord
 
@@ -388,6 +389,7 @@ def _views_from_dict(data: dict, CombatantSnapshot, *, in_hero_id: bool,
         csls=[from_dict(c) for c in data["csls"]],
         senses=[from_dict(x) for x in data["senses"]],
         movement=[from_dict(m) for m in data["movement"]],
+        reserves=[from_dict(r) for r in data["reserves"]],
         maneuvers=[from_dict(m) for m in data["maneuvers"]],
         frameworks=[from_dict(f) for f in data["frameworks"]],
         is_npc=bool(data["is_npc"]),

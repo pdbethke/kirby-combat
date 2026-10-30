@@ -601,6 +601,26 @@ class ConcentrationBegan(BaseEvent):
 
 
 @dataclass
+class EnduranceReserveChanged(BaseEvent):
+    """END into or out of one of a character's Endurance Reserves (6E1 p.207).
+
+    ``end`` is the change, negative for a spend: a power bought to "draw
+    energy from the Reserve" is paid for here, never from his own END, and
+    the Reserve "Recovers its REC in END each Turn" (``reason`` "recovery")
+    at the Post-Segment 12 Recovery --- even while he is Knocked Out, because
+    it "is 'independent' of the character". Clamped before it is written, so
+    the log holds the END that really moved. Folded by
+    `kirby_combat/endurance.py` (`reserve_end`).
+    """
+    kind: Literal["EnduranceReserveChanged"] = field(
+        default="EnduranceReserveChanged", init=False)
+    combatant_id: str = ""
+    reserve_id: str = ""
+    end: int = 0
+    reason: str = ""
+
+
+@dataclass
 class PresenceYielded(BaseEvent):
     """An impressed man stepping back behind the one who impressed him.
 
@@ -937,6 +957,7 @@ CombatEvent = (
     | PresenceYielded
     | PhaseTimeUsed
     | ConcentrationBegan
+    | EnduranceReserveChanged
     | RageRolled
     | RageTargeted
     | LingeringAttackApplied

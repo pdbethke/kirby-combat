@@ -455,7 +455,8 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
         },
     )
     s = _record(s, use)
-    s = _spend_attack_end(s, attacker, end_cost(attack.power), template)
+    s = _spend_attack_end(s, attacker, end_cost(attack.power), template,
+                          power=attack.power)
     s = apply_side_effects(s, attack, template, roller=roller, failed=False)
     return AreaUse(session=s, failed=None, use=use, to_hit=to_hit, geo=geo,
                    victims=victims, constructs=constructs, decl_id=decl_id,

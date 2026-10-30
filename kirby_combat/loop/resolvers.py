@@ -1859,7 +1859,8 @@ def _resolve_grab_escape(
     from kirby_combat.actions.recording import _spend_attack_end
 
     new_session = _spend_attack_end(
-        new_session, actor, str_escape_end_cost(own_str, casual=casual), template)
+        new_session, actor, str_escape_end_cost(own_str, casual=casual), template,
+        power=None)
     if martial is not None and martial.grabber_falls and result.success:
         # A custom "[DAMAGE] vs Grabs, Target Falls": the break-out throws
         # the man who held him. RULING: on a successful escape, the only
@@ -1920,7 +1921,8 @@ def _resolve_escape_str(
     from kirby_combat.actions.recording import _spend_attack_end
 
     new_session = _spend_attack_end(
-        new_session, actor, str_escape_end_cost(strength, casual=casual), template)
+        new_session, actor, str_escape_end_cost(strength, casual=casual), template,
+        power=None)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -2001,7 +2003,8 @@ def _resolve_escape_ego(
     from kirby_combat.actions.entangle import ego_escape_end_cost
     from kirby_combat.actions.recording import _spend_attack_end
 
-    new_session = _spend_attack_end(new_session, actor, ego_escape_end_cost(ego), template)
+    new_session = _spend_attack_end(new_session, actor, ego_escape_end_cost(ego),
+                                    template, power=None)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -2210,7 +2213,7 @@ def _resolve_push(
     # `_spend_end` like every other spend, which puts it in the log. It
     # used to be folded straight onto the combatant and recorded nowhere,
     # so a replayed Push was free.
-    new_session = _spend_end(new_session, actor.id, 5)
+    new_session = _spend_end(new_session, actor.id, 5, power=power)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -2553,16 +2556,22 @@ def _resolve_reposition(
     out = _reposition(session, actor, action, template=template, roller=roller, then_attack=False)
     cost = int(getattr(action, "push_end", 0) or 0)
     if action.kind == "reposition_push" and cost > 0:
-        out = replace(out, session=_spend_end(out.session, actor.id, cost))
+        mode = action.mode or "running"
+        caps = [c for c in actor.movement_view() if c.mode == mode]
+        out = replace(out, session=_spend_end(
+            out.session, actor.id, cost,
+            power=max(caps, key=lambda c: c.combat_m) if caps else None))
     return out
 
 
-def _spend_end(session, combatant_id: str, cost: int):
-    """Take END off a combatant: the Pushed reposition (6E2 p.135) and the
-    Pushed attack (6E2 p.133). See `kirby_combat.endurance.spend_end`."""
-    from kirby_combat.endurance import spend_end
+def _spend_end(session, combatant_id: str, cost: int, *, power):
+    """Take a Push's END: the Pushed reposition (6E2 p.135) and the Pushed
+    attack (6E2 p.133), from the pool the pushed power draws on --- "Characters
+    can Push powers that get their END from an Endurance Reserve" (6E1
+    p.207). See `kirby_combat.endurance.spend_from`."""
+    from kirby_combat.endurance import spend_from
 
-    return spend_end(session, combatant_id, cost)
+    return spend_from(session, combatant_id, cost, power=power)
 
 
 @resolves("reposition_strike", "move_strike")
