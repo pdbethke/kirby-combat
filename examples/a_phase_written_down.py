@@ -43,6 +43,13 @@ from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
 
+@dataclasses.dataclass(frozen=True)
+class _Rate:
+    xmlid: str
+    level_cost: float
+    level_value: float
+
+
 class _MinimalHero:
     """Enough of a LoadedHero to enumerate. Built locally because examples
     run standalone and must not reach into `tests/`."""
@@ -57,6 +64,11 @@ class _MinimalHero:
         self.talents: list = []
         self.complications: list = []
         self.equipment: list = []
+        # The template's rates for the movement characteristics (LVLCOST per
+        # LVLVAL), which price a move's END (6E1 p.158).
+        self.characteristics = [
+            _Rate("RUNNING", 1.0, 1.0), _Rate("LEAPING", 1.0, 2.0),
+        ]
 
     def characteristic_value(self, xmlid: str) -> int:
         return self._chars.get(xmlid.upper(), 0)

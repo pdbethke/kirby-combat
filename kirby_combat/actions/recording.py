@@ -126,29 +126,14 @@ def _impact_stunned(landed: dict) -> bool:
 
 
 def _tracks_endurance(template, attacker) -> bool:
-    """Whether this campaign counts END at all.
+    """See `kirby_combat.endurance.tracks_endurance`."""
+    from kirby_combat.endurance import tracks_endurance
 
-    THE TEMPLATES HAVE SAID THIS SINCE THEY WERE WRITTEN and nothing read
-    them: `RAW_SUPERHEROIC` ships `manage_endurance=False` ("END
-    optional"), `RAW_HEROIC` ships `manage_endurance=True` ("grittier; hit
-    locations and END tracked"). That is the genre split -- four-colour
-    games hand-wave END, gritty ones count it -- and charging END
-    unconditionally quietly overrode a policy the data already stated.
-
-    `manage_endurance_npc` is the second half of the same pair, and
-    `StatBlockCombatant.is_npc` was likewise read by nothing: a table that
-    tracks END for the player characters and not for the mooks is an
-    ordinary house rule, and both fields exist to express it.
-    """
-    if template is None:
-        return True
-    if getattr(attacker, "is_npc", False):
-        return bool(getattr(template, "manage_endurance_npc", False))
-    return bool(getattr(template, "manage_endurance", False))
+    return tracks_endurance(template, attacker)
 
 
 def _spend_attack_end(session: CombatSession, attacker, cost: int,
-                      template) -> CombatSession:
+                      template, *, power) -> CombatSession:
     """Take an attack's END off the attacker, when the campaign counts it.
 
     Clamped at zero. HERO's rule for acting without the END to pay (take
@@ -168,19 +153,15 @@ def _spend_attack_end(session: CombatSession, attacker, cost: int,
     THE SPEND IS IN THE LOG. It was folded onto the combatant and
     recorded nowhere at all, so a replayed fighter threw blasts for free.
     """
-    if cost <= 0 or not _tracks_endurance(template, attacker):
-        return session
+    from kirby_combat.endurance import pay_end
+
     combatant = session.combatants.get(getattr(attacker, "id", None))
     if combatant is None:
         return session
-    have = int(getattr(combatant.state, "current_end", 0) or 0)
-    spend = min(cost, max(0, have))
-    if spend <= 0:
-        return session
-    session, _ = record_vitals_change(
-        session, combatant.id, end=-spend, reason="end_spent",
-    )
-    return session
+    # FROM THE POOL THE POWER DRAWS ON: his own END, or an Endurance
+    # Reserve (6E1 p.207). ``power`` is required, so every spend says which;
+    # None is a spend with no power behind it (STR, an EGO escape).
+    return pay_end(session, combatant.id, cost, power=power, template=template)
 
 
 def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
@@ -410,7 +391,8 @@ def _record_blocked_attack(
     # priced by; its dice were rolled into `attack.dice` already, so asking
     # draws nothing.
     end_spent = int(resolve_attack(attack, template).end_spent or 0)
-    s = _spend_attack_end(session, attack.attacker, end_spent, template)
+    s = _spend_attack_end(session, attack.attacker, end_spent, template,
+                          power=attack.power)
     decl_id = declaration_event_id
     if decl_id is None:
         declared = ActionDeclared(
@@ -811,7 +793,8 @@ def resolve_attack_in_session(
     # Recorded here beside the damage, and through the same door: an END
     # spend is a `VitalsChanged` row and `apply_event` applies it.
     if not paid:
-        s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0), template)
+        s = _spend_attack_end(s, attack.attacker, int(result.end_spent or 0),
+                              template, power=attack.power)
 
     # STUNNING AGAINST A DRAINED CON. `AttackAction.resolve` is a pure
     # resolver with no session, so it read the build's CON and could not

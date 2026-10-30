@@ -42,7 +42,7 @@ def _resolve_half_move(
         raise UnresolvableAction(action.kind, action.action_id)
     moved, outcome = move_toward(
         session, actor.id, destination, mode=mode,
-        distance_m=_half_move(actor, mode),
+        distance_m=_half_move(actor, mode), template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)
@@ -150,7 +150,7 @@ def _resolve_attack_entangle(
                   "effective_ocv": int(to_hit.effective_ocv),
                   "target_dcv": int(to_hit.effective_dcv)}
 
-    s = _spend_attack_end(session, actor, end_cost(power), template)
+    s = _spend_attack_end(session, actor, end_cost(power), template, power=power)
     if not to_hit.hit:
         s = _record_outcome(s, actor, action, {
             "kind": action.kind, "target_id": victim.id, "paralysis": paralysis,

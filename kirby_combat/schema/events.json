@@ -1341,6 +1341,68 @@
       "title": "ConstructSpawned",
       "type": "object"
     },
+    "EnduranceReserveChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EnduranceReserveChanged",
+          "enum": [
+            "EnduranceReserveChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EnduranceReserveChanged",
+          "enum": [
+            "EnduranceReserveChanged"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reserve_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "reserve_id",
+        "end",
+        "reason"
+      ],
+      "title": "EnduranceReserveChanged",
+      "type": "object"
+    },
     "EntangleApplied": {
       "additionalProperties": false,
       "properties": {
@@ -4178,6 +4240,9 @@
     },
     {
       "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/EnduranceReserveChanged"
     },
     {
       "$ref": "#/$defs/EntangleApplied"

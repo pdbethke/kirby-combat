@@ -229,7 +229,7 @@ def test_commit_move_records_a_decision_it_did_not_make():
     session = _session()
     moved, outcome = move_toward(
         session, "actor", Position(4.0, 0.0, 0.0),
-        mode="running", distance_m=12.0,
+        mode="running", distance_m=12.0, template=TEMPLATE,
     )
     assert position_of(moved.scene, "actor").x == pytest.approx(4.0)
 
@@ -244,6 +244,7 @@ def test_committing_with_no_scene_is_a_no_op_not_a_crash():
     ).start()
     out, outcome = move_toward(
         session, "actor", Position(1.0, 0.0, 0.0), mode="running", distance_m=12.0,
+        template=TEMPLATE,
     )
     assert outcome is None
     assert out is session

@@ -101,7 +101,7 @@ _CHARACTERISTIC_FOR_STAT: dict[str, str] = {
 if TYPE_CHECKING:                                  # pragma: no cover
     # Named in `framework_view`'s return annotation and imported only
     # inside the method body, so the annotation referred to nothing.
-    from kirby_combat.models import FrameworkView
+    from kirby_combat.models import EnduranceReserve, FrameworkView
     # Avoid forcing kirby-cost import at module load time;
     # callers that don't use the new path won't pay the dep.
     from kirby_cost.io.hdc_loader import LoadedHero
@@ -374,6 +374,9 @@ class CombatantSnapshot:
     csls: list
     senses: list
     movement: list[MovementCapability]
+    #: His Endurance Reserves (6E1 p.207); their END left is folded from
+    #: the log, not stored here.
+    reserves: list
     maneuvers: list
     frameworks: list
     is_npc: bool
@@ -448,6 +451,7 @@ class CombatantSnapshot:
             csls=list(combatant.csls),
             senses=list(combatant.senses()),
             movement=list(combatant.movement_view()),
+            reserves=list(combatant.reserves()),
             maneuvers=list(combatant.maneuver_view()),
             frameworks=list(combatant.framework_view()),
             is_npc=combatant.is_npc,
@@ -1440,6 +1444,12 @@ class HeroCombatant(Stunnable, CombatParticipant):
             ))
         return out
 
+    def reserves(self) -> "list[EnduranceReserve]":
+        """His Endurance Reserves (6E1 p.207), read off the build."""
+        if self.snapshot is not None:
+            return self._recorded().reserves
+        return _endurance_reserves(self._build())
+
     def framework_view(self) -> "list[FrameworkView]":
         """Power frameworks (Multipower / Elemental Control / VPP) with
         reserve/pool + typed slots, each attack slot linked to its
@@ -1597,10 +1607,10 @@ def _base_reach_m(hero) -> float:
 #   characteristic; levels map 1:1 to metres). Applies equally to
 #   TELEPORTATION, SWIMMING, and TUNNELING.
 #
-# END/NCM table — sourced directly from the movement classes:
-#   running, leaping, flight, swimming: end_per_10m=1, noncombat_multiplier=4
-#   teleportation:                       end_per_10m=2, noncombat_multiplier=1
-#   tunneling:                           end_per_10m=1, noncombat_multiplier=1
+# NCM table — sourced directly from the movement classes:
+#   running, leaping, flight, swimming: noncombat_multiplier=4
+#   teleportation, tunneling, climbing:  noncombat_multiplier=1
+# END is not in it: see `_full_move_end`.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _MOVE_M_PER_LEVEL: float = 1.0
@@ -1610,17 +1620,46 @@ _MOVE_POWER_XMLIDS: frozenset[str] = frozenset(
     {"FLIGHT", "TELEPORTATION", "SWIMMING", "TUNNELING"}
 )
 
-# Per-mode END cost + noncombat multiplier
-# Format: mode_name → (end_per_10m, noncombat_multiplier)
-_MOVE_MODE_PARAMS: dict[str, tuple[int, int]] = {
-    "running":      (1, 4),
-    "leaping":      (1, 4),
-    "flight":       (1, 4),
-    "swimming":     (1, 4),
-    "teleportation": (2, 1),
-    "tunneling":    (1, 1),
-    "climbing":     (1, 1),     # end_per_10m=1; no noncombat climb multiplier
+# Per-mode noncombat multiplier.
+_MOVE_NCM: dict[str, int] = {
+    "running":      4,
+    "leaping":      4,
+    "flight":       4,
+    "swimming":     4,
+    "teleportation": 1,
+    "tunneling":    1,
+    "climbing":     1,
 }
+
+
+def _characteristic_move_end(hero, xmlid: str, combat_m: float) -> int:
+    """A full move's END for Running or Leaping bought as a characteristic.
+
+    Hero Designer prints no END for these, so there is no cost-engine
+    figure to take. 6E1 p.158 prices it all the same: "1 END per 10 Active
+    Points in the Movement Power ... (This includes movement the character
+    receives for 'free,' such as the standard Running 12m.)" The points'
+    worth of his whole move is the metres at the TEMPLATE's rate (LVLCOST
+    per LVLVAL: Running 1 per metre, Leaping 1 per 2m) --- read off the
+    characteristic, never written here. The book's own sheets: Running 14m
+    1 END, Leaping 8m 1 END (6E2 p.180).
+    """
+    from kirby_combat.endurance import end_for_points
+
+    char = next((c for c in getattr(hero, "characteristics", []) or []
+                 if (getattr(c, "xmlid", "") or "").upper() == xmlid), None)
+    if char is None:
+        # NOT BOUGHT UP, so not on the build: a .hdc lists Running and
+        # Leaping only when they are, and the cost engine seeds the base
+        # (12m, 4m) from the template (`LoadedHero.compute_characteristic_
+        # values`). The rate comes from that same template, asked the same
+        # way.
+        from kirby_cost.template.hdt_provider import HDTTemplateProvider
+
+        char = HDTTemplateProvider().get_template_data(xmlid)
+        if char is None:
+            raise ValueError(f"{xmlid} has a value and the template does not define it")
+    return end_for_points(combat_m * float(char.level_cost) / float(char.level_value))
 
 # 6E1 p70: "Climbing speed varies according to the structure being climbed, but
 # the base speed is 2m per Phase (at most)." There is no CLIMBING characteristic
@@ -1699,13 +1738,13 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         combat_m = float(hero.characteristic_value(xmlid))
         if combat_m <= 0:
             continue
-        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        ncm = _MOVE_NCM[mode]
         vertical_m = combat_m * _MOVE_VERTICAL_FRACTION[mode]
         out.append(MovementCapability(
             mode=mode,
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
-            end_per_10m=end_per_10m,
+            end_cost=_characteristic_move_end(hero, xmlid, combat_m),
             vertical_m=vertical_m,
         ))
 
@@ -1718,7 +1757,7 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         if combat_m <= 0:
             continue
         mode = _MOVE_XMLID_TO_MODE[xmlid]
-        end_per_10m, ncm = _MOVE_MODE_PARAMS[mode]
+        ncm = _MOVE_NCM[mode]
         try:
             active_cost = float(getattr(p, "active_cost", None))
         except (TypeError, ValueError):
@@ -1729,9 +1768,11 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
             mode=mode,
             combat_m=combat_m,
             noncombat_m=combat_m * ncm,
-            end_per_10m=end_per_10m,
+            # The cost engine's END column, modifiers and all (6E1 p.158).
+            end_cost=int(getattr(p, "end_usage", 0) or 0),
             vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
             active_cost=active_cost,
+            uses_end_reserve=bool(getattr(p, "use_end_reserve", False)),
         ))
 
     # ── Climbing (6E1 p70) ──────────────────────────────────────────────────
@@ -1739,16 +1780,94 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
     # block: EVERY hero can climb ordinary things without the Skill. Having the
     # Climbing Skill gates DIFFICULT faces (enforced by the consumer against a
     # face's climb_difficulty), not whether the mode exists.
-    _climb_end, _climb_ncm = _MOVE_MODE_PARAMS["climbing"]
+    # RULING: no END. Climbing is a Skill (6E1 p.70), not a Movement Power,
+    # and the book prints no END for it; Skills cost none (6E2 p.133).
     out.append(MovementCapability(
         mode="climbing",
         combat_m=_CLIMB_BASE_M,
-        noncombat_m=_CLIMB_BASE_M * _climb_ncm,
-        end_per_10m=_climb_end,
+        noncombat_m=_CLIMB_BASE_M * _MOVE_NCM["climbing"],
+        end_cost=0,
         vertical_m=_CLIMB_BASE_M * _MOVE_VERTICAL_FRACTION["climbing"],
         active_cost=None,
     ))
 
+    return out
+
+
+#: Extra Time on a Reserve's REC (HD's EXTRATIME options) -> the Time
+#: Chart key in `actions.adjust.DELAYED_RETURN_TURNS`, which measures the
+#: chart in Turns. The steps of a Turn or less are absent on purpose: an
+#: Endurance Reserve "cannot Recover more frequently than once per Turn"
+#: (6E1 p.207), so those Recover every Turn.
+_EXTRA_TIME_TO_CHART = {
+    "1MINUTE": "MINUTE", "5MINUTES": "FIVEMINUTES", "20MINUTES": "20MINUTES",
+    "1HOUR": "HOUR", "6HOURS": "6HOURS", "1DAY": "DAY", "1WEEK": "WEEK",
+    "1MONTH": "MONTH", "1SEASON": "SEASON", "1YEAR": "YEAR",
+    "5YEARS": "FIVEYEARS", "25YEARS": "TWENTYFIVEYEARS", "1CENTURY": "CENTURY",
+}
+_A_TURN_OR_LESS = frozenset({"PHASE", "SEGMENT", "FULL", "EXTRA", "TURN"})
+
+
+def _reserve_recovers_every(reserve) -> int | None:
+    """Turns between a Reserve's Recoveries, or None if it never Recovers in
+    a fight (6E1 p.207-208).
+
+    - No REC, or REC 0: nothing to Recover.
+    - Limited Recovery (6E1 p.208: "can only Recover END in certain
+      circumstances, such as only when plugged into an electrical socket"):
+      RULING, never in a fight --- the circumstance is the build's prose,
+      which no engine reads, and a fight is not where one recharges.
+    - Extra Time: its step on the Time Chart, in Turns.
+    - Otherwise every Turn.
+    Custom Limitations (HD's free-text LIMITEDPOWER, a bare MODIFIER) say
+    nothing machine-readable about timing and are not read for it.
+    """
+    from kirby_cost.model.modifiers import find_modifier
+
+    from kirby_combat.actions.adjust import DELAYED_RETURN_TURNS
+
+    rec = getattr(reserve, "rec", None)
+    if rec is None or int(getattr(rec, "levels", 0) or 0) <= 0:
+        return None
+    if find_modifier(rec, "LIMITEDRECOVERY") is not None:
+        return None
+    extra = find_modifier(rec, "EXTRATIME")
+    if extra is None:
+        return 1
+    option = str(extra.option_id or "").upper()
+    if option in _A_TURN_OR_LESS:
+        return 1
+    if option not in _EXTRA_TIME_TO_CHART:
+        raise ValueError(
+            f"Endurance Reserve {getattr(reserve, 'id', '?')!r}: its REC's "
+            f"Extra Time option {option!r} is not on the Time Chart this "
+            "engine reads")
+    return DELAYED_RETURN_TURNS[_EXTRA_TIME_TO_CHART[option]]
+
+
+def _endurance_reserves(hero) -> "list[EnduranceReserve]":
+    """Every ENDURANCERESERVE on the build, wherever a List puts it."""
+    from kirby_combat.models import EnduranceReserve
+
+    out: list = []
+
+    def walk(objs):
+        for o in objs or []:
+            if (getattr(o, "xmlid", "") or "").upper() == "ENDURANCERESERVE":
+                rec = getattr(o, "rec", None)
+                out.append(EnduranceReserve(
+                    id=str(getattr(o, "id", "") or ""),
+                    name=str(getattr(o, "name", "") or getattr(o, "alias", "") or ""),
+                    max_end=int(getattr(o, "levels", 0) or 0),
+                    rec=int(getattr(rec, "levels", 0) or 0) if rec is not None else 0,
+                    recovers_every_turns=_reserve_recovers_every(o),
+                ))
+            walk(getattr(o, "objects", None))
+
+    walk(getattr(hero, "powers", None))
+    for r in out:
+        if not r.id:
+            raise ValueError("an Endurance Reserve on the build has no id to be spent by")
     return out
 
 
@@ -2727,6 +2846,7 @@ def _build_attack_power(
         avad_does_body=avad_does_body,
         charges=charges,
         reduced_end=reduced_end,
+        uses_end_reserve=bool(getattr(power, "use_end_reserve", False)),
         activation_roll=activation_roll,
         no_range_modifier=no_range_modifier,
         beam=beam,

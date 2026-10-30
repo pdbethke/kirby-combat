@@ -57,6 +57,11 @@ class AttackPower:
     #: Reduced Endurance (0 END). `hero_view` has parsed this modifier for
     #: a long time and discarded it, with the comment "(END calc TBD)".
     reduced_end: bool = False
+    #: Draws its END from an Endurance Reserve, not from the character (6E1
+    #: p.207: "A character with an Endurance Reserve must decide which powers
+    #: draw energy from the Reserve"). HD's USE_END_RESERVE, read off the
+    #: build. See `kirby_combat.endurance.pay_end`.
+    uses_end_reserve: bool = False
     #: 6E1 p.375's Activation Roll: the 3d6 number this power must make to
     #: go off at all, or None when it was not bought with one. HD's options
     #: ARE the numbers -- 8-, 9-, ... 15- -- so the field carries the target
@@ -357,6 +362,13 @@ class StatBlockCombatant(Stunnable, CombatParticipant):
         :meth:`HeroCombatant.combat_stats` for uniform access."""
         return self
 
+    def reserves(self) -> list["EnduranceReserve"]:
+        """None. An Endurance Reserve is a power bought on a build (6E1
+        p.207), and a stat block is not a build. Mirrors
+        :meth:`HeroCombatant.reserves` so the Post-Segment 12 Recovery can
+        ask every participant the same question."""
+        return []
+
     def str_strike_view(self) -> AttackPower:
         """The bare-handed Strike: STR/5 dice, normal damage vs PD.
 
@@ -573,7 +585,17 @@ class MovementCapability:
                        teleportation | swimming | tunneling
         combat_m     — full-phase combat movement distance in metres
         noncombat_m  — noncombat distance (combat_m × NCM per mode)
-        end_per_10m  — END cost per 10 metres moved (1 or 2)
+        end_cost     — END for a FULL combat move (6E1 p.158: 1 END per 10
+                       Active Points of the movement, the free Running
+                       12m included). A movement power's is the cost
+                       engine's own END figure (Reduced Endurance,
+                       Increased Endurance Cost and Charges in it); a
+                       characteristic's applies that rule to the template's
+                       rate (Running 1 point per metre, Leaping 1 per 2m).
+                       A part move pays a share (`endurance.movement_end`).
+                       Replaced ``end_per_10m``, a hand-written table (2 per
+                       10m for Teleportation, Leaping priced as Running)
+                       that 6E does not say and nothing read.
         vertical_m   — maximum vertical distance in metres this mode can
                        gain. Per mode: flight / teleportation / tunneling =
                        combat_m (full movement in any direction); leaping =
@@ -595,9 +617,38 @@ class MovementCapability:
     mode: str
     combat_m: float
     noncombat_m: float
-    end_per_10m: int
+    end_cost: int
     vertical_m: float = 0.0
     active_cost: float | None = None
+    #: A movement power bought to run off an Endurance Reserve (6E1 p.207),
+    #: as `AttackPower.uses_end_reserve`. Always False for Running and
+    #: Leaping as characteristics: they are not powers and HD has no flag
+    #: for them.
+    uses_end_reserve: bool = False
+
+
+@dataclass(frozen=True)
+class EnduranceReserve:
+    """One Endurance Reserve a character owns (6E1 p.207).
+
+    "An independent source of Endurance that provides END to run Powers":
+    ``max_end`` is its storage, ``rec`` what it Recovers. It "normally
+    Recovers its REC in END each Turn" at the Post-Segment 12 Recovery, and
+    keeps doing so while its owner is Knocked Out. ``recovers_every_turns``
+    is how many Turns apart it Recovers --- 1, or longer when the REC was
+    bought with Extra Time ("You can decrease this return rate with a
+    Limitation") --- and None when it does not Recover in a fight at all
+    (no REC, or a Limited Recovery whose circumstance is never a fight).
+
+    Its END left is not stored here: it is folded from the log
+    (`endurance.reserve_end`), like every other number that changes.
+    """
+
+    id: str
+    name: str
+    max_end: int
+    rec: int
+    recovers_every_turns: int | None
 
 
 #: Deprecated alias. The flat type was called `Combatant` when it was the only

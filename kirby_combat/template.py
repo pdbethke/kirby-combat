@@ -134,7 +134,15 @@ class CombatTemplate:
 # ---------------------------------------------------------------------------
 
 #: Standard RAW Superheroic play (Four-colour comics feel).
-#: Hit locations optional, END optional, knockback on.
+#: Hit locations optional, END COUNTED, knockback on.
+#:
+#: END WAS OFF HERE, labelled "optional", and every fight the product ran
+#: used this template --- so nobody ever paid END for anything. The book
+#: says the opposite of optional: 6E2 p.133, "In Superheroic campaigns,
+#: many characters pay END just to maintain their Powers, so END is very
+#: important." Peter's ruling, 2026-10-29: superheroic counts END, for
+#: player characters and NPCs alike. A table that hand-waves it can still
+#: say so with its own template.
 RAW_SUPERHEROIC = CombatTemplate(
     name="RAW Superheroic",
     edition="6E",
@@ -143,8 +151,8 @@ RAW_SUPERHEROIC = CombatTemplate(
     auto_roll_hit_location_npc=False,
     use_knockback=True,
     knockback_multiplier=1.0,
-    manage_endurance=False,
-    manage_endurance_npc=False,
+    manage_endurance=True,
+    manage_endurance_npc=True,
     tie_rule=TieRule.DEX_ROLL,
     one_hit_wonder_enabled=False,
     killing_stun_mult_base=1,

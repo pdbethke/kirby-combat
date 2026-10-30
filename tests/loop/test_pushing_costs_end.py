@@ -27,6 +27,8 @@ does travel the extra metres. Only the price was missing.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from conftest import fighter                       # tests/loop/conftest.py
 from kirby_combat.enumeration import LegalAction
 import kirby_combat.loop.resolvers  # noqa: F401  -- registers the kinds
@@ -35,7 +37,12 @@ from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
-TEMPLATE = CombatTemplate.default_6e_superheroic()
+#: Routine END NOT counted, so what is measured is the Push alone: a Push
+#: is paid whatever the campaign says about routine END (see
+#: `test_newly_wired_kinds.py`), and the move's own END (6E1 p.158) is
+#: `test_movement_costs_end.py`'s business.
+TEMPLATE = replace(CombatTemplate.default_6e_superheroic(),
+                   manage_endurance=False, manage_endurance_npc=False)
 
 
 def _push_offer(end=10, dest=(3.0, 0.0, 0.0)):

@@ -139,13 +139,21 @@ def move_toward(
     *,
     mode: str,
     distance_m: float,
+    template,
 ) -> tuple["CombatSession", MovementOutcome | None]:
-    """Decide a move and commit it, in that order.
+    """Decide a move, commit it, and charge for it, in that order.
 
     The convenience the loop's resolvers want: ask `movement_reach` where
     the mover ends up, then write it down. Returns ``(session, None)`` when
     the question cannot be asked at all --- no Scene, or the mover is not on
     it --- rather than inventing a start point.
+
+    AND HE PAYS FOR IT (6E1 p.158). Every move a fighter chooses comes
+    through here, and none of them cost END: the engine charged a Push's
+    extra and nothing else. The metres he actually covered, to the landing
+    `movement_reach` gave (a fall after it is gravity's, not his), are
+    charged at his mode's share of a full move, where ``template`` counts
+    END (`endurance.pay_for_movement`).
     """
     scene = session.scene
     start = position_of(scene, combatant_id)
@@ -157,4 +165,12 @@ def move_toward(
         distance_m=distance_m, scene=scene,
         combatant_id=combatant_id, session=session,
     )
-    return commit_move(session, combatant_id, outcome), outcome
+    from kirby_combat.endurance import pay_for_movement
+    from kirby_world.geometry import distance_3d
+
+    session = commit_move(session, combatant_id, outcome)
+    session = pay_for_movement(
+        session, combatant_id, mode=mode,
+        used_m=distance_3d(start, outcome.landing), template=template,
+    )
+    return session, outcome

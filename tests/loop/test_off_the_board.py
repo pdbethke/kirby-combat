@@ -17,7 +17,7 @@ how he travels. So:
   its 1/2 DCV, 0 OCV and the p.27 acceleration limit are state the engine
   does not carry.
 - By the mode that gets him back in the FEWEST Phases, of running, leaping,
-  flight and teleportation; a tie goes to the lower END per 10m, then
+  flight and teleportation; a tie goes to the cheaper trip in END, then
   running, leaping, flight, teleportation in that order. A man in the air
   can only fly or teleport.
 - His first Phase starts with the Half Phase it takes to get up, if he is
@@ -65,7 +65,7 @@ KNOCKED_20M = [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [1] * 5]
 
 def _cap(mode, combat_m, end=1):
     return MovementCapability(mode=mode, combat_m=float(combat_m),
-                              noncombat_m=float(combat_m) * 2, end_per_10m=end)
+                              noncombat_m=float(combat_m) * 2, end_cost=end)
 
 
 # ---------------------------------------------------------------------------
@@ -89,9 +89,10 @@ def test_getting_up_costs_him_half_of_his_first_phase():
 
 
 def test_a_tie_goes_to_the_cheaper_mode_then_to_the_fixed_order():
-    """Teleportation costs 2 END per 10m (6E1), running 1: equal Phases,
-    so he runs. Flight and running cost the same, so the order decides."""
-    tp = way_back([_cap("teleportation", 20, end=2), _cap("running", 12)],
+    """10m back, one Phase either way. Teleportation 20m at 4 END a full
+    move costs 2 for the trip, Running 12m at 1 END costs 1 (6E1 p.158), so
+    he runs. Flight and running cost the same, so the order decides."""
+    tp = way_back([_cap("teleportation", 20, end=4), _cap("running", 12)],
                   distance_m=10.0, prone=False, airborne=False)
     assert tp.mode == "running"
     fl = way_back([_cap("flight", 20), _cap("running", 12)],
@@ -279,3 +280,21 @@ def test_his_phases_bring_him_back_and_then_he_fights():
     phase = run_phase(phase.encounter, _SeeTheMenu(), roller=roller)
     assert phase.actor_id == "t"
     assert any(x.kind == "attack" and x.target_id == "a" for x in _SeeTheMenu.menu)
+
+
+def test_the_trip_back_costs_end():
+    """Moving costs END (6E1 p.158), and the trip back is a move. Running
+    12m is 1 END a full move: 6m after getting up is half of it, the last
+    1m a twelfth --- each at least 1 (6E1 p.132)."""
+    phase = _knocked_off_in_segment_12()
+    roller = FakeRoller([TIE] * 8)
+    spent = []
+    while True:
+        phase = run_phase(phase.encounter, _ThenAnything(), roller=roller)
+        if phase.actor_id == "t":
+            spent += [(e.end, e.reason) for e in phase.events
+                      if e.kind == "VitalsChanged" and e.combatant_id == "t"
+                      and e.end]
+            if not Roster(phase.session).is_off_board("t"):
+                break
+    assert spent == [(-1, "end_spent"), (-1, "end_spent")]

@@ -17,7 +17,7 @@ Now he is coming back, and the engine works out how:
   limit on accelerating, are state the engine does not carry.
 - BY WHICH MODE: the one that gets him back in the FEWEST Phases, of
   running, leaping, flight and teleportation (`way_back`). A tie goes to
-  the lower END per 10m, then to `_ORDER`. A man in the air can only fly or
+  the cheaper trip in END (6E1 p.158), then to `_ORDER`. A man in the air can only fly or
   teleport; swimming and tunneling do not cross open ground.
 - GETTING UP: a man on the ground spends a Half Phase getting up first
   (6E2 p.116: "must spend a Half Phase to get up"), so his first Phase
@@ -66,13 +66,16 @@ _INSIDE_BY_M = 0.01
 
 @dataclass(frozen=True)
 class WayBack:
-    """How he comes back: by ``mode``, at ``combat_m`` a Phase, in ``phases``."""
+    """How he comes back: by ``mode``, at ``combat_m`` a Phase, in ``phases``,
+    for ``trip_end`` END all told (6E1 p.158). ``capability`` is the
+    `MovementCapability` he moves by, which says which pool pays."""
 
     mode: str
     combat_m: float
-    end_per_10m: int
     distance_m: float
     phases: int
+    trip_end: int
+    capability: Any
 
 
 def phases_needed(combat_m: float, distance_m: float, *, prone: bool) -> int:
@@ -82,6 +85,23 @@ def phases_needed(combat_m: float, distance_m: float, *, prone: bool) -> int:
     if distance_m <= first + _EPS:
         return 1
     return 1 + math.ceil((distance_m - first) / combat_m - _EPS)
+
+
+def trip_end(full_end: int, combat_m: float, distance_m: float, *,
+             prone: bool) -> int:
+    """END for the whole trip back: each Phase's move pays its share of a
+    full move's END (6E1 p.158), the way `come_back` will charge it."""
+    from kirby_combat.endurance import movement_end
+
+    left, total = float(distance_m), 0
+    first = combat_m / 2.0 if prone else combat_m
+    for allowance in (first, *([combat_m] * 1000)):
+        if left <= _EPS:
+            break
+        step = min(left, allowance)
+        total += movement_end(full_end, used_m=step, combat_m=combat_m)
+        left -= step
+    return total
 
 
 def way_back(capabilities, *, distance_m: float, prone: bool,
@@ -102,11 +122,14 @@ def way_back(capabilities, *, distance_m: float, prone: bool,
         return None
     options = [
         WayBack(mode=cap.mode, combat_m=float(cap.combat_m),
-                end_per_10m=int(cap.end_per_10m), distance_m=float(distance_m),
-                phases=phases_needed(float(cap.combat_m), distance_m, prone=prone))
+                distance_m=float(distance_m),
+                phases=phases_needed(float(cap.combat_m), distance_m, prone=prone),
+                trip_end=trip_end(int(cap.end_cost), float(cap.combat_m),
+                                  float(distance_m), prone=prone),
+                capability=cap)
         for cap in best.values()
     ]
-    return min(options, key=lambda w: (w.phases, w.end_per_10m, _ORDER.index(w.mode)))
+    return min(options, key=lambda w: (w.phases, w.trip_end, _ORDER.index(w.mode)))
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +198,23 @@ def _forced_crossing(session: "CombatSession", combatant_id: str):
     return row
 
 
+def _payable(session: "CombatSession", combatant_id: str) -> list:
+    """His movement, less any mode an empty Endurance Reserve runs: the
+    same rule the menu applies (a reserve-powered mode only while the
+    Reserve can pay for a full move; 6E1 p.208, no STUN for reserve END)."""
+    from kirby_combat.endurance import draws_on_reserve, end_available
+
+    caps = []
+    for cap in session.combatants[combatant_id].movement_view():
+        if draws_on_reserve(cap):
+            left = end_available(session, combatant_id, power=cap,
+                                 template=session.template)
+            if left is not None and left < int(cap.end_cost):
+                continue
+        caps.append(cap)
+    return caps
+
+
 def _plan(session: "CombatSession", combatant_id: str, row) -> tuple[WayBack | None, "Position"]:
     """His way back from where he is now to the edge, and the point on it."""
     from kirby_world.scene import Position
@@ -195,7 +235,7 @@ def _plan(session: "CombatSession", combatant_id: str, row) -> tuple[WayBack | N
     at_the_edge = Position(ex - dx / mag * _INSIDE_BY_M, ey - dy / mag * _INSIDE_BY_M,
                            here.z, here.facing)
     back = way_back(
-        session.combatants[combatant_id].movement_view(), distance_m=distance,
+        _payable(session, combatant_id), distance_m=distance,
         prone=is_prone(session, combatant_id),
         airborne=not is_supported_at(at_the_edge, session.scene),
     )
@@ -290,6 +330,7 @@ def come_back(session: "CombatSession", combatant_id: str) -> tuple["CombatSessi
     ``goes_on`` is True when he is back with a Half Phase still his, and
     the caller must not spend the slot."""
     from kirby_combat.action_time import halves_left
+    from kirby_combat.endurance import movement_end, pay_end
     from kirby_combat.impact import _record_move
     from kirby_combat.standing import is_prone, stand_up
 
@@ -314,6 +355,10 @@ def come_back(session: "CombatSession", combatant_id: str) -> tuple["CombatSessi
                        here.y + f * (target.y - here.y), here.z, here.facing)
     session = _record_move(session, combatant_id, here, end,
                            move_type=back.mode, distance_m=moved)
+    # The trip back is a move, and moving costs END (6E1 p.158).
+    session = pay_end(session, combatant_id, movement_end(
+        int(back.capability.end_cost), used_m=moved, combat_m=back.combat_m),
+        power=back.capability, template=session.template)
     arrived = end is target
     used = 1 if moved <= back.combat_m / 2.0 + _EPS else 2
     if arrived and halves - used > 0:

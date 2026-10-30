@@ -187,7 +187,8 @@ def _pay(session, actor, power, shots: int, template):
     from kirby_combat.actions.recording import _spend_attack_end
     from kirby_combat.endurance import end_cost
 
-    return _spend_attack_end(session, actor, end_cost(power) * shots, template)
+    return _spend_attack_end(session, actor, end_cost(power) * shots, template,
+                             power=power)
 
 
 def _knockback_order(power, dice_per_hit: list, template) -> list[tuple[Any, bool]]:

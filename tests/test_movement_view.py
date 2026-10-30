@@ -3,10 +3,12 @@
 Stubs mirror tests/test_reach.py: _Hero.characteristic_value reads a _cv dict;
 _Pow carries xmlid/levels. No HDC needed.
 
-END/NCM confirmed from movement class sources:
-  running, leaping, flight, swimming: end_per_10m=1, noncombat_multiplier=4
-  teleportation:                       end_per_10m=2, noncombat_multiplier=1
-  tunneling:                           end_per_10m=1, noncombat_multiplier=1
+NCM confirmed from movement class sources:
+  running, leaping, flight, swimming: noncombat_multiplier=4
+  teleportation, tunneling:            noncombat_multiplier=1
+END is a full move's (6E1 p.158): a power's is the cost engine's
+`end_usage`; Running/Leaping price their metres at the template's rate.
+See tests/loop/test_movement_costs_end.py.
 
 _MOVE_M_PER_LEVEL=1.0 verified against a real character: FLIGHT LEVELS="15" → 15m flight
 (characteristic_value("FLIGHT") returns 0.0 — FLIGHT is a power, not a characteristic).
@@ -27,6 +29,14 @@ class _Pow:
     active_cost: float | None = None
     assigned_modifiers: list = field(default_factory=list)
     sub_powers: list = field(default_factory=list)
+    end_usage: int = 0
+
+
+@dataclass
+class _Char:
+    xmlid: str
+    level_cost: float
+    level_value: float
 
 
 @dataclass
@@ -38,6 +48,11 @@ class _Hero:
 
     def characteristic_value(self, xmlid: str) -> float:
         return float(self._cv.get(xmlid.upper(), 0))
+
+    @property
+    def characteristics(self):
+        """The template's rates for the movement characteristics."""
+        return [_Char("RUNNING", 1.0, 1.0), _Char("LEAPING", 1.0, 2.0)]
 
 
 def _combatant(*, powers=None, cv=None):
@@ -63,12 +78,12 @@ def test_running_and_leaping_from_characteristics():
     modes = {m.mode: m for m in c.movement_view()}
     assert "running" in modes
     assert modes["running"].combat_m == 12.0
-    assert modes["running"].end_per_10m == 1
+    assert modes["running"].end_cost == 1          # 12 points' worth
     assert modes["running"].noncombat_m == 48.0  # 12 * 4 (NCM)
     assert "leaping" in modes
     assert modes["leaping"].combat_m == 4.0
     assert modes["leaping"].vertical_m == 2.0    # vertical = half horizontal (6E)
-    assert modes["leaping"].end_per_10m == 1
+    assert modes["leaping"].end_cost == 1          # 2 points' worth: the minimum
     assert "flight" not in modes                 # no FLIGHT power
 
 
@@ -76,38 +91,40 @@ def test_flight_teleport_from_powers():
     """FLIGHT and TELEPORTATION are powers; levels map 1:1 to metres."""
     c = _combatant(
         cv={"RUNNING": 12, "LEAPING": 4},
-        powers=[_Pow("FLIGHT", levels=20), _Pow("TELEPORTATION", levels=15)],
+        powers=[_Pow("FLIGHT", levels=20, end_usage=2),
+                _Pow("TELEPORTATION", levels=15, end_usage=3)],
     )
     modes = {m.mode: m for m in c.movement_view()}
-    # Flight: 1 END/10m, NCM 4×
+    # Flight: the cost engine's END, NCM 4×
     assert "flight" in modes
     assert modes["flight"].combat_m == 20.0
     assert modes["flight"].noncombat_m == 80.0   # 20 * 4
-    assert modes["flight"].end_per_10m == 1
-    # Teleportation: 2 END/10m, NCM 1× (teleport doesn't scale noncombat)
+    assert modes["flight"].end_cost == 2
+    # Teleportation: the cost engine's END, NCM 1× (teleport doesn't scale noncombat)
     assert "teleportation" in modes
     assert modes["teleportation"].combat_m == 15.0
     assert modes["teleportation"].noncombat_m == 15.0  # 15 * 1
-    assert modes["teleportation"].end_per_10m == 2
+    assert modes["teleportation"].end_cost == 3
 
 
 def test_swimming_tunneling_from_powers():
     """SWIMMING and TUNNELING as powers show up correctly."""
     c = _combatant(
         cv={"RUNNING": 12, "LEAPING": 4},
-        powers=[_Pow("SWIMMING", levels=10), _Pow("TUNNELING", levels=8)],
+        powers=[_Pow("SWIMMING", levels=10, end_usage=1),
+                _Pow("TUNNELING", levels=8, end_usage=4)],
     )
     modes = {m.mode: m for m in c.movement_view()}
-    # Swimming: 1 END/10m, NCM 4×
+    # Swimming: the cost engine's END, NCM 4×
     assert "swimming" in modes
     assert modes["swimming"].combat_m == 10.0
     assert modes["swimming"].noncombat_m == 40.0
-    assert modes["swimming"].end_per_10m == 1
-    # Tunneling: 1 END/10m, NCM 1× (noncombat speedup doesn't apply)
+    assert modes["swimming"].end_cost == 1
+    # Tunneling: the cost engine's END, NCM 1× (noncombat speedup doesn't apply)
     assert "tunneling" in modes
     assert modes["tunneling"].combat_m == 8.0
     assert modes["tunneling"].noncombat_m == 8.0   # 8 * 1
-    assert modes["tunneling"].end_per_10m == 1
+    assert modes["tunneling"].end_cost == 4
 
 
 def test_no_zero_distance_modes():
@@ -304,7 +321,7 @@ def test_every_hero_can_climb():
     assert climb.combat_m == 2.0          # 6E1 p70: base speed 2m per Phase
     assert climb.vertical_m == 2.0        # climbing IS vertical
     assert climb.noncombat_m == 2.0       # no noncombat sprint up a wall
-    assert climb.end_per_10m == 1
+    assert climb.end_cost == 0          # RULING: a Skill, and Skills cost no END
 
 
 def test_climbing_can_never_be_pushed():

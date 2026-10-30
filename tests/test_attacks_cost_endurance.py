@@ -213,16 +213,33 @@ def test_a_heroic_campaign_tracks_endurance():
     assert after < before
 
 
-def test_a_superheroic_campaign_does_not():
-    """`RAW Superheroic` ships `manage_endurance=False`, and it always has.
+def test_a_superheroic_campaign_counts_it_too():
+    """`RAW Superheroic` counts END (Peter's ruling, 2026-10-29).
 
-    THIS CAUGHT A DEFECT IN THE COMMIT BEFORE IT. Spending END was made
-    unconditional, which quietly overrode a policy the templates had
-    stated since they were written -- superheroic games hand-wave END,
-    heroic ones count it, and that split is exactly what these two flags
-    are for. They were read by nothing, so the contradiction was silent.
+    It shipped `manage_endurance=False` as "END optional", and every fight
+    the product ran used it, so nobody ever paid. 6E2 p.133: "In
+    Superheroic campaigns, many characters pay END just to maintain their
+    Powers, so END is very important."
     """
     from kirby_combat.template import CombatTemplate
 
     before, after = _tracked_fight(CombatTemplate.default_6e_superheroic())
+    assert after < before
+
+
+def test_a_campaign_that_turns_it_off_charges_nothing():
+    """The flag is still honoured: a table that hand-waves END says so with
+    its own template, and nothing is charged.
+
+    THIS CAUGHT A DEFECT ONCE. Spending END was made unconditional, which
+    quietly overrode the policy the flags state; they were read by nothing,
+    so the contradiction was silent.
+    """
+    from dataclasses import replace
+
+    from kirby_combat.template import CombatTemplate
+
+    off = replace(CombatTemplate.default_6e_superheroic(),
+                  manage_endurance=False, manage_endurance_npc=False)
+    before, after = _tracked_fight(off)
     assert after == before

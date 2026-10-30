@@ -425,8 +425,8 @@ def maintain_constant_attacks(session, actor_id: str, *, template, roller):
     target takes the damage, "in every Segment in which the attacker has a
     Phase". Maintaining takes no Action, so the Phase is still his.
     """
-    from kirby_combat.actions.recording import _spend_attack_end, _tracks_endurance
-    from kirby_combat.endurance import end_cost
+    from kirby_combat.actions.recording import _spend_attack_end
+    from kirby_combat.endurance import end_available, end_cost
     from kirby_combat.enumeration import is_down
 
     for effect in active_lingering(session, attacker_id=actor_id,
@@ -450,13 +450,13 @@ def maintain_constant_attacks(session, actor_id: str, *, template, roller):
             continue
         attacker = session.combatants[actor_id]
         cost = end_cost(power)
-        if cost and _tracks_endurance(template, attacker) and int(
-                attacker.state.current_end) < cost:
+        left = end_available(session, actor_id, power=power, template=template)
+        if cost and left is not None and left < cost:
             # RULING: he stops maintaining rather than burn STUN for END
             # (6E2 p.133 permits it; the engine does not implement it).
             session = _end(session, effect.id, LingeringEnd.NO_END)
             continue
-        session = _spend_attack_end(session, attacker, cost, template)
+        session = _spend_attack_end(session, attacker, cost, template, power=power)
         session = _dose(session, effect, power, template=template,
                         roller=roller, increments_remaining=None)
     return session
@@ -582,7 +582,7 @@ def resolve_damage_over_time_use(session, attack, template, *, roller,
         author=make_author_combatant(attacker_id),
         declaration_event_id=decl_id, result_payload=payload,
     ))
-    s = _spend_attack_end(s, attack.attacker, cost, template)
+    s = _spend_attack_end(s, attack.attacker, cost, template, power=attack.power)
     s = apply_side_effects(s, attack, template, roller=roller, failed=False)
     if to_hit.hit:
         s = begin_lingering(s, attacker_id=attacker_id, target_id=target_id,
