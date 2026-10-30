@@ -282,7 +282,7 @@ def _standing(session, combatant_id: str):
     from kirby_combat.roster import Roster
 
     c = session.combatants.get(combatant_id)
-    return c is not None and not is_down(c) and not Roster(session).has_left(combatant_id)
+    return c is not None and not is_down(c) and Roster(session).on_the_board(combatant_id)
 
 
 def _nearest(session, actor_id: str, candidates: Iterable) -> str | None:

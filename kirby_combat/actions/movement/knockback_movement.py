@@ -9,7 +9,7 @@ Composes:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from kirby_combat.models import DiceValues
@@ -80,6 +80,24 @@ def _unit_xy(from_pos: Position, to_pos: Position) -> tuple[float, float]:
     if mag < 1e-9:
         return (1.0, 0.0)            # default east when no direction available
     return (dx / mag, dy / mag)
+
+
+def _beyond(bounds, pos: Position) -> bool:
+    return not (bounds.min_x <= pos.x <= bounds.max_x
+                and bounds.min_y <= pos.y <= bounds.max_y)
+
+
+def _just_inside(bounds, start: Position, end: Position) -> Position:
+    """The point on the line from ``start`` to ``end``, a hair inside where it
+    crosses the map's edge, at ``start``'s height."""
+    from kirby_combat.off_board import _INSIDE_BY_M, exit_point
+
+    ex, ey, _ = exit_point(bounds, {"x": start.x, "y": start.y, "z": start.z},
+                           {"x": end.x, "y": end.y, "z": end.z})
+    dx, dy = end.x - start.x, end.y - start.y
+    mag = math.hypot(dx, dy) or 1.0
+    return Position(x=ex - dx / mag * _INSIDE_BY_M, y=ey - dy / mag * _INSIDE_BY_M,
+                    z=start.z, facing=start.facing)
 
 
 def away_from(source: Position, body: Position) -> tuple[float, float]:
@@ -195,14 +213,29 @@ def resolve_forced_movement_past(
         phase="movement",
     )
 
+    # BEYOND THE EDGE THE GROUND GOES ON (Peter's ruling, 2026-10-29). Nothing
+    # is authored past the map's bounds, so asking for support out there
+    # found none and dropped him to `bounds.min_z` --- 5m down on the random
+    # maps, a fall nobody took. The ground he lands on is the ground where
+    # he crossed the edge: support is asked a hair inside it, and a fall
+    # from there (a roof at the edge) lands at his landing point.
+    # See `kirby_combat/off_board.py`.
+    where_supported = actual_end
+    if (wall_collision is None and not _beyond(scene.bounds, start)
+            and _beyond(scene.bounds, actual_end)):
+        where_supported = _just_inside(scene.bounds, start, actual_end)
     fall: FallingResult | None = None
-    if not airborne and not is_supported_at(actual_end, scene):
+    if not airborne and not is_supported_at(where_supported, scene):
         fall = resolve_fall(
             combatant_id=combatant_id,
-            from_pos=actual_end,
+            from_pos=where_supported,
             scene=scene,
             gravity_scale=gravity_scale,
         )
+        if where_supported is not actual_end:
+            fall = replace(fall, from_pos=actual_end, landed_at=Position(
+                x=actual_end.x, y=actual_end.y, z=fall.landed_at.z,
+                facing=actual_end.facing))
     return ForcedMovement(
         start_position=start, travel_end=actual_end,
         distance_traveled_m=actual_distance, wall_collision=wall_collision,
