@@ -15,11 +15,10 @@ meant to avoid.
 """
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from kirby_combat.template import DEFAULT_TEMPLATE, CombatTemplate
+from kirby_combat.template import CombatTemplate
 
 if TYPE_CHECKING:
     from kirby_combat.encounter import Encounter
@@ -36,32 +35,10 @@ class Campaign:
 
     id: str
     name: str
-    # CombatTemplate is a plain (non-frozen, non-hashable) @dataclass, so
-    # `dataclasses` treats a bare instance as a mutable default and refuses
-    # it -- `default_factory` is required. It must return a FRESH,
-    # INDEPENDENT copy each time, not the DEFAULT_TEMPLATE singleton itself:
-    # CombatTemplate is mutable, so handing every Campaign the same object
-    # would let mutating one campaign's template silently rewrite every
-    # other campaign's default, and poison the module-level DEFAULT_TEMPLATE
-    # / RAW_SUPERHEROIC constant for the rest of the process.
-    #
-    # `dataclasses.replace(DEFAULT_TEMPLATE)` looks like a fix but is NOT
-    # one -- `replace` is a SHALLOW copy: it re-invokes __init__ with
-    # DEFAULT_TEMPLATE's existing field VALUES, so the two mutable fields on
-    # CombatTemplate (`custom_rules: dict`, `allowed_hit_locations: list`)
-    # come along by identity, unchanged. Every Campaign built with `replace`
-    # gets its own CombatTemplate wrapper object, but that wrapper's
-    # `custom_rules` dict and `allowed_hit_locations` list are still the
-    # SAME dict/list DEFAULT_TEMPLATE (and therefore RAW_SUPERHEROIC,
-    # RAW_HEROIC, and CombatTemplate.default_6e_superheroic() -- see
-    # template.py) points at. Mutating `campaign.template.custom_rules[...]`
-    # on one campaign is still visible on every other campaign and on those
-    # module-level constants for the rest of the process. `copy.deepcopy`
-    # is required to actually sever the shared dict/list, not just the
-    # top-level CombatTemplate instance. (Reviewer finding, task 4;
-    # corrected on whole-branch review -- the original `replace()` fix only
-    # covered scalar fields like `tie_rule`.)
-    template: CombatTemplate = field(default_factory=lambda: copy.deepcopy(DEFAULT_TEMPLATE))
+    #: Required: which optional rules a campaign plays by is its decision.
+    #: It defaulted to a deep copy of `DEFAULT_TEMPLATE`, which made every
+    #: Campaign that forgot to say a Superheroic one.
+    template: CombatTemplate
     worlds: "list[World]" = field(default_factory=list)
 
 

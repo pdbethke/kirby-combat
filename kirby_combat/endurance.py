@@ -120,7 +120,7 @@ def tracks_endurance(template, combatant) -> bool:
     an attack and a move must ask the campaign the same question.
     """
     if template is None:
-        return True
+        raise ValueError("tracks_endurance needs the fight's template, not None")
     if getattr(combatant, "is_npc", False):
         return bool(getattr(template, "manage_endurance_npc", False))
     return bool(getattr(template, "manage_endurance", False))

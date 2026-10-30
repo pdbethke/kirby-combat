@@ -20,8 +20,9 @@ from kirby_combat.actions import resolve_attack
 from kirby_combat.models import (
     AttackInput, AttackPower, DefenseItem, DiceValues,
 )
-from kirby_combat.template import CombatTemplate
 from tests.fixtures.synthetic_hero import synthetic_combatant
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 def _attacker(*, ocv=10, str_=20, name="atk"):
@@ -84,7 +85,7 @@ def _resolve(atk, defender, power, *, damage_dice, stun_mult=2):
         aim=None, dice=dv,
         ocv_modifier=0, dcv_modifier=0, dc_modifier=0,
     )
-    return resolve_attack(ai, CombatTemplate(name="t"))
+    return resolve_attack(ai, replace(PLAIN, name="t"))
 
 
 # ── Damage Reduction ──────────────────────────────────────────────────────

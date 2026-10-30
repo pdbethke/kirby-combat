@@ -63,6 +63,7 @@ from lxml import etree
 from kirby_cost.objects.talents.lightning_reflexes_all import LightningReflexesAll
 
 from kirby_combat.campaign import Campaign
+from kirby_combat.template import RAW_SUPERHEROIC
 from kirby_combat.encounter import Encounter, SEGMENTS_PER_TURN
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState
 from kirby_combat.models import StatBlockCombatant
@@ -84,7 +85,7 @@ def rule(title: str) -> None:
 
 # ── A tiny, deterministic dice roller ────────────────────────────────────
 #
-# `CombatTemplate.tie_rule` defaults to `TieRule.DEX_ROLL` (6E2 p.21's own
+# `RAW_SUPERHEROIC.tie_rule` is `TieRule.DEX_ROLL` (6E2 p.21's own
 # default rule), and `resolve_acting_order` calls its `roller` once per
 # combatant with a Phase that Segment — regardless of whether a tie
 # actually occurs (see timeline.py's docstring: "called exactly once per
@@ -237,7 +238,7 @@ def main() -> None:
 
     session = CombatSession.create(
         id="rooftop-fight", combatants=[vex, talon, bruiser],
-        scene=scene, template=Campaign(id="tmp", name="tmp").template,
+        scene=scene, template=RAW_SUPERHEROIC,
     ).start()
 
     # Segment 1, not the usual Segment-12 combat-start default (6E2 p.20)
@@ -247,7 +248,8 @@ def main() -> None:
     encounter = Encounter(id="rooftop-encounter", turn=1, segment=1, sessions=[session])
     scene = replace(scene, encounter=encounter)
     world = World(id="haven-city", name="Haven City", scenes=[scene])
-    campaign = Campaign(id="campaign-1", name="Rooftop Showdown", worlds=[world])
+    campaign = Campaign(id="campaign-1", name="Rooftop Showdown",
+                        template=RAW_SUPERHEROIC, worlds=[world])
 
     # `CombatSession.create` hardcodes its Timeline to Turn 1, Segment 12
     # (6E2 p.20's combat-start default) — but `Encounter.run_segment`

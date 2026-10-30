@@ -119,9 +119,8 @@ def compute_knockback(
     body: int,
     knockback_dice: list[int],
     *,
-    kb_resistance_m: int = 0,
-    knockback_multiplier: float = 1.0,
-    template: CombatTemplate | None = None,
+    kb_resistance_m: int,
+    template: CombatTemplate,
     impact_target: ImpactTarget | None = None,
 ) -> KnockbackResult:
     """Calculate knockback per 6E2 p116.
@@ -135,10 +134,11 @@ def compute_knockback(
             6E2 p117 modifiers table.
         kb_resistance_m: Meters of Knockback Resistance the target has.
             Subtracted from the final distance, not from BODY.
-        knockback_multiplier: Campaign-level scale factor on KB distance
-            (normally 1.0; house rules may double it, etc.).
         template: Active combat template. If template.use_knockback is False,
-            knockback is suppressed entirely.
+            knockback is suppressed entirely; its `knockback_multiplier`
+            scales the distance (a house rule may double it). That was a
+            separate argument beside the template, and the two could
+            disagree.
         impact_target: What the target slams into at the end of the knockback
             path. None means open ground (default). Per 6E2 p118 the impact
             damage dice depend on the surface (ground=¼m, breakable=½m,
@@ -152,7 +152,7 @@ def compute_knockback(
     audit: list[str] = []
 
     # Rule: knockback disabled at campaign level
-    if template is not None and not template.use_knockback:
+    if not template.use_knockback:
         audit.append("Knockback disabled by template.")
         return KnockbackResult(dice=0, distance_m=0.0, damage_dice=0, resisted=True, audit=audit)
 
@@ -163,6 +163,7 @@ def compute_knockback(
 
     # BODY − KB-roll, floored at 0
     delta = max(0, body - kb_roll)
+    knockback_multiplier = template.knockback_multiplier
     meters_before_resistance = delta * 2 * knockback_multiplier
     audit.append(
         f"BODY({body}) − KB-roll({kb_roll}) = {delta}; ×2m × mult({knockback_multiplier}) "

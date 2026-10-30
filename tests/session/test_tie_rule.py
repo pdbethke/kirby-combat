@@ -3,7 +3,7 @@ from fixtures.synthetic_hero import synthetic_combatant
 
 from kirby_combat.session.tie_rule import TieRule, dex_roll_target
 from kirby_combat.session.timeline import build_acting_order_for_segment
-from kirby_combat.template import DEFAULT_TEMPLATE
+from kirby_combat.template import RAW_HEROIC, RAW_SUPERHEROIC
 
 
 def _c(
@@ -68,9 +68,10 @@ def test_int_then_pre_is_selectable():
     assert [s.combatant_id for s in slots] == ["bob", "alice"]
 
 
-def test_template_default_tie_rule_is_the_dex_roll():
-    """6E2 p.21's default is the contested roll; INT->PRE is the opt-out."""
-    assert DEFAULT_TEMPLATE.tie_rule is TieRule.DEX_ROLL
+def test_the_raw_templates_tie_rule_is_the_dex_roll():
+    """6E2 p.21's rule is the contested roll; INT->PRE is the opt-out."""
+    assert RAW_SUPERHEROIC.tie_rule is TieRule.DEX_ROLL
+    assert RAW_HEROIC.tie_rule is TieRule.DEX_ROLL
 
 
 def test_random_is_not_a_book_rule_but_still_deterministic_under_test():

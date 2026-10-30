@@ -39,7 +39,6 @@ from kirby_combat.session.timeline import (
     consume_block_priority,
     resolve_acting_order,
 )
-from kirby_combat.template import DEFAULT_TEMPLATE
 
 if TYPE_CHECKING:
     from typing import Mapping
@@ -650,16 +649,39 @@ class Encounter:
         Shared by `advance_segment`, `acting_order`, and `run_segment`:
         when `campaign` is given, the template is resolved via
         `campaign.resolve_template` (encounter-level override, else the
-        campaign's default); otherwise `self.template` is used if set,
-        else the module-level `DEFAULT_TEMPLATE`. Pure refactor -- see
-        each caller's own docstring for why this resolution order is the
-        right one for that caller.
+        campaign's). Otherwise it is `self.template`, or, without one, the
+        template its fights were created with --- every `CombatSession`
+        states one --- when they all agree. Fights that disagree, an
+        Encounter template that contradicts a fight's, or nothing to read
+        at all, RAISE.
+
+        It used to fall back to `DEFAULT_TEMPLATE` (Superheroic) whatever
+        the fights inside were created with, so a heroic sweep whose
+        Encounter named no template charged no END (2026-10-29): the fight
+        said one thing and the Encounter quietly another.
         """
         if campaign is not None:
             from kirby_combat.campaign import resolve_template
 
             return resolve_template(campaign, self)
-        return self.template or DEFAULT_TEMPLATE
+        theirs = {id(s.template): s.template for s in self.sessions}
+        if self.template is not None:
+            if any(t != self.template for t in theirs.values()):
+                raise ValueError(
+                    f"Encounter {self.id!r} runs under {self.template.name!r} "
+                    "but holds a fight created under another template")
+            return self.template
+        distinct = {t for t in theirs.values()}
+        if len(distinct) == 1:
+            return next(iter(distinct))
+        if len(distinct) > 1:
+            raise ValueError(
+                f"Encounter {self.id!r} holds fights under different templates "
+                f"({', '.join(sorted(t.name for t in distinct))}): pass "
+                "Encounter(template=...) or campaign=")
+        raise ValueError(
+            f"Encounter {self.id!r} has no template, no fights and no campaign: "
+            "pass Encounter(template=...) or campaign=")
 
     def advance_segment(self, *, campaign: "Campaign | None" = None) -> "Encounter":
         """Return a new Encounter one Segment later.
@@ -676,8 +698,8 @@ class Encounter:
         Template resolution for that Recovery mirrors `acting_order`/
         `run_segment` above: `campaign`, when given, resolves the
         Encounter's template via `resolve_template(campaign, self)`
-        (campaign -> encounter override); otherwise `self.template or
-        DEFAULT_TEMPLATE`. The CAMPAIGN/ENCOUNTER-resolved template is
+        (campaign -> encounter override); otherwise `self.template`, and
+        neither raises. The CAMPAIGN/ENCOUNTER-resolved template is
         used deliberately, NOT any per-`CombatSession`'s own `template`
         field -- the campaign->encounter hierarchy exists so the campaign
         owns the rules, and a scene-wide Post-Segment 12 Recovery is an
@@ -707,7 +729,9 @@ class Encounter:
         Segment was this combatant on when they recovered" answer at 12.
         """
         if self.segment >= SEGMENTS_PER_TURN:
-            template = self._resolve_template(campaign)
+            # Nobody to Recover in an Encounter with no fights, so no rules
+            # to ask for: the template is resolved only when it is used.
+            template = self._resolve_template(campaign) if self.sessions else None
             to_turn = self.turn + 1
 
             # ORDERING: Recovery, then the Adjustment fade, then the
@@ -777,7 +801,7 @@ class Encounter:
         resolved via `campaign.resolve_template` (encounter-level
         override, else the campaign's default -- see that function's
         docstring). When no ``campaign`` is given, ``self.template`` is
-        used if set, else the module-level `DEFAULT_TEMPLATE`
+        used; with neither it raises
         (`TieRule.DEX_ROLL`, 6E2 p.21's default rule). This fallback lets
         an Encounter resolve acting order standalone -- a fight can exist
         before the Campaign/World hierarchy above it is populated, and
@@ -787,8 +811,8 @@ class Encounter:
         `TieRule.DEX_ROLL` (6E2 p.21's default: a contested DEX Roll)
         requires a ``roller`` -- `build_acting_order_for_segment` raises
         `ValueError` if the resolved tie_rule needs one and none is
-        supplied. Callers whose template resolves to `DEX_ROLL` (which
-        includes the engine-wide default template) must pass a roller;
+        supplied. Callers whose template resolves to `DEX_ROLL` (both
+        RAW templates do) must pass a roller;
         this method does not silently substitute a rule that needs none.
         """
         template = self._resolve_template(campaign)

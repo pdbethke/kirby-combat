@@ -20,6 +20,8 @@ import pytest
 from kirby_combat.hero_view import HeroCombatant, HeroCombatState, HeroCombatStats
 
 from tests.corpus import require_authored
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 # Real characters come from the authored corpus as COSTED BUILDS, never
@@ -237,7 +239,6 @@ def test_attack_resolves_through_engine_end_to_end():
     """
     from kirby_combat.actions import RangedAttackAction, AttackInput
     from kirby_combat.models import StatBlockCombatant, DiceValues
-    from kirby_combat.template import CombatTemplate
 
     # Ravel carries a dice-bearing Energy Blast; the character used here has
     # to actually have an attack with damage, or the assertions below pass
@@ -296,7 +297,7 @@ def test_attack_resolves_through_engine_end_to_end():
         distance_m=10.0, aim=None, dice=dv,
         ocv_modifier=0, dcv_modifier=0, dc_modifier=0,
     )
-    template = CombatTemplate(name="kirby-combat-fixture-test")
+    template = replace(PLAIN, name="kirby-combat-fixture-test")
     result = RangedAttackAction().resolve(ai, template)
 
     # Audit trail should have at least the to_hit lines and SOME

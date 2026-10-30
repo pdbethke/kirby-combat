@@ -44,6 +44,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from kirby_combat.campaign import Campaign
+from kirby_combat.template import RAW_SUPERHEROIC
 from kirby_combat.encounter import Encounter
 from kirby_combat.scene import AmbientConditions, Position, Scene, SceneBounds
 from kirby_combat.world import World
@@ -97,7 +98,8 @@ def main() -> None:
     )
 
     world = World(id="haven-city", name="Haven City", scenes=[house, base])
-    campaign = Campaign(id="campaign-1", name="Haven City Chronicles", worlds=[world])
+    campaign = Campaign(id="campaign-1", name="Haven City Chronicles",
+                        template=RAW_SUPERHEROIC, worlds=[world])
     print(f"  Campaign {campaign.name!r} -> World {world.name!r} -> "
           f"{len(world.scenes)} scenes")
 

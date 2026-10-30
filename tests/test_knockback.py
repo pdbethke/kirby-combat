@@ -1,6 +1,8 @@
 """Tests for knockback calculation per 6E2 p116 and p118."""
 from __future__ import annotations
 
+from dataclasses import replace
+from tests.templates import PLAIN
 import pytest
 
 from kirby_combat.models import KnockbackResult
@@ -93,7 +95,7 @@ def test_knockback_modifier_dice_killing_attack(default_template: CombatTemplate
 
 def test_knockback_disabled_by_template() -> None:
     """Template with use_knockback=False → always resisted, distance=0."""
-    no_kb_template = CombatTemplate(name="No KB", use_knockback=False)
+    no_kb_template = replace(PLAIN, name="No KB", use_knockback=False)
     result = compute_knockback(
         body=30,
         knockback_dice=[1, 1],
@@ -111,8 +113,7 @@ def test_knockback_doubled_house_rule(default_template: CombatTemplate) -> None:
         body=12,
         knockback_dice=[3, 2],
         kb_resistance_m=0,
-        knockback_multiplier=2.0,
-        template=default_template,
+        template=replace(default_template, knockback_multiplier=2.0),
     )
     assert not result.resisted
     assert result.distance_m == 28.0

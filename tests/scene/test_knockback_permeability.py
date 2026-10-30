@@ -4,8 +4,9 @@ from kirby_combat.scene import (
     Scene, SceneBounds, Surface, Construct, Position, AmbientConditions,
 )
 from kirby_combat.models import DiceValues
-from kirby_combat.template import CombatTemplate
 from kirby_combat.actions.movement.knockback_movement import resolve_knockback_movement
+from dataclasses import replace
+from tests.templates import PLAIN
 
 
 def _ground():
@@ -33,5 +34,5 @@ def test_knockback_collides_with_impermeable_construct():
     res = resolve_knockback_movement(
         combatant_id="t", attacker_pos=Position(-2, 0, 0), target_pos=Position(0, 0, 0),
         body_dealt=30, kb_resistance=0, dice=DiceValues(knockback=[1, 1]),
-        scene=s, template=CombatTemplate(name="t"))
+        scene=s, template=replace(PLAIN, name="t"))
     assert res.wall_collision is not None and res.wall_collision.wall_id == "bar"
