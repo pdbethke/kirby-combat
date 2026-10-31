@@ -162,3 +162,79 @@ def pools_into_a_stun(
     says "exceeds", not "meets or exceeds".
     """
     return pooled_stun(session, target_id, segment) > con
+
+
+def joined_this_segment(session: "CombatSession", combatant_id: str) -> bool:
+    """Whether he has already joined a coordinated strike this Segment.
+    One strike, one join: the attack he joined with is what is left."""
+    segment = session.timeline.segment
+    for evt in session.event_log:
+        payload = getattr(evt, "result_payload", None) or {}
+        if (getattr(evt, "kind", None) == "ActionResolved"
+                and payload.get("kind") == "coordinate"
+                and payload.get("combatant_id") == combatant_id
+                and payload.get("segment") == segment):
+            return True
+    return False
+
+
+#: 6E1 p.76: Defense Maneuver II "Eliminates Multiple Attacker Bonuses as to
+#: attackers the character can perceive", III "to all attackers, even those
+#: which the character cannot perceive". HD's option ids for I-II .. I-IV.
+_SPARES_PERCEIVED = frozenset({"TWO"})
+_SPARES_ALL = frozenset({"THREE", "FOUR"})
+
+
+def _defense_maneuver_spares(session: "CombatSession", target, attacker) -> bool:
+    from kirby_combat.resolution.surprise import DEFENSE_MANEUVER
+
+    hero = getattr(target, "hero", None) or target
+    levels = {
+        (getattr(item, "option_id", None) or "").upper()
+        for collection in ("skills", "talents", "powers")
+        for item in getattr(hero, collection, None) or []
+        if (getattr(item, "xmlid", None) or "").upper() == DEFENSE_MANEUVER
+    }
+    if levels & _SPARES_ALL:
+        return True
+    if levels & _SPARES_PERCEIVED:
+        from kirby_combat.sense_penalties import cannot_perceive
+
+        return attacker is not None and not cannot_perceive(session, target, attacker)
+    return False
+
+
+def multiple_attacker_dcv_delta(
+    session: "CombatSession", attacker_id: str, target_id: str, *, dcv: int,
+) -> int:
+    """The Multiple Attacker Bonus on this attack, as a DCV delta (<= 0).
+
+    6E2 p.51, an OPTIONAL rule (`CombatTemplate.use_multiple_attacker_bonus`):
+    "If the attackers successfully Coordinate, the defender suffers a -1 DCV
+    for every attacker after the first, down to a minimum of 1/2 DCV ... The
+    DCV penalty applies only against those opponents who Coordinate their
+    attacks". ``dcv`` is his DCV against this attack before the bonus; the
+    floor is half of it, rounded in his favour (6E1 p.14, `apply_cv_factor`).
+
+    RULING, stated: the book's coordinated blows land together and this
+    loop's land one after another, so the bonus counts the men who have
+    JOINED SO FAR this Segment. The first to swing gains nothing from those
+    who join after him.
+
+    Not built: a defender who "ignore[s] some of them to concentrate on a
+    more dangerous opponent", and the MCV bonus for Coordinated Mental
+    Powers (mental attacks take their own to-hit door).
+    """
+    if not session.template.use_multiple_attacker_bonus:
+        return 0
+    members = window_for(session, target_id, session.timeline.segment)
+    if attacker_id not in members or len(members) < 2:
+        return 0
+    target = session.combatants.get(target_id)
+    attacker = session.combatants.get(attacker_id)
+    if target is None or _defense_maneuver_spares(session, target, attacker):
+        return 0
+    from kirby_combat.cv_modifiers import apply_cv_factor
+
+    floor = apply_cv_factor(int(dcv), 0.5)
+    return -min(len(members) - 1, max(0, int(dcv) - floor))

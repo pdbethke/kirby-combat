@@ -2101,10 +2101,16 @@ def enumerate_actions(
                 kind="coordinate",
                 target_id=enemy.id,
                 power_xmlid=None, power_name=None,
+                # WHAT IT BUYS, said to whoever chooses. A model seat
+                # never took this offer (prod fight a7efcb02: 0 of 71), and
+                # the summary told it only what the roll was.
                 summary=(
-                    f"Coordinate vs {_friendly(enemy)} — "
-                    f"Teamwork (or Tactics/DEX fallback) to join a "
-                    f"same-phase coordinated strike (6E2 p46)"
+                    f"Coordinate vs {_friendly(enemy)}, then attack him this "
+                    f"Phase: a Teamwork roll (or Tactics/DEX 8-), Half Phase. "
+                    f"Allies who join this Segment pool their STUN against "
+                    f"his CON to Stun him (6E2 p46); where the campaign "
+                    f"uses Multiple Attackers he is also -1 DCV per joined "
+                    f"attacker after the first, to 1/2 DCV (6E2 p51)"
                 ),
             ))
     # PR-18: Hold action — declare a held action to react when a

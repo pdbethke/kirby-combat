@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.29.0 — 2026-10-31
+
+**Coordinated attacks work, and gangs get the Multiple Attacker Bonus** (Peter: "build them both. thats where it gets interesting"). Tests `tests/loop/test_coordinated_attacks.py`.
+
+- **A man who joins a Coordinated attack now makes the attack he joined with** (6E2 p.46). Joining was an Attack Action, which ends the Phase (6E2 p.20), so nobody who joined ever attacked: `coordination.pooled_stun` was always empty and the offer was a Teamwork roll for nothing. RULING: the Teamwork roll is a Skill Roll, and "making most ... Skill Rolls" is a Half Phase (6E2 p.20). `coordinate` is offered once a Segment and only as the first half of a Phase, so an attack is left to follow it. **Behaviour change:** recordings that coordinated replay differently.
+- **6E2 p.51's Multiple Attacker Bonus**, an optional rule on a new required template switch `use_multiple_attacker_bonus`: against attackers who Coordinate, the defender is -1 DCV per attacker after the first, down to 1/2 DCV (rounded in his favour), applied at the one door every attack takes (`actions/recording._fold_session_cvs`, via `coordination.multiple_attacker_dcv_delta`). Defense Maneuver II spares him against attackers he can perceive, III and IV against all (6E1 p.76); I does not. RULING: the book's coordinated blows land together and this loop's do not, so the bonus counts the men who have joined so far this Segment. Not built: the defender who ignores some attackers to concentrate on one, and the MCV bonus for Coordinated Mental Powers.
+- **Templates:** the bonus is off in the RAW and cinematic templates; the page calls it "particularly inappropriate" where heroes cut through crowds. Two new named templates turn it on (Peter's choice): `6e-superheroic-cinematic-gang` and `6e-heroic-cinematic-gang` (`CINEMATIC_SUPERHEROIC_GANG`, `CINEMATIC_HEROIC_GANG`), the cinematic templates plus the bonus.
+- **The coordinate offer says what it buys**: the STUN pool and, where the campaign uses it, the DCV bonus. A model seat never chose the old wording (prod fight a7efcb02: 0 of 71 declarations).
+
 ## 0.28.1 — 2026-10-31
 
 - **Cinematic templates** (Peter's choice of how a table turns the minor-NPC rules on, until GM-editable templates): `6e-superheroic-cinematic` and `6e-heroic-cinematic` (`CINEMATIC_SUPERHEROIC`, `CINEMATIC_HEROIC`) are the RAW templates with all three of 6E2 p.121-122's rules on. Nothing else changes.

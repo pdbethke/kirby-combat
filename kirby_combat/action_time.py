@@ -103,6 +103,11 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     # single Attack Action", and this offer is for the heavy ones.
     "pickup": (_T.HALF, "RULING: as Pick up Disarmed weapon, 1/2 Phase (6E2 p.25)"),
     # 6E2 p.20: "making most PER Rolls or Skill Rolls" is a Half Phase.
+    # RULING: joining a Coordinated attack is its Teamwork roll (6E2 p.46),
+    # and "making most ... Skill Rolls" is a Half Phase (6E2 p.20). It was an
+    # Attack Action, which ended the Phase, so the man who joined never made
+    # the attack he joined with and the pool was always empty.
+    "coordinate": (_T.HALF, "RULING: the Teamwork roll is a Skill Roll, 1/2 Phase (6E2 p.20, p.46)"),
     "hide": (_T.HALF, "a Stealth Skill Roll: \"most ... Skill Rolls\" are 1/2 Phase (6E2 p.20)"),
     "charm": (_T.HALF, "an interaction Skill Roll: 1/2 Phase (6E2 p.20)"),
     "persuasion": (_T.HALF, "an interaction Skill Roll: 1/2 Phase (6E2 p.20)"),
@@ -121,7 +126,7 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
            "mental_illusion", "telepathy", "image_decoy", "flash", "entangle",
            "mental_entangle", "aid", "drain", "heal", "dispel", "throw",
            "throw_object", "maneuver", "trip", "disarm", "push", "spread",
-           "coordinate", "attack_construct", "darkness_zone", "autofire",
+           "attack_construct", "darkness_zone", "autofire",
            "autofire_spray", "attack_entangle",
        )},
     "dodge": (_T.ATTACK, "Dodging is an Attack Action (6E2 p.20)"),
