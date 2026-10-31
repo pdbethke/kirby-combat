@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1 — 2026-10-31
+
+- **Fixed: cover nobody could take was offered.** The menu kept a covered spot off the menu only when another man stood within 0.5m of it (`enumeration._SAME_SPACE_M`), while 0.27.0's moves stop `placement.PERSONAL_SPACE_M` (1m) short of anybody. A spot 0.5-1m from a man was offered, the move stopped short of it, he was still worse off than the spot, and he was offered it again every half Phase: at the O.K. Corral (seed 59) 20 of 24 cover moves went nowhere and the fight ran to 279 events. The offer now uses the move's own distance; the corral is 139 events and no move-kind action goes nowhere. Test: `tests/loop/test_cover_is_not_offered_inside_a_man.py`.
+
 ## 0.27.0 — 2026-10-31
 
 **Two men do not end a move on one spot** (Peter's ruling, 2026-10-31, from 6E2 p.56 and p.31). The book has no general rule against sharing a space, but never puts two bodies at one point: Hand-To-Hand Combat is between characters "within Reach of one another", Reach being "1 meter around himself", so men in contact (grappling included) stand up to a metre apart; and a Teleport's safety system puts a man in "the closest space from the target point where he fits". Tests: `tests/loop/test_no_two_men_in_one_place.py`, `tests/loop/test_off_the_board.py`.

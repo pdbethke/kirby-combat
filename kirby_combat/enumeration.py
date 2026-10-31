@@ -3614,8 +3614,18 @@ def enumerate_actions(
             # map, where one character to a hex is a convention rather
             # than a printed rule. What is not a judgement is that a man
             # does not walk into another man and stop there.
+            #
+            # THE MOVE'S OWN DISTANCE, `placement.PERSONAL_SPACE_M` (Peter's
+            # ruling, 2026-10-31). This used `_SAME_SPACE_M` (0.5m) while
+            # 0.27.0's moves stop 1m short of anybody, so a spot 0.5-1m from
+            # a man was offered and could not be reached; he stopped short,
+            # where he was worse off than the spot, and was offered it again
+            # every half Phase (20 of 24 cover moves at the corral went
+            # nowhere).
+            from kirby_combat.placement import PERSONAL_SPACE_M
+
             if any(
-                _xyz_dist(_other, _spot) < _SAME_SPACE_M
+                _xyz_dist(_other, _spot) < PERSONAL_SPACE_M
                 for _cid, _other in (
                     (getattr(scene, "combatant_positions", None) or {}).items()
                 )
