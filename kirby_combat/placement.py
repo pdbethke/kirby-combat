@@ -133,6 +133,65 @@ def _record_move(session, combatant_id, start, outcome):
     ))
 
 
+#: RULING (Peter, 2026-10-31): no move ends within this of another
+#: combatant. 6E2 p.56: Reach is "1 meter around himself", and HTH is
+#: between characters "within Reach of one another" --- men in contact,
+#: grappling included, stand up to a metre apart, not on one point. 6E2
+#: p.31's Teleport safety system puts a man in "the closest space from the
+#: target point where he fits"; a move here does the same, without the
+#: damage, because he sees where he is going. See
+#: tests/loop/test_no_two_men_in_one_place.py.
+PERSONAL_SPACE_M = 1.0
+
+#: How finely a crowded landing is walked back along the path.
+_STEP_M = 0.05
+
+
+def _crowded(session, combatant_id: str, point: Position) -> bool:
+    from kirby_world.geometry import distance_3d
+
+    for other, pos in (session.scene.combatant_positions or {}).items():
+        if other != combatant_id and pos is not None and \
+                distance_3d(point, pos) < PERSONAL_SPACE_M - 1e-9:
+            return True
+    return False
+
+
+def _short_of_the_crowd(session, combatant_id: str, start: Position,
+                        landing: Position) -> Position:
+    """The point nearest ``landing`` on the start->landing line that no
+    other combatant stands within `PERSONAL_SPACE_M` of; ``start`` if
+    there is none (he does not move into anybody)."""
+    import math
+
+    if not _crowded(session, combatant_id, landing):
+        return landing
+    dx, dy, dz = landing.x - start.x, landing.y - start.y, landing.z - start.z
+    length = math.sqrt(dx * dx + dy * dy + dz * dz)
+    steps = int(length / _STEP_M)
+    for i in range(1, steps + 1):
+        f = 1.0 - i * _STEP_M / length
+        p = Position(start.x + dx * f, start.y + dy * f, start.z + dz * f,
+                     getattr(landing, "facing", 0.0))
+        if not _crowded(session, combatant_id, p):
+            return _exactly_at_space(session, combatant_id, start, p, landing)
+    return start
+
+
+def _exactly_at_space(session, combatant_id, start, free, crowded):
+    """Bisect between a free and a crowded point on the path, so the man
+    stops at the space's edge rather than a step short of it."""
+    lo, hi = free, crowded
+    for _ in range(40):
+        mid = Position((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2,
+                       getattr(crowded, "facing", 0.0))
+        if _crowded(session, combatant_id, mid):
+            hi = mid
+        else:
+            lo = mid
+    return lo
+
+
 def move_toward(
     session: "CombatSession",
     combatant_id: str,
@@ -166,6 +225,17 @@ def move_toward(
         distance_m=distance_m, scene=scene,
         combatant_id=combatant_id, session=session,
     )
+    # NOT ONTO ANYBODY (`PERSONAL_SPACE_M`). A landing inside another
+    # man's space is moved back along the path to its edge, and the move
+    # is asked again to there, so walls, ground and falls are judged for
+    # where he really stops.
+    clear = _short_of_the_crowd(session, combatant_id, start, outcome.landing)
+    if clear is not outcome.landing:
+        outcome = movement_reach(
+            mode=mode, from_pos=start, to_pos=clear,
+            distance_m=distance_m, scene=scene,
+            combatant_id=combatant_id, session=session,
+        )
     from kirby_combat.endurance import pay_for_movement
     from kirby_world.geometry import distance_3d
 

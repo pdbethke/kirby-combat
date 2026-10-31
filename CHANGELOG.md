@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.27.0 — 2026-10-31
+
+**Two men do not end a move on one spot** (Peter's ruling, 2026-10-31, from 6E2 p.56 and p.31). The book has no general rule against sharing a space, but never puts two bodies at one point: Hand-To-Hand Combat is between characters "within Reach of one another", Reach being "1 meter around himself", so men in contact (grappling included) stand up to a metre apart; and a Teleport's safety system puts a man in "the closest space from the target point where he fits". Tests: `tests/loop/test_no_two_men_in_one_place.py`, `tests/loop/test_off_the_board.py`.
+
+- A move toward a man (`move`, `half_move`) stops within the mover's Reach of him. It used his position as the destination and ended on him, as `move_strike` already did not.
+- `placement.move_toward` never lands within `PERSONAL_SPACE_M` (1m, base Reach) of another combatant: a crowded landing is pulled back along the path to the space's edge, and the move is asked again to there. A man already inside someone's space stays put rather than moving closer.
+- Fixed: `resolvers._stop_at_reach` and `enumeration._point_within_reach` returned the TARGET's point when the mover was already within reach, so the "move" walked him onto the man. They return the mover's own position.
+- Coming back onto the board (`off_board.come_back`): he can see the board from off it (Peter), so when somebody stands where he crossed he comes back to the nearest spot inside the map that nobody does. **New event kind `ReturnedToTheBoard`** (`combatant_id`, `at`, `mode`), log-only, written when he arrives: the crossing point alone no longer says where he is.
+
+Not built, noted: a BLIND Teleport (to a point he cannot perceive) onto an occupied point is 6E2 p.31's mishap, with damage (Peter: "unless it's a really unlucky blind teleport"); nothing in the engine teleports blind yet.
+
 ## 0.26.0 — 2026-10-30
 
 **Behaviour changes** every fight with these powers sees. Measured against every attack in the local character library (2,585): 2,356 already agreed with Hero Designer's END column; now all do.

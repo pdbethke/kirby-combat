@@ -117,10 +117,14 @@ def test_a_full_move_is_capped_by_the_characters_running():
     assert position_of(resolved.session.scene, "actor").x == pytest.approx(12.0)
 
 
-def test_a_reachable_destination_is_reached_exactly():
+def test_a_reachable_man_is_reached_within_reach_of_him():
+    """Reached, and not stood on: he stops his Reach (1m) short (6E2 p.56;
+    Peter's ruling 2026-10-31, tests/loop/test_no_two_men_in_one_place.py).
+    This asserted x == 5.0, the man's own point."""
     session = _session(apart=5.0)
     resolved = _resolve(session, _act("move"))
-    assert position_of(resolved.session.scene, "actor").x == pytest.approx(5.0)
+    assert position_of(resolved.session.scene, "actor").x == pytest.approx(4.0)
+    assert resolved.session.event_log[-1].result_payload["reached"] is True
 
 
 def test_the_outcome_says_whether_the_destination_was_reached():

@@ -298,3 +298,43 @@ def test_the_trip_back_costs_end():
             if not Roster(phase.session).is_off_board("t"):
                 break
     assert spent == [(-1, "end_spent"), (-1, "end_spent")]
+
+
+def test_somebody_standing_where_he_crossed_does_not_get_him_on_top_of_him():
+    """He can see the board from off it (Peter, 2026-10-31), so he comes
+    back to the nearest spot nobody stands in, inside the map, rather than
+    onto the man at the edge; and the engine says he is back."""
+    from dataclasses import replace
+
+    from kirby_world.geometry import distance_3d
+
+    from kirby_combat.placement import PERSONAL_SPACE_M
+
+    phase = _knocked_off_in_segment_12()
+    s = phase.session
+    # `a` walks to the very point `t` crossed at, x=25.
+    s = replace(s, scene=replace(s.scene, combatant_positions={
+        **s.scene.combatant_positions, "a": Position(25.0, 10.0, 0.0)}))
+    phase = replace(phase, encounter=replace(phase.encounter, sessions=[s]))
+    class _AStandsStill:
+        def choose(self, situation):
+            if situation.actor.id == "a":
+                still = [x for x in situation.menu
+                         if x.kind in ("dodge", "hold", "recover", "no_abort")]
+                assert still, [x.kind for x in situation.menu]
+                return still[0].action_id
+            return situation.menu[0].action_id
+
+    roller = FakeRoller([TIE] * 8)
+    while True:
+        phase = run_phase(phase.encounter, _AStandsStill(), roller=roller)
+        if phase.actor_id == "t" and not Roster(phase.session).is_off_board("t"):
+            break
+    s = phase.session
+    assert s.scene.combatant_positions["a"] == Position(25.0, 10.0, 0.0), "a stayed put"
+    here = s.scene.combatant_positions["t"]
+    assert here.x <= 25.0 + 1e-9, "inside the map"
+    assert distance_3d(here, s.scene.combatant_positions["a"]) >= PERSONAL_SPACE_M - 1e-6
+    (back,) = [e for e in s.event_log if e.kind == "ReturnedToTheBoard"]
+    assert back.combatant_id == "t"
+    assert (back.at["x"], back.at["y"]) == (here.x, here.y)
