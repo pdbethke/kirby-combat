@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -309,6 +309,19 @@ def announce(session: "CombatSession") -> "CombatSession":
     return session
 
 
+def _say_he_is_back(session, combatant_id: str, at, mode: str):
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import ReturnedToTheBoard, make_author_engine
+
+    return apply_event(session, ReturnedToTheBoard(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id=combatant_id, at={"x": at.x, "y": at.y, "z": at.z},
+        mode=mode,
+    ))
+
+
 def _half_used(session: "CombatSession", combatant_id: str, kind: str,
                action_id: str) -> "CombatSession":
     from kirby_combat.action_time import ActionTime
@@ -323,6 +336,40 @@ def _half_used(session: "CombatSession", combatant_id: str, kind: str,
         time=ActionTime.HALF.value,
         turn=int(session.timeline.turn), segment=int(session.timeline.segment),
     ))
+
+
+#: How far from where he crossed he looks for a spot nobody stands in.
+_SEARCH_RINGS_M = tuple(0.25 * i for i in range(1, 17))
+_SEARCH_BEARINGS = 24
+
+
+def _free_spot_near(session: "CombatSession", combatant_id: str, point):
+    """``point``, or the nearest spot inside the map within a few metres of
+    it that no other combatant stands within `PERSONAL_SPACE_M` of. He can
+    see the board from off it (Peter, 2026-10-31), so he picks his landing;
+    6E2 p.31's Teleport "closest space from the target point where he fits",
+    without the damage. None when there is no such spot nearby."""
+    from kirby_world.scene import Position
+
+    from kirby_combat.placement import _crowded
+
+    if not _crowded(session, combatant_id, point):
+        return point
+    bounds = _bounds(session)
+    best = None
+    for r in _SEARCH_RINGS_M:
+        for i in range(_SEARCH_BEARINGS):
+            a = 2 * math.pi * i / _SEARCH_BEARINGS
+            p = Position(point.x + r * math.cos(a), point.y + r * math.sin(a),
+                         point.z, point.facing)
+            if bounds is not None and not _inside(bounds, p.x, p.y):
+                continue
+            if not _crowded(session, combatant_id, p):
+                best = p
+                break
+        if best is not None:
+            return best
+    return None
 
 
 def come_back(session: "CombatSession", combatant_id: str) -> tuple["CombatSession", bool, str]:
@@ -345,6 +392,12 @@ def come_back(session: "CombatSession", combatant_id: str) -> tuple["CombatSessi
     halves = halves_left(session, combatant_id)
     allowance = back.combat_m * halves / 2.0
     here = session.scene.combatant_positions[combatant_id]
+    # NOT ONTO A MAN STANDING THERE (`_free_spot_near`). A crowded edge with
+    # nowhere free nearby leaves the crossing point as the aim; the last
+    # leg is then stopped short of the man like any move.
+    target = _free_spot_near(session, combatant_id, target) or target
+    distance = math.hypot(target.x - here.x, target.y - here.y)
+    back = replace(back, distance_m=distance)
     moved = min(back.distance_m, allowance)
     if back.distance_m <= allowance + _EPS:
         end = target
@@ -360,6 +413,8 @@ def come_back(session: "CombatSession", combatant_id: str) -> tuple["CombatSessi
         int(back.capability.end_cost), used_m=moved, combat_m=back.combat_m),
         power=back.capability, template=session.template)
     arrived = end is target
+    if arrived:
+        session = _say_he_is_back(session, combatant_id, end, back.mode)
     used = 1 if moved <= back.combat_m / 2.0 + _EPS else 2
     if arrived and halves - used > 0:
         session = _half_used(session, combatant_id, "half_move",

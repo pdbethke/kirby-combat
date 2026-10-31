@@ -2392,8 +2392,9 @@ def _reach_of(actor, action) -> float:
 def _stop_at_reach(here, there, reach_m: float):
     """A point on the line to `there`, `reach_m` short of it.
 
-    Returns `there` unchanged when the mover is already inside reach ---
-    closing on someone you can already hit is not a move backwards.
+    Returns `here` when the mover is already inside reach: closing on
+    someone you can already hit is no move at all. It returned `there`,
+    the man's own point, and the "move" walked the mover onto him.
     """
     from kirby_world.geometry import distance_3d
     from kirby_world.scene import Position
@@ -2402,7 +2403,7 @@ def _stop_at_reach(here, there, reach_m: float):
         return there
     gap = distance_3d(here, there)
     if gap <= reach_m or gap == 0.0:
-        return there
+        return here
     keep = (gap - reach_m) / gap
     return Position(
         here.x + (there.x - here.x) * keep,
@@ -2441,6 +2442,10 @@ def _resolve_move(
     destination = position_of(session.scene, action.target_id)
     if destination is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    # TO WITHIN REACH OF HIM, NOT ONTO HIM (6E2 p.56; Peter's ruling,
+    # 2026-10-31: tests/loop/test_no_two_men_in_one_place.py).
+    destination = _stop_at_reach(position_of(session.scene, actor.id),
+                                 destination, _reach_of(actor, action))
 
     new_session, outcome = move_toward(
         session, actor.id, destination,

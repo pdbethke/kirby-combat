@@ -3277,6 +3277,67 @@
       "title": "RecoveryTaken",
       "type": "object"
     },
+    "ReturnedToTheBoard": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ReturnedToTheBoard",
+          "enum": [
+            "ReturnedToTheBoard"
+          ],
+          "type": "string"
+        },
+        "at": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ReturnedToTheBoard",
+          "enum": [
+            "ReturnedToTheBoard"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "at",
+        "mode"
+      ],
+      "title": "ReturnedToTheBoard",
+      "type": "object"
+    },
     "Scene": {
       "additionalProperties": false,
       "properties": {
@@ -4199,7 +4260,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.26.0",
+  "$id": "urn:kirby-combat:schema:events:0.27.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4317,6 +4378,9 @@
       "$ref": "#/$defs/RecoveryTaken"
     },
     {
+      "$ref": "#/$defs/ReturnedToTheBoard"
+    },
+    {
       "$ref": "#/$defs/SegmentAdvanced"
     },
     {
@@ -4342,5 +4406,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.26.0"
+  "x-kirby-combat-version": "0.27.0"
 }

@@ -30,7 +30,9 @@ def _resolve_half_move(
     Where he ends up is `movement_reach`'s answer, as for the Full Move; the
     difference is the allowance, and that the Phase is still his after it.
     """
-    from kirby_combat.loop.resolvers import _events_since, _half_move, _recorded
+    from kirby_combat.loop.resolvers import (
+        _events_since, _half_move, _reach_of, _recorded, _stop_at_reach,
+    )
     from kirby_combat.placement import move_toward
     from kirby_world.occupancy import position_of
 
@@ -40,6 +42,9 @@ def _resolve_half_move(
     destination = position_of(session.scene, action.target_id)
     if destination is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    # To within Reach of him, not onto him (6E2 p.56).
+    destination = _stop_at_reach(position_of(session.scene, actor.id),
+                                 destination, _reach_of(actor, action))
     moved, outcome = move_toward(
         session, actor.id, destination, mode=mode,
         distance_m=_half_move(actor, mode), template=template,

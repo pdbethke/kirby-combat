@@ -632,6 +632,23 @@ class ForcedOffTheBoard(BaseEvent):
 
 
 @dataclass
+class ReturnedToTheBoard(BaseEvent):
+    """He is back on the board, at ``at``, by ``mode``: the end of the trip
+    `ForcedOffTheBoard` began (`off_board.come_back`).
+
+    Usually the point where he crossed. When somebody stands there he comes
+    back to the nearest spot inside the map that nobody does (Peter's ruling,
+    2026-10-31: he can see the board from off it, so he does not blunder
+    onto a man; `placement.PERSONAL_SPACE_M`), so the crossing point alone
+    no longer says where he is. Log-only.
+    """
+    kind: Literal["ReturnedToTheBoard"] = field(default="ReturnedToTheBoard", init=False)
+    combatant_id: str = ""
+    at: dict[str, float] = field(default_factory=dict)
+    mode: str = ""
+
+
+@dataclass
 class EnduranceReserveChanged(BaseEvent):
     """END into or out of one of a character's Endurance Reserves (6E1 p.207).
 
@@ -989,6 +1006,7 @@ CombatEvent = (
     | PhaseTimeUsed
     | ConcentrationBegan
     | ForcedOffTheBoard
+    | ReturnedToTheBoard
     | EnduranceReserveChanged
     | RageRolled
     | RageTargeted

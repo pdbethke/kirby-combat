@@ -154,8 +154,8 @@ def _primary_lift_kg(str_value: int) -> float:
 def _point_within_reach(actor_pos: Any, enemy_pos: Any, reach_m: float) -> Any:
     """A point on the actor→enemy line that sits ``reach_m`` short of the enemy
     (so a mover landing there is within melee reach). Returns an engine
-    ``Position``. If the actor is already within reach, returns ``enemy_pos``
-    unchanged."""
+    ``Position``. If the actor is already within reach, returns ``actor_pos``:
+    no move. It returned the enemy's own point, onto him."""
     from kirby_world.scene import Position
 
     d = _xyz_dist(actor_pos, enemy_pos)
@@ -163,7 +163,7 @@ def _point_within_reach(actor_pos: Any, enemy_pos: Any, reach_m: float) -> Any:
     # degenerate-geometry guard (co-located actor and enemy — nothing to walk
     # back along), not a rule.
     if within_reach(d, reach_m).in_reach or d < _EPS_M:
-        return enemy_pos
+        return actor_pos
     # Walk back from the enemy toward the actor by reach_m.
     frac = (d - reach_m) / d
     return Position(
