@@ -874,6 +874,11 @@ def run_phase(
         from kirby_combat.off_board import announce
 
         session = announce(session)
+        # WHICH MINOR NPCs ARE DEAD BY RULE (6E2 p.121-122), before the
+        # statuses are written, so the DEAD reaches the log this Phase.
+        from kirby_combat.mooks import check_mooks
+
+        session = check_mooks(session)
         fields["notes"] = notes + list(fields.get("notes") or [])
         return _phase_result(encounter, session, log_before,
                              actor_id=actor_id, **fields)

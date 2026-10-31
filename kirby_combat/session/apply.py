@@ -173,6 +173,14 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "IdentityChanged":
         return _fold_identity(session, new_log, now, event)
 
+    if kind == "MinorFoeKilled":
+        # 6E2 p.121-122: a minor NPC dead by rule. On his state, because
+        # `is_down` reads a combatant and not the log.
+        dead = session.combatants[event.combatant_id]
+        killed = replace(dead, state=replace(dead.state, dead_by_minor_rule=True))
+        return replace(session, event_log=new_log, updated_at=now,
+                       combatants={**session.combatants, event.combatant_id: killed})
+
     if kind == "RecoveryTaken":
         assert isinstance(event, RecoveryTaken)
         # 6E2 p.130's Recovery and p.131's free Post-Segment 12 Recovery,

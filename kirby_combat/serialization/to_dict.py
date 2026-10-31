@@ -125,6 +125,8 @@ def to_dict(obj: Any) -> Any:
             "aborted": obj.state.aborted,
             "in_hero_id": obj.state.in_hero_id,
             "knockback_resistance": obj.knockback_resistance,
+            "minor_hits": obj.minor_hits,
+            "dead_by_minor_rule": obj.state.dead_by_minor_rule,
             # Which part of the fight this man is on. A `Side` is an
             # object with an identity, not a label, and it was dropped on
             # the wire entirely: a rebuilt roster was an N-way free-for-all

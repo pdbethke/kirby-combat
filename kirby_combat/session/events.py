@@ -632,6 +632,25 @@ class ForcedOffTheBoard(BaseEvent):
 
 
 @dataclass
+class MinorFoeKilled(BaseEvent):
+    """A minor NPC dead by one of 6E2 p.121-122's rules (`mooks.py`).
+
+    ``rule`` is ``zero_body`` ("Once a minor enemy hits 0 BODY, he falls
+    over dead"), ``stunned`` ("any time a minor NPC becomes Stunned by a
+    Normal Damage or Killing Damage attack, he's not Stunned - he's dead")
+    or ``hits`` (his `minor_hits` successful Attack Rolls have landed).
+    ``cause_event_id`` is the row that did it: the attack's
+    ``ActionResolved``, or empty for 0 BODY reached any way. Folded onto
+    his state (`HeroCombatState.dead_by_minor_rule`), so `is_down` and
+    `statuses._is_dead` both read it.
+    """
+    kind: Literal["MinorFoeKilled"] = field(default="MinorFoeKilled", init=False)
+    combatant_id: str = ""
+    rule: str = ""
+    cause_event_id: str = ""
+
+
+@dataclass
 class ReturnedToTheBoard(BaseEvent):
     """He is back on the board, at ``at``, by ``mode``: the end of the trip
     `ForcedOffTheBoard` began (`off_board.come_back`).
@@ -1007,6 +1026,7 @@ CombatEvent = (
     | ConcentrationBegan
     | ForcedOffTheBoard
     | ReturnedToTheBoard
+    | MinorFoeKilled
     | EnduranceReserveChanged
     | RageRolled
     | RageTargeted

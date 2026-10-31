@@ -752,6 +752,9 @@ def _is_dead(session: "CombatSession", combatant_id: str) -> bool:
                 and "Dead" in payload.get("status_changes", ())
             ):
                 return True
+        # A minor NPC dead by one of 6E2 p.121-122's rules (`mooks.py`).
+        elif evt.kind == "MinorFoeKilled" and evt.combatant_id == combatant_id:
+            return True
     return False
 
 

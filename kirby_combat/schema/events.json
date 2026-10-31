@@ -2443,6 +2443,64 @@
       "title": "LingeringAttackEnded",
       "type": "object"
     },
+    "MinorFoeKilled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "MinorFoeKilled",
+          "enum": [
+            "MinorFoeKilled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "cause_event_id": {
+          "type": "string"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "MinorFoeKilled",
+          "enum": [
+            "MinorFoeKilled"
+          ],
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "rule",
+        "cause_event_id"
+      ],
+      "title": "MinorFoeKilled",
+      "type": "object"
+    },
     "MovementResolved": {
       "additionalProperties": false,
       "properties": {
@@ -4260,7 +4318,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.27.1",
+  "$id": "urn:kirby-combat:schema:events:0.28.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4342,6 +4400,9 @@
       "$ref": "#/$defs/LingeringAttackEnded"
     },
     {
+      "$ref": "#/$defs/MinorFoeKilled"
+    },
+    {
       "$ref": "#/$defs/MovementResolved"
     },
     {
@@ -4406,5 +4467,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.27.1"
+  "x-kirby-combat-version": "0.28.0"
 }

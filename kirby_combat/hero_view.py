@@ -147,6 +147,9 @@ class HeroCombatState:
     current_stun: int
     current_body: int
     current_end: int
+    #: Killed by one of the minor-NPC rules (`kirby_combat/mooks.py`): set
+    #: by `apply_event` from a `MinorFoeKilled` row, read by `is_down`.
+    dead_by_minor_rule: bool = False
 
     # Position + status
     position: Position = field(default_factory=Position)
@@ -583,6 +586,18 @@ class HeroCombatant(Stunnable, CombatParticipant):
     #: combatant on every vitals change. The instance-attribute version of
     #: this lost a rebuilt combatant's defenses the first time it spent END.
     snapshot: "CombatantSnapshot | None" = None
+    #: A MINOR NPC (6E2 p.121-122), and how many hits kill him under the
+    #: hit-counting rule: 1 is a one-hit wonder. None is everybody else ---
+    #: player characters, major enemies and villains, who "should function
+    #: in combat just like PCs do". Which of the minor-NPC rules apply is the
+    #: campaign template's (`minor_*`). Set by whoever seats the fight.
+    minor_hits: "int | None" = None
+
+    def __post_init__(self) -> None:
+        if self.minor_hits is not None and int(self.minor_hits) < 1:
+            raise ValueError(
+                f"{self.id!r}: minor_hits is how many hits kill a minor NPC "
+                f"(1 = a one-hit wonder), not {self.minor_hits!r}")
 
     # ─────────────────────────────────────────────────────────────────────
     # Identity (6E1 p.388): what he owns in the identity he is in
