@@ -158,3 +158,15 @@ def test_through_the_loop_a_one_hit_wonder_falls_and_stays_down():
                and DEAD in e.added for e in s.event_log)
     assert s.combatants["m"].state.current_stun > 0, "a 1d6 blast cannot KO 60 STUN"
     assert Roster(s).decide() is not None, "his side is beaten"
+
+
+def test_the_cinematic_templates_are_the_raw_ones_with_the_mook_rules_on():
+    """Peter, 2026-10-31: a table turns the minor-NPC rules on by naming a
+    cinematic template (6E2 p.121: rules "to make a game a little more like
+    novels and movies")."""
+    for name, raw in (("6e-superheroic-cinematic", RAW_SUPERHEROIC),
+                      ("6e-heroic-cinematic", RAW_HEROIC)):
+        t = CombatTemplate.by_name(name)
+        assert t.minor_dead_at_zero_body and t.minor_stunned_is_dead and t.minor_hit_counting
+        assert dataclasses.replace(t, name=raw.name, minor_dead_at_zero_body=False,
+                                   minor_stunned_is_dead=False, minor_hit_counting=False) == raw
