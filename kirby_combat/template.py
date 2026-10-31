@@ -91,6 +91,13 @@ class CombatTemplate:
     #: Counting hits: a minor NPC dies to `minor_hits` successful Attack
     #: Rolls, a roll made by N or more counting as N.
     minor_hit_counting: bool
+    #: 6E2 p.51's optional Multiple Attacker Bonus: against attackers who
+    #: Coordinate, the defender is -1 DCV per attacker after the first, down
+    #: to 1/2 DCV (`coordination.multiple_attacker_dcv_delta`). The page
+    #: calls it "particularly inappropriate" where heroes cut through
+    #: crowds, so the cinematic templates leave it off and the gang ones
+    #: turn it on (Peter, 2026-10-31).
+    use_multiple_attacker_bonus: bool
 
     # Killing attack STUN multiplier
     killing_stun_mult_base: int         # base before the d3 roll
@@ -182,6 +189,7 @@ RAW_SUPERHEROIC = CombatTemplate(
     minor_dead_at_zero_body=False,
     minor_stunned_is_dead=False,
     minor_hit_counting=False,
+    use_multiple_attacker_bonus=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
@@ -204,6 +212,7 @@ RAW_HEROIC = CombatTemplate(
     minor_dead_at_zero_body=False,
     minor_stunned_is_dead=False,
     minor_hit_counting=False,
+    use_multiple_attacker_bonus=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
@@ -231,9 +240,24 @@ CINEMATIC_HEROIC = replace(
     minor_dead_at_zero_body=True, minor_stunned_is_dead=True, minor_hit_counting=True,
 )
 
+#: The cinematic templates with 6E2 p.51's Multiple Attacker Bonus on: a
+#: horde that Coordinates is dangerous. Peter's choice (2026-10-31), kept
+#: apart from the cinematic ones because the page itself advises against
+#: the bonus in exactly the games those are for.
+CINEMATIC_SUPERHEROIC_GANG = replace(
+    CINEMATIC_SUPERHEROIC, name="Cinematic Superheroic, Gangs",
+    use_multiple_attacker_bonus=True,
+)
+CINEMATIC_HEROIC_GANG = replace(
+    CINEMATIC_HEROIC, name="Cinematic Heroic, Gangs",
+    use_multiple_attacker_bonus=True,
+)
+
 TEMPLATES_BY_NAME: dict[str, CombatTemplate] = {
     "6e-superheroic": RAW_SUPERHEROIC,
     "6e-heroic": RAW_HEROIC,
     "6e-superheroic-cinematic": CINEMATIC_SUPERHEROIC,
     "6e-heroic-cinematic": CINEMATIC_HEROIC,
+    "6e-superheroic-cinematic-gang": CINEMATIC_SUPERHEROIC_GANG,
+    "6e-heroic-cinematic-gang": CINEMATIC_HEROIC_GANG,
 }

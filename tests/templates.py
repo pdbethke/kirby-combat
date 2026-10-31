@@ -24,6 +24,7 @@ PLAIN = CombatTemplate(
     minor_dead_at_zero_body=False,
     minor_stunned_is_dead=False,
     minor_hit_counting=False,
+    use_multiple_attacker_bonus=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,

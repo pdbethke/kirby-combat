@@ -675,6 +675,15 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # it is a Zero Phase Action and the Phase comes back to him after it.
     if reallocated_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind != REALLOCATE_KIND]
+    # ONE JOIN A STRIKE, AND ONLY WITH AN ATTACK TO FOLLOW. Joining a
+    # Coordinated attack is a Half Phase (`action_time`) made for the attack
+    # after it (6E2 p.46): not offered twice in a Segment, and not as the
+    # second half of a Phase, which would leave him nothing to attack with.
+    from kirby_combat.coordination import joined_this_segment
+
+    if (joined_this_segment(session, actor_id)
+            or phase_so_far(session, actor_id).half_kinds):
+        menu = [a for a in menu if a.kind != "coordinate"]
     # WHAT IS LEFT OF THE PHASE (6E2 p.20). After a first Half Phase Action
     # only what fits in the second; and a very impressed man "only performs
     # a Half Phase Action during his next Phase" (6E2 p.139) from the start.

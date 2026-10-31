@@ -563,6 +563,14 @@ def _fold_session_cvs(
     # resolver trims (`actions/base.py`). See `climbing_state`.
     from kirby_combat.climbing_state import climbing_dc_penalty
 
+    # 6E2 p.51: the Multiple Attacker Bonus, last, because its floor is half
+    # of the DCV everything above left him with.
+    from kirby_combat.coordination import multiple_attacker_dcv_delta
+
+    dcv_delta += multiple_attacker_dcv_delta(
+        session, attacker_id, target_id,
+        dcv=base_dcv + attack.dcv_modifier + dcv_delta)
+
     return replace(
         attack,
         surprise=surprise,
