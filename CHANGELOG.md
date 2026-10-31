@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.28.1 — 2026-10-31
+
+- **Cinematic templates** (Peter's choice of how a table turns the minor-NPC rules on, until GM-editable templates): `6e-superheroic-cinematic` and `6e-heroic-cinematic` (`CINEMATIC_SUPERHEROIC`, `CINEMATIC_HEROIC`) are the RAW templates with all three of 6E2 p.121-122's rules on. Nothing else changes.
+
 ## 0.28.0 — 2026-10-31
 
 **Minor NPCs: 6E2 p.121-122's rules for making extras fall like extras** (Peter: "build the mook rules"). Optional rules that "should only apply to minor or trivial NPCs; major enemies and villains should function in combat just like PCs do". Module `kirby_combat/mooks.py`; tests `tests/loop/test_mooks.py`.

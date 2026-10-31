@@ -1,7 +1,7 @@
 """HERO System 6E CombatTemplate — campaign/game-mode configuration."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kirby_combat.session.tie_rule import TieRule
 
@@ -219,7 +219,21 @@ RAW_HEROIC = CombatTemplate(
 #: consumer persists against a fight, so they are stable identifiers
 #: ("6e-superheroic"), not the display `name` field ("RAW Superheroic")
 #: which is prose and may be reworded.
+#: The RAW templates with 6E2 p.121-122's minor-NPC rules on (`mooks.py`):
+#: "to make a game a little more like novels and movies". Peter's choice
+#: (2026-10-31) of how a table turns them on, until GM-editable templates.
+CINEMATIC_SUPERHEROIC = replace(
+    RAW_SUPERHEROIC, name="Cinematic Superheroic",
+    minor_dead_at_zero_body=True, minor_stunned_is_dead=True, minor_hit_counting=True,
+)
+CINEMATIC_HEROIC = replace(
+    RAW_HEROIC, name="Cinematic Heroic",
+    minor_dead_at_zero_body=True, minor_stunned_is_dead=True, minor_hit_counting=True,
+)
+
 TEMPLATES_BY_NAME: dict[str, CombatTemplate] = {
     "6e-superheroic": RAW_SUPERHEROIC,
     "6e-heroic": RAW_HEROIC,
+    "6e-superheroic-cinematic": CINEMATIC_SUPERHEROIC,
+    "6e-heroic-cinematic": CINEMATIC_HEROIC,
 }
