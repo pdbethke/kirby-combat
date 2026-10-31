@@ -310,6 +310,9 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         last_acted_segment=data.get("last_acted_segment"),
         aborted=bool(data.get("aborted", False)),
         in_hero_id=bool(data.get("in_hero_id", True)),
+        # Absent from snapshots written before the minor-NPC rules (0.28):
+        # nobody was killed by one.
+        dead_by_minor_rule=bool(data.get("dead_by_minor_rule", False)),
     )
     hc = HeroCombatant(
         id=data["id"],
@@ -318,6 +321,8 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         knockback_resistance=int(data.get("knockback_resistance", 0)),
         side=from_dict(data["side"]),
         snapshot=_snapshot_from_dict(data),
+        # Absent from snapshots written before 0.28: nobody was a minor NPC.
+        minor_hits=data.get("minor_hits"),
     )
     return hc
 

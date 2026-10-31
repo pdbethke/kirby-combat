@@ -78,11 +78,19 @@ class CombatTemplate:
     tie_rule: TieRule
 
     # One-Hit Wonder optional rule
-    # UNREAD: nothing in the engine applies One-Hit Wonder yet, so
-    # switching it on changes nothing. Kept, and flagged, until it is
-    # built or dropped.
-    one_hit_wonder_enabled: bool
-    one_hit_wonder_pct: float           # fraction of max STUN to trigger
+    # MINOR NPCs, 6E2 p.121-122's optional rules, which "should only apply
+    # to minor or trivial NPCs" (a combatant's `minor_hits`; see
+    # `kirby_combat/mooks.py`). Each is the campaign's choice. They replace
+    # `one_hit_wonder_enabled` / `one_hit_wonder_pct`, which nothing read
+    # and which described a STUN threshold the book does not have.
+    #: "Once a minor enemy hits 0 BODY, he falls over dead."
+    minor_dead_at_zero_body: bool
+    #: "any time a minor NPC becomes Stunned by a Normal Damage or Killing
+    #: Damage attack, he's not Stunned - he's dead."
+    minor_stunned_is_dead: bool
+    #: Counting hits: a minor NPC dies to `minor_hits` successful Attack
+    #: Rolls, a roll made by N or more counting as N.
+    minor_hit_counting: bool
 
     # Killing attack STUN multiplier
     killing_stun_mult_base: int         # base before the d3 roll
@@ -171,8 +179,9 @@ RAW_SUPERHEROIC = CombatTemplate(
     manage_endurance=True,
     manage_endurance_npc=True,
     tie_rule=TieRule.DEX_ROLL,
-    one_hit_wonder_enabled=False,
-    one_hit_wonder_pct=0.5,
+    minor_dead_at_zero_body=False,
+    minor_stunned_is_dead=False,
+    minor_hit_counting=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
@@ -192,8 +201,9 @@ RAW_HEROIC = CombatTemplate(
     manage_endurance=True,
     manage_endurance_npc=True,
     tie_rule=TieRule.DEX_ROLL,
-    one_hit_wonder_enabled=False,
-    one_hit_wonder_pct=0.5,
+    minor_dead_at_zero_body=False,
+    minor_stunned_is_dead=False,
+    minor_hit_counting=False,
     killing_stun_mult_base=1,
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,

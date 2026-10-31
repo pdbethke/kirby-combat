@@ -316,6 +316,7 @@ def synthetic_combatant(
     csls: list[Any] | None = None,
     is_mentalist: bool = False,
     is_npc: bool = False,
+    minor_hits: int | None = None,
     knockback_resistance: int = 0,
     skills: dict[str, int] | None = None,
     combat_levels: list[tuple[int, str, str]] | None = None,
@@ -379,6 +380,7 @@ def synthetic_combatant(
         state=state,
         knockback_resistance=int(knockback_resistance),
         side=side,
+        minor_hits=minor_hits,
         # Flat-Combatant explicit lists/flags, and the defenses the base
         # `_compute_stats_from_hero` cannot derive (a synthetic hero owns no
         # defense powers). All are real fields so they survive the

@@ -391,7 +391,9 @@ def is_down(c: HeroCombatant) -> bool:
     Used by both this module (gate enumeration) and the driver loop
     (skip phases for downed combatants, detect win condition).
     """
-    return c.state.current_stun <= 0 or c.state.current_body <= 0
+    return (c.state.current_stun <= 0 or c.state.current_body <= 0
+            # A minor NPC dead by rule (6E2 p.121-122; `mooks.py`).
+            or bool(getattr(c.state, "dead_by_minor_rule", False)))
 
 
 def _biggest_attack_dice(c: HeroCombatant) -> float:

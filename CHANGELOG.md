@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.28.0 — 2026-10-31
+
+**Minor NPCs: 6E2 p.121-122's rules for making extras fall like extras** (Peter: "build the mook rules"). Optional rules that "should only apply to minor or trivial NPCs; major enemies and villains should function in combat just like PCs do". Module `kirby_combat/mooks.py`; tests `tests/loop/test_mooks.py`.
+
+- **Who:** `HeroCombatant.minor_hits` (and `synthetic_combatant(minor_hits=)`): None for everybody else; a number marks a minor NPC and is how many hits kill him (1 = a one-hit wonder). Set by whoever seats the fight; carried by snapshots.
+- **Which rules:** three required `CombatTemplate` switches, off in both RAW templates (they are optional): `minor_dead_at_zero_body` ("Once a minor enemy hits 0 BODY, he falls over dead"), `minor_stunned_is_dead` ("any time a minor NPC becomes Stunned by a Normal Damage or Killing Damage attack, he's not Stunned - he's dead"), `minor_hit_counting` (dead after `minor_hits` successful Attack Rolls, a roll made by N or more counting as N).
+- **Breaking:** they replace `one_hit_wonder_enabled` / `one_hit_wonder_pct`, which nothing read and which described a STUN threshold the book does not have.
+- **New event kind `MinorFoeKilled`** (`combatant_id`, `rule`, `cause_event_id`), written at the end of the Phase a rule fires (`loop/run.py`), folded onto `HeroCombatState.dead_by_minor_rule` (read by `is_down`) and read by `statuses._is_dead`, so the DEAD reaches the log as a status change that Phase.
+- RULINGS: only Normal and Killing damage attacks count; under hit counting STUN and BODY still roll and fold (the book keeps the dice rolling "to disguise what he's doing"), so a mook can still be knocked out; the "especially good damage roll counts as 1 or 2 more" option is the GM's and is not applied.
+
+Measured (local sweep, synthetic): three heroes against 20 one- and two-hit agents, 3 Turns, 1.1s; against 60 and 120, about 5s each.
+
 ## 0.27.1 — 2026-10-31
 
 - **Fixed: cover nobody could take was offered.** The menu kept a covered spot off the menu only when another man stood within 0.5m of it (`enumeration._SAME_SPACE_M`), while 0.27.0's moves stop `placement.PERSONAL_SPACE_M` (1m) short of anybody. A spot 0.5-1m from a man was offered, the move stopped short of it, he was still worse off than the spot, and he was offered it again every half Phase: at the O.K. Corral (seed 59) 20 of 24 cover moves went nowhere and the fight ran to 279 events. The offer now uses the move's own distance; the corral is 139 events and no move-kind action goes nowhere. Test: `tests/loop/test_cover_is_not_offered_inside_a_man.py`.
