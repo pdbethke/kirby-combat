@@ -53,6 +53,8 @@ LoadedHero + state.
 """
 from __future__ import annotations
 
+import contextlib
+
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -531,6 +533,25 @@ def _with_adjusted_dice(attacks, adjusted: dict[str, int]) -> list[AttackPower]:
             continue
         out.append(replace(a, damage_dice=full))
     return out
+
+
+@contextlib.contextmanager
+def _as_active_hero(hero):
+    """Make ``hero`` kirby-cost's active hero for the reads inside, then restore.
+
+    kirby-cost evaluates lazy values (skill rolls, maneuver and STR costs)
+    against the single `EngineContext` active hero, and "multi-hero
+    consumers must re-set the active hero ... before reading costs after
+    any subsequent load" (`LoadedHero`). A fight holds many heroes.
+    """
+    from kirby_cost.core.context import EngineContext
+
+    prior = EngineContext.active_hero()
+    EngineContext.set_active_hero(hero)
+    try:
+        yield
+    finally:
+        EngineContext.set_active_hero(prior)
 
 
 @dataclass
@@ -1357,18 +1378,24 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
         rolls: dict[str, int] = {}
         seen: set[str] = set()
-        for sk in getattr(self._build(), "skills", None) or []:
-            xmlid = (getattr(sk, "xmlid", None) or "").upper()
-            if not xmlid or xmlid in seen:
-                continue
-            seen.add(xmlid)
-            rv = getattr(sk, "roll_value", None)
-            if rv is None:
-                continue
-            try:
-                rolls[xmlid] = int(rv)
-            except (TypeError, ValueError):
-                continue
+        build = self._build()
+        # kirby-cost works `roll_value` out lazily against ONE global active
+        # hero, and `LoadedHero` tells multi-hero consumers to set it before
+        # reading; without this every man in a fight rolled off the
+        # characteristics of whoever was built last.
+        with _as_active_hero(build):
+            for sk in getattr(build, "skills", None) or []:
+                xmlid = (getattr(sk, "xmlid", None) or "").upper()
+                if not xmlid or xmlid in seen:
+                    continue
+                seen.add(xmlid)
+                rv = getattr(sk, "roll_value", None)
+                if rv is None:
+                    continue
+                try:
+                    rolls[xmlid] = int(rv)
+                except (TypeError, ValueError):
+                    continue
         return rolls
 
     def maneuver_view(self) -> list["MartialManeuverView"]:
