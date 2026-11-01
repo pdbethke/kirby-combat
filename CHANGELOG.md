@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.1 — 2026-11-01
+
+- **The Coordinate roll is the one on the character sheet.** `coordination.roll_profile` worked Teamwork out as 9 + DEX/5 (and Tactics as 9 + INT/5) from whether the skill was present at all, so a Familiarity, "an 8- roll" (6E1 p.62), coordinated as the full skill, and levels bought in the skill (+1 for 2 points, 6E1 p.63) never reached the roll. It now reads `skill_roll_value`, the cost engine's computed roll that perception and Paramedics already use. Found on prod: the Cloned Soldier's Teamwork Familiarity rolled 12-. Tests `tests/test_teamwork_roll_from_the_sheet.py`. **Behaviour change:** fights with a Teamwork Familiarity or bought levels replay differently.
+
 ## 0.29.0 — 2026-10-31
 
 **Coordinated attacks work, and gangs get the Multiple Attacker Bonus** (Peter: "build them both. thats where it gets interesting"). Tests `tests/loop/test_coordinated_attacks.py`.

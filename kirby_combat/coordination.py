@@ -60,20 +60,24 @@ def roll_profile(actor) -> tuple[str, int]:
 
     Teamwork first (6E2 p.46 names it), then Tactics, then a flat DEX 8-
     for a character with neither --- anyone can try to time a blow, just
-    not well. A Characteristic-based Skill Roll is 9 + CHAR/5 (6E1 p.58).
-    """
-    from kirby_combat.identity import build_in_play
+    not well.
 
-    skills = {
-        (getattr(s, "xmlid", "") or "").upper()
-        for s in (getattr(build_in_play(actor), "skills", None) or [])
-    }
-    stats = actor.combat_stats()
-    if "TEAMWORK" in skills:
-        return "Teamwork", max(8, 9 + int(stats.dex) // 5)
-    if "TACTICS" in skills:
-        int_score = int(actor.hero.characteristic_value("INT") or 10)
-        return "Tactics", 9 + int_score // 5
+    The roll is the SHEET's (`skill_roll_value`, the cost engine's
+    computed roll, the door perception and Paramedics use), not 9 + CHAR/5
+    worked out here: a Familiarity is "an 8- roll" (6E1 p.62) and bought
+    levels add +1 for 2 points (6E1 p.63), and the hand-rolled formula saw
+    neither. Like every skill roll in this engine it is the roll as built;
+    a Drained DEX does not lower it.
+
+    A flat stat block owns no skills (no `skill_roll_value`, as
+    the Trip resolver finds), so it tries on DEX 8-.
+    """
+    if not hasattr(actor, "skill_roll_value"):
+        return "DEX", 8
+    for xmlid, skill in (("TEAMWORK", "Teamwork"), ("TACTICS", "Tactics")):
+        roll = actor.skill_roll_value(xmlid)
+        if roll is not None:
+            return skill, int(roll)
     return "DEX", 8
 
 
