@@ -313,6 +313,12 @@ class LegalAction:
     # None for non-movement actions. Defaults to "running" for the bare
     # ``move:<enemy>`` / ``move_strike:<enemy>:<xmlid>`` running aliases.
     mode: str | None = None
+    # The summary a "judged" page prints in its place (CombatTemplate.
+    # page_knowledge): set only on an offer whose `summary` interpolates an
+    # ENEMY's sheet number (today the `attack` offer's "vs DCV n -- needs
+    # m-"). The enumerator does not know the template, so it states both and
+    # `Brief` picks. None means the summary carries nothing of his sheet.
+    judged_summary: str | None = None
     # Mind Control's ORDER (`mental/mind_control.ORDERS`), or a Mental
     # Illusion's ILLUSION (`mental/mental_illusion.ILLUSIONS`, by name): the
     # book names either before the roll and it sets the level needed (6E1
@@ -1268,6 +1274,10 @@ def enumerate_actions(
                     f"({dmg_summary}, OCV {s.ocv} vs DCV "
                     f"{enemy.combat_stats().dcv} — needs "
                     f"{_to_hit_number(s.ocv, enemy)}- on 3d6){limit_tag}"
+                ),
+                judged_summary=(
+                    f"Attack {_friendly(enemy)} with {label} "
+                    f"({dmg_summary}, OCV {s.ocv} vs his DCV){limit_tag}"
                 ),
                 _attack_view=ap,
             ))

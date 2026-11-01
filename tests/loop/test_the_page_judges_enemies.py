@@ -35,6 +35,7 @@ class _Reads:
     def __init__(self, actor_id=None):
         self.actor_id = actor_id
         self.page = None
+        self.full = None
         self.aborts: list[tuple[str, str]] = []
 
     def choose(self, situation):
@@ -43,7 +44,9 @@ class _Reads:
             self.aborts.append((situation.actor.id, Brief(situation).render()))
             return situation.menu[0].action_id
         if self.page is None and (self.actor_id in (None, situation.actor.id)):
-            self.page = Brief(situation).render(doctrine=False)
+            brief = Brief(situation)
+            self.page = brief.render(doctrine=False)
+            self.full = brief.render()
         return situation.ordered_menu[0].action_id
 
 
@@ -105,6 +108,22 @@ def test_a_judged_page_shows_no_enemy_sheet_numbers():
     # The actor and his ally are as today.
     assert "YOU control: hero [heroes] STUN 40/40" in page
     assert "pal [heroes] STUN 40/40" in page.split("Allies:")[1].split("Enemies:")[0]
+
+
+def test_no_offer_on_a_judged_page_gives_away_his_dcv():
+    """The WHOLE page, not only the Enemies slice: the attack offer used to
+    print "OCV 9 vs DCV 5 -- needs 15- on 3d6", which is his DCV twice."""
+    def full(template):
+        r = _Reads("hero")
+        run_phase(Encounter(id="e", turn=1, segment=12,
+                            sessions=[_small(template)]),
+                  r, roller=RandomRoller(seed=7), on_unresolvable="raise")
+        return r.full
+
+    assert "OCV 9 vs DCV 5 \u2014 needs 15- on 3d6" in full(SHEET)
+    page = full(JUDGED)
+    assert "Attack goon with Blast (8d6N, OCV 9 vs his DCV)" in page
+    assert "needs" not in page and "vs DCV" not in page
 
 
 def test_the_matchup_estimate_is_gone_on_a_judged_page():

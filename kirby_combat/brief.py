@@ -720,7 +720,12 @@ class Brief:
         lines.append(f"Legal actions this Phase ({len(self.menu)}):")
         # The action_id is bracketed because it is the token a chooser
         # returns; the summary is for the reader, the id is the contract.
-        lines.extend(f"  [{a.action_id}] {a.summary}" for a in self.menu)
+        # A judged page prints the summary that leaves out his DCV and the
+        # number it gives away (`LegalAction.judged_summary`).
+        lines.extend(
+            f"  [{a.action_id}] "
+            f"{a.judged_summary if judged and a.judged_summary else a.summary}"
+            for a in self.menu)
         return "\n".join(lines)
 
     def __str__(self) -> str:
