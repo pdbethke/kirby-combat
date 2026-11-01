@@ -91,12 +91,37 @@ def _is_machine(enemy: Any) -> bool:
                for p in powers)
 
 
+#: What an observer sees for each status a blow can leave (resolution/status.py).
+_SEEN_STATUS = {
+    "Stunned": "he staggered",
+    "Knocked Out": "he dropped",
+    "Dying": "he went down and stayed down",
+    "Dead": "he went down and stayed down",
+}
+
+
 def _landed_line(payload: dict) -> str:
+    """The visible consequences of one hit on him, in what an onlooker sees.
+
+    RULING: knockback is visible as it happens, so its distance is shown
+    ("knocked back 4m"); a fall (`statuses.FELL` lists the ids who went down)
+    reads "he went down". A status with no mapped sight is shown by name.
+    """
+    from kirby_combat.statuses import FELL
+
     name = _used_name(payload) or "An attack"
-    changes = [str(c) for c in (payload.get("status_changes") or [])]
-    if changes:
-        return f"{name} hit him; he staggered ({', '.join(changes)})"
-    return f"{name} hit him; he kept fighting"
+    seen: list[str] = []
+    for c in payload.get("status_changes") or []:
+        seen.append(_SEEN_STATUS.get(str(c), f"he was {c}"))
+    kb = payload.get("knockback")
+    if kb and (kb.get("distance_m", 0) > 0 or kb.get("prone")):
+        d = kb.get("distance_m", 0)
+        seen.append(f"he was knocked back {d:.0f}m" if d > 0
+                    else "he was knocked down")
+    if payload.get(FELL):
+        seen.append("he went down")
+    seen = list(dict.fromkeys(seen))
+    return f"{name} hit him; " + (", ".join(seen) if seen else "he kept fighting")
 
 
 def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:

@@ -89,7 +89,7 @@ def test_a_hit_he_took_says_what_visibly_followed():
     s = _resolved(s, "hero", power_name="Blast", target_id="vex", hit=False)
     j = judge_enemy(_situation(s), s.combatants["vex"])
     assert j.how_hits_landed == (
-        "Hellfire hit him; he staggered (Stunned)",
+        "Hellfire hit him; he staggered",
         "Strike hit him; he kept fighting",
     )
 
@@ -165,3 +165,27 @@ def test_looks_and_distance_and_down():
     assert "34m away" in "\n".join(render_judgement(j))
     s = _fight(max_stun=40, current_stun=0)
     assert "down" in judge_enemy(_situation(s), s.combatants["vex"]).features
+
+
+def _landed(**payload):
+    s = _fight()
+    s = _resolved(s, "hero", power_name="Strike", target_id="vex", hit=True,
+                  **payload)
+    return judge_enemy(_situation(s), s.combatants["vex"]).how_hits_landed[0]
+
+
+def test_knockback_is_seen_not_called_kept_fighting():
+    line = _landed(knockback={"distance_m": 4.0, "prone": False})
+    assert "kept fighting" not in line and "knocked back 4m" in line
+
+
+def test_a_fall_reads_as_going_down():
+    from kirby_combat.statuses import FELL
+    line = _landed(**{FELL: ["vex"]})
+    assert "kept fighting" not in line and "he went down" in line
+
+
+def test_each_status_reads_as_what_an_observer_sees():
+    assert "he dropped" in _landed(status_changes=["Knocked Out"])
+    assert "stayed down" in _landed(status_changes=["Dying"])
+    assert "staggered" in _landed(status_changes=["Stunned"])
