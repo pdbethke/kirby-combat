@@ -110,7 +110,7 @@ def test_an_unperceived_enemy_reveals_nothing(monkeypatch):
     assert j.seen == () and j.how_hits_landed == () and j.features == ()
     assert j.looks == "" and j.distance_m is None and j.acted is False
     text = "\n".join(render_judgement(j))
-    assert "Energy Disk" not in text and "Strike" not in text
+    assert text == "Vex [villains]: you cannot perceive him"
 
 
 def test_turn_one_reads_has_not_acted_yet():

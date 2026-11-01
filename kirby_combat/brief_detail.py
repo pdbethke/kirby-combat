@@ -970,7 +970,11 @@ def _abort_lines(situation, why, attacker, attacker_name: str) -> list[str]:
         mental = incoming.kind in _MENTAL_ACTION_KINDS
         reach = "mental" if mental else ("hand-to-hand" if _is_hth(incoming) else "ranged")
         cv_name = "OMCV" if mental else "OCV"
-        stats = attacker.combat_stats() if attacker is not None else None
+        # His exact CV is his sheet: shown only on a "sheet" page.
+        stats = (attacker.combat_stats() if attacker is not None
+                 and situation.session is not None
+                 and situation.session.template.page_knowledge == "sheet"
+                 else None)
         cv = (getattr(stats, "omcv" if mental else "ocv", None)
               if stats is not None else None)
         cv_text = f", {cv_name} {cv}" if cv is not None else ""

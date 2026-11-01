@@ -549,6 +549,31 @@ class Brief:
 
         return sightings(self._situation)
 
+    @property
+    def judged(self) -> bool:
+        """Whether this page describes enemies as a fighter JUDGES them
+        (`CombatTemplate.page_knowledge`), not from their sheets. The
+        template is the session's; a page with no session has no template
+        to say, and that is an error, not a guess; but with no enemies there
+        is nothing to describe either way, so a sessionless page of a man
+        alone (a stub in a unit test) is left as it was."""
+        session = self._situation.session
+        if session is None and not self._situation.enemies:
+            return False
+        if session is None:
+            raise ValueError(
+                "a Brief needs situation.session to know its template's "
+                "page_knowledge; pass the session the Phase is played in")
+        return session.template.page_knowledge == "judged"
+
+    def _enemy_block(self, line: CombatantLine) -> list[str]:
+        """An enemy as the actor can judge him: looks, what he has been seen
+        to do, how hits on him landed, and no sheet number. See
+        `kirby_combat.judgement`."""
+        from kirby_combat.judgement import judge_enemy, render_judgement
+
+        return render_judgement(judge_enemy(self._situation, line.combatant))
+
     def _combatant_block(self, line: CombatantLine, seen, *, actor: bool) -> list[str]:
         """A combatant's head line and, below it, his detail.
 
@@ -633,9 +658,11 @@ class Brief:
 
         lines.append("")
         lines.append("Enemies:" if self.enemies else "Enemies: none standing.")
+        judged = self.judged
         for enemy in self.enemies:
-            lines.extend(f"  {row}" for row in
-                         self._combatant_block(enemy, seen, actor=False))
+            rows = (self._enemy_block(enemy) if judged else
+                    self._combatant_block(enemy, seen, actor=False))
+            lines.extend(f"  {row}" for row in rows)
 
         lines.append("")
         lines.append(self.terrain.render())
@@ -645,7 +672,9 @@ class Brief:
         for heading, rows in (
             ("Reaching them:", detail.reach_lines(situation, seen)),
             ("What you perceive:", detail.perception_lines(situation, seen)),
-            ("The matchup:", detail.matchup_lines(situation, seen)),
+            # His defences and his speed are his sheet: under a judged page
+            # the matchup estimate (STUN through HIS PD) is not on it.
+            ("The matchup:", [] if judged else detail.matchup_lines(situation, seen)),
             ("Frameworks:", detail.framework_lines(situation)),
         ):
             if rows:

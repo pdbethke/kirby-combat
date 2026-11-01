@@ -16,6 +16,7 @@ situation the loop itself built --- the page a chooser is actually shown
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -44,7 +45,9 @@ from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
-TEMPLATE = CombatTemplate.default_6e_superheroic()
+# A SHEET page: these tests are about the numbers a page can carry of an
+# enemy, which the named (judged) templates deliberately do not show.
+TEMPLATE = replace(CombatTemplate.default_6e_superheroic(), page_knowledge="sheet")
 
 
 # ── the harness ─────────────────────────────────────────────────────────────

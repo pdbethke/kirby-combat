@@ -177,10 +177,15 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
 
 
 def render_judgement(j: EnemyJudgement) -> list[str]:
-    """The Brief's lines for this enemy."""
+    """The Brief's lines for this enemy.
+
+    RULING: an enemy he cannot perceive keeps the Brief's one line from
+    before judgement existed ("Name [side]: you cannot perceive him"; see
+    `Brief._combatant_block`), so there is one wording for it, not two.
+    """
     head = f"{j.name} [{j.side}]"
     if not j.perceived:
-        return [f"{head}: out of sight"]
+        return [f"{head}: you cannot perceive him"]
     if j.distance_m is not None:
         head += f", {j.distance_m:.0f}m away"
     head += f": looks {j.looks}"
