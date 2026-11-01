@@ -42,12 +42,12 @@ from kirby_combat.session.events import (
 )
 from kirby_combat.side import Side
 from kirby_combat.synthetic import synthetic_combatant
-from kirby_combat.template import CombatTemplate
+from kirby_combat.template import CombatTemplate, PageKnowledge
 from kirby_dice import RandomRoller
 
 # A SHEET page: these tests are about the numbers a page can carry of an
 # enemy, which the named (judged) templates deliberately do not show.
-TEMPLATE = replace(CombatTemplate.default_6e_superheroic(), page_knowledge="sheet")
+TEMPLATE = replace(CombatTemplate.default_6e_superheroic(), page_knowledge=PageKnowledge.SHEET)
 
 
 # ── the harness ─────────────────────────────────────────────────────────────

@@ -201,3 +201,44 @@ def test_knocked_down_and_fell_is_said_once():
     from kirby_combat.statuses import FELL
     line = _landed(knockback={"distance_m": 0, "prone": True}, **{FELL: ["vex"]})
     assert "knocked down" in line and "went down" not in line
+
+
+def test_seen_is_capped_and_says_how_many_more():
+    from kirby_combat.judgement import MAX_SEEN
+    s = _fight()
+    for i in range(MAX_SEEN + 3):
+        s = _resolved(s, "vex", power_name=f"Power {i}", target_id="hero")
+    j = judge_enemy(_situation(s), s.combatants["vex"])
+    assert len(j.seen) == MAX_SEEN and j.seen[0] == "Power 0"
+    assert j.seen_more == 3
+    assert "seen: " in "\n".join(render_judgement(j))
+    assert "(and 3 more)" in "\n".join(render_judgement(j))
+
+
+def test_hits_taken_keeps_the_most_recent_and_counts_the_earlier():
+    from kirby_combat.judgement import MAX_HITS_LISTED
+    s = _fight()
+    for i in range(MAX_HITS_LISTED + 2):
+        s = _resolved(s, "hero", power_name=f"Blow {i}", target_id="vex", hit=True)
+    j = judge_enemy(_situation(s), s.combatants["vex"])
+    assert len(j.how_hits_landed) == MAX_HITS_LISTED
+    assert j.how_hits_landed[-1].startswith(f"Blow {MAX_HITS_LISTED + 1} ")
+    assert j.how_hits_landed[0].startswith("Blow 2 ")
+    assert j.hits_earlier == 2
+    assert "(and 2 earlier)" in "\n".join(render_judgement(j))
+
+
+def test_a_mind_lock_alone_gives_no_looks(monkeypatch):
+    from kirby_combat import judgement
+    from kirby_combat.brief_detail import Sighting
+
+    s = _fight()
+    s = _resolved(s, "vex", power_name="Energy Disk", target_id="hero")
+    s = _resolved(s, "hero", power_name="Strike", target_id="vex", hit=True)
+    monkeypatch.setattr(judgement, "sightings", lambda sit: {
+        "vex": Sighting(enemy_id="vex", physical=False, mental=True,
+                        through_lock=True)})
+    j = judge_enemy(_situation(s), s.combatants["vex"])
+    assert j.seen == () and j.how_hits_landed == () and j.looks == ""
+    assert j.distance_m is None and j.features == ()
+    assert render_judgement(j) == ["Vex [villains]: his mind is in reach"]

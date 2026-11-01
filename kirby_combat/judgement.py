@@ -19,6 +19,16 @@ RULINGS
   happened while he was hidden is therefore read back once he is in view.
   Accepted: the alternative is a per-observer perception history the engine
   does not keep.
+* MIND LOCK ONLY. `Sighting.perceived` is also true for a mind he reaches
+  only through a Mind Scan lock, which gives no looks: he is named and
+  "his mind is in reach" and nothing else. What a lock does reveal is 3b's
+  Mind Scan facts, not this module's.
+* CAPS. A long fight must not grow the page without bound (a hero in a
+  3-vs-20 fight takes a hit every Phase): `seen` keeps the first
+  `MAX_SEEN` uses and counts the rest, `how_hits_landed` keeps the most
+  recent `MAX_HITS_LISTED` and counts the earlier ones. Same reason and
+  same pattern as `brief_detail.MAX_POWER_NAMES` / `MAX_LISTED`: a page
+  something pays by the token to read.
 * HOW HITS LANDED. One line per `ActionResolved` that hit him: the power's
   name and what visibly followed (`status_changes`, else "kept fighting").
   No STUN or BODY numbers: a visible consequence, or its absence, is what
@@ -54,6 +64,16 @@ if TYPE_CHECKING:
     from kirby_combat.loop.chooser import PhaseSituation
 
 
+#: Powers he has been seen to use that are listed before the rest are
+#: counted. The page-size reason `brief_detail.MAX_POWER_NAMES` gives.
+MAX_SEEN = 8
+
+#: How many of the most recent hits on him are listed before the earlier
+#: ones are counted; `brief_detail.MAX_LISTED`'s reason, and the newest
+#: blows are the ones that say how he is doing.
+MAX_HITS_LISTED = 6
+
+
 @dataclass(frozen=True)
 class EnemyJudgement:
     enemy_id: str
@@ -61,15 +81,23 @@ class EnemyJudgement:
     side: str
     perceived: bool
     looks: str
-    #: Power/maneuver names he has USED this fight, first-use order, no repeats.
+    #: Power/maneuver names he has USED this fight, first-use order, no
+    #: repeats, at most `MAX_SEEN`.
     seen: tuple[str, ...]
-    #: One line per hit he TOOK this fight.
+    #: One line per hit he TOOK this fight: the most recent `MAX_HITS_LISTED`.
     how_hits_landed: tuple[str, ...]
     #: "a machine", "a mook", "down".
     features: tuple[str, ...]
     distance_m: float | None
     #: Has he taken any action this fight.
     acted: bool
+    #: A Targeting Sense reaches him. False with `perceived` True is a mind
+    #: reached through a Mind Scan lock alone.
+    physical: bool
+    #: Uses past `MAX_SEEN` that are not listed.
+    seen_more: int
+    #: Hits earlier than the `MAX_HITS_LISTED` listed.
+    hits_earlier: int
 
 
 def _used_name(payload: dict) -> str | None:
@@ -139,7 +167,15 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
         return EnemyJudgement(
             enemy_id=enemy.id, name=enemy.name, side=enemy.side,
             perceived=False, looks="", seen=(), how_hits_landed=(),
-            features=(), distance_m=None, acted=False)
+            features=(), distance_m=None, acted=False, physical=False,
+            seen_more=0, hits_earlier=0)
+
+    if not sight.physical:
+        return EnemyJudgement(
+            enemy_id=enemy.id, name=enemy.name, side=enemy.side,
+            perceived=True, looks="", seen=(), how_hits_landed=(),
+            features=(), distance_m=None, acted=False, physical=False,
+            seen_more=0, hits_earlier=0)
 
     session = situation.session
     seen: list[str] = []
@@ -171,9 +207,11 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
 
     return EnemyJudgement(
         enemy_id=enemy.id, name=enemy.name, side=enemy.side, perceived=True,
-        looks=classify_health(enemy), seen=tuple(seen),
-        how_hits_landed=tuple(landed), features=tuple(features),
-        distance_m=situation.distances_m.get(enemy.id), acted=acted)
+        looks=classify_health(enemy), seen=tuple(seen[:MAX_SEEN]),
+        how_hits_landed=tuple(landed[-MAX_HITS_LISTED:]), features=tuple(features),
+        distance_m=situation.distances_m.get(enemy.id), acted=acted, physical=True,
+        seen_more=max(0, len(seen) - MAX_SEEN),
+        hits_earlier=max(0, len(landed) - MAX_HITS_LISTED))
 
 
 def render_judgement(j: EnemyJudgement) -> list[str]:
@@ -186,6 +224,8 @@ def render_judgement(j: EnemyJudgement) -> list[str]:
     head = f"{j.name} [{j.side}]"
     if not j.perceived:
         return [f"{head}: you cannot perceive him"]
+    if not j.physical:
+        return [f"{head}: his mind is in reach"]
     if j.distance_m is not None:
         head += f", {j.distance_m:.0f}m away"
     head += f": looks {j.looks}"
@@ -193,11 +233,13 @@ def render_judgement(j: EnemyJudgement) -> list[str]:
         head += "; " + "; ".join(j.features)
     lines = [head]
     if j.seen:
-        lines.append("  seen: " + ", ".join(j.seen))
+        more = f" (and {j.seen_more} more)" if j.seen_more else ""
+        lines.append("  seen: " + ", ".join(j.seen) + more)
     elif not j.acted:
         lines.append("  has not acted yet")
     else:
         lines.append("  seen: none yet")
     if j.how_hits_landed:
-        lines.append("  hits taken: " + " | ".join(j.how_hits_landed))
+        earlier = f"(and {j.hits_earlier} earlier) | " if j.hits_earlier else ""
+        lines.append("  hits taken: " + earlier + " | ".join(j.how_hits_landed))
     return lines

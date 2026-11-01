@@ -17,6 +17,7 @@ from kirby_combat.actions.flash import Flash
 from kirby_combat.brief import Brief
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
+from kirby_combat.template import PageKnowledge
 from kirby_dice import RandomRoller
 
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
@@ -48,7 +49,7 @@ def _duel():
                        fighter("d", side=VILLAINS, dex=10))
     session = enc.sessions[0]
     return replace(enc, sessions=[replace(session, template=replace(
-        session.template, page_knowledge="sheet"))])
+        session.template, page_knowledge=PageKnowledge.SHEET))])
 
 
 def _abort_page(encounter) -> str:

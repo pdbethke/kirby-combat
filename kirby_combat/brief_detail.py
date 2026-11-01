@@ -29,12 +29,13 @@ reach section says who is in reach and which of your movement modes gets
 there; neither says what to do about it.
 
 WHAT YOU CANNOT PERCEIVE YOU CANNOT READ. The anti-metagaming line in this
-engine is perception (`kirby_combat.perception`). An enemy the actor
-perceives --- physically, or mentally through a Mind Scan lock --- is shown
-as freely as the actor: the old page did exactly that, and withholding some
-numbers from a man you are looking at would be inconsistent rather than
-principled. An enemy he cannot perceive at all is named, and nothing about
-his condition is: his STUN, his Entangle and his held action are things you
+engine is perception (`kirby_combat.perception`). Under page_knowledge SHEET
+an enemy the actor perceives --- physically, or mentally through a Mind Scan
+lock --- is shown as freely as the actor: the old page did exactly that.
+Under JUDGED (every named template, PeterB 2026-11-01) he is described by
+`kirby_combat.judgement` as she can judge him, not from his sheet. Either
+way an enemy he cannot perceive at all is named, and nothing about his
+condition is: his STUN, his Entangle and his held action are things you
 learn by looking.
 
 THE PAGE NEVER ROLLS. Perceiving a hidden or Invisible man can be a contest
@@ -95,6 +96,29 @@ def _gate_kinds() -> tuple[frozenset[str], frozenset[str]]:
     from kirby_combat.enumeration import _MENTAL_ACTION_KINDS, _MOVEMENT_ACTION_KINDS
 
     return _MENTAL_ACTION_KINDS, _MOVEMENT_ACTION_KINDS
+
+
+def page_is_judged(situation: "PhaseSituation") -> bool:
+    """Whether this page describes enemies as the actor JUDGES them
+    (`CombatTemplate.page_knowledge` is JUDGED) and not from their sheets.
+
+    The one predicate for that decision: the Brief's enemy block, matchup
+    and offer text, and the out-of-turn Abort page all ask here. The
+    template is the session's; a page with no session has no template to
+    say, which is an error naming what to pass, not a guess. With no
+    enemies there is nothing to describe either way, so a sessionless page
+    of a man alone (a stub in a unit test) reads as not judged.
+    """
+    from kirby_combat.template import PageKnowledge
+
+    session = situation.session
+    if session is None:
+        if not situation.enemies:
+            return False
+        raise ValueError(
+            "a Brief needs situation.session to know its template's "
+            "page_knowledge; pass the session the Phase is played in")
+    return session.template.page_knowledge is PageKnowledge.JUDGED
 
 
 def sightings(situation: "PhaseSituation") -> dict[str, Sighting]:
@@ -972,9 +996,7 @@ def _abort_lines(situation, why, attacker, attacker_name: str) -> list[str]:
         cv_name = "OMCV" if mental else "OCV"
         # His exact CV is his sheet: shown only on a "sheet" page.
         stats = (attacker.combat_stats() if attacker is not None
-                 and situation.session is not None
-                 and situation.session.template.page_knowledge == "sheet"
-                 else None)
+                 and not page_is_judged(situation) else None)
         cv = (getattr(stats, "omcv" if mental else "ocv", None)
               if stats is not None else None)
         cv_text = f", {cv_name} {cv}" if cv is not None else ""

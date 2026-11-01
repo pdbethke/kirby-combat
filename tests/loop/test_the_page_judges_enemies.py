@@ -21,11 +21,12 @@ from kirby_combat.loop import run_phase
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_dice import RandomRoller
+from kirby_combat.template import PageKnowledge
 from tests.templates import PLAIN
 
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
 SHEET = PLAIN
-JUDGED = replace(PLAIN, page_knowledge="judged")
+JUDGED = replace(PLAIN, page_knowledge=PageKnowledge.JUDGED)
 
 
 class _Reads:
@@ -209,6 +210,52 @@ def test_an_enemy_he_cannot_perceive_keeps_todays_single_line():
 
 def test_a_sheet_page_is_unchanged():
     """GOLDEN, captured from the engine before the judged page existed (same
-    fight, `page_knowledge="sheet"`). Everything above the doctrine and menu."""
+    fight, `page_knowledge=PageKnowledge.SHEET`). Everything above the doctrine and menu."""
     page = _play(_small(SHEET), "hero").page
     assert page.split("\n\nLegal actions")[0] == GOLDEN_SHEET_PAGE
+
+
+def test_offer_summary_is_the_text_a_fighters_page_shows():
+    """ONE accessor for which summary a page prints: judged text on a judged
+    page, the sheet text on a sheet page (what kirby-ai labels options with)."""
+    def attack_offer(template):
+        sit = _Capture()
+        run_phase(Encounter(id="e", turn=1, segment=12,
+                            sessions=[_small(template)]),
+                  sit, roller=RandomRoller(seed=7), on_unresolvable="raise")
+        return sit.brief, sit.menu
+
+    jb, jmenu = attack_offer(JUDGED)
+    sb, smenu = attack_offer(SHEET)
+    gave_away = [a for a in jmenu if a.judged_summary]
+    assert gave_away, "the fixture must offer an attack with a judged summary"
+    for a in gave_away:
+        assert jb.offer_summary(a) == a.judged_summary != a.summary
+    for a in smenu:
+        assert sb.offer_summary(a) == a.summary
+        assert f"[{a.action_id}] {a.summary}" in sb.render()
+
+
+def test_a_judged_page_with_enemies_and_no_session_is_an_error():
+    from kirby_combat.brief_detail import page_is_judged
+    from kirby_combat.loop.chooser import PhaseSituation
+    from kirby_combat.synthetic import synthetic_combatant
+    me = synthetic_combatant(id="a", name="A", side="heroes")
+    foe = synthetic_combatant(id="b", name="B", side="villains")
+    sit = PhaseSituation(actor=me, menu=[], enemies=[foe], allies=[],
+                         distances_m={}, session=None)
+    with pytest.raises(ValueError, match="page_knowledge"):
+        page_is_judged(sit)
+
+
+class _Capture:
+    def __init__(self):
+        self.brief = None
+        self.menu = None
+
+    def choose(self, situation):
+        if situation.out_of_turn is None and self.brief is None \
+                and situation.actor.id == "hero":
+            self.brief = Brief(situation)
+            self.menu = list(situation.menu)
+        return situation.ordered_menu[0].action_id

@@ -557,14 +557,18 @@ class Brief:
         to say, and that is an error, not a guess; but with no enemies there
         is nothing to describe either way, so a sessionless page of a man
         alone (a stub in a unit test) is left as it was."""
-        session = self._situation.session
-        if session is None and not self._situation.enemies:
-            return False
-        if session is None:
-            raise ValueError(
-                "a Brief needs situation.session to know its template's "
-                "page_knowledge; pass the session the Phase is played in")
-        return session.template.page_knowledge == "judged"
+        from kirby_combat.brief_detail import page_is_judged
+
+        return page_is_judged(self._situation)
+
+    def offer_summary(self, action) -> str:
+        """The text this page shows for an offer: the judged summary (no
+        DCV, no to-hit number) on a judged page where the offer has one,
+        else its sheet `summary`. The one place that choice is made;
+        `render` and any consumer labelling options go through it."""
+        if self.judged and action.judged_summary:
+            return action.judged_summary
+        return action.summary
 
     def _enemy_block(self, line: CombatantLine) -> list[str]:
         """An enemy as the actor can judge him: looks, what he has been seen
@@ -722,10 +726,8 @@ class Brief:
         # returns; the summary is for the reader, the id is the contract.
         # A judged page prints the summary that leaves out his DCV and the
         # number it gives away (`LegalAction.judged_summary`).
-        lines.extend(
-            f"  [{a.action_id}] "
-            f"{a.judged_summary if judged and a.judged_summary else a.summary}"
-            for a in self.menu)
+        lines.extend(f"  [{a.action_id}] {self.offer_summary(a)}"
+                     for a in self.menu)
         return "\n".join(lines)
 
     def __str__(self) -> str:
