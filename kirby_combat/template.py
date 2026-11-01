@@ -5,6 +5,9 @@ from dataclasses import dataclass, replace
 
 from kirby_combat.session.tie_rule import TieRule
 
+#: The values `CombatTemplate.page_knowledge` takes.
+PAGE_KNOWLEDGE = frozenset({"judged", "sheet"})
+
 
 @dataclass(frozen=True)
 class CombatTemplate:
@@ -121,6 +124,23 @@ class CombatTemplate:
     #: middle of a HTH Combat" -- and because it can hurt a combatant
     #: nobody aimed at, which no campaign should acquire by default.
     use_firing_into_melee: bool
+    #: What a fighter's page shows of her ENEMIES: "judged" is what she can
+    #: reasonably judge of them; "sheet" is their full sheet.
+    #:
+    #: RULING: every named template is "judged" (Peter, 2026-11-01): facts
+    #: are "what she can reasonably judge", which replaces the Brief's
+    #: earlier "perception is the only line drawn". "sheet" remains for
+    #: benchmarks and tests that want the full sheet (the O.K. Corral
+    #: harness may opt in explicitly). No default: which knowledge a page
+    #: carries is the campaign's decision, not the engine's.
+    page_knowledge: str
+
+    def __post_init__(self) -> None:
+        if self.page_knowledge not in PAGE_KNOWLEDGE:
+            raise ValueError(
+                f"page_knowledge must be one of {sorted(PAGE_KNOWLEDGE)}, "
+                f"got {self.page_knowledge!r}"
+            )
 
     # `custom_rules: dict` was here, an untyped bag that nothing read. A
     # house rule is a named, typed field the engine reads, or it is not a
@@ -194,6 +214,7 @@ RAW_SUPERHEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    page_knowledge="judged",
 )
 
 #: Standard RAW Heroic play (grittier; hit locations and END tracked).
@@ -217,6 +238,7 @@ RAW_HEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    page_knowledge="judged",
 )
 
 
