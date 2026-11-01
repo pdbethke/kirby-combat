@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.0 — 2026-11-01
+
+**The judged page: a fighter's page describes an enemy as she can judge him, not by his sheet** (Peter: facts are "what she can reasonably judge… what she can judge herself in context"). Spec `kirby/docs/superpowers/specs/2026-11-01-combat-decisions-design.md`, Phase 3a. Module `kirby_combat/judgement.py`; tests `tests/test_page_knowledge.py`, `tests/test_judgement.py`, `tests/loop/test_the_page_judges_enemies.py`.
+
+- **New required template switch `page_knowledge: PageKnowledge`** (`JUDGED` | `SHEET`, no default). Every named template is `JUDGED`; `SHEET` stays for benchmarks and tests that want the full sheet. Serialised by value, like `TieRule`.
+- **Under `JUDGED`, each enemy she perceives reads as:** how hurt he looks (`classify_health`); the powers he has used this fight (first-use order, capped at `MAX_SEEN`); how each hit on him visibly landed (staggered, dropped, knocked back, went down, or kept fighting; capped at `MAX_HITS_LISTED`, most recent kept); plain features (a mook only under the mook rules, a machine when his build has Automaton, down); his distance; "has not acted yet" on Turn 1. An enemy she cannot perceive keeps the one line he had; one reached only by a mind lock reads "his mind is in reach". RULINGS in the module docstring: seen powers count every use while he is perceived now (the log does not record who saw what); no STUN or BODY numbers; flying is omitted because the engine tracks no current movement mode.
+- **Gone from a judged page:** the matchup estimate (STUN through his defences), the attacker's exact OCV on the Abort page, and his DCV and the to-hit number in attack offers (`LegalAction.judged_summary`; read through `Brief.offer_summary(action)`, which every consumer that shows an offer to a seat should use). Allies and the actor keep the full sheet. A `SHEET` page is byte-identical to 0.29.2 (golden test).
+- **One predicate:** `brief_detail.page_is_judged(situation)`. **Breaking:** a Brief whose situation has enemies and no session now raises, naming what to pass, instead of guessing which page to draw.
+- **Behaviour change:** every named template's model page changes; recordings replay to the same events, but what a seat reads, and so what it chooses, differs.
+
 ## 0.29.2 — 2026-11-01
 
 - **A man's skill rolls are his own.** kirby-cost works a skill's roll out lazily against one global active hero, and `LoadedHero` tells multi-hero consumers to set it before reading. `HeroCombatant.skill_rolls` did not, so in a fight every DEX- or INT-based skill (Stealth against PER, Paramedics, Acrobatics, Breakfall, Teamwork, Tactics) rolled off the characteristics of whoever was built last. It now reads them with its own build active and restores the previous one. Found on prod (fight a2caf042): every agent's Teamwork came out 11- where his sheet says 12- or 13-. Test `tests/test_skill_rolls_are_his_own.py`. **Behaviour change:** multi-character fights replay differently wherever a skill roll was made.

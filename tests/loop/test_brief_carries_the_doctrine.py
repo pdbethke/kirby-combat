@@ -34,7 +34,10 @@ from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.brief import Brief
 from kirby_combat.enumeration import enumerate_actions
 from kirby_combat.loop.chooser import PhaseSituation
+from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_dice import RandomRoller
+from tests.templates import PLAIN
 
 
 def _situation(*, hurt: bool = False):
@@ -43,8 +46,13 @@ def _situation(*, hurt: bool = False):
         actor = actor.with_state(current_stun=4)
     enemies = [fighter("mark", side=Side.named("b"), dex=10)]
     menu = enumerate_actions(actor, enemies)
+    # A SESSION, because the page reads its template (`page_knowledge`) to
+    # know how to describe an enemy; these tests are about the doctrine.
+    session = CombatSession.create(
+        id="s", combatants=[actor, *enemies], scene=None, template=PLAIN,
+        dice_roller=RandomRoller(seed=1)).start()
     return PhaseSituation(actor=actor, menu=menu, enemies=enemies,
-                          allies=[], session=None, segment=12, turn=1)
+                          allies=[], session=session, segment=12, turn=1)
 
 
 def test_the_brief_names_the_doctrines_that_apply():

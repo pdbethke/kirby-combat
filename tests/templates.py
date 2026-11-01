@@ -5,9 +5,13 @@ that only needs SOME rules states them. `PLAIN` is the switches the
 template's old field defaults gave: Superheroic, no hit locations,
 knockback at x1, END NOT counted, DEX Roll ties, every optional rule off.
 A test that is about one switch says so with `replace(PLAIN, that=...)`.
+
+`page_knowledge` is "sheet" here, not the named templates' "judged", so the
+existing Brief-text tests (which read enemies' full sheets) are unchanged;
+a test about the judged page says `replace(PLAIN, page_knowledge=PageKnowledge.JUDGED)`.
 """
 from kirby_combat.session.tie_rule import TieRule
-from kirby_combat.template import CombatTemplate
+from kirby_combat.template import CombatTemplate, PageKnowledge
 
 PLAIN = CombatTemplate(
     name="plain test rules",
@@ -29,4 +33,5 @@ PLAIN = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    page_knowledge=PageKnowledge.SHEET,
 )

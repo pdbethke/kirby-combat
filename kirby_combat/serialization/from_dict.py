@@ -44,6 +44,7 @@ def _ensure_registry() -> None:
     # `from_dict` raised `unknown type 'CombatTemplate'` on the first one.
     from kirby_combat.template import CombatTemplate
     from kirby_combat.session.tie_rule import TieRule
+    from kirby_combat.template import PageKnowledge
     # EVERY EVENT CLASS, DERIVED. This was a hand-written list beside the
     # import above, and it went stale silently: `VitalsChanged` -- the row
     # that now carries every point of STUN, BODY and END -- was in the
@@ -86,6 +87,7 @@ def _ensure_registry() -> None:
     # Enums register too so we can rehydrate enum-valued fields if needed.
     _TYPE_REGISTRY["UnitMorale"] = UnitMorale  # type: ignore[assignment]
     _TYPE_REGISTRY["TieRule"] = TieRule  # type: ignore[assignment]
+    _TYPE_REGISTRY["PageKnowledge"] = PageKnowledge  # type: ignore[assignment]
     # Every timestamp is annotated `datetime`, which under PEP 563 arrives
     # here as the STRING "datetime"; unregistered, `_coerce_field`'s
     # datetime branch never matched and every event came back stamped with

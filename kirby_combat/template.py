@@ -2,8 +2,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import Enum
 
 from kirby_combat.session.tie_rule import TieRule
+
+
+
+class PageKnowledge(Enum):
+    """What a fighter's page shows of her ENEMIES (`CombatTemplate.page_knowledge`)."""
+
+    #: What she can reasonably judge of them (`kirby_combat.judgement`).
+    JUDGED = "judged"
+
+    #: Their full sheet.
+    SHEET = "sheet"
 
 
 @dataclass(frozen=True)
@@ -121,6 +133,25 @@ class CombatTemplate:
     #: middle of a HTH Combat" -- and because it can hurt a combatant
     #: nobody aimed at, which no campaign should acquire by default.
     use_firing_into_melee: bool
+    #: What a fighter's page shows of her ENEMIES: JUDGED is what she can
+    #: reasonably judge of them; SHEET is their full sheet.
+    #:
+    #: RULING: every named template is JUDGED (Peter, 2026-11-01): facts
+    #: are "what she can reasonably judge", which replaces the Brief's
+    #: earlier "perception is the only line drawn". SHEET remains for
+    #: benchmarks and tests that want the full sheet (the O.K. Corral
+    #: harness may opt in explicitly). No default: which knowledge a page
+    #: carries is the campaign's decision, not the engine's.
+    page_knowledge: PageKnowledge
+
+    def __post_init__(self) -> None:
+        # A bare "judged" would silently compare unequal to the member and
+        # read as a sheet page; refuse it where it is built.
+        if not isinstance(self.page_knowledge, PageKnowledge):
+            raise TypeError(
+                f"page_knowledge must be a PageKnowledge, "
+                f"got {self.page_knowledge!r}"
+            )
 
     # `custom_rules: dict` was here, an untyped bag that nothing read. A
     # house rule is a named, typed field the engine reads, or it is not a
@@ -194,6 +225,7 @@ RAW_SUPERHEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    page_knowledge=PageKnowledge.JUDGED,
 )
 
 #: Standard RAW Heroic play (grittier; hit locations and END tracked).
@@ -217,6 +249,7 @@ RAW_HEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    page_knowledge=PageKnowledge.JUDGED,
 )
 
 

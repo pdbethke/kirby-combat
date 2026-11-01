@@ -10,11 +10,14 @@ Every page here is the one `run_phase` hands the defender's chooser.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from conftest import encounter_of, fighter          # tests/loop/conftest.py
 from kirby_combat.actions.flash import Flash
 from kirby_combat.brief import Brief
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
+from kirby_combat.template import PageKnowledge
 from kirby_dice import RandomRoller
 
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
@@ -40,8 +43,13 @@ class _Reads:
 
 
 def _duel():
-    return encounter_of(fighter("a", side=HEROES, dex=30),
-                        fighter("d", side=VILLAINS, dex=10))
+    # A SHEET page: "Incoming: ..., OCV 9" is the attacker's sheet, which a
+    # judged page leaves off (see test_the_page_judges_enemies).
+    enc = encounter_of(fighter("a", side=HEROES, dex=30),
+                       fighter("d", side=VILLAINS, dex=10))
+    session = enc.sessions[0]
+    return replace(enc, sessions=[replace(session, template=replace(
+        session.template, page_knowledge=PageKnowledge.SHEET))])
 
 
 def _abort_page(encounter) -> str:
