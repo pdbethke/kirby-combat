@@ -28,8 +28,11 @@ TEMPLATE = CombatTemplate.default_6e_superheroic()
 
 
 class _Skill:
-    def __init__(self, xmlid: str) -> None:
+    """A sheet skill: its xmlid and the roll the cost engine computed."""
+
+    def __init__(self, xmlid: str, roll_value: int) -> None:
         self.xmlid = xmlid
+        self.roll_value = roll_value
 
 
 # ---------------------------------------------------------------------------
@@ -146,15 +149,15 @@ def test_the_declared_kinds_cover_every_literal_in_enumeration():
 
 def test_teamwork_is_the_skill_the_book_names():
     actor = fighter("a", side=Side.named("x"), dex=20)
-    actor.hero.skills = [_Skill("TEAMWORK")]
+    actor.hero.skills = [_Skill("TEAMWORK", 13)]
     skill, target = roll_profile(actor)
     assert skill == "Teamwork"
-    assert target == 9 + 20 // 5      # 6E1 p.58: 9 + CHAR/5
+    assert target == 13               # the sheet's roll, not worked out here
 
 
 def test_tactics_is_the_fallback():
     actor = fighter("a", side=Side.named("x"), dex=20)
-    actor.hero.skills = [_Skill("TACTICS")]
+    actor.hero.skills = [_Skill("TACTICS", 11)]
     assert roll_profile(actor)[0] == "Tactics"
 
 
