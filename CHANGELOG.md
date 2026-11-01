@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.2 — 2026-11-01
+
+- **A man's skill rolls are his own.** kirby-cost works a skill's roll out lazily against one global active hero, and `LoadedHero` tells multi-hero consumers to set it before reading. `HeroCombatant.skill_rolls` did not, so in a fight every DEX- or INT-based skill (Stealth against PER, Paramedics, Acrobatics, Breakfall, Teamwork, Tactics) rolled off the characteristics of whoever was built last. It now reads them with its own build active and restores the previous one. Found on prod (fight a2caf042): every agent's Teamwork came out 11- where his sheet says 12- or 13-. Test `tests/test_skill_rolls_are_his_own.py`. **Behaviour change:** multi-character fights replay differently wherever a skill roll was made.
+
 ## 0.29.1 — 2026-11-01
 
 - **The Coordinate roll is the one on the character sheet.** `coordination.roll_profile` worked Teamwork out as 9 + DEX/5 (and Tactics as 9 + INT/5) from whether the skill was present at all, so a Familiarity, "an 8- roll" (6E1 p.62), coordinated as the full skill, and levels bought in the skill (+1 for 2 points, 6E1 p.63) never reached the roll. It now reads `skill_roll_value`, the cost engine's computed roll that perception and Paramedics already use. Found on prod: the Cloned Soldier's Teamwork Familiarity rolled 12-. Tests `tests/test_teamwork_roll_from_the_sheet.py`. **Behaviour change:** fights with a Teamwork Familiarity or bought levels replay differently.
