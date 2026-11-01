@@ -100,25 +100,33 @@ _SEEN_STATUS = {
 }
 
 
-def _landed_line(payload: dict) -> str:
+def _landed_line(payload: dict, enemy_id: str) -> str:
     """The visible consequences of one hit on him, in what an onlooker sees.
 
     RULING: knockback is visible as it happens, so its distance is shown
     ("knocked back 4m"); a fall (`statuses.FELL` lists the ids who went down)
-    reads "he went down". A status with no mapped sight is shown by name.
+    reads "he went down" only if HE is on that list (it names everyone a
+    resolution put on the ground, the attacker of a block-throw included),
+    and not again when knockback already
+    put him on the ground or moved him. A status with no mapped sight is
+    shown by name.
     """
     from kirby_combat.statuses import FELL
 
     name = _used_name(payload) or "An attack"
     seen: list[str] = []
+    knocked = False
     for c in payload.get("status_changes") or []:
         seen.append(_SEEN_STATUS.get(str(c), f"he was {c}"))
     kb = payload.get("knockback")
     if kb and (kb.get("distance_m", 0) > 0 or kb.get("prone")):
         d = kb.get("distance_m", 0)
-        seen.append(f"he was knocked back {d:.0f}m" if d > 0
-                    else "he was knocked down")
-    if payload.get(FELL):
+        knocked = True
+        if d > 0:
+            seen.append(f"he was knocked back {d:.0f}m")
+        else:
+            seen.append("he was knocked down")
+    if enemy_id in (payload.get(FELL) or ()) and not knocked:
         seen.append("he went down")
     seen = list(dict.fromkeys(seen))
     return f"{name} hit him; " + (", ".join(seen) if seen else "he kept fighting")
@@ -151,7 +159,7 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
                 if name and name not in seen:
                     seen.append(name)
             if payload.get("target_id") == enemy.id and payload.get("hit"):
-                landed.append(_landed_line(payload))
+                landed.append(_landed_line(payload, enemy.id))
 
     features: list[str] = []
     if _is_machine(enemy):

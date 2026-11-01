@@ -189,3 +189,15 @@ def test_each_status_reads_as_what_an_observer_sees():
     assert "he dropped" in _landed(status_changes=["Knocked Out"])
     assert "stayed down" in _landed(status_changes=["Dying"])
     assert "staggered" in _landed(status_changes=["Stunned"])
+
+
+def test_someone_elses_fall_is_not_his():
+    from kirby_combat.statuses import FELL
+    line = _landed(**{FELL: ["hero"]})
+    assert "kept fighting" in line and "went down" not in line
+
+
+def test_knocked_down_and_fell_is_said_once():
+    from kirby_combat.statuses import FELL
+    line = _landed(knockback={"distance_m": 0, "prone": True}, **{FELL: ["vex"]})
+    assert "knocked down" in line and "went down" not in line
