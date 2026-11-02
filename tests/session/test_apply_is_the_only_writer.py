@@ -487,11 +487,12 @@ def test_an_unknown_kind_still_raises():
 
 def test_the_emitter_records_and_applies_in_one_step():
     session, event = record_vitals_change(
-        _session(), "a", stun=-7, reason="damage",
+        _session(), "a", stun=-7, reason="damage", caused_by="b",
     )
 
     assert event.kind == "VitalsChanged"
-    assert (event.combatant_id, event.stun, event.reason) == ("a", -7, "damage")
+    assert (event.combatant_id, event.stun, event.reason, event.caused_by) == (
+        "a", -7, "damage", "b")
     assert session.event_log[-1] is event
     assert _vitals(session)[0] == 33
 
@@ -501,7 +502,7 @@ def test_a_change_of_nothing_is_not_a_row():
     hits."""
     before = _session()
 
-    after, event = record_vitals_change(before, "a", reason="damage")
+    after, event = record_vitals_change(before, "a", reason="damage", caused_by=None)
 
     assert event is None
     assert after is before

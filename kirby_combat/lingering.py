@@ -344,7 +344,8 @@ def _dose_against_one_defense(session, effect: Lingering, power, *,
     if stun or body:
         session, _ = record_vitals_change(session, effect.target_id,
                                           stun=-stun, body=-body,
-                                          reason="damage")
+                                          reason="damage",
+                                          caused_by=effect.attacker_id)
     status = determine_status_changes(
         stun_before=target.current_stun, stun_after=target.current_stun - stun,
         body_before=target.current_body, body_after=target.current_body - body,

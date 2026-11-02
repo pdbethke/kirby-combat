@@ -76,7 +76,8 @@ ACCEPTED_ACTION_KINDS: tuple[str, ...] = get_args(
 ActionKind = Literal["attack", "strike", "grab"]
 
 
-def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: int) -> CombatSession:
+def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: int,
+                  caused_by: str | None) -> CombatSession:
     """Fold an attack's damage onto the session's own combatant for
     ``target_id``, returning a new session.
 
@@ -109,6 +110,7 @@ def _apply_damage(session: CombatSession, target_id: str, *, stun: int, body: in
         )
     session, _ = record_vitals_change(
         session, target_id, stun=-stun, body=-body, reason="damage",
+        caused_by=caused_by,
     )
     return session
 
@@ -785,6 +787,7 @@ def resolve_attack_in_session(
     # gone the moment the shot lands.
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
+        caused_by=attacker_id,
     )
 
     # AND THE ATTACKER PAYS FOR IT. `result.end_spent` has been computed
@@ -1102,7 +1105,7 @@ def apply_side_effects(session: CombatSession, attack: AttackInput, template,
     victim = session.combatants[victim_id]
     stun, body = int(damage.stun), int(damage.body)
     s, _ = record_vitals_change(session, victim_id, stun=-stun, body=-body,
-                                reason="side_effect")
+                                reason="side_effect", caused_by=victim_id)
     status_changes = determine_status_changes(
         stun_before=victim.current_stun, stun_after=victim.current_stun - stun,
         body_before=victim.current_body, body_after=victim.current_body - body,
@@ -1208,6 +1211,7 @@ def resolve_mental_blast_in_session(
     # gone the moment the shot lands.
     s = _apply_damage(
         session, target_id, stun=result.stun_dealt, body=result.body_dealt,
+        caused_by=attacker_id,
     )
     decl_id = declaration_event_id
     if decl_id is None:

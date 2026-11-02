@@ -151,7 +151,8 @@ def test_a_collapsed_building_stops_blocking():
     wall = session.scene.walls[0]
     after, _ = bring_it_down(session, construct_from_wall(wall),
                              roller=RandomRoller(seed=5),
-                             template=CombatTemplate.default_6e_superheroic())
+                             template=CombatTemplate.default_6e_superheroic(),
+                             caused_by=None)
     assert [w.id for w in after.scene.walls] == []
 
 
@@ -163,7 +164,8 @@ def test_bringing_down_one_building_leaves_the_others():
     session = _live_session(second=True)
     target = construct_from_wall(session.scene.walls[0])
     after, _ = bring_it_down(session, target, roller=RandomRoller(seed=5),
-                             template=CombatTemplate.default_6e_superheroic())
+                             template=CombatTemplate.default_6e_superheroic(),
+                             caused_by=None)
     assert [w.id for w in after.scene.walls] == ["flys"]
 
 

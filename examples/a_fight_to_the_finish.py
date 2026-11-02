@@ -35,6 +35,7 @@ Exercises:
 """
 from __future__ import annotations
 
+from kirby_combat import events_involving
 from kirby_combat.actions.recording import resolve_attack_in_session
 from kirby_combat.models import AttackInput, AttackPower, DiceValues, StatBlockCombatant
 from kirby_combat.session.combat_session import CombatSession
@@ -143,6 +144,15 @@ def main() -> None:
 
     loser = next(c for c in session.combatants.values() if c.is_ko)
     print(f"\n  {loser.name} is down after {phase} Phases.")
+
+    # ---- Who did it: the record names the cause of every vital change,
+    # ---- and `events_involving` finds the rows about one fighter.
+    blows = [e for e in events_involving(session, loser.id)
+             if e.kind == "VitalsChanged" and e.combatant_id == loser.id]
+    last = blows[-1]
+    print(f"  The last blow: {-last.stun} STUN, caused by "
+          f"{session.combatants[last.caused_by].name}.")
+    assert last.caused_by != loser.id
 
     # STUN below zero is kept, not clamped: 6E reads how far under a
     # character went to decide how long they stay under. A fold that

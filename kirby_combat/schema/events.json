@@ -4077,6 +4077,16 @@
         "body": {
           "type": "integer"
         },
+        "caused_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "combatant_id": {
           "type": "string"
         },
@@ -4122,7 +4132,8 @@
         "stun",
         "body",
         "end",
-        "reason"
+        "reason",
+        "caused_by"
       ],
       "title": "VitalsChanged",
       "type": "object"
@@ -4318,7 +4329,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.30.0",
+  "$id": "urn:kirby-combat:schema:events:0.31.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4467,5 +4478,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.30.0"
+  "x-kirby-combat-version": "0.31.0"
 }

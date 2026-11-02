@@ -170,6 +170,7 @@ def spend_end(session, combatant_id: str, cost: int):
     if spend > 0:
         session, _ = record_vitals_change(
             session, combatant_id, end=-spend, reason="end_spent",
+            caused_by=combatant_id,
         )
     short = cost - spend
     if short > 0:
@@ -180,6 +181,7 @@ def spend_end(session, combatant_id: str, cost: int):
         stun = sum(session.dice_roller.roll_dice(math.ceil(short / 2)))
         session, _ = record_vitals_change(
             session, combatant_id, stun=-stun, reason="stun_for_end",
+            caused_by=combatant_id,
         )
     return session
 

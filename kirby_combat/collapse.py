@@ -152,7 +152,8 @@ def _inside(pos: Any, construct: Any) -> bool:
     return bool(constructs_containing(pos, [construct]))
 
 
-def bring_it_down(session: Any, construct: Any, *, roller, template):
+def bring_it_down(session: Any, construct: Any, *, roller, template,
+                  caused_by: str | None):
     """What happens when something's BODY runs out.
 
     THREE THINGS, AND THIS USED TO KNOW ONE. Every destroyed construct
@@ -221,7 +222,8 @@ def bring_it_down(session: Any, construct: Any, *, roller, template):
         body = max(0, int(dmg.body) - defense)
         stun = stun_for_body_taken(stun, body)    # 6E2 p.105
         if stun or body:
-            session = _apply_damage(session, cid, stun=stun, body=body)
+            session = _apply_damage(session, cid, stun=stun, body=body,
+                                    caused_by=caused_by)
         caught.append({"combatant_id": cid, "stun": stun, "body": body})
 
     # AND IT STOPS BEING IN THE WAY. `constructs_in` drops rubble from the

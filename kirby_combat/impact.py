@@ -155,8 +155,8 @@ def skill_roll(session, combatant_id: str, xmlid: str, *, modifier: int,
 
 
 def impact_damage(session, target_id: str, dice: int, *, roller, template,
-                  reason: str, double_stun: bool,
-                  halved: bool) -> tuple["CombatSession", dict]:
+                  reason: str, double_stun: bool, halved: bool,
+                  caused_by: str | None) -> tuple["CombatSession", dict]:
     """Roll ``dice`` of Normal Damage against the target's PD and take it.
 
     The same damage and defense functions every attack uses, so Damage
@@ -195,6 +195,7 @@ def impact_damage(session, target_id: str, dice: int, *, roller, template,
     stun_dealt = stun_for_body_taken(stun_dealt, body_dealt)   # 6E2 p.105
     session, _ = record_vitals_change(
         session, target_id, stun=-stun_dealt, body=-body_dealt, reason=reason,
+        caused_by=caused_by,
     )
     return session, {
         "dice": int(dice), "dice_rolled": list(rolled.damage),
@@ -211,7 +212,7 @@ def impact_damage(session, target_id: str, dice: int, *, roller, template,
 # ---------------------------------------------------------------------------
 
 def fall(session, combatant_id: str, from_pos: "Position", *, roller, template,
-         landing=None) -> tuple["CombatSession", dict]:
+         caused_by: str | None, landing=None) -> tuple["CombatSession", dict]:
     """He falls from ``from_pos`` to whatever is below and takes the damage.
 
     6E2 p.142: "A character who falls 20m or less takes 1d6 damage per full
@@ -255,6 +256,7 @@ def fall(session, combatant_id: str, from_pos: "Position", *, roller, template,
     session, damage = impact_damage(
         session, combatant_id, taken, roller=roller, template=template,
         reason="falling", double_stun=False, halved=halved,
+        caused_by=caused_by,
     )
     return session, {
         "from_z": from_pos.z, "landed_z": landing.landed_at.z,
@@ -501,6 +503,7 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
             session, impact = impact_damage(
                 session, target_id, dice, roller=roller, template=template,
                 reason="knockback", double_stun=double_stun, halved=False,
+                caused_by=attack.attacker.id,
             )
             struck = _structure_takes(standing, int(impact.get("raw_body", 0) or 0),
                                       shattered=through)
@@ -526,7 +529,8 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
             payload["walls"] = walls
         if shattered:
             session, payload["collapsed_onto"] = _bring_down(
-                session, shattered, roller=roller, template=template)
+                session, shattered, roller=roller, template=template,
+                caused_by=attack.attacker.id)
 
     fell = [target_id]
     if stopped_by_wall:
@@ -534,7 +538,7 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
     elif moved is not None and moved.fall is not None:
         session, payload["fall"] = fall(
             session, target_id, moved.travel_end, roller=roller,
-            template=template, landing=moved.fall,
+            template=template, landing=moved.fall, caused_by=attack.attacker.id,
         )
     elif airborne:
         fell = []
@@ -550,7 +554,7 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
             session, payload["impact"] = impact_damage(
                 session, target_id, int(left) // 4, roller=roller,
                 template=template, reason="knockback", double_stun=double_stun,
-                halved=False,
+                halved=False, caused_by=attack.attacker.id,
             )
     payload["prone"] = bool(fell)
     return session, payload, fell
@@ -621,14 +625,15 @@ def _faces_of(session, wall_id: str, object_id: str) -> frozenset[str]:
                                   if getattr(w, "part_of", None) == object_id})
 
 
-def _bring_down(session, structures: list, *, roller, template):
+def _bring_down(session, structures: list, *, roller, template,
+                caused_by: str | None):
     """Bring down what his flight destroyed, after he has landed."""
     from kirby_combat.collapse import bring_it_down
 
     caught: list[dict[str, Any]] = []
     for structure in structures:
         session, under = bring_it_down(session, structure, roller=_dice(roller),
-                                       template=template)
+                                       template=template, caused_by=caused_by)
         caught.extend(under)
     return session, caught
 
@@ -656,7 +661,8 @@ def precarious_under(session, combatant_id: str) -> bool:
 
 
 def keep_footing(session, target_id: str, result: "AttackResult", *, roller,
-                 template) -> tuple["CombatSession", dict | None, list[str]]:
+                 template,
+                 caused_by: str | None) -> tuple["CombatSession", dict | None, list[str]]:
     """A man hit while standing on a narrow perch may lose his footing.
 
     GM RULING, ported from the driver (supported-vantages spec §5): the
@@ -701,7 +707,7 @@ def keep_footing(session, target_id: str, result: "AttackResult", *, roller,
         return session, payload, []
     pos = _position_of(session, target_id)
     session, payload["fall"] = fall(session, target_id, pos, roller=roller,
-                                    template=template)
+                                    template=template, caused_by=caused_by)
     return session, payload, [target_id]
 
 
@@ -735,7 +741,8 @@ def after_the_blow(session, attack: "AttackInput", result: "AttackResult", *,
     moved = kb is not None and (kb.get("distance_m", 0) > 0 or kb.get("prone"))
     if not moved:
         session, footing, footing_fell = keep_footing(
-            session, attack.target.id, result, roller=roller, template=template)
+            session, attack.target.id, result, roller=roller, template=template,
+            caused_by=attack.attacker.id)
         if footing is not None:
             out["footing"] = footing
             fell += footing_fell

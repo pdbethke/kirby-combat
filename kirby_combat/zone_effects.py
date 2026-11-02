@@ -138,7 +138,7 @@ def _burn(session, construct, combatant_id: str, *, template, roller):
     if result.stun_dealt or result.body_dealt:
         session, _ = record_vitals_change(
             session, combatant_id, stun=-result.stun_dealt,
-            body=-result.body_dealt, reason="hazard")
+            body=-result.body_dealt, reason="hazard", caused_by=None)
     status = determine_status_changes(
         stun_before=victim.current_stun,
         stun_after=victim.current_stun - result.stun_dealt,
@@ -180,7 +180,7 @@ def _drown(session, construct, combatant_id: str, *, roller):
     })
     session, _ = record_vitals_change(
         session, combatant_id, end=-end, stun=-stun, body=-body,
-        reason="holding_breath")
+        reason="holding_breath", caused_by=None)
     status = determine_status_changes(
         stun_before=victim.current_stun, stun_after=victim.current_stun - stun,
         body_before=victim.current_body, body_after=victim.current_body - body,

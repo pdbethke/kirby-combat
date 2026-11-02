@@ -295,7 +295,8 @@ def illusion_strikes(session: "CombatSession", effect, roller) -> "CombatSession
         stun = max(0, rolled.stun - defense)
         if illusion.harm is IllusoryHarm.STUN_AND_BODY:
             body = max(0, rolled.body - defense)
-    s = _apply_damage(session, target.id, stun=stun, body=body)
+    s = _apply_damage(session, target.id, stun=stun, body=body,
+                      caused_by=effect.attacker_id)
     status_changes = determine_status_changes(
         stun_before=target.current_stun, stun_after=target.current_stun - stun,
         body_before=target.current_body, body_after=target.current_body - body,

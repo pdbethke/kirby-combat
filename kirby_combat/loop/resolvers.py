@@ -1322,6 +1322,7 @@ def _rapid_fire_at_construct(
 
         session, caught = bring_it_down(
             session, construct, roller=roller, template=template,
+            caused_by=actor.id,
         )
     return _recorded(session, actor, action, shots, {
         "kind": action.kind, "target_id": action.target_id,
@@ -1499,7 +1500,7 @@ def _throw_grabbed(session, actor, action: LegalAction, *, template, roller):
         if moved.fall is not None:
             new_session, landed = fall(new_session, target.id, moved.travel_end,
                                        roller=roller, template=template,
-                                       landing=moved.fall)
+                                       landing=moved.fall, caused_by=actor.id)
             throw_row = next(e for e in reversed(new_session.event_log)
                              if e.kind == "ActionResolved"
                              and e.result_payload.get("kind") == "throw")
@@ -1583,6 +1584,7 @@ def _resolve_throw(
 
             session, caught = bring_it_down(
                 session, target, roller=roller, template=template,
+                caused_by=actor.id,
             )
         return _recorded(session, actor, action, hit, {
             "kind": action.kind, "target_id": action.target_id,
@@ -2093,6 +2095,7 @@ def _resolve_attack_construct(
 
         session, caught = bring_it_down(
             session, construct, roller=roller, template=template,
+            caused_by=actor.id,
         )
     return _recorded(session, actor, action, outcome, {
         "kind": action.kind, "target_id": target_id,
@@ -3379,7 +3382,7 @@ def _climb(session, actor, action: LegalAction, *, fast: bool, roller, template)
         return _recorded(session, actor, action, save, payload)
 
     new_session, landed = fall(session, actor.id, start, roller=roller,
-                               template=template)
+                               template=template, caused_by=actor.id)
     payload.update({"fall": landed, FELL: [actor.id],
                     # The fall's damage is checked against CON like any
                     # other (6E2 p.105); the row names him so the Stun fold

@@ -80,6 +80,7 @@ def apply_vitals_delta(combatant, *, stun: int = 0, body: int = 0, end: int = 0)
 def record_vitals_change(
     session, combatant_id: str, *,
     stun: int = 0, body: int = 0, end: int = 0, reason: str,
+    caused_by: str | None,
 ):
     """Record a STUN/BODY/END change and let `apply_event` apply it.
 
@@ -94,7 +95,9 @@ def record_vitals_change(
     Deltas are SIGNED: damage and spends are negative. `reason` is
     required rather than defaulted, because "something happened to his
     STUN" is not a record; the reader has to be able to tell a Push from
-    a punch.
+    a punch. `caused_by` is required for the same reason: the combatant
+    whose act caused it, his own id for a cost he paid himself, None only
+    when nobody did.
 
     A zero change emits nothing. It is not a decision, and a log full of
     `stun=0, body=0` rows for every miss would bury the hits.
@@ -113,5 +116,6 @@ def record_vitals_change(
         combatant_id=combatant_id,
         stun=stun, body=body, end=end,
         reason=reason,
+        caused_by=caused_by,
     )
     return apply_event(session, event), event

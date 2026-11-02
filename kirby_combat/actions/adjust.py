@@ -148,7 +148,7 @@ def _vitals(session, actor_id: str, target_id: str, vital: str, amount: int, rea
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1, timestamp=_now(),
         author=make_author_combatant(actor_id), combatant_id=target_id,
-        reason=reason, **{vital: int(amount)},
+        reason=reason, caused_by=actor_id, **{vital: int(amount)},
     ))
 
 

@@ -221,7 +221,8 @@ def blow(session, actor, target, action, mv, effect: MartialEffect, *,
                                     cause=W.TAKEN, holder_id=actor.id, position=None)
     if shove_move is not None and result.hit:
         new_session = _carry_out_shove(new_session, target.id, shove_move,
-                                       roller=roller, template=template)
+                                       roller=roller, template=template,
+                                       caused_by=actor.id)
     if effect.damage is ManeuverDamage.FLASH and result.hit:
         new_session = _flash(new_session, actor, target, effect, roller=roller)
     return new_session, result
@@ -291,7 +292,7 @@ def _shove_plan(session, actor, target, power, effect: MartialEffect):
     }, shove_power
 
 
-def _carry_out_shove(session, target_id, plan, *, roller, template):
+def _carry_out_shove(session, target_id, plan, *, roller, template, caused_by):
     from kirby_combat.impact import _record_move, fall
 
     moved = plan["moved"]
@@ -299,7 +300,8 @@ def _carry_out_shove(session, target_id, plan, *, roller, template):
                            move_type="shoved", distance_m=moved.distance_traveled_m)
     if moved.fall is not None:
         session, _landed = fall(session, target_id, moved.travel_end,
-                                roller=roller, template=template, landing=moved.fall)
+                                roller=roller, template=template, landing=moved.fall,
+                                caused_by=caused_by)
     return session
 
 

@@ -609,7 +609,8 @@ def _damage_construct(s, attacker, power, dice, construct, template, roller,
     if outcome.destroyed:
         from kirby_combat.collapse import bring_it_down
 
-        s, caught = bring_it_down(s, construct, roller=roller, template=template)
+        s, caught = bring_it_down(s, construct, roller=roller, template=template,
+                                  caused_by=attacker.id)
     return _record(s, ActionResolved(
         id=str(uuid.uuid4()), session_id=s.id,
         sequence=len(s.event_log) + 1, timestamp=datetime.now(timezone.utc),

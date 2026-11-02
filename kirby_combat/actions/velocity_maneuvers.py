@@ -215,7 +215,8 @@ def _recoil(session, attacker_id, power, result, fraction, *, template):
         stun, body = int(stun * keep), int(body * keep)
     if stun or body:
         session, _ = record_vitals_change(session, attacker_id, stun=-stun,
-                                          body=-body, reason="maneuver_recoil")
+                                          body=-body, reason="maneuver_recoil",
+                                          caused_by=attacker_id)
     status = determine_status_changes(
         stun_before=me.current_stun, stun_after=me.current_stun - stun,
         body_before=me.current_body, body_after=me.current_body - body,

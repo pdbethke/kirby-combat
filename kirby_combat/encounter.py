@@ -398,7 +398,8 @@ def _expendable_fade(session, combatant_id: str, stat: str, before: int):
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        combatant_id=combatant_id, reason="adjustment_fade", **{vital: amount},
+        combatant_id=combatant_id, reason="adjustment_fade", caused_by=None,
+        **{vital: amount},
     ))
 
 

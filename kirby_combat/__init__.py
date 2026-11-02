@@ -204,6 +204,7 @@ from kirby_combat.loop import (  # noqa: E402
 from kirby_combat.session.state_view import (  # noqa: E402
     CombatantStateView, PositionView, SessionStateView, state_view,
 )
+from kirby_combat.session.involvement import events_involving  # noqa: E402
 
 __all__ = [
     # The setting hierarchy
@@ -238,6 +239,8 @@ __all__ = [
     # The readable projection of a fight, and the contract a viewer
     # generates from
     "CombatantStateView", "PositionView", "SessionStateView", "state_view",
+    # Which rows of the record concern one fighter
+    "events_involving",
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
     "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
     "VitalsChanged",
