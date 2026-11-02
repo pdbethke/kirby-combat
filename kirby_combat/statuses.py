@@ -209,6 +209,13 @@ HOLDING = "holding"
 
 PRONE = "prone"
 
+IN_THE_AIR = "inTheAir"
+# 6E2 p.87 DIVE FOR COVER, FAILED -- he is "in the air" at his starting
+# point until his next Phase, when he lands prone. His DCV does not change;
+# Knockback against him is rolled with 1d6 less (`impact.knockback_dice_for`
+# reads this id). Folded by `_is_in_the_air` off the `DivedForCover` event.
+# A successful dive puts him PRONE at once (`_is_prone`).
+
 #: The `ActionResolved` payload key naming every combatant a resolution put
 #: on the ground (a martial maneuver's Target Falls / You Fall). Folded by
 #: `_is_prone` beside Trip's own `is_prone_after`.
@@ -445,7 +452,12 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
     prone = False
     for evt in session.event_log:
         kind = getattr(evt, "kind", None)
-        if kind == "ActionResolved":
+        if kind == "DivedForCover" and getattr(evt, "combatant_id", None) == combatant_id:
+            # 6E2 p.87: a dive ends prone --- at once if it made its DEX
+            # Roll, at his next Phase if it did not (`_is_in_the_air`
+            # holds him off the ground until then, below).
+            prone = True
+        elif kind == "ActionResolved":
             payload = getattr(evt, "result_payload", None) or {}
             if (
                 payload.get("kind") == "trip"
@@ -465,7 +477,35 @@ def _is_prone(session: "CombatSession", combatant_id: str) -> bool:
             and PRONE in getattr(evt, "removed", frozenset())
         ):
             prone = False
-    return prone
+    return prone and not _is_in_the_air(session, combatant_id)
+
+
+def _is_in_the_air(session: "CombatSession", combatant_id: str) -> bool:
+    """Is he still "in the air" from a failed Dive for Cover (6E2 p.87)?
+
+    SET: his latest ``DivedForCover`` failed.
+
+    CLEAR: he lands prone at his next Phase (6E2 p.87). His Phase
+    has begun when its slot is the first unspent one in this Segment's
+    order, and has passed once a ``PhaseSpent`` for him follows the dive.
+    The next Phase is usually the one the dive's Abort gave up (6E2 p.24),
+    which the loop spends for him; with a Held Action it is the next one he
+    keeps.
+    """
+    failed = False
+    for evt in session.event_log:
+        kind = getattr(evt, "kind", None)
+        if getattr(evt, "combatant_id", None) != combatant_id:
+            continue
+        if kind == "DivedForCover":
+            failed = not evt.success
+        elif kind == "PhaseSpent" and failed:
+            failed = False
+    if not failed:
+        return False
+    up_next = next((slot for slot in session.timeline.acting_order
+                    if not slot.has_acted), None)
+    return up_next is None or up_next.combatant_id != combatant_id
 
 
 #: The `PhaseSpent.reason` for the Phase a Stunned man spends recovering
@@ -1016,6 +1056,9 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     # predate this by a long way; what they lacked was a source.
     if _is_prone(session, combatant_id):
         statuses.add(PRONE)
+    # 6E2 p.87: a failed Dive for Cover, not yet landed.
+    if _is_in_the_air(session, combatant_id):
+        statuses.add(IN_THE_AIR)
 
     if _is_dead(session, combatant_id):
         statuses.add(DEAD)

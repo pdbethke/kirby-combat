@@ -1341,6 +1341,100 @@
       "title": "ConstructSpawned",
       "type": "object"
     },
+    "DivedForCover": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "DivedForCover",
+          "enum": [
+            "DivedForCover"
+          ],
+          "type": "string"
+        },
+        "against_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "DivedForCover",
+          "enum": [
+            "DivedForCover"
+          ],
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "target": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "against_id",
+        "success",
+        "roll",
+        "target",
+        "destination",
+        "origin"
+      ],
+      "title": "DivedForCover",
+      "type": "object"
+    },
     "EnduranceReserveChanged": {
       "additionalProperties": false,
       "properties": {
@@ -4370,6 +4464,9 @@
     },
     {
       "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/DivedForCover"
     },
     {
       "$ref": "#/$defs/EnduranceReserveChanged"

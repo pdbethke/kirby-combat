@@ -318,6 +318,33 @@ class AbortDeclared(BaseEvent):
 
 
 @dataclass
+class DivedForCover(BaseEvent):
+    """A Dive for Cover, made at the attack's announcement (6E2 p.87).
+
+    He Aborted to it (`AbortDeclared` with ``to_action="dive_for_cover"``,
+    recorded beside this). ``roll`` is the 3d6 DEX Roll and ``target`` the
+    number it had to make, after -1 per 2m of the dive. On a success
+    ``destination`` is where he lands (the `MovementResolved` that follows
+    moves him there) and he is prone. On a failure ``destination`` is None:
+    he is "in the air" where he started until his next Phase, when he lands
+    prone (`statuses._is_in_the_air`).
+
+    ``origin`` is where he dived from: the spot an area aimed at him was
+    aimed at, which it does not leave when he does
+    (`area_attack._announced_spot`). ``x``, ``y``, ``z`` as on
+    `MovementResolved`.
+    """
+    kind: Literal["DivedForCover"] = field(default="DivedForCover", init=False)
+    combatant_id: str = ""
+    against_id: str = ""
+    success: bool = False
+    roll: int = 0
+    target: int = 0
+    destination: dict[str, float] | None = None
+    origin: dict[str, float] | None = None
+
+
+@dataclass
 class BlockPriorityGained(BaseEvent):
     """A successful Block earning its blocker the right to act first.
 
@@ -1003,6 +1030,7 @@ CombatEvent = (
     | MovementResolved
     | StatusEffectsChanged
     | AbortDeclared
+    | DivedForCover
     | BlockPriorityGained
     | HeldActionDeclared
     | HeldActionReleased

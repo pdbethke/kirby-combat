@@ -138,21 +138,24 @@ def test_dive_for_cover_success_prone_half_dcv_no_attacker_bonus():
     assert result.success is True
     assert result.diver_prone is True
     assert result.diver_dcv_factor == 0.5
-    assert result.attacker_ocv_bonus == 0
+    assert result.in_the_air is False
+    assert not hasattr(result, "attacker_ocv_bonus")
     assert result.destination == (10.0, 5.0, 0.0)
 
 
-def test_dive_for_cover_failure_half_dcv_no_movement_attacker_plus_2_ocv():
-    """Per 6E2 p87: failed Dive → ½ DCV, no movement, attacker +2 OCV."""
+def test_dive_for_cover_failure_in_the_air_dcv_unchanged_no_movement():
+    """Per 6E2 p87: a failed Dive leaves him "in the air" where he started,
+    DCV unchanged, not yet prone (he lands at his next Phase). The old
+    "half DCV and +2 OCV to the attacker" is not in the book."""
     # DEX=18 → target = 9 + round(18/5) = 13 (canon Characteristic Roll). Roll 18 → fail.
     result = DiveForCover.resolve_dex_roll(
         combatant_dex=18, dice=[6, 6, 6],
         requested_destination=(10.0, 5.0, 0.0),
     )
     assert result.success is False
-    assert result.diver_prone is True
-    assert result.diver_dcv_factor == 0.5
-    assert result.attacker_ocv_bonus == 2
+    assert result.in_the_air is True
+    assert result.diver_prone is False
+    assert result.diver_dcv_factor == 1.0
     assert result.destination is None    # didn't move
 
 

@@ -75,9 +75,14 @@ def test_an_unclassified_kind_raises_naming_it():
 
 
 def _enc(area):
+    from kirby_combat.power_modifiers import AreaShape, AreaSpec, AreaTargeting
+
     blast = shaped_blast("blast", 8)
     if area:
-        blast = replace(blast, area=object())
+        blast = replace(blast, area=AreaSpec(
+            shape=AreaShape.RADIUS, size_m=2.0, targeting=AreaTargeting.STANDARD,
+            explosion=False, personal_immunity=False, width_m=2.0,
+            height_m=2.0, thin_cone=False, unbuilt=()))
     return encounter_on(
         scene_with({"shooter": (0, 0, 0), "mark": (5, 0, 0)}),
         armed("shooter", blast, side=VILLAINS, dex=30),
@@ -103,6 +108,8 @@ def test_no_dodge_offered_against_an_area_attack():
     kinds = [a.kind for a in _menu(True)]
     assert "dodge" not in kinds and "block" not in kinds
     assert "roll_with_punch" not in kinds
+    # Dive for Cover is what answers it (6E2 p.87; tests/loop/test_dive_for_cover.py).
+    assert kinds == ["no_abort", "dive_for_cover"]
 
 
 def test_no_map_area_offers_only_none():
@@ -112,7 +119,8 @@ def test_no_map_area_offers_only_none():
 def test_an_area_autofire_is_an_area_at_the_menu():
     """Spray along a line is never offered for an area power (autofire_offers
     skips it); an area burst is kind `autofire` with the area view."""
-    assert [a.kind for a in _menu(True, kind="autofire")] == ["no_abort"]
+    assert [a.kind for a in _menu(True, kind="autofire")] == [
+        "no_abort", "dive_for_cover"]
 
 
 def test_every_kind_enumeration_offers_is_classified_exactly_once():

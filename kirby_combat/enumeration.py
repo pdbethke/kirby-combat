@@ -340,7 +340,9 @@ class LegalAction:
     # clear vantage and fire) / ``reposition`` (defensive: break contact), the
     # engine ``Position`` destination as an (x, y, z) tuple. Enumeration computes
     # it (via ``nearest_visible_point`` / ``nearest_hidden_point``); the resolver
-    # consumes it (no recompute → no drift). None for every other kind.
+    # consumes it (no recompute → no drift). A ``dive_for_cover`` reaction
+    # carries its destination here too (`loop/reactions.dive_destination`,
+    # 6E2 p.87), with its mode on ``mode``. None for every other kind.
     reposition_dest: tuple[float, float, float] | None = None
     # Spec §7: for a ``reposition_push``, the extra metres bought by Pushing
     # the movement power and the END that costs. Both 0 for every other kind.
