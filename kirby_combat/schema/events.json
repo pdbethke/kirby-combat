@@ -3824,6 +3824,75 @@
       "title": "SessionStateView",
       "type": "object"
     },
+    "SquadLeaderNamed": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SquadLeaderNamed",
+          "enum": [
+            "SquadLeaderNamed"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SquadLeaderNamed",
+          "enum": [
+            "SquadLeaderNamed"
+          ],
+          "type": "string"
+        },
+        "leader_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "squad",
+        "side",
+        "leader_id",
+        "reason"
+      ],
+      "title": "SquadLeaderNamed",
+      "type": "object"
+    },
     "StandingAreaEnded": {
       "additionalProperties": false,
       "properties": {
@@ -4557,6 +4626,9 @@
     },
     {
       "$ref": "#/$defs/SessionStarted"
+    },
+    {
+      "$ref": "#/$defs/SquadLeaderNamed"
     },
     {
       "$ref": "#/$defs/StandingAreaEnded"

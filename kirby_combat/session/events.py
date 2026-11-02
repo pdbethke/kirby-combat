@@ -684,6 +684,23 @@ class MinorFoeKilled(BaseEvent):
 
 
 @dataclass
+class SquadLeaderNamed(BaseEvent):
+    """The engine's pick of who leads a squad (`kirby_combat/squads.py`).
+
+    Written for every squad when the fight begins (``reason`` "fight
+    began") and again, in the same step, after the resolution that downs the
+    leader (``reason`` "<old id> went down"). ``leader_id`` is None when no
+    member is left standing, and that is written once, not every step.
+    Folded by `squads.leader_of`: the latest row for the squad and side.
+    """
+    kind: Literal["SquadLeaderNamed"] = field(default="SquadLeaderNamed", init=False)
+    squad: str = ""
+    side: str = ""
+    leader_id: str | None = None
+    reason: str = ""
+
+
+@dataclass
 class ReturnedToTheBoard(BaseEvent):
     """He is back on the board, at ``at``, by ``mode``: the end of the trip
     `ForcedOffTheBoard` began (`off_board.come_back`).
@@ -1061,6 +1078,7 @@ CombatEvent = (
     | ForcedOffTheBoard
     | ReturnedToTheBoard
     | MinorFoeKilled
+    | SquadLeaderNamed
     | EnduranceReserveChanged
     | RageRolled
     | RageTargeted

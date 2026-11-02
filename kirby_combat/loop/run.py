@@ -831,6 +831,14 @@ def run_phase(
         template=template,
     )
     session = encounter.sessions[0]
+    # THE LEADERS ARE NAMED BEFORE ANYBODY ACTS, and again if the clock's own
+    # events (bleeding) downed one: `name_leaders` writes only what changed.
+    from kirby_combat.squads import name_leaders
+
+    named = name_leaders(session)
+    if named is not session:
+        encounter = _with(encounter, named)
+        session = named
     if actor_id is None:
         # `_advance_to_an_actor` exhausts a whole Turn before giving up,
         # and every combatant with a SPD of at least 1 has a Phase
@@ -888,6 +896,12 @@ def run_phase(
         from kirby_combat.mooks import check_mooks
 
         session = check_mooks(session)
+        # WHO LEADS EACH SQUAD, again at once if this Phase downed one
+        # (`kirby_combat/squads.py`), after the minor-NPC deaths so a mook
+        # leader killed by rule is replaced in the same step.
+        from kirby_combat.squads import name_leaders
+
+        session = name_leaders(session)
         fields["notes"] = notes + list(fields.get("notes") or [])
         return _phase_result(encounter, session, log_before,
                              actor_id=actor_id, **fields)

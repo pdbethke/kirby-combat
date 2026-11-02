@@ -21,6 +21,8 @@ from typing import Any
 _NAMING_KEYS = frozenset({
     "combatant_id", "target_id", "caused_by", "attacker_id",
     "targets", "victims", "fell",
+    # A squad's leader, named by `SquadLeaderNamed`.
+    "leader_id",
 })
 
 

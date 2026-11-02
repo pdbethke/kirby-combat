@@ -613,8 +613,18 @@ class HeroCombatant(Stunnable, CombatParticipant):
     #: in combat just like PCs do". Which of the minor-NPC rules apply is the
     #: campaign template's (`minor_*`). Set by whoever seats the fight.
     minor_hits: "int | None" = None
+    #: The squad he fights in, by name, or None for a man in no squad ---
+    #: which is a meaning, not a default. Declared by whoever seats the
+    #: fight, like `minor_hits`, and never inferred from the roster
+    #: (`kirby_combat/squads.py`). A name is meaningful per side: the same
+    #: name on two sides is two squads.
+    squad: "str | None" = None
 
     def __post_init__(self) -> None:
+        if self.squad is not None and not str(self.squad).strip():
+            raise ValueError(
+                f"{self.id!r}: squad is the name of the squad he fights in, "
+                f"or None for no squad, not {self.squad!r}")
         if self.minor_hits is not None and int(self.minor_hits) < 1:
             raise ValueError(
                 f"{self.id!r}: minor_hits is how many hits kill a minor NPC "
