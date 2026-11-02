@@ -4829,5 +4829,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.31.0"
+  "x-kirby-combat-version": "0.32.0"
 }

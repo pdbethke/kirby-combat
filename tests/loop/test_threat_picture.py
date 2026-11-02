@@ -3,6 +3,7 @@ it reaches the fighter now, which defences answer it, and how many of his own
 squad an area would catch (squad tactics spec, section 2)."""
 from __future__ import annotations
 
+import sys
 import uuid
 from datetime import UTC, datetime
 
@@ -126,7 +127,9 @@ def test_out_of_range_cannot_reach():
 
 def _all_seen(monkeypatch, *ids):
     """Perceived whatever the walls say (a sense that sees through them)."""
-    from kirby_combat import threat_picture as tp
+    # The module, by name: `kirby_combat.threat_picture` the attribute is the
+    # exported function, which shadows the module of the same name.
+    tp = sys.modules["kirby_combat.threat_picture"]
     from kirby_combat.brief_detail import Sighting
     monkeypatch.setattr(tp, "sightings", lambda sit: {
         i: Sighting(enemy_id=i, physical=True, mental=False, through_lock=False)
@@ -157,7 +160,9 @@ def test_men_she_can_reach_counts_his_side():
 def test_an_enemy_he_cannot_perceive_is_not_in_the_picture(monkeypatch):
     s = _fight({"her": (0, 0, 0), "me": (10, 0, 0)})
     s = _use(s, "her", "Storm")
-    from kirby_combat import threat_picture as tp
+    # The module, by name: `kirby_combat.threat_picture` the attribute is the
+    # exported function, which shadows the module of the same name.
+    tp = sys.modules["kirby_combat.threat_picture"]
     from kirby_combat.brief_detail import Sighting
     monkeypatch.setattr(tp, "sightings", lambda sit: {
         "her": Sighting(enemy_id="her", physical=False, mental=False,

@@ -205,6 +205,20 @@ from kirby_combat.session.state_view import (  # noqa: E402
     CombatantStateView, PositionView, SessionStateView, state_view,
 )
 from kirby_combat.session.involvement import events_involving  # noqa: E402
+# Squad tactics (0.32.0). After the loop for the same reason as above:
+# `OrdersChooser` lives in `loop.chooser`, and `threat_picture` reads the
+# situation the loop builds.
+from kirby_combat.defences import Defence, answers_to  # noqa: E402
+from kirby_combat.judgement import powers_seen  # noqa: E402
+from kirby_combat.loop.chooser import OrdersChooser  # noqa: E402
+from kirby_combat.squads import (  # noqa: E402
+    KEEP_ORDERS, FireTeam, InvalidOrders, KeepOrders, OrdersPage, Squad,
+    SquadOrders, TeamTask, leader_of, order_fit, orders_for, squads_of,
+    validate_orders,
+)
+from kirby_combat.threat_picture import (  # noqa: E402
+    ThreatLine, ThreatPicture, threat_picture,
+)
 
 __all__ = [
     # The setting hierarchy
@@ -241,6 +255,13 @@ __all__ = [
     "CombatantStateView", "PositionView", "SessionStateView", "state_view",
     # Which rows of the record concern one fighter
     "events_involving",
+    # Squad tactics: defences, the threat picture, squads and their orders
+    "Defence", "answers_to", "powers_seen",
+    "ThreatLine", "ThreatPicture", "threat_picture",
+    "Squad", "squads_of", "leader_of",
+    "TeamTask", "FireTeam", "SquadOrders", "KEEP_ORDERS", "KeepOrders",
+    "OrdersPage", "OrdersChooser", "InvalidOrders", "validate_orders",
+    "order_fit", "orders_for",
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
     "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
     "VitalsChanged",
