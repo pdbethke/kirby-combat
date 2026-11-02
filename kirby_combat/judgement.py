@@ -105,6 +105,23 @@ def _used_name(payload: dict) -> str | None:
         or payload.get("power_xmlid") or None
 
 
+def powers_seen(session: Any, enemy_id: str) -> tuple[str, ...]:
+    """Every power or maneuver name ``enemy_id`` has used this fight, in order
+    of first use, uncapped. The SEEN POWERS ruling in the module docstring
+    is made here, once: `judge_enemy` caps this for the page, and the threat
+    picture (`threat_picture`) reads all of it."""
+    seen: list[str] = []
+    for evt in session.event_log:
+        if getattr(evt, "kind", None) != "ActionResolved":
+            continue
+        author = evt.author
+        if author.type == "combatant" and author.id == enemy_id:
+            name = _used_name(evt.result_payload)
+            if name and name not in seen:
+                seen.append(name)
+    return tuple(seen)
+
+
 def _is_mook(session: Any, enemy: Any) -> bool:
     if getattr(enemy, "minor_hits", None) is None:
         return False
@@ -160,7 +177,7 @@ def _landed_line(payload: dict, enemy_id: str) -> str:
     return f"{name} hit him; " + (", ".join(seen) if seen else "he kept fighting")
 
 
-def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
+def judge_enemy(situation: PhaseSituation, enemy: Any) -> EnemyJudgement:
     """What the actor can judge of `enemy` right now. See the module docstring."""
     sight = sightings(situation)[enemy.id]
     if not sight.perceived:
@@ -178,7 +195,7 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
             seen_more=0, hits_earlier=0)
 
     session = situation.session
-    seen: list[str] = []
+    seen = powers_seen(session, enemy.id)
     landed: list[str] = []
     acted = False
     for evt in session.event_log:
@@ -191,9 +208,6 @@ def judge_enemy(situation: "PhaseSituation", enemy: Any) -> EnemyJudgement:
             payload = evt.result_payload
             if by_him:
                 acted = True
-                name = _used_name(payload)
-                if name and name not in seen:
-                    seen.append(name)
             if payload.get("target_id") == enemy.id and payload.get("hit"):
                 landed.append(_landed_line(payload, enemy.id))
 
