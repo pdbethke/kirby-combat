@@ -11,6 +11,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import VitalsChanged, make_author_engine
 from kirby_combat.side import Side
 from kirby_combat.squads import Squad, leader_of, leader_rule, name_leaders, squads_of
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 
 RED, BLUE = Side.named("red"), Side.named("blue")
@@ -159,6 +160,9 @@ def test_through_the_loop_the_leader_falls_and_the_next_is_named_in_that_step():
                                    dice_roller=RandomRoller(seed=3)).start()
 
     class _Shoot:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             for x in situation.menu:
                 if x.kind == "no_abort":

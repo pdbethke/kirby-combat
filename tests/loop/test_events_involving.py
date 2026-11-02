@@ -47,3 +47,16 @@ def test_it_is_the_record_in_order():
     session = _fight()
     rows = events_involving(session, "mark")
     assert [e.sequence for e in rows] == sorted(e.sequence for e in rows)
+
+
+def test_a_list_of_dicts_is_read_dict_by_dict():
+    """`SquadOrdersGiven.teams` names its men inside a list of dicts; so may
+    an action's result. Both are read, at the top of a row and inside it."""
+    from types import SimpleNamespace
+
+    from kirby_combat.session.involvement import involves
+
+    orders = SimpleNamespace(teams=[{"member_ids": ["a"]}, {"member_ids": ["b", "c"]}])
+    assert involves(orders, "c") and not involves(orders, "d")
+    resolved = SimpleNamespace(result_payload={"hits": [{"target_id": "x"}]})
+    assert involves(resolved, "x") and not involves(resolved, "y")

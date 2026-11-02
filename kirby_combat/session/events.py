@@ -703,6 +703,29 @@ class SquadLeaderNamed(BaseEvent):
 
 
 @dataclass
+class SquadOrdersGiven(BaseEvent):
+    """A squad leader's orders (`kirby_combat/squads.py`): every member
+    standing when they were given, each in one fire team with one task.
+
+    ``teams`` is one plain dict per `FireTeam`: ``member_ids`` (a list),
+    ``task`` (the `TeamTask` value), ``target_id``, ``radius_m`` and
+    ``position`` (``{x, y, z}``, the way `ReturnedToTheBoard.at` carries a
+    point), each None when the task does not use it. Written only after
+    `squads.validate_orders` has passed them; a `KEEP_ORDERS` answer writes
+    nothing. Folded by `squads.orders_for`: the latest row for the squad
+    and side, standing until the next one, even after the leader falls.
+    """
+    kind: Literal["SquadOrdersGiven"] = field(default="SquadOrdersGiven", init=False)
+    squad: str = ""
+    side: str = ""
+    leader_id: str = ""
+    #: One dict per team; every value is one of these (see above), so the
+    #: schema describes it rather than waving it through as free-form.
+    teams: list[dict[str, str | float | list[str] | dict[str, float] | None]] = field(
+        default_factory=list)
+
+
+@dataclass
 class ReturnedToTheBoard(BaseEvent):
     """He is back on the board, at ``at``, by ``mode``: the end of the trip
     `ForcedOffTheBoard` began (`off_board.come_back`).
@@ -1081,6 +1104,7 @@ CombatEvent = (
     | ReturnedToTheBoard
     | MinorFoeKilled
     | SquadLeaderNamed
+    | SquadOrdersGiven
     | EnduranceReserveChanged
     | RageRolled
     | RageTargeted

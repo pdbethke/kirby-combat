@@ -314,8 +314,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # Who is off the board is read off positions and the forced move
         # that put him there, by `kirby_combat/off_board.py`.
         "ForcedOffTheBoard", "ReturnedToTheBoard",
-        # A squad's leader is folded off the log by `kirby_combat/squads.py`.
-        "SquadLeaderNamed",
+        # A squad's leader and its orders are folded off the log by
+        # `kirby_combat/squads.py`.
+        "SquadLeaderNamed", "SquadOrdersGiven",
         # An Endurance Reserve's END is folded off the log by
         # `kirby_combat/endurance.py`.
         "EnduranceReserveChanged",

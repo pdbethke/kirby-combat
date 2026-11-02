@@ -1050,6 +1050,13 @@ def run_phase(
             session, spent = _mark_acted(session, actor_id)
         return _done(session, notes=[note])
 
+    # SQUAD ORDERS, at the top of his own Phase and before his pick. Zero
+    # Phase (a RULING on 6E2 p.25, `squads.py`): he still takes his action
+    # below. Asked once a Phase, so not again when the Phase comes back to
+    # him after a Zero Phase or first Half Phase Action.
+    if not continuing:
+        session = _ask_for_orders(session, actor_id, chooser)
+
     situation = _situation_for(session, actor_id)
     menu = situation.menu
     if not menu:
@@ -1118,6 +1125,41 @@ def run_phase(
         session, action_id=action.action_id, kind=action.kind,
         result=resolved.result,
     )
+
+
+def _ask_for_orders(session: "CombatSession", actor_id: str, chooser) -> "CombatSession":
+    """If ``actor_id`` leads his squad, ask his seat for orders, validate
+    them and record them; return the session. See `squads.py`.
+
+    A seat with no ``give_orders`` cannot lead a squad, and is told so by
+    name rather than skipped: a leader who silently gives no orders would
+    look like a leader who chose to keep them.
+    """
+    from kirby_combat.side import Side
+    from kirby_combat.squads import (
+        KEEP_ORDERS, leader_of, orders_page, record_orders, squads_of,
+        validate_orders,
+    )
+
+    actor = session.combatants[actor_id]
+    name = getattr(actor, "squad", None)
+    if name is None:
+        return session
+    side = Side.of(actor).id
+    if leader_of(session, name, side) != actor_id:
+        return session
+    give = getattr(chooser, "give_orders", None)
+    if give is None:
+        raise TypeError(
+            f"{actor_id!r} leads squad {name!r} and his chooser "
+            f"{type(chooser).__name__} has no give_orders: a squad leader's "
+            f"seat must implement OrdersChooser (kirby_combat.loop.chooser)")
+    (squad,) = [q for q in squads_of(session) if q.name == name and q.side == side]
+    page = orders_page(session, squad, actor_id, situation_for=_situation_for)
+    orders = validate_orders(page, give(page))
+    if orders is KEEP_ORDERS:
+        return session
+    return record_orders(session, squad, actor_id, orders)
 
 
 def _goes_on_note(actor_id: str, action, time: ActionTime) -> str:

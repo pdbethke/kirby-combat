@@ -3893,6 +3893,100 @@
       "title": "SquadLeaderNamed",
       "type": "object"
     },
+    "SquadOrdersGiven": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SquadOrdersGiven",
+          "enum": [
+            "SquadOrdersGiven"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SquadOrdersGiven",
+          "enum": [
+            "SquadOrdersGiven"
+          ],
+          "type": "string"
+        },
+        "leader_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "teams": {
+          "items": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": {
+                        "type": "number"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "squad",
+        "side",
+        "leader_id",
+        "teams"
+      ],
+      "title": "SquadOrdersGiven",
+      "type": "object"
+    },
     "StandingAreaEnded": {
       "additionalProperties": false,
       "properties": {
@@ -4629,6 +4723,9 @@
     },
     {
       "$ref": "#/$defs/SquadLeaderNamed"
+    },
+    {
+      "$ref": "#/$defs/SquadOrdersGiven"
     },
     {
       "$ref": "#/$defs/StandingAreaEnded"
