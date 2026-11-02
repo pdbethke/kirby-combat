@@ -95,6 +95,8 @@ NON_THREAT_KINDS = frozenset({
     "release_held", "reposition", "reposition_vantage", "set", "stabilize",
     "stand_up", "change_identity", "change_identity_instant",
     "raise_damage_shield", "snap_out_of_rage",
+    # Acts only on himself (Self Only): nobody else is touched.
+    "self_destruct",
 })
 
 #: Single-target, against DCV. DODGE 6E2 p.55/p.93; DIVE_FOR_COVER 6E2 p.87;

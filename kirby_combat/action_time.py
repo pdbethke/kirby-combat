@@ -136,6 +136,9 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     # RULING: a Barrier is placed, not rolled for; it is read as the power
     # this Phase is for, and so ends it.
     "force_wall": (_T.ATTACK, "RULING: raising a Barrier ends the Phase like an attack"),
+    # RULING: setting off a power he bought to use is read as the Attack
+    # Action using an attack power is (6E2 p.20); it takes the Phase.
+    "self_destruct": (_T.ATTACK, "RULING: using an attack power is an Attack Action, 1/2 Phase, ends the Phase (6E2 p.20)"),
     # The victim attacks the Entangle; its result decides the time.
     "escape_attack": (_T.BREAKOUT, "6E2 p.126: what is left of the Phase is decided by the BODY done"),
     "escape_ego": (_T.BREAKOUT, "6E2 p.126, with EGO for STR (6E1 p.219)"),

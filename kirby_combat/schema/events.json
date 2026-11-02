@@ -3666,6 +3666,88 @@
       "title": "SegmentAdvanced",
       "type": "object"
     },
+    "SelfDestructRolled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SelfDestructRolled",
+          "enum": [
+            "SelfDestructRolled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "casualty_fraction": {
+          "type": "number"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SelfDestructRolled",
+          "enum": [
+            "SelfDestructRolled"
+          ],
+          "type": "string"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "squad",
+        "side",
+        "casualty_fraction",
+        "roll",
+        "target_number",
+        "succeeded",
+        "turn",
+        "segment"
+      ],
+      "title": "SelfDestructRolled",
+      "type": "object"
+    },
     "SessionEnded": {
       "additionalProperties": false,
       "properties": {
@@ -4714,6 +4796,9 @@
     },
     {
       "$ref": "#/$defs/SegmentAdvanced"
+    },
+    {
+      "$ref": "#/$defs/SelfDestructRolled"
     },
     {
       "$ref": "#/$defs/SessionEnded"

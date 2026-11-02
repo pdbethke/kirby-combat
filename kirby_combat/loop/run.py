@@ -71,6 +71,7 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.self_destruct import judge_the_squad, self_destruct_offers
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import PhaseSpent, make_author_engine
 from kirby_combat.constructs import constructs_in
@@ -658,6 +659,10 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         menu = ladder_for(session, actor_id, menu)
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
+    # A LAST RESORT, and only then (squad tactics spec 7): a Self Only damaging
+    # power, when capture is imminent or he judged the squad lost. Added here
+    # so the Phase's time filters below price it like any other offer.
+    menu = menu + self_destruct_offers(session, actor)
     if rage is not None:
         menu = RageMenu.narrowed(menu)
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
@@ -1057,6 +1062,9 @@ def run_phase(
     # (6E2 p.139) has his Phase back having chosen nothing, and is asked now.
     if not acted_this_phase(session, actor_id):
         session = _ask_for_orders(session, actor_id, chooser)
+        # And his INT Roll for the squad being lost, owed once a Phase
+        # (`self_destruct.judge_the_squad`).
+        session = judge_the_squad(session, actor_id, roller)
 
     situation = _situation_for(session, actor_id)
     menu = situation.menu

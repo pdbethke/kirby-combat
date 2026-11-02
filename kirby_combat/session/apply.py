@@ -298,7 +298,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
-        "BreakoutRolled", "RageRolled", "RageTargeted",
+        "BreakoutRolled", "RageRolled", "RageTargeted", "SelfDestructRolled",
         # A Dive for Cover's roll and its outcome: folded by
         # `kirby_combat/statuses.py` (prone, in the air); the move rides on
         # its own `MovementResolved`.

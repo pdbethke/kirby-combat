@@ -807,6 +807,29 @@ class RageRolled(BaseEvent):
 
 
 @dataclass
+class SelfDestructRolled(BaseEvent):
+    """The INT Roll a man makes at the top of his Phase to judge that his
+    squad is lost (`kirby_combat/self_destruct.py`).
+
+    Made at most once a Phase, and only by a man in a squad whose
+    ``casualty_fraction`` is above half who has a Self Only damaging power
+    with a use left. ``succeeded`` is the roll made: a made roll puts
+    `self_destruct` on his menu that Phase. ``squad`` and ``side`` name the
+    squad he judged.
+    """
+    kind: Literal["SelfDestructRolled"] = field(default="SelfDestructRolled", init=False)
+    combatant_id: str = ""
+    squad: str = ""
+    side: str = ""
+    casualty_fraction: float = 0.0
+    roll: int = 0
+    target_number: int = 0
+    succeeded: bool = False
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
 class RageTargeted(BaseEvent):
     """A raging man turning on a new target after finishing the last.
 
@@ -1107,6 +1130,7 @@ CombatEvent = (
     | SquadOrdersGiven
     | EnduranceReserveChanged
     | RageRolled
+    | SelfDestructRolled
     | RageTargeted
     | LingeringAttackApplied
     | LingeringAttackEnded

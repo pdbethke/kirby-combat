@@ -57,7 +57,8 @@ AREA_EFFECT_KINDS = frozenset({"flash", "entangle"})
 #: Kinds whose power IS an area by nature, and whose resolver places that
 #: area itself (Darkness's field, a Barrier, an Image). Their AOE modifier
 #: is the size of the thing they make, not an attack on an area.
-_INHERENTLY_PLACED = frozenset({"darkness_zone", "force_wall", "image_decoy"})
+_INHERENTLY_PLACED = frozenset({"darkness_zone", "force_wall", "image_decoy",
+                                "self_destruct"})
 
 
 def shape_of(power: Any) -> tuple[Any, bool, Any]:

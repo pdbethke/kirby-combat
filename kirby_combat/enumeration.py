@@ -224,6 +224,29 @@ _MOVEMENT_ACTION_KINDS: frozenset[str] = frozenset({
 })
 
 
+def source_power_of(actor: Any, view: Any):
+    """The build object an attack view came from, by id, or None."""
+    target = _src_id(view)
+    if not target:
+        return None
+    seen: set[int] = set()
+
+    def _find(power_list):
+        for pw in power_list or []:
+            if id(pw) in seen:
+                continue
+            seen.add(id(pw))
+            if str(getattr(pw, "id", "")) == target:
+                return pw
+            found = _find(getattr(pw, "sub_powers", None))
+            if found is not None:
+                return found
+        return None
+
+    return (_find(getattr(build_in_play(actor), "powers", None))
+            or _find(getattr(build_in_play(actor), "equipment", None)))
+
+
 def _src_id(power: Any) -> str:
     """The identity of a power or of the view built from it.
 
@@ -693,6 +716,8 @@ ALL_ACTION_KINDS = frozenset({
     "change_identity", "change_identity_instant",
     # Offered by `autofire_offers.autofire_offers` (6E2 p.44-45).
     "autofire", "autofire_spray",
+    # Offered by `self_destruct.self_destruct_offers` (squad tactics spec 7).
+    "self_destruct",
     # Offered by `standing_areas.standing_offers` (6E1 p.323), which the
     # loop runs over this menu.
     "raise_damage_shield",
@@ -885,28 +910,6 @@ def enumerate_actions(
         ]
 
     # Pure brawler: no listed attack powers. Synthesize a Strike via STR.
-    def _source_power(ap: Any):
-        """The build object an attack view came from, by id."""
-        target = _src_id(ap)
-        if not target:
-            return None
-        seen: set[int] = set()
-
-        def _find(power_list):
-            for pw in power_list or []:
-                if id(pw) in seen:
-                    continue
-                seen.add(id(pw))
-                if str(getattr(pw, "id", "")) == target:
-                    return pw
-                found = _find(getattr(pw, "sub_powers", None))
-                if found is not None:
-                    return found
-            return None
-
-        return (_find(getattr(build_in_play(actor), "powers", None))
-                or _find(getattr(build_in_play(actor), "equipment", None)))
-
     def _has_ammunition(ap: Any) -> bool:
         """Is there anything left in it? 6E1 p.334: Charges are uses.
 
@@ -920,16 +923,9 @@ def enumerate_actions(
         his Colt are both RKA, and counting by type would empty one gun by
         firing the other.
         """
-        from kirby_combat.charges import charge_pool
+        from kirby_combat.charges import has_charges_left
 
-        source = _source_power(ap)
-        if source is None:
-            return True
-        pool = charge_pool(source)
-        if pool is None:
-            return True                      # innate: never runs dry
-        key, capacity = pool                 # a framework's slots share one
-        return (spent_charges or {}).get(key, 0) < capacity
+        return has_charges_left(source_power_of(actor, ap), spent_charges)
 
     # AN EMPTY GUN IS NOT A WEAPON. Filtered at the source rather than at
     # each offer site, so every kind built from an attack power --- attack,
