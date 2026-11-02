@@ -270,3 +270,20 @@ def test_a_shaped_power_is_never_aimed_at_a_construct():
         assert not [a for a in menu if a.target_id == "shed"
                     and a._attack_view is power], power.name
         assert [a for a in menu if a.kind == "attack" and a.target_id == "mark"]
+
+
+def test_a_self_only_power_is_not_offered_at_anyone():
+    """The Destroid's Self Destruct System is Self Only: it is never an attack
+    on another man (`power_modifiers.CustomLimitation`)."""
+    from dataclasses import replace as _replace
+
+    from shaped import armed, shaped_blast
+
+    for power, offered in ((shaped_blast("blast", 6), True),
+                           (_replace(shaped_blast("self destruct", 6), self_only=True), False)):
+        enc = encounter_on(
+            scene_with({"caster": (0, 0, 0), "mark": (1, 0, 0)}),
+            armed("caster", power, side=VILLAINS, dex=30),
+            armed("mark", None, side=HEROES))
+        menu = _situation_for(enc.sessions[0], "caster").menu
+        assert bool([a for a in menu if a._attack_view is power]) is offered, power.name
