@@ -15,13 +15,14 @@ import math
 import random
 
 from kirby_combat.scene.generate import (
-    ArenaUnplaceable, _near_segment, arena_for, generate_arena,
+    ArenaGenerator, ArenaUnplaceable, _near_segment, arena_for, generate_arena,
 )
 from kirby_combat.scene.scene import Scene
 
 
 def _arena(seed: int = 1234, fighters: int = 8):
-    return generate_arena(random.Random(seed), fighter_count=fighters)
+    return generate_arena(random.Random(seed), fighter_count=fighters,
+                          generator=ArenaGenerator.WALLS_ONLY)
 
 
 # ---- Deterministic ----
@@ -144,5 +145,6 @@ def test_arena_for_puts_the_combatants_on_the_ground():
         def __init__(self, i):
             self.id = f"f{i}"
 
-    scene = arena_for(random.Random(9), [_C(i) for i in range(4)])
+    scene = arena_for(random.Random(9), [_C(i) for i in range(4)],
+                      generator=ArenaGenerator.WALLS_ONLY)
     assert set(scene.combatant_positions) == {"f0", "f1", "f2", "f3"}
