@@ -125,7 +125,10 @@ def _kinds_of_use(session: Any) -> dict[tuple[str, str], str]:
     return out
 
 
-def _view_named(enemy: Any, name: str) -> Any | None:
+def view_named(enemy: Any, name: str) -> Any | None:
+    """The view on ``enemy``'s sheet behind a `ThreatLine`'s ``power_name``:
+    the attack whose name, or xmlid, is ``name``; None when none is. Public
+    so a seat pricing a line asks here rather than keeping its own copy."""
     for ap in enemy.attacks:
         if (ap.name or "") == name or (getattr(ap, "xmlid", "") or "") == name:
             return ap
@@ -243,7 +246,7 @@ def threat_picture(situation: PhaseSituation) -> ThreatPicture:
             kind = kinds.get((enemy.id, name))
             if kind is None or not threatens_a_man(kind):
                 continue
-            view = _view_named(enemy, name)
+            view = view_named(enemy, name)
             area = view is not None and is_area_attack(view)
             can_reach_me = _can_reach(session, enemy, view, me.id, sight)
             reaches_me = reaches_me or can_reach_me

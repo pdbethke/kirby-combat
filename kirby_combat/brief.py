@@ -336,8 +336,10 @@ class Terrain:
     @property
     def bearings(self) -> list[EnemyBearing]:
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
-        from kirby_world.cover import compute_cover_level, cover_ocv_modifier
+        from kirby_world.cover import compute_cover_level
         from kirby_world.geometry import distance_3d
+
+        from kirby_combat.actions.recording import cover_ocv_for_level
 
         here = self.position_of(self._actor.id)
         out: list[EnemyBearing] = []
@@ -358,7 +360,7 @@ class Terrain:
                 # The cover LEVEL is 0-4; the OCV table is keyed on percent
                 # covered, so the level is converted the way the rules do
                 # rather than by a second table invented here.
-                cover_ocv=cover_ocv_modifier(cover * 25),
+                cover_ocv=cover_ocv_for_level(cover),
                 in_line_of_sight=has_line_of_sight(self.scene, here, there),
             ))
         return sorted(out, key=lambda b: (b.range_m is None, b.range_m or 0.0))

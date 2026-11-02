@@ -3623,7 +3623,9 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_world.cover import cover_ocv_modifier, cover_spots
+        from kirby_world.cover import cover_spots
+
+        from kirby_combat.actions.recording import cover_ocv_for_level
         from kirby_world.geometry import first_blocking_wall
 
         _threats = {
@@ -3752,7 +3754,7 @@ def enumerate_actions(
                     f"Take cover behind {_name} "
                     f"({_d:.1f}m away) — cover {_level}/4 against "
                     f"{_covered} of {_total} of them, so those attackers take "
-                    f"{cover_ocv_modifier(_level * 25):+d} OCV against you"
+                    f"{cover_ocv_for_level(_level):+d} OCV against you"
                     f"{_flank}. Half Move, so you may still attack (6E2 p45)"
                 ),
                 reposition_dest=(_spot.x, _spot.y, _spot.z),
