@@ -95,7 +95,8 @@ class ThreatPicture:
     men_she_can_reach: dict[str, int]
     #: The best `BEST_COVER` spots, best first.
     cover: tuple[CoverSpot, ...]
-    #: A Half Move in metres (what `cover` was reckoned with; used only for cover).
+    #: A Half Move in metres (what `cover` was reckoned with; used only for
+    #: cover). 0.0 with no map: no cover was reckoned, so no reach was asked.
     reach_m: float
 
 
@@ -198,10 +199,12 @@ def _cover(situation: PhaseSituation, perceived: list[Any]) -> tuple[tuple, floa
     from kirby_combat.placement import position_of
 
     session, me = situation.session, situation.actor
-    reach = cover_half_move(me)
     scene = getattr(session, "scene", None)
     if scene is None:
-        return (), reach
+        # No map, no cover: nothing to reckon a Half Move against, so none
+        # is asked for (a man with no build can still be shown a Brief).
+        return (), 0.0
+    reach = cover_half_move(me)
     here = position_of(scene, me.id)
     threats = {e.id: p for e in perceived
                if (p := position_of(scene, e.id)) is not None}

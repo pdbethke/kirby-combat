@@ -55,8 +55,16 @@ def cover_half_move(actor: Any) -> float:
     one offer per feature within a Half Move) in Running. RUNNING, not
     `dive_mode`: the resolver moves the offer by ``action.mode or "running"``,
     so an offer is judged by the move that will be made. The menu and
-    `threat_picture` both read it here."""
-    return max(0.0, float(actor.hero.characteristic_value("RUNNING") or 0) / 2.0)
+    `threat_picture` both read it here.
+
+    OFF `movement_view`, the way `loop.resolvers._full_move` reads a move:
+    the Running entry's ``combat_m``, halved. It read
+    ``hero.characteristic_value("RUNNING")``, which agrees for every build
+    (tests/test_cover_half_move_reads_movement.py) but needs a build, so a
+    combatant that answers only `movement_view` could not be shown a Brief.
+    A man with no Running entry has no Half Move to take cover with."""
+    running = [c for c in actor.movement_view() if c.mode == "running"]
+    return max(0.0, max((float(c.combat_m) for c in running), default=0.0) / 2.0)
 
 
 def can_shoot_from(scene: Any, spot: Any, enemies: Any) -> bool:
