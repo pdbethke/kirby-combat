@@ -221,6 +221,8 @@ class Terrain:
 
         from kirby_world.cover import cover_spots
 
+        from kirby_combat.brief_detail import feature_name
+
         from kirby_combat.loop.reactions import dive_mode
         from kirby_combat.loop.resolvers import _full_move
 
@@ -270,7 +272,7 @@ class Terrain:
         best: dict[str, tuple] = {}
         out = []
         for wall in self.features:
-            name = getattr(wall, "name", None) or getattr(wall, "id", "?")
+            name = feature_name(wall)
             a, b = wall.segment
             mid = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
             distance = math.dist((here.x, here.y), mid)

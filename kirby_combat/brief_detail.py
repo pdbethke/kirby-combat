@@ -1105,6 +1105,12 @@ def threat_lines(situation: "PhaseSituation", picture) -> list[str]:
     return out
 
 
+def feature_name(wall) -> str:
+    """How the page names a wall or furnishing edge: its name, else its id.
+    The one reading, shared by "What is around you" and "Cover"."""
+    return getattr(wall, "name", None) or getattr(wall, "id", "?")
+
+
 def cover_lines(situation: "PhaseSituation", picture) -> list[str]:
     """"Cover": the best spots, whether he can reach each this Phase, and
     from whom each hides him. The feature is named as "What is around you"
@@ -1114,16 +1120,20 @@ def cover_lines(situation: "PhaseSituation", picture) -> list[str]:
         return []
     session = situation.session
     scene = session.scene
-    names = {w.id: getattr(w, "name", None) or w.id for w in scene.walls}
-    names.update({f.id: f.name for f in scene.furnishings})
+    names = {w.id: feature_name(w) for w in scene.walls}
+    names.update({f.id: feature_name(f) for f in scene.furnishings})
     out = []
     for spot in picture.cover:
+        if spot.feature_id not in names:
+            raise KeyError(
+                f"cover spot {spot.feature_id!r} is neither a wall nor a "
+                f"furnishing of the scene; the cover and the scene disagree")
         hides = [session.combatants[i].name
                  for i, level in spot.cover_by_threat.items() if level > 0]
         reach = ("you can reach it this Phase" if spot.reachable_this_phase
                  else "you cannot reach it this Phase")
         out.append(
-            f"{names.get(spot.feature_id, spot.feature_id)}: {reach}, hides you from "
+            f"{names[spot.feature_id]}: {reach}, hides you from "
             f"{_join(hides) if hides else 'none of them'}.")
     return out
 

@@ -238,15 +238,17 @@ def test_an_area_he_has_not_used_is_not_on_the_page():
             e.sessions[0], template=_sheet_fight().template))):
         assert "What can hurt you" not in page
         assert "Storm, an area" not in page
+    used = _use(e.sessions[0], "Talisman", "Storm")        # positive control
+    assert "Storm, an area" in _page(used)
 
 
 def test_an_enemy_with_nothing_shown_gets_no_reach_line():
     page = _page(_fight())
-    assert page.count("can reach") == 1          # Talisman only; he showed Storm
+    assert page.count("Talisman can reach") == 1  # he showed Storm
     quiet = encounter_on(scene_with(_PLACES),
                          armed("Talisman", None, side=VILLAINS),
                          armed("l", None, side=HEROES))
-    assert "can reach" not in _page(quiet.sessions[0])
+    assert "Talisman can reach" not in _page(quiet.sessions[0])
 
 
 def test_orders_that_did_not_name_him_say_so():
@@ -255,3 +257,17 @@ def test_orders_that_did_not_name_him_say_so():
                     radius_m=None, position=None)
     s = record_orders(s, _alpha(), "l", SquadOrders(teams=(team,)))
     assert _section(_page(s, "b"), "Your orders:") == ["Your leader's orders did not name you."]
+
+
+def test_a_cover_spot_the_scene_does_not_hold_is_an_error():
+    import pytest
+    from dataclasses import replace as rep
+    from kirby_combat.brief_detail import cover_lines
+    from kirby_combat.loop.run import _situation_for
+    from kirby_combat.threat_picture import threat_picture
+    s = _fight(walls=[_cover_wall()])
+    sit = _situation_for(s, "l")
+    pic = threat_picture(sit)
+    ghost = rep(pic.cover[0], feature_id="ghost")
+    with pytest.raises(KeyError, match="ghost"):
+        cover_lines(sit, rep(pic, cover=(ghost,)))
