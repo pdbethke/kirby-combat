@@ -23,15 +23,19 @@ RULINGS
   defence row. The view, when his sheet has one by that name, supplies the
   range and the area. A side-effect row records nothing he chose to do to a
   man and is skipped.
-* REACH IS THE OFFER'S OWN GATE, NOW. A hand-to-hand power reaches a man
-  inside the enemy's melee reach (`actions.reach.within_reach`, 6E2 p.56); a
-  No Range area reaches as far as its size (as enumeration's
-  `_no_range_area_covers`); a ranged power must be inside its range
-  (`adjustment_offers._in_range`'s reading) and have line of sight
+* REACH, NOW. A hand-to-hand power reaches a man inside the enemy's melee
+  reach (`actions.reach.within_reach`, 6E2 p.56); a No Range area reaches
+  as far as its size (as enumeration's `_no_range_area_covers`); a ranged
+  power must be inside its range and have line of sight
   (`resolution.line_of_sight.has_line_of_sight`, 6E1 p.339 for Indirect).
-  "Now" means from where each stands, not after a move. With no map, nobody
-  can be shown out of reach, so it reaches (enumeration gates nothing
-  without distances).
+  RULING: a ranged power's range is a MAXIMUM, the metres `hero_view` sets
+  from its Active Points (`AttackPower.range_m`; the loader cites no page
+  for the cap itself). KNOWN ENGINE GAP, recorded for a later fix:
+  `enumerate_actions` does not yet gate maximum range on ranged offers (only
+  line of sight), so an enemy may be OFFERED a shot this picture says
+  cannot reach. The picture follows the rule, not the gap.
+  "Now" means from where each stands, not after a move. With no map,
+  nobody can be shown out of reach, so it reaches.
 * THE SQUAD AN AREA WOULD CATCH is counted from HIM: the standing men of his
   own side and squad, other than himself, within the area's size of where he
   stands. With no map nobody can be shown beside him, so it is 0 (the same
@@ -95,27 +99,29 @@ class ThreatPicture:
     reach_m: float
 
 
-def _kind_of_use(session: Any, enemy_id: str, name: str) -> str | None:
-    """The kind of the first row recording ``enemy_id`` using ``name``."""
+def _kinds_of_use(session: Any) -> dict[tuple[str, str], str]:
+    """``{(enemy_id, power name): kind}``: the kind of the FIRST row recording
+    each use, in one pass over the log."""
     from kirby_combat.judgement import _used_name
 
     declared = {e.id: e for e in session.event_log
                 if getattr(e, "kind", None) == "ActionDeclared"}
+    out: dict[tuple[str, str], str] = {}
     for evt in session.event_log:
         if getattr(evt, "kind", None) != "ActionResolved":
             continue
-        if evt.author.type != "combatant" or evt.author.id != enemy_id:
+        if evt.author.type != "combatant":
             continue
         payload = evt.result_payload
-        if _used_name(payload) != name or payload.get("kind") == _NOT_A_USE:
+        name = _used_name(payload)
+        if not name or payload.get("kind") == _NOT_A_USE:
             continue
         kind = payload.get("kind")
         if not kind:
-            row = declared.get(evt.declaration_event_id)
-            kind = getattr(row, "action_type", None)
+            kind = getattr(declared.get(evt.declaration_event_id), "action_type", None)
         if kind:
-            return kind
-    return None
+            out.setdefault((evt.author.id, name), kind)
+    return out
 
 
 def _view_named(enemy: Any, name: str) -> Any | None:
@@ -125,9 +131,11 @@ def _view_named(enemy: Any, name: str) -> Any | None:
     return None
 
 
-def _can_reach(session: Any, enemy: Any, view: Any, target_id: str) -> bool:
+def _can_reach(session: Any, enemy: Any, view: Any, target_id: str,
+               sight: dict[tuple[str, str], bool]) -> bool:
     """Whether ``enemy``'s power reaches ``target_id`` from where each stands.
-    See the module docstring's REACH ruling."""
+    See the module docstring's REACH ruling. ``sight`` caches line of sight
+    per (enemy, man): it does not depend on the power, only on Indirect."""
     from kirby_world.geometry import distance_3d
 
     from kirby_combat.actions.reach import within_reach
@@ -152,24 +160,26 @@ def _can_reach(session: Any, enemy: Any, view: Any, target_id: str) -> bool:
         return False
     from kirby_combat.enumeration import _has_modifier
 
-    return has_line_of_sight(scene, here, there,
-                             indirect_advantage=_has_modifier(view, "INDIRECT"))
+    if _has_modifier(view, "INDIRECT"):
+        return True
+    key = (enemy.id, target_id)
+    if key not in sight:
+        sight[key] = has_line_of_sight(scene, here, there)
+    return sight[key]
 
 
-def _squadmates_caught(session: Any, me: Any, radius_m: float) -> int:
+def _squadmates_caught(session: Any, me: Any, radius_m: float,
+                       standing: list[str]) -> int:
     """Standing men of ``me``'s side and squad, not himself, within
-    ``radius_m`` of him."""
+    ``radius_m`` of him; ``standing`` is his side's standing ids."""
     from kirby_world.geometry import distance_3d
 
     from kirby_combat.placement import position_of
-    from kirby_combat.roster import Roster
-    from kirby_combat.side import Side
 
     scene = getattr(session, "scene", None)
     here = position_of(scene, me.id) if scene is not None else None
     if here is None:
         return 0
-    standing = Roster(session).standing.get(Side.of(me), [])
     caught = 0
     for cid in standing:
         mate = session.combatants[cid]
@@ -215,6 +225,8 @@ def threat_picture(situation: PhaseSituation) -> ThreatPicture:
                  if sees[e.id].perceived and sees[e.id].physical]
     in_squad = getattr(me, "squad", None) is not None
     my_men = Roster(session).standing.get(Side.of(me), [])
+    kinds = _kinds_of_use(session)
+    sight: dict[tuple[str, str], bool] = {}
 
     lines: list[ThreatLine] = []
     men_she_can_reach: dict[str, int] = {}
@@ -223,22 +235,26 @@ def threat_picture(situation: PhaseSituation) -> ThreatPicture:
         mine_reached: set[str] = set()
         reaches_me = False
         for name in powers_seen(session, enemy.id):
-            kind = _kind_of_use(session, enemy.id, name)
+            kind = kinds.get((enemy.id, name))
             if kind is None or not threatens_a_man(kind):
                 continue
             view = _view_named(enemy, name)
             area = view is not None and is_area_attack(view)
-            can_reach_me = _can_reach(session, enemy, view, me.id)
+            can_reach_me = _can_reach(session, enemy, view, me.id, sight)
             reaches_me = reaches_me or can_reach_me
-            mine_reached |= {cid for cid in my_men
-                             if _can_reach(session, enemy, view, cid)}
+            mine_reached |= {
+                cid for cid in my_men
+                if (can_reach_me if cid == me.id
+                    else _can_reach(session, enemy, view, cid, sight))}
+            # `size_m` for every shape: for a Cone or Line it is a bound
+            # (its length), not an exact reach.
             radius = float(view.area.size_m) if area else None
             lines.append(ThreatLine(
                 enemy_id=enemy.id, power_name=name, kind=kind,
                 can_reach_me=can_reach_me, area_radius_m=radius,
                 answered_by=answers_to(view, kind=kind),
                 squadmates_it_would_catch=(
-                    _squadmates_caught(session, me, radius)
+                    _squadmates_caught(session, me, radius, my_men)
                     if area and in_squad else None)))
         men_she_can_reach[enemy.id] = len(mine_reached)
         reaching += reaches_me
