@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.31.0 — 2026-11-02
+
+Three findings from a local Talisman fight. Requires **kirby-cost >= 0.6.4** (the build doc keeps a custom modifier's name).
+
+- **A Self Only power is never fired at anyone else.** HD's custom advantage or limitation is XMLID="MODIFIER", and its name is its meaning. The Destroid's Self Destruct System is "RKA 8d6; 1 Charge which Never Recovers, Self Only, No Range": the engine read no custom limitation, offered it as an attack, and the Destroid put 57 STUN into Talisman with it and kept fighting. New `power_modifiers.CustomLimitation` (the names the engine reads, matched whole, case aside; RULING in its docstring) and `custom_limitations_of(power)`; `AttackPower.self_only`. A Self Only attack is unbuilt (`unbuilt_reasons`), so not offered: when a Destroid sets it off (to avoid capture, or when it judges the squad is lost; Peter, 2026-11-02) is not built yet. Tests: `tests/test_self_only_is_not_an_attack.py`, `tests/loop/test_offered_means_resolves.py`.
+- **Every STUN/BODY/END change names who caused it.** New field `VitalsChanged.caused_by` (schema regenerated): the attacker for a hit and for the knockback, fall or collapse it brings; the man himself for a cost he paid (END, STUN for END, a Side Effect, recoil); None for a hazard or a fading adjustment. **Breaking:** `record_vitals_change`, `impact.impact_damage`, `impact.fall`, `impact.keep_footing`, `collapse.bring_it_down` and `actions.recording._apply_damage` require `caused_by=`. Tests: `tests/loop/test_the_record_says_who_did_it.py`.
+- **`events_involving(session, combatant_id)`** (import surface): the rows of the record that concern one fighter, as actor, target or cause; the acting order and other rows that merely list everyone are left out. Raises KeyError for a combatant the fight does not have. Module `session/involvement.py`; tests `tests/loop/test_events_involving.py`.
+
 ## 0.30.0 — 2026-11-01
 
 **The judged page: a fighter's page describes an enemy as she can judge him, not by his sheet** (Peter: facts are "what she can reasonably judge… what she can judge herself in context"). Spec `kirby/docs/superpowers/specs/2026-11-01-combat-decisions-design.md`, Phase 3a. Module `kirby_combat/judgement.py`; tests `tests/test_page_knowledge.py`, `tests/test_judgement.py`, `tests/loop/test_the_page_judges_enemies.py`.

@@ -384,5 +384,5 @@ def test_a_long_fall_is_read_off_the_velocity_not_capped():
     s = _session(scene)
     edge = Position(12, 10, 245)
     s2, landed = fall(s, "t", edge, roller=__import__("kirby_dice").FakeRoller([[1] * 30]),
-                      template=TEMPLATE)
+                      template=TEMPLATE, caused_by=None)
     assert landed["fall_distance_m"] == 200.0 and landed["damage_dice"] == 30

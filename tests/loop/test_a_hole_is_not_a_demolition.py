@@ -127,6 +127,7 @@ def test_breaching_a_wall_leaves_the_building_standing():
         session, _wall_named(session, "harwood"),
         roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     assert caught == [], "a hole in a wall falls on nobody"
 
@@ -140,6 +141,7 @@ def test_you_can_shoot_through_the_hole():
         session, _wall_named(session, "harwood"),
         roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     holed = _wall_named(session, "harwood")
     assert holed is not None, "a breached wall is still there"
@@ -154,6 +156,7 @@ def test_but_you_cannot_walk_through_it():
         session, _wall_named(session, "harwood"),
         roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     assert _wall_named(session, "harwood").blocks_movement is True
 
@@ -167,6 +170,7 @@ def test_shooting_through_the_hole_costs_you():
         session, _wall_named(session, "harwood"),
         roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     from kirby_combat.scene.cover import cover_ocv_modifier
 
@@ -194,6 +198,7 @@ def test_a_barrel_is_simply_gone():
         session, _wall_named(session, "barrels"),
         roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     assert _wall_named(session, "barrels") is None
     assert caught == []
@@ -210,6 +215,7 @@ def test_a_building_still_comes_down_on_the_man_inside():
     session, caught = bring_it_down(
         session, _building(), roller=RandomRoller(seed=5),
         template=CombatTemplate.default_6e_superheroic(),
+        caused_by=None,
     )
     assert [c["combatant_id"] for c in caught] == ["ike"]
     assert session.combatants["ike"].state.current_stun < before

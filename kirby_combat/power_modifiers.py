@@ -443,6 +443,37 @@ def increased_end_of(power: Any) -> IncreasedEnd | None:
 
 
 # ---------------------------------------------------------------------------
+# Custom limitations
+# ---------------------------------------------------------------------------
+
+class CustomLimitation(str, Enum):
+    """The custom limitations the engine reads, by the name the build gives.
+
+    HD's custom advantage or limitation is XMLID="MODIFIER", and its ALIAS is
+    the whole of its meaning: the book prices it and the words say what it
+    does. There are 2,849 of them in the corpus, nearly all circumstance the
+    engine does not model, so a name not listed here changes nothing.
+
+    RULING: matched on the whole name, case aside. A name is free text, and
+    reading "Self Only" into "Aid Self Only" or "Only Affects Self When Angry"
+    would be guessing.
+    """
+
+    #: The power affects only its user (the Destroid's Self Destruct System).
+    SELF_ONLY = "self only"
+
+
+def custom_limitations_of(power: Any) -> frozenset[CustomLimitation]:
+    """The custom limitations on this power that the engine reads."""
+    names = {
+        str(getattr(m, "_alias", None) or getattr(m, "alias", None) or "").strip().lower()
+        for m in (getattr(power, "assigned_modifiers", None) or [])
+        if (getattr(m, "xmlid", "") or "").upper() == "MODIFIER"
+    }
+    return frozenset(c for c in CustomLimitation if c.value in names)
+
+
+# ---------------------------------------------------------------------------
 # What the engine can and cannot resolve
 # ---------------------------------------------------------------------------
 
@@ -462,6 +493,12 @@ def unbuilt_reasons(power: Any) -> list[str]:
                  getattr(power, "concentration", None)):
         if spec is not None:
             out.extend(spec.unbuilt)
+    if getattr(power, "self_only", False):
+        # It affects only its user. When he would set it off (the Destroid's
+        # self-destruct: to avoid capture, or when it judges the squad is
+        # lost) is not built, and offered against anyone else it is a
+        # different power.
+        out.append("Self Only: it affects only its user")
     if autofire is not None and (constant or dot is not None):
         # 6E2 p.44: an Autofire Constant attack "continues to affect the
         # target with the same number of shots that hit him the first time";

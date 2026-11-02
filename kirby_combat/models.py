@@ -204,6 +204,10 @@ class AttackPower:
     #: size of the pool nor the free-text condition is anything the engine
     #: can carry out.
     uncontrolled: bool = False
+    #: Bought with the custom limitation "Self Only"
+    #: (`power_modifiers.CustomLimitation`): it affects only its user. Read
+    #: so that the menu can refuse it as an attack on anyone else.
+    self_only: bool = False
     #: Concentration (6E1 p.374-375), or None. A
     #: `power_modifiers.ConcentrationSpec`: using it puts him at 1/2 or 0 DCV
     #: until his next Phase (`kirby_combat/concentration.py`).

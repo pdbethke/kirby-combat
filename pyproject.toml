@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.30.0"
+version = "0.31.0"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 # Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
@@ -15,7 +15,7 @@ dependencies = [
     # same dice arithmetic grow a second home here -- three copies of "5 STR
     # to the die" across two repositories, agreeing only by luck.
     # 0.6.3: the build doc says which powers run off an Endurance Reserve.
-    "kirby-cost>=0.6.3",
+    "kirby-cost>=0.6.4",
     # The roller moved out at 0.10.0. It is a real dependency, not a shim:
     # `kirby_combat.dice` is GONE, and consumers import `kirby_dice`
     # directly. A re-export here would just be a second name for one thing.
