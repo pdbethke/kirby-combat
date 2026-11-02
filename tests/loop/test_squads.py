@@ -105,6 +105,21 @@ def test_all_down_names_no_one_once():
     assert [e.leader_id for e in _namings(s)] == ["a", None]
 
 
+def test_a_squad_that_was_all_down_is_led_again_by_the_man_who_comes_to():
+    s = name_leaders(_fight(_man("a", tactics=14), _man("b", tactics=12)))
+    s = name_leaders(_knock_out(_knock_out(s, "a"), "b"))
+    assert leader_of(s, "alpha", "red") is None
+    # Recovery (6E2 p.130) puts STUN back: the engine's own door for waking.
+    s = apply_event(s, VitalsChanged(
+        id=str(uuid.uuid4()), session_id=s.id, sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id="b", stun=5, body=0, end=0))
+    s = name_leaders(name_leaders(s))
+    assert leader_of(s, "alpha", "red") == "b"
+    assert _namings(s)[-1].reason == "b came to"
+    assert len(_namings(s)) == 3
+
+
 def test_no_squad_no_events():
     s = name_leaders(_fight(_man("a", squad=None), _man("b", side=BLUE, squad=None)))
     assert _namings(s) == []

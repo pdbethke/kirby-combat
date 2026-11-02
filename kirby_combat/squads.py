@@ -106,7 +106,10 @@ def name_leaders(session: Any) -> Any:
 
     Called when the fight begins and at the end of every Phase and step
     (`loop/run.py`). The reason is "fight began" for a squad never named,
-    else "<old id> went down".
+    else "<old id> went down", or "<id> came to" when a squad with no one
+    standing has a man standing again. Naming happens only inside
+    `run_phase`, so a leader downed outside it (a GM override, a direct
+    apply) is replaced at the next `run_phase`.
     """
     from kirby_combat.session.apply import apply_event
     from kirby_combat.session.events import SquadLeaderNamed, make_author_engine
@@ -116,8 +119,13 @@ def name_leaders(session: Any) -> Any:
         leader = leader_rule(session, squad)
         if named is None:
             reason = "fight began"
-        elif named.leader_id is None or named.leader_id == leader:
-            # Nobody led and the squad has not been re-formed, or he leads.
+        elif named.leader_id is None:
+            # Nobody led. If a man has come to (Recovery lifts him above
+            # 0 STUN), he is named; otherwise the squad stays leaderless.
+            if leader is None:
+                continue
+            reason = f"{leader} came to"
+        elif named.leader_id == leader:
             continue
         elif named.leader_id in _standing_ids(session):
             # He is still up: the Skill or INT moving under him (a Drain) is

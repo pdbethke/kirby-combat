@@ -690,7 +690,9 @@ class SquadLeaderNamed(BaseEvent):
     Written for every squad when the fight begins (``reason`` "fight
     began") and again, in the same step, after the resolution that downs the
     leader (``reason`` "<old id> went down"). ``leader_id`` is None when no
-    member is left standing, and that is written once, not every step.
+    member is left standing, and that is written once, not every step. When
+    a man of such a squad stands again (he recovered from unconsciousness),
+    he is named with ``reason`` "<id> came to".
     Folded by `squads.leader_of`: the latest row for the squad and side.
     """
     kind: Literal["SquadLeaderNamed"] = field(default="SquadLeaderNamed", init=False)
