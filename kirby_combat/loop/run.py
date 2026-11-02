@@ -35,7 +35,7 @@ from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import without_spent_shouts
 from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
 from kirby_combat.pre_attacks.in_the_phase import (
-    PRESENCE_KINDS, can_yield_to, hesitation_owed,
+    PRESENCE_KINDS, acted_this_phase, can_yield_to, hesitation_owed,
     phase_already_begun, presence_attack_made_this_phase,
     yield_phase,
 )
@@ -1050,11 +1050,12 @@ def run_phase(
             session, spent = _mark_acted(session, actor_id)
         return _done(session, notes=[note])
 
-    # SQUAD ORDERS, at the top of his own Phase and before his pick. Zero
-    # Phase (a RULING on 6E2 p.25, `squads.py`): he still takes his action
-    # below. Asked once a Phase, so not again when the Phase comes back to
-    # him after a Zero Phase or first Half Phase Action.
-    if not continuing:
+    # SQUAD ORDERS, before his first pick of the Phase. Zero Phase (a RULING
+    # on 6E2 p.25, `squads.py`): he still takes his action below. Asked once
+    # a Phase: not again when it comes back after a Zero Phase or first Half
+    # Phase Action, but NOT `continuing` either --- a leader who hesitated
+    # (6E2 p.139) has his Phase back having chosen nothing, and is asked now.
+    if not acted_this_phase(session, actor_id):
         session = _ask_for_orders(session, actor_id, chooser)
 
     situation = _situation_for(session, actor_id)

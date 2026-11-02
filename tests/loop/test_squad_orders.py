@@ -24,7 +24,7 @@ from kirby_combat.session.events import VitalsChanged, make_author_engine
 from kirby_combat.session.involvement import events_involving
 from kirby_combat.side import Side
 from kirby_combat.squads import (
-    KEEP_ORDERS, FireTeam, InvalidOrders, OrdersPage, Squad, SquadOrders,
+    KEEP_ORDERS, FireTeam, InvalidOrders, KeepOrders, OrdersPage, Squad, SquadOrders,
     TeamTask, leader_of, name_leaders, order_fit, orders_for, orders_page,
     record_orders, validate_orders,
 )
@@ -432,3 +432,71 @@ def test_every_offer_on_a_real_menu_gets_an_answer(team):
     # field, where there is none to take and nothing to shoot from.
     if team.task is not TeamTask.TAKE_COVER:
         assert any(order_fit(situation, a) for a in situation.menu), team.task
+
+
+# ── Fix round 1 ────────────────────────────────────────────────────────────
+
+
+def test_a_leader_who_hesitates_is_asked_once_when_his_phase_comes_back():
+    """Impressed (6E2 p.139), he steps back behind her; his Phase comes back
+    having chosen nothing, and that is when he is asked: once."""
+    from kirby_combat.encounter import Encounter
+    from kirby_combat.pre_attacks.presence_effects import PresenceEffects
+
+    enc = _encounter(_PLACES)
+    session, _ = PresenceEffects.apply(enc.sessions[0], target_id="l",
+                                       attacker_id="her", tier="impressed")
+    enc = Encounter(id=enc.id, turn=enc.turn, segment=enc.segment,
+                    template=enc.template, sessions=[session])
+    seat = _Leader(_all_focus)
+    first = run_phase(enc, seat, roller=RandomRoller(seed=3))
+    assert first.actor_id == "l" and "PresenceYielded" in [e.kind for e in first.events]
+    assert ("give_orders", "l") not in seat.calls
+    step, actors = first, []
+    for _ in range(4):
+        step = run_phase(step.encounter, seat, roller=RandomRoller(seed=3))
+        actors.append(step.actor_id)
+        if step.actor_id == "l":
+            break
+    assert actors[-1] == "l"
+    assert seat.calls.count(("give_orders", "l")) == 1
+    i = seat.calls.index(("give_orders", "l"))
+    assert seat.calls[i + 1] == ("choose", "l")
+    assert len(_given(step.session)) == 1
+
+
+def test_a_hidden_nearer_enemy_does_not_change_a_withdraw():
+    # "ghost" is nearer to b than "her", behind a tall wall b cannot see
+    # through. Running east is away from her, toward him: it fits, because
+    # an order is read off what b perceives.
+    wall = Wall(id="w", name="w", segment=(Position(25, -40, 0), Position(25, 40, 0)),
+                height_m=6.0, blocks_los=True, cover_level=4)
+    s = _session({**_PLACES, "ghost": (30, 6, 0)}, walls=[wall],
+                 villains=("her", "ghost"))
+    s = _ordered(s, _team(["l", "b", "c"], TeamTask.WITHDRAW))
+    assert _fit(s, "b", _offer("disengage", dest=(40, 6, 0))) is True
+    assert _fit(s, "b", _offer("reposition", dest=(10, 6, 0))) is False
+
+
+def test_a_squad_of_one_leads_himself():
+    s = _session({"her": (0, 0, 0), "l": (20, 0, 0)})
+    assert leader_of(s, "alpha", "heroes") == "l"
+    page = orders_page(s, Squad(name="alpha", side="heroes", member_ids=("l",)), "l",
+                       situation_for=_situation_for)
+    assert page.standing == ("l",)
+    assert [ln for ln in page.render().splitlines() if ln.startswith("l: ")] != []
+    assert len([ln for ln in page.render().splitlines()
+                if ln.split(":")[0] in page.standing]) == 1
+    one = _orders(_team(["l"], TeamTask.CLOSE, target_id="her"))
+    assert validate_orders(page, one) is one
+
+
+@pytest.mark.parametrize("radius", ["8", True, None])
+def test_a_radius_that_is_not_a_number_is_invalid(radius):
+    team = _team(["l", "b", "c"], TeamTask.SPREAD_OUT, radius_m=radius)
+    with pytest.raises(InvalidOrders, match="radius_m"):
+        validate_orders(_page(_session()), _orders(team))
+
+
+def test_keep_orders_is_the_public_keep_orders_type():
+    assert isinstance(KEEP_ORDERS, KeepOrders)

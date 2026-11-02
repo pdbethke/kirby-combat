@@ -43,7 +43,7 @@ from kirby_combat.tactics.library import tactics_for
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
-    from kirby_combat.squads import FireTeam, OrdersPage, SquadOrders, _KeepOrders
+    from kirby_combat.squads import FireTeam, OrdersPage, SquadOrders, KeepOrders
 
 
 class InvalidChoice(Exception):
@@ -319,7 +319,7 @@ class OrdersChooser(Protocol):
     seat with no ``give_orders`` still runs every squadless fight.
     """
 
-    def give_orders(self, page: OrdersPage) -> SquadOrders | _KeepOrders: ...
+    def give_orders(self, page: OrdersPage) -> SquadOrders | KeepOrders: ...
 
 
 class FirstLegalChooser:
@@ -334,7 +334,7 @@ class FirstLegalChooser:
 
     name = "first-legal"
 
-    def give_orders(self, page: "OrdersPage") -> "_KeepOrders":
+    def give_orders(self, page: "OrdersPage") -> "KeepOrders":
         """Gives none: deciding the teams is not "the first offer"."""
         from kirby_combat.squads import KEEP_ORDERS
 
@@ -419,7 +419,7 @@ class TacticChooser:
         ))
         return action_id
 
-    def give_orders(self, page: "OrdersPage") -> "_KeepOrders":
+    def give_orders(self, page: "OrdersPage") -> "KeepOrders":
         """Gives none. The doctrine catalogue picks one man's action; it has
         no tactic for a squad's teams, so it leaves the orders as they are."""
         from kirby_combat.squads import KEEP_ORDERS

@@ -246,7 +246,7 @@ class SquadOrders:
     teams: tuple[FireTeam, ...]
 
 
-class _KeepOrders:
+class KeepOrders:
     """The answer "the orders stand": records nothing. A sentinel, so no
     `SquadOrders` (not even one with no teams) can be mistaken for it."""
 
@@ -258,7 +258,7 @@ class _KeepOrders:
 
 #: What `give_orders` returns to leave the orders as they are, including
 #: when none have been given yet.
-KEEP_ORDERS = _KeepOrders()
+KEEP_ORDERS = KeepOrders()
 
 
 class InvalidOrders(ValueError):
@@ -364,7 +364,10 @@ def orders_page(session: Any, squad: Squad, leader_id: str, *,
     pictures = {m: threat_picture(situations[m]) for m in standing}
     lead = situations[leader_id]
     # The enemies HE perceives, by the same reading the page and the
-    # picture make (`brief_detail.sightings`).
+    # picture make (`brief_detail.sightings`). RULING: his enemies as his own
+    # Phase sees them, after Mind Control and rage (`obey`, `rage_menu` in
+    # `_situation_for`): a controlled or enraged leader gives the orders he
+    # would give, against the men he now fights.
     sees = sightings(lead)
     targets = tuple(e.id for e in lead.enemies if sees[e.id].perceived)
     return OrdersPage(
@@ -420,9 +423,12 @@ def validate_orders(page: OrdersPage, orders: Any) -> Any:
             raise InvalidOrders(
                 f"team {i}: target {team.target_id!r} is not an enemy the leader "
                 f"perceives ({', '.join(page.targets) or 'none'})")
-        if uses == "radius_m" and not team.radius_m > 0:
-            raise InvalidOrders(f"team {i}: radius_m must be more than 0, "
-                                f"got {team.radius_m!r}")
+        if uses == "radius_m" and (
+                isinstance(team.radius_m, bool)
+                or not isinstance(team.radius_m, (int, float))
+                or not team.radius_m > 0):
+            raise InvalidOrders(f"team {i}: radius_m must be a number of metres "
+                                f"more than 0, got {team.radius_m!r}")
         if uses == "position" and not isinstance(team.position, Position):
             raise InvalidOrders(f"team {i}: position must be a Position, "
                                 f"got {type(team.position).__name__}")
@@ -480,14 +486,19 @@ def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
       Attack join (``coordinate``, 6E2 p.46) on the target.
     * CLOSE: a move that ends closer to the target than he stands now.
     * TAKE_COVER: ``move_to_cover``, or an attack while he is in cover where
-      he stands (`enumeration.cover_where_he_stands`, the reading the menu
-      makes of "cover he already has") against the enemies he faces.
+      he stands (`enumeration.cover_where_he_stands`) against the enemies he
+      perceives.
     * SPREAD_OUT: a move that ends at least ``radius_m`` from every other
       man of his team, where each stands now.
     * FLANK: a move that ends closer to ``position`` than he stands now.
     * HOLD: ``hold``, or keeping a Held Action.
-    * WITHDRAW: a move that ends farther from the nearest enemy than he
-      stands now.
+    * WITHDRAW: a move that ends farther from the nearest enemy he
+      perceives than he stands now.
+
+    ONLY WHAT HE PERCEIVES. Every enemy this reads is one he perceives
+    (`brief_detail.sightings`, physical, as `threat_picture` filters): the
+    seat is shown this fit, and an unseen man must not move it (perception
+    governs combat; no metagaming).
 
     A MOVE is an offer that names where it goes (``reposition_dest``), or a
     ``move`` / ``half_move`` toward a man, which ends where the move itself
@@ -537,7 +548,7 @@ def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
                  and (p := position_of(scene, m)) is not None]
         return all(distance_3d(end, p) >= team.radius_m for p in mates)
     if task is TeamTask.WITHDRAW:
-        foes = [p for e in situation.enemies
+        foes = [p for e in _perceived(situation)
                 if (p := position_of(scene, e.id)) is not None]
         if not foes:
             return False
@@ -560,9 +571,18 @@ def _in_cover(situation: PhaseSituation) -> bool:
     here = position_of(scene, situation.actor.id) if scene is not None else None
     if here is None:
         return False
-    threats = {e.id: p for e in situation.enemies
+    threats = {e.id: p for e in _perceived(situation)
                if (p := position_of(scene, e.id)) is not None}
     return cover_where_he_stands(scene, here, threats) > 0
+
+
+def _perceived(situation: PhaseSituation) -> list[Any]:
+    """The enemies he perceives, filtered as `threat_picture` filters them."""
+    from kirby_combat.brief_detail import sightings
+
+    sees = sightings(situation)
+    return [e for e in situation.enemies
+            if sees[e.id].perceived and sees[e.id].physical]
 
 
 def _move_end(situation: PhaseSituation, action: LegalAction) -> Position | None:

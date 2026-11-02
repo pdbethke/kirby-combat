@@ -398,9 +398,12 @@ def cover_where_he_stands(scene: Any, at: Any, threats: dict[str, Any]) -> int:
     ``threats`` (``{id: position}``); 0 with no threats.
 
     Cover is a fact about the target against one shooter (6E2 p.45), so this
-    is the best of his levels against each. The menu reads it to withhold
-    cover no better than what he has; `squads.order_fit` reads it to say
-    whether he is shooting from cover. One reading, so the two agree.
+    is the best of his levels against each. One computation, two callers
+    who pass DIFFERENT threats. RULING: the menu passes every live enemy, to
+    withhold cover no better than what he has (its existing behaviour);
+    `squads.order_fit` passes only the enemies he perceives, because its
+    answer is shown to his seat and an unseen man must not move it. So the
+    two can disagree when he cannot see somebody, by design.
     """
     from kirby_world.cover import compute_cover_level
 
