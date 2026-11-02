@@ -31,6 +31,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
 from kirby_combat.actions.area_attack import is_area_attack
+from kirby_combat.defences import is_hth
 from kirby_combat.enumeration import LegalAction, _friendly, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 from kirby_combat.loop.chooser import (
@@ -80,12 +81,7 @@ REACTABLE_KINDS = frozenset({
 
 
 def _is_hth(action: LegalAction) -> bool:
-    power = action._attack_view
-    if action.kind in ("strike", "maneuver", "trip", "disarm", "sweep"):
-        return True
-    if power is None:
-        return False
-    return not getattr(power, "is_ranged", (getattr(power, "range_m", 0) or 0) > 0)
+    return is_hth(action.kind, action._attack_view)
 
 
 def _killing(action: LegalAction) -> bool:

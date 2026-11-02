@@ -11,7 +11,9 @@ from types import SimpleNamespace
 import pytest
 from shaped import armed, encounter_on, scene_with, shaped_blast
 
-from kirby_combat.defences import Defence, answers_to
+from kirby_combat.defences import (
+    NON_THREAT_KINDS, Defence, _THREAT_KINDS, answers_to, is_hth, threatens_a_man,
+)
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop.reactions import reaction_menu
 from kirby_combat.side import Side
@@ -64,7 +66,7 @@ def test_area_flash_is_union_minus_dcv():
 
 
 def test_darkness_is_answered_by_moving_out():
-    assert answers_to(_view(), kind="darkness") == {Defence.MOVE_OUT}
+    assert answers_to(_view(), kind="darkness_zone") == {Defence.MOVE_OUT}
 
 
 def test_an_unclassified_kind_raises_naming_it():
@@ -111,3 +113,30 @@ def test_an_area_autofire_is_an_area_at_the_menu():
     """Spray along a line is never offered for an area power (autofire_offers
     skips it); an area burst is kind `autofire` with the area view."""
     assert [a.kind for a in _menu(True, kind="autofire")] == ["no_abort"]
+
+
+def test_every_kind_enumeration_offers_is_classified_exactly_once():
+    from kirby_combat.enumeration import ALL_ACTION_KINDS
+
+    assert not (_THREAT_KINDS & NON_THREAT_KINDS)
+    for kind in sorted(ALL_ACTION_KINDS):
+        assert (kind in _THREAT_KINDS) != (kind in NON_THREAT_KINDS), kind
+        # And every threat kind has a row.
+        if threatens_a_man(kind):
+            assert answers_to(_view(), kind=kind), kind
+
+
+def test_a_non_threat_kind_has_no_answers_and_says_so():
+    assert threatens_a_man("grab") and not threatens_a_man("move")
+    with pytest.raises(ValueError, match="threatens_a_man"):
+        answers_to(_view(), kind="move")
+
+
+def test_an_unclassified_kind_fails_threatens_a_man():
+    with pytest.raises(ValueError, match="wibble"):
+        threatens_a_man("wibble")
+
+
+def test_haymaker_is_hand_to_hand_in_the_table_and_the_menu():
+    assert is_hth("haymaker", _view())
+    assert Defence.BLOCK in answers_to(_view(), kind="haymaker")
