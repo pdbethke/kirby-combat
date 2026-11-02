@@ -421,6 +421,8 @@ class Brief:
 
     def __init__(self, situation: "PhaseSituation") -> None:
         self._situation = situation
+        #: The enemies he perceives, once asked (`_carries_out`).
+        self._perceived: list | None = None
 
     @property
     def doctrine(self) -> list[str]:
@@ -584,10 +586,31 @@ class Brief:
         """The text this page shows for an offer: the judged summary (no
         DCV, no to-hit number) on a judged page where the offer has one,
         else its sheet `summary`. The one place that choice is made;
-        `render` and any consumer labelling options go through it."""
-        if self.judged and action.judged_summary:
-            return action.judged_summary
-        return action.summary
+        `render` and any consumer labelling options go through it.
+
+        An offer that carries out his fire team's order (`squads.order_fit`)
+        ends with `brief_detail.CARRIES_OUT_ORDERS`, on a SHEET page too:
+        the order is his own, not a fact about an enemy."""
+        from kirby_combat.brief_detail import CARRIES_OUT_ORDERS
+
+        text = (action.judged_summary if self.judged and action.judged_summary
+                else action.summary)
+        return text + (CARRIES_OUT_ORDERS if self._carries_out(action) else "")
+
+    def _carries_out(self, action) -> bool:
+        """Whether ``action`` carries out his order. The enemies he perceives
+        are worked out once for the page (`order_fit` would otherwise ask
+        `sightings` for every offer)."""
+        from kirby_combat.squads import _perceived, order_fit
+
+        situation = self._situation
+        if situation.session is None or getattr(situation.actor, "squad", None) is None:
+            return False
+        if situation.squad_order is None:
+            return False
+        if self._perceived is None:
+            self._perceived = _perceived(situation)
+        return order_fit(situation, action, perceived=self._perceived)
 
     def _enemy_block(self, line: CombatantLine) -> list[str]:
         """An enemy as the actor can judge him: looks, what he has been seen
@@ -704,6 +727,26 @@ class Brief:
                 lines.append("")
                 lines.append(heading)
                 lines.extend(f"  {row}" for row in rows)
+
+        # WHAT BEARS ON HIM, in the engine's judged voice: names and shown
+        # powers, no numbers. Read from the threat picture and the squad, so
+        # a SHEET page shows them too and they hold only powers already seen.
+        # "Cover" is the best-three view with reach; "What is around you"
+        # above stays the field of view with each feature's cover number and
+        # hardness, and the two do not repeat each other's figures.
+        if situation.session is not None:
+            from kirby_combat.threat_picture import threat_picture
+
+            picture = threat_picture(situation)
+            for heading, rows in (
+                ("What can hurt you:", detail.threat_lines(situation, picture)),
+                ("Cover:", detail.cover_lines(situation, picture)),
+                ("Your orders:", detail.orders_lines(situation)),
+            ):
+                if rows:
+                    lines.append("")
+                    lines.append(heading)
+                    lines.extend(f"  {row}" for row in rows)
 
         # WHAT THE SIDE WANTS, which is not the same as what the man
         # wants. See `Side.objective`.

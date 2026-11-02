@@ -475,7 +475,8 @@ def orders_for(session: Any, member_id: str) -> FireTeam | None:
     return None
 
 
-def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
+def order_fit(situation: PhaseSituation, action: LegalAction, *,
+              perceived: list[Any] | None = None) -> bool:
     """Whether ``action`` carries out the order ``situation.actor`` is under.
 
     A fact for his seat, never a cut of his menu. A man with no order fits
@@ -505,6 +506,10 @@ def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
     would land (`resolvers.closing_move`, `placement.landing_of`). With no
     map nothing is a move. An Abort question fits nothing: an Abort is a
     defence against the man attacking him, not a task.
+
+    ``perceived`` is the enemies he perceives (`_perceived`), for a caller
+    asking about every offer of one page (the Brief) to work them out once;
+    None works them out here.
     """
     from kirby_combat.loop.chooser import OutOfTurnReason
     from kirby_combat.loop.reactions import KEEP_HOLDING
@@ -527,7 +532,7 @@ def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
     if task is TeamTask.TAKE_COVER:
         if kind == "move_to_cover":
             return True
-        return _is_attack(kind) and _in_cover(situation)
+        return _is_attack(kind) and _in_cover(situation, perceived)
     # The rest are moves.
     from kirby_world.geometry import distance_3d
 
@@ -548,7 +553,8 @@ def order_fit(situation: PhaseSituation, action: LegalAction) -> bool:
                  and (p := position_of(scene, m)) is not None]
         return all(distance_3d(end, p) >= team.radius_m for p in mates)
     if task is TeamTask.WITHDRAW:
-        foes = [p for e in _perceived(situation)
+        foes = [p for e in (_perceived(situation) if perceived is None
+                            else perceived)
                 if (p := position_of(scene, e.id)) is not None]
         if not foes:
             return False
@@ -563,7 +569,7 @@ def _is_attack(kind: str) -> bool:
     return threatens_a_man(kind)
 
 
-def _in_cover(situation: PhaseSituation) -> bool:
+def _in_cover(situation: PhaseSituation, perceived: list[Any] | None) -> bool:
     from kirby_combat.enumeration import cover_where_he_stands
     from kirby_combat.placement import position_of
 
@@ -571,7 +577,8 @@ def _in_cover(situation: PhaseSituation) -> bool:
     here = position_of(scene, situation.actor.id) if scene is not None else None
     if here is None:
         return False
-    threats = {e.id: p for e in _perceived(situation)
+    threats = {e.id: p for e in (_perceived(situation) if perceived is None
+                                else perceived)
                if (p := position_of(scene, e.id)) is not None}
     return cover_where_he_stands(scene, here, threats) > 0
 

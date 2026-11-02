@@ -50,6 +50,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from kirby_combat.defences import Defence
+from kirby_combat.side import Side
+
 if TYPE_CHECKING:
     from kirby_combat.loop.chooser import PhaseSituation
 
@@ -1034,3 +1037,140 @@ def _held_lines(situation, by_name: str) -> list[str]:
         if for_what:
             out.append(f"You are holding for: {for_what}")
     return out
+
+
+# ── The squad, the threat and the cover ────────────────────────────────────
+
+#: Said after an offer that carries out his fire team's order
+#: (`squads.order_fit`), through `Brief.offer_summary`.
+CARRIES_OUT_ORDERS = " (carries out your orders)"
+
+#: Each defence in the plain words the page speaks in (squad tactics spec,
+#: section 2: names and shown powers, no stat lines, no dice). One table, so
+#: the page cannot name a defence two ways. NONE has no phrase: it is said
+#: as "no defence answers it". Said as the subject of "will help".
+_DEFENCE_WORDS: dict[Defence, str] = {
+    Defence.DODGE: "dodging",
+    Defence.BLOCK: "blocking",
+    Defence.DIVE_FOR_COVER: "diving clear",
+    Defence.COVER: "getting behind cover",
+    Defence.SPACING: "spacing out",
+    Defence.DISTANCE: "getting out of its range",
+    Defence.MOVE_OUT: "moving out of it",
+}
+
+
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} or {words[-1]}"
+
+
+def _say_answers(answered: frozenset[Defence]) -> str:
+    """What answers a threat. Dodge is named when it does NOT: the page's
+    reader would otherwise reach for it first (6E1 p.321: an area is rolled
+    against the target point, so his DCV plays no part)."""
+    helps = [_DEFENCE_WORDS[d] for d in _DEFENCE_WORDS
+             if d in answered and d is not Defence.DODGE]
+    dodges = Defence.DODGE in answered
+    if dodges:
+        helps.insert(0, _DEFENCE_WORDS[Defence.DODGE])
+    if not helps:
+        return "No defence answers it."
+    if dodges:
+        return f"{_join(helps).capitalize()} will help."
+    return f"Dodge won't help; {_join(helps)} will."
+
+
+def threat_lines(situation: "PhaseSituation", picture) -> list[str]:
+    """"What can hurt you": a line per power an enemy he perceives has been
+    seen to use, and per enemy how many of his side that enemy can reach.
+    Only seen powers (`threat_picture`), so a SHEET page tells no more than a
+    judged one."""
+    session = situation.session
+    out: list[str] = []
+    for enemy_id in dict.fromkeys(line.enemy_id for line in picture.lines):
+        name = session.combatants[enemy_id].name
+        for line in picture.lines:
+            if line.enemy_id != enemy_id:
+                continue
+            said = f"{name} has shown {line.power_name}"
+            if line.area_radius_m is not None:
+                said += f", an area of {line.area_radius_m:g} m"
+            if line.squadmates_it_would_catch is not None:
+                caught = line.squadmates_it_would_catch
+                said += (f"; {caught} of your squad stand inside one" if caught
+                         else "; none of your squad stands inside one")
+            reach = "It reaches you now." if line.can_reach_me else "It cannot reach you now."
+            out.append(f"{said}. {reach} {_say_answers(line.answered_by)}")
+        out.append(f"{name} can reach {picture.men_she_can_reach[enemy_id]} of your side.")
+    return out
+
+
+def cover_lines(situation: "PhaseSituation", picture) -> list[str]:
+    """"Cover": the best spots, how far, whether he can reach each this
+    Phase, and from whom each hides him. The feature's name is the one
+    "What is around you" uses; its cover number and hardness are left to
+    that section."""
+    if not picture.cover:
+        return []
+    session = situation.session
+    scene = session.scene
+    names = {w.id: w.name for w in scene.walls}
+    names.update({f.id: f.name for f in scene.furnishings})
+    out = []
+    for spot in picture.cover:
+        hides = [session.combatants[i].name
+                 for i, level in spot.cover_by_threat.items() if level > 0]
+        reach = ("you can reach it this Phase" if spot.reachable_this_phase
+                 else "you cannot reach it this Phase")
+        out.append(
+            f"{names.get(spot.feature_id, spot.feature_id)}, "
+            f"{spot.distance_m:.1f} m away, {reach}, hides you from "
+            f"{_join(hides) if hides else 'none of them'}.")
+    return out
+
+
+def _say_task(session, team) -> str:
+    from kirby_combat.squads import TeamTask
+
+    task = team.task
+    if task is TeamTask.FOCUS_FIRE:
+        return f"focus fire on {session.combatants[team.target_id].name}"
+    if task is TeamTask.CLOSE:
+        return f"close on {session.combatants[team.target_id].name}"
+    if task is TeamTask.TAKE_COVER:
+        return "take cover and fire from there"
+    if task is TeamTask.SPREAD_OUT:
+        return f"keep {team.radius_m:g} m apart"
+    if task is TeamTask.FLANK:
+        return f"flank to ({team.position.x:g}, {team.position.y:g})"
+    if task is TeamTask.HOLD:
+        return "hold your action"
+    if task is TeamTask.WITHDRAW:
+        return "fall back"
+    raise ValueError(f"no words for the task {task!r}")
+
+
+def orders_lines(situation: "PhaseSituation") -> list[str]:
+    """"Your orders": his squad's task for his team and his teammates by
+    name. Nothing for a man in no squad (no squad is a meaning, not a gap);
+    a man in one whose leader has not spoken is told so, by name."""
+    from kirby_combat.squads import _latest, leader_of
+
+    session, me = situation.session, situation.actor
+    squad = getattr(me, "squad", None)
+    if squad is None or session is None:
+        return []
+    team = situation.squad_order
+    if team is not None:
+        mates = [session.combatants[i].name for i in team.member_ids if i != me.id]
+        rows = [f"Squad {squad}: {_say_task(session, team)}."]
+        if mates:
+            rows.append(f"With you: {', '.join(mates)}.")
+        return rows
+    leader = leader_of(session, squad, Side.of(me).id)
+    who = session.combatants[leader].name if leader is not None else None
+    if _latest(session, "SquadOrdersGiven", squad, Side.of(me).id) is not None:
+        return ["Your leader's orders did not name you."]
+    if leader == me.id:
+        return ["You lead the squad and have given no orders yet."]
+    return [f"Your leader, {who}, has given no orders yet."]
