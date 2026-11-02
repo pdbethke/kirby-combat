@@ -192,33 +192,24 @@ def _exactly_at_space(session, combatant_id, start, free, crowded):
     return lo
 
 
-def move_toward(
+def landing_of(
     session: "CombatSession",
     combatant_id: str,
     destination: Position,
     *,
     mode: str,
     distance_m: float,
-    template,
-) -> tuple["CombatSession", MovementOutcome | None]:
-    """Decide a move, commit it, and charge for it, in that order.
+) -> MovementOutcome | None:
+    """Where a move toward ``destination`` would leave him, written nowhere.
 
-    The convenience the loop's resolvers want: ask `movement_reach` where
-    the mover ends up, then write it down. Returns ``(session, None)`` when
-    the question cannot be asked at all --- no Scene, or the mover is not on
-    it --- rather than inventing a start point.
-
-    AND HE PAYS FOR IT (6E1 p.158). Every move a fighter chooses comes
-    through here, and none of them cost END: the engine charged a Push's
-    extra and nothing else. The metres he actually covered, to the landing
-    `movement_reach` gave (a fall after it is gravity's, not his), are
-    charged at his mode's share of a full move, where ``template`` counts
-    END (`endurance.pay_for_movement`).
+    The deciding half of `move_toward`, so a reader asking where a move ends
+    (`squads.order_fit`) gets the answer the move itself will act on. None
+    when the question cannot be asked: no Scene, or he is not on it.
     """
     scene = session.scene
     start = position_of(scene, combatant_id)
     if scene is None or start is None:
-        return session, None
+        return None
 
     outcome = movement_reach(
         mode=mode, from_pos=start, to_pos=destination,
@@ -236,6 +227,37 @@ def move_toward(
             distance_m=distance_m, scene=scene,
             combatant_id=combatant_id, session=session,
         )
+    return outcome
+
+
+def move_toward(
+    session: "CombatSession",
+    combatant_id: str,
+    destination: Position,
+    *,
+    mode: str,
+    distance_m: float,
+    template,
+) -> tuple["CombatSession", MovementOutcome | None]:
+    """Decide a move, commit it, and charge for it, in that order.
+
+    The convenience the loop's resolvers want: ask `landing_of` where the
+    mover ends up, then write it down. Returns ``(session, None)`` when
+    the question cannot be asked at all --- no Scene, or the mover is not on
+    it --- rather than inventing a start point.
+
+    AND HE PAYS FOR IT (6E1 p.158). Every move a fighter chooses comes
+    through here, and none of them cost END: the engine charged a Push's
+    extra and nothing else. The metres he actually covered, to the landing
+    `movement_reach` gave (a fall after it is gravity's, not his), are
+    charged at his mode's share of a full move, where ``template`` counts
+    END (`endurance.pay_for_movement`).
+    """
+    outcome = landing_of(session, combatant_id, destination,
+                         mode=mode, distance_m=distance_m)
+    if outcome is None:
+        return session, None
+    start = position_of(session.scene, combatant_id)
     from kirby_combat.endurance import pay_for_movement
     from kirby_world.geometry import distance_3d
 

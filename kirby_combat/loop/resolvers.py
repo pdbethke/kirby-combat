@@ -2425,6 +2425,38 @@ def _full_move(actor, mode: str = "running") -> float:
     return _move_capacity(actor, mode)
 
 
+def closing_move(session: "CombatSession", actor, action: LegalAction):
+    """The move a ``move`` or ``half_move`` offer makes, as
+    ``(destination, mode, metres)``; None when the man it names is not on
+    the map, or a ``half_move`` carries no mode.
+
+    TO WITHIN REACH OF HIM, NOT ONTO HIM (6E2 p.56; Peter's ruling,
+    2026-10-31: tests/loop/test_no_two_men_in_one_place.py). A ``move`` is
+    the whole Phase spent getting there, a Full Move; a ``half_move`` is
+    half of his movement and the Phase is still his after it (6E2 p.26).
+    Both resolvers and `squads.order_fit` ask here, so the move judged is
+    the move made.
+    """
+    from kirby_combat.half_phase_offers import HALF_MOVE
+    from kirby_world.occupancy import position_of
+
+    if action.kind == HALF_MOVE:
+        if action.mode is None:
+            return None
+        mode, allowance = action.mode, _half_move(actor, action.mode)
+    elif action.kind == "move":
+        mode = action.mode or "running"
+        allowance = _move_capacity(actor, mode)
+    else:
+        raise ValueError(f"closing_move: {action.kind!r} is not a move or half_move")
+    there = position_of(session.scene, action.target_id)
+    if there is None:
+        return None
+    destination = _stop_at_reach(position_of(session.scene, actor.id),
+                                 there, _reach_of(actor, action))
+    return destination, mode, allowance
+
+
 @resolves("move")
 def _resolve_move(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -2439,20 +2471,15 @@ def _resolve_move(
     move is a real move.
     """
     from kirby_combat.placement import move_toward
-    from kirby_world.occupancy import position_of
 
-    mode = action.mode or "running"
-    destination = position_of(session.scene, action.target_id)
-    if destination is None:
+    closing = closing_move(session, actor, action)
+    if closing is None:
         raise UnresolvableAction(action.kind, action.action_id)
-    # TO WITHIN REACH OF HIM, NOT ONTO HIM (6E2 p.56; Peter's ruling,
-    # 2026-10-31: tests/loop/test_no_two_men_in_one_place.py).
-    destination = _stop_at_reach(position_of(session.scene, actor.id),
-                                 destination, _reach_of(actor, action))
+    destination, mode, allowance = closing
 
     new_session, outcome = move_toward(
         session, actor.id, destination,
-        mode=mode, distance_m=_move_capacity(actor, mode), template=template,
+        mode=mode, distance_m=allowance, template=template,
     )
     if outcome is None:
         raise UnresolvableAction(action.kind, action.action_id)

@@ -393,6 +393,26 @@ def push_move_metres(cap) -> float:
     return PUSH_ACTIVE_POINTS * (combat_m / active_cost)
 
 
+def cover_where_he_stands(scene: Any, at: Any, threats: dict[str, Any]) -> int:
+    """The best cover level (0-4) he has where he stands, against any of
+    ``threats`` (``{id: position}``); 0 with no threats.
+
+    Cover is a fact about the target against one shooter (6E2 p.45), so this
+    is the best of his levels against each. The menu reads it to withhold
+    cover no better than what he has; `squads.order_fit` reads it to say
+    whether he is shooting from cover. One reading, so the two agree.
+    """
+    from kirby_world.cover import compute_cover_level
+
+    return max(
+        (compute_cover_level(
+            shooter_pos=t, target_pos=at,
+            target_is_prone_or_diving=False, scene=scene,
+        ) for t in threats.values()),
+        default=0,
+    )
+
+
 def is_down(c: HeroCombatant) -> bool:
     """KO'd at STUN ≤ 0; unconscious / dying at BODY ≤ 0 per 6E1 p421.
 
@@ -3560,9 +3580,7 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_world.cover import (
-            compute_cover_level, cover_ocv_modifier, cover_spots,
-        )
+        from kirby_world.cover import cover_ocv_modifier, cover_spots
         from kirby_world.geometry import first_blocking_wall
 
         _threats = {
@@ -3600,13 +3618,7 @@ def enumerate_actions(
 
         # COVER YOU ALREADY HAVE IS NOT AN ACTION. Read where he stands, once,
         # against the same threats.
-        _here_now = max(
-            (compute_cover_level(
-                shooter_pos=_t, target_pos=_cover_actor_pos,
-                target_is_prone_or_diving=False, scene=scene,
-            ) for _t in _threats.values()),
-            default=0,
-        )
+        _here_now = cover_where_he_stands(scene, _cover_actor_pos, _threats)
         for _cs in _spots:
             _spot = _cs.position
             _level = max(_cs.cover_by_threat.values())
