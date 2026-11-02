@@ -3560,67 +3560,70 @@ def enumerate_actions(
     if scene is not None and _cover_actor_pos is not None:
         import math as _cover_math
 
-        from kirby_world.cover import compute_cover_level, cover_available, cover_breakdown
-        from kirby_combat.reach import movement_reach
+        from kirby_world.cover import (
+            compute_cover_level, cover_ocv_modifier, cover_spots,
+        )
+        from kirby_world.geometry import first_blocking_wall
 
-        _threats = [
-            _cover_positions[e.id] for e in alive_enemies
+        _threats = {
+            e.id: _cover_positions[e.id] for e in alive_enemies
             if e.id in _cover_positions
-        ]
+        }
         _cover_half_move = max(
             0.0, float(actor.hero.characteristic_value("RUNNING") or 0) / 2.0
         )
-        for _wall in (getattr(scene, "walls", None) or []):
-            if int(getattr(_wall, "cover_level", 0) or 0) <= 0:
-                continue
-            _spot, _level = cover_available(
-                _wall, _cover_actor_pos, _threats, scene,
-            )
-            if _level <= 0:
-                continue        # would not shield this actor from these threats
+        _cover_walls = getattr(scene, "walls", None) or []
 
-            # COVER YOU ALREADY HAVE IS NOT AN ACTION.
-            #
-            # `fight_from_cover` plans two steps -- move to cover, then
-            # shoot from it -- and `TacticChooser` reads steps[0] and
-            # nothing else, so a two-step plan repeats its first step for
-            # ever. Measured: Tom McLaury took cover three Phases running
-            # and never fired a shot, and the Earps came through the fight
-            # untouched because every man shooting at them had gone to
-            # ground and stayed.
-            #
-            # The menu is the right place to stop it. Offering a move that
-            # changes nothing is a no-op wearing an action's name; drop it
-            # and the tactic falls through to `sustained_fire`, which is
-            # what "take cover and fire from safety" meant.
-            _here_now = max(
-                (compute_cover_level(
-                    shooter_pos=_t, target_pos=_cover_actor_pos,
-                    target_is_prone_or_diving=False, scene=scene,
-                ) for _t in _threats),
-                default=0,
-            )
+        # ONE DOOR. `cover_spots` places a spot behind every wall against the
+        # actual threats, folds a Furnishing's four derived edges into one
+        # spot and drops what shields him from nobody. This loop used to
+        # walk `scene.walls` itself, as the Brief did, so the two could (and
+        # did) disagree about what counts as cover.
+        #
+        # RUNNING, NOT `dive_mode`: the resolver moves a `move_to_cover`
+        # offer by `action.mode or "running"` over a Half Move, and an offer
+        # must be judged by the move that will be made.
+        _spots = cover_spots(
+            scene, from_pos=_cover_actor_pos, threats=_threats,
+            reach_m=_cover_half_move, mode="running",
+        )
+        # The menu's order is scene order (the order the walls were
+        # written), not cover_spots' best-first order: a chooser that takes
+        # the first offer must not change its mind because the listing did.
+        _wall_order: dict[str, int] = {}
+        for _i, _w in enumerate(_cover_walls):
+            _owner = _w.part_of if scene.is_furnishing_edge(_w) else None
+            _wall_order.setdefault(_owner or _w.id, _i)
+        _spots = sorted(_spots, key=lambda s: _wall_order[s.feature_id])
+        _names = {w.id: getattr(w, "name", None) or w.id for w in _cover_walls}
+        _names.update({f.id: f.name for f in getattr(scene, "furnishings", [])})
+
+        # COVER YOU ALREADY HAVE IS NOT AN ACTION. Read where he stands, once,
+        # against the same threats.
+        _here_now = max(
+            (compute_cover_level(
+                shooter_pos=_t, target_pos=_cover_actor_pos,
+                target_is_prone_or_diving=False, scene=scene,
+            ) for _t in _threats.values()),
+            default=0,
+        )
+        for _cs in _spots:
+            _spot = _cs.position
+            _level = max(_cs.cover_by_threat.values())
             if _level <= _here_now:
                 continue        # no better than where they already stand
-            _d = _cover_math.dist(
-                (_cover_actor_pos.x, _cover_actor_pos.y), (_spot.x, _spot.y),
-            )
-            if _d > _cover_half_move + 0.5:
-                continue
-            # AND THE SPOT MUST BE REACHABLE. The covered side of a
-            # movement-blocking wall is often on the far side of it, and
+
+            # AND THE SPOT MUST BE REACHABLE (`reachable_this_phase`, which
+            # asks `movement_reach` over this Half Move and wants him to
+            # ARRIVE, not merely get somewhere along the way). The covered
+            # side of a movement-blocking wall is often on the far side of it, and
             # you cannot walk through a wall to get behind it -- going
             # round the end is a longer path than `movement_reach` will
             # find, because it clamps toward the destination rather than
             # pathfinds. Without this the menu offered cover the actor
             # could only walk INTO: measured, the mover stopped against
             # the wall and finished the Phase no safer than it began.
-            _reach = movement_reach(
-                mode="running", from_pos=_cover_actor_pos, to_pos=_spot,
-                distance_m=_cover_half_move, scene=scene,
-                combatant_id=actor.id,
-            )
-            if not _reach.reachable:
+            if not _cs.reachable_this_phase:
                 continue
             # AND NOBODY IS STANDING THERE. `move_to_cover` computes ONE
             # covered spot per wall and sends whoever asks to it, so at
@@ -3665,20 +3668,17 @@ def enumerate_actions(
             # shoot buildings".
             #
             # Cover that blinds him to SOME of them is still cover and is
-            # still offered --- `cover_breakdown` exists precisely because
+            # still offered --- the covered/total count exists precisely because
             # hiding from one man while others walk round is a real trade.
             # What is withheld is a spot that blinds him to everybody.
             if alive_enemies:
-                from kirby_world.geometry import first_blocking_wall
-
-                _walls = getattr(scene, "walls", None) or []
                 _sees_any = False
                 for _e in alive_enemies:
                     _epos = _cover_positions.get(_e.id)
                     if _epos is None:
                         _sees_any = True          # no position, no claim
                         break
-                    if first_blocking_wall(_spot, _epos, _walls) is None:
+                    if first_blocking_wall(_spot, _epos, _cover_walls) is None:
                         _sees_any = True
                         break
                 if not _sees_any:
@@ -3688,20 +3688,25 @@ def enumerate_actions(
             # shooter, so "cover 2/4" alone invites hiding from one man
             # while four others walk around it. The offer says how many of
             # them it actually covers.
-            _covered, _total = cover_breakdown(_wall, _spot, _threats, scene)
+            _d = _cover_math.dist(
+                (_cover_actor_pos.x, _cover_actor_pos.y), (_spot.x, _spot.y),
+            )
+            _name = _names[_cs.feature_id]
+            _covered = sum(1 for lv in _cs.cover_by_threat.values() if lv > 0)
+            _total = len(_cs.cover_by_threat)
             _exposed = _total - _covered
             _flank = (
                 "" if _exposed <= 0
                 else f"; {_exposed} of {_total} would still have a clear shot"
             )
             actions.append(LegalAction(
-                action_id=f"move_to_cover:{_wall.id}",
+                action_id=f"move_to_cover:{_cs.feature_id}",
                 kind="move_to_cover",
                 target_id=None,
                 power_xmlid=None,
-                power_name=getattr(_wall, "name", None) or _wall.id,
+                power_name=_name,
                 summary=(
-                    f"Take cover behind {getattr(_wall, 'name', None) or _wall.id} "
+                    f"Take cover behind {_name} "
                     f"({_d:.1f}m away) — cover {_level}/4 against "
                     f"{_covered} of {_total} of them, so those attackers take "
                     f"{cover_ocv_modifier(_level * 25):+d} OCV against you"

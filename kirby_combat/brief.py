@@ -212,22 +212,38 @@ class Terrain:
         `cover_level` says what the wall is; it does not say what it is
         worth from where you stand. A building behind you shields you from
         nobody, and its cover_level is 4 either way. So the number quoted
-        is the one `cover_available` computes for the spot beside it
-        against the current threats -- the same figure the offer to move
+        is the one `cover_spots` computes for the spot beside it against
+        the current threats -- the same figure the offer to move
         there quotes, and the same one the rules apply once you are behind
         it.
         """
         import math
 
-        from kirby_world.cover import cover_available
+        from kirby_world.cover import cover_spots
+
+        from kirby_combat.loop.reactions import dive_mode
+        from kirby_combat.loop.resolvers import _full_move
 
         here = self.position_of(self._actor.id)
         if here is None:
             return []
-        threats = [
-            p for p in (self.position_of(e.id) for e in self._enemies)
-            if p is not None
-        ]
+        threats = {
+            e.id: p for e in self._enemies
+            if (p := self.position_of(e.id)) is not None
+        }
+        # THE ONE DOOR. Cover is read from `cover_spots`, as the offer to
+        # take it and the threat picture read it, so the page cannot say
+        # "cover 3/4" about a place the menu would not send him. It has
+        # already folded a Furnishing's edges, so a wagon is one entry; what
+        # it leaves out (a wall that shields him from nobody) has no entry,
+        # which is this page's "would not shield you".
+        mode = dive_mode(self._session, self._actor.id)
+        spots = {
+            s.feature_id: s for s in cover_spots(
+                self.scene, from_pos=here, threats=threats,
+                reach_m=_full_move(self._actor, mode), mode=mode,
+            )
+        }
         # ONE THING, ONE LINE. A `Furnishing` projects its footprint into
         # four wall segments so movement and line of sight keep working,
         # and this reads `scene.walls` -- so a wagon arrived as four
@@ -258,7 +274,10 @@ class Terrain:
             a, b = wall.segment
             mid = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
             distance = math.dist((here.x, here.y), mid)
-            spot, level = cover_available(wall, here, threats, self.scene)
+            feature_id = (wall.part_of if wall.part_of in furnishing_ids
+                          else wall.id)
+            spot = spots.get(feature_id)
+            level = max(spot.cover_by_threat.values()) if spot else 0
             worth = (
                 f"would give you cover {level}/4" if level > 0
                 else "would not shield you from where they are"

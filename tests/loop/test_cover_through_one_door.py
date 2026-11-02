@@ -254,7 +254,10 @@ def _yard(*, shooter_at=(10.0, 5.0), actor_at=(4.0, 5.0)):
     ).start()
 
 
-YARD_OFFERS = [('move_to_cover:wagon#edge3',
+# INTENDED CHANGE (task 7): a furnishing is ONE feature, so the offer is
+# `move_to_cover:wagon`, not `move_to_cover:wagon#edge3`. The spot, the
+# summary and the cover it quotes are exactly what the per-edge loop offered.
+YARD_OFFERS = [('move_to_cover:wagon',
   (2.0, 0.0, 0.0),
   'Take cover behind Hay wagon (5.4m away) — cover 3/4 against 1 of 1 of them, so '
   'those attackers take -4 OCV against you. Half Move, so you may still attack (6E2 '

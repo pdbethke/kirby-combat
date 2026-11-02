@@ -33,6 +33,11 @@ class _Guy:
     def __init__(self, ident):
         self.id = ident
 
+    def movement_view(self):
+        # The Brief now asks how far he can run (cover_spots marks the spots
+        # he can reach); a stub with no movement has none, which is a valid answer.
+        return []
+
 
 def _terrain(*walls):
     scene = Scene(
