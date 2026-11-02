@@ -36,6 +36,13 @@ RULINGS
   cannot reach. The picture follows the rule, not the gap.
   "Now" means from where each stands, not after a move. With no map,
   nobody can be shown out of reach, so it reaches.
+* WHOM HE CAN REACH (`ThreatPicture.i_can_reach`) is the same REACH rule
+  with the roles swapped: the perceived enemies at least one of HIS attacks
+  reaches now (its maximum range and line of sight, Indirect included).
+  His own powers are his to know, so no SEEN filter applies to them; only
+  the enemies he perceives count. RULING: his bare hands are one of his
+  attacks, reaching as far as his melee reach (6E2 p.56), because any man
+  may Strike; so a man beside an enemy reaches him whatever his sheet holds.
 * THE SQUAD AN AREA WOULD CATCH is counted from HIM: the standing men of his
   own side and squad, other than himself, within the area's size of where he
   stands. With no map nobody can be shown beside him, so it is 0 (the same
@@ -93,6 +100,9 @@ class ThreatPicture:
     #: enemy_id -> how many standing men of his side that enemy can reach
     #: with any power seen in use (himself included).
     men_she_can_reach: dict[str, int]
+    #: The perceived enemies at least one of HIS attacks (or his bare hands)
+    #: reaches now. See the module docstring's WHOM HE CAN REACH.
+    i_can_reach: frozenset[str]
     #: The best `BEST_COVER` spots, best first.
     cover: tuple[CoverSpot, ...]
     #: A Half Move in metres (what `cover` was reckoned with; used only for
@@ -139,7 +149,9 @@ def _can_reach(session: Any, enemy: Any, view: Any, target_id: str,
                sight: dict[tuple[str, str], bool]) -> bool:
     """Whether ``enemy``'s power reaches ``target_id`` from where each stands.
     See the module docstring's REACH ruling. ``sight`` caches line of sight
-    per (enemy, man): it does not depend on the power, only on Indirect."""
+    per (attacker, man): it does not depend on the power, only on Indirect.
+    ``enemy`` is whoever wields ``view``: `i_can_reach` passes the fighter
+    himself, with the enemy as ``target_id``."""
     from kirby_world.geometry import distance_3d
 
     from kirby_combat.actions.reach import within_reach
@@ -266,7 +278,13 @@ def threat_picture(situation: PhaseSituation) -> ThreatPicture:
                     if area and in_squad else None)))
         men_she_can_reach[enemy.id] = len(mine_reached)
         reaching += reaches_me
+    # His bare hands (view None: melee reach), then each attack on his sheet.
+    mine = (None, *getattr(me, "attacks", ()))
+    i_can_reach = frozenset(
+        e.id for e in perceived
+        if any(_can_reach(session, me, view, e.id, sight) for view in mine))
     cover, reach_m = _cover(situation, perceived)
     return ThreatPicture(lines=tuple(lines), enemies_who_can_reach_me=reaching,
-                         men_she_can_reach=men_she_can_reach, cover=cover,
+                         men_she_can_reach=men_she_can_reach,
+                         i_can_reach=i_can_reach, cover=cover,
                          reach_m=reach_m)

@@ -310,3 +310,56 @@ def test_cover_within_a_half_move_is_reachable_and_offered(monkeypatch):
     pic, offers = _cover_fight(3.0, monkeypatch)
     assert pic.cover[0].reachable_this_phase is True
     assert offers
+
+
+# ── i_can_reach: the enemies HE can reach (squad tactics, EV leader) ──────────
+
+
+def _gunman(positions, *, range_m=30, walls=()):
+    """`me` carries a single-target Bolt of ``range_m``; `her` carries nothing
+    he could have seen. His own powers are his to know: nothing is used."""
+    bolt = shaped_blast("bolt", 4, name="Bolt", range_m=range_m,
+                        is_ranged=range_m > 0)
+    return encounter_on(scene_with(positions, walls=list(walls)),
+                        armed("her", None, side=VILLAINS),
+                        armed("me", bolt, side=HEROES)).sessions[0]
+
+
+def test_he_reaches_an_enemy_inside_his_range_without_any_power_seen():
+    s = _gunman({"her": (0, 0, 0), "me": (20, 0, 0)})
+    assert threat_picture(_situation(s)).i_can_reach == frozenset({"her"})
+
+
+def test_an_enemy_out_of_his_range_is_not_in_i_can_reach():
+    s = _gunman({"her": (0, 0, 0), "me": (60, 0, 0)})
+    assert threat_picture(_situation(s)).i_can_reach == frozenset()
+
+
+def test_an_enemy_behind_a_wall_is_not_in_i_can_reach(monkeypatch):
+    from kirby_combat.scene.scene import Position, Wall
+    wall = Wall(id="w", name="w", segment=(Position(10, -10, 0), Position(10, 10, 0)),
+                height_m=4.0, blocks_los=True, cover_level=3)
+    s = _gunman({"her": (0, 0, 0), "me": (20, 0, 0)}, walls=[wall])
+    _all_seen(monkeypatch, "her")
+    assert threat_picture(_situation(s)).i_can_reach == frozenset()
+
+
+def test_an_unperceived_enemy_is_not_in_i_can_reach(monkeypatch):
+    s = _gunman({"her": (0, 0, 0), "me": (20, 0, 0)})
+    tp = sys.modules["kirby_combat.threat_picture"]
+    from kirby_combat.brief_detail import Sighting
+    monkeypatch.setattr(tp, "sightings", lambda sit: {
+        "her": Sighting(enemy_id="her", physical=False, mental=False,
+                        through_lock=False)})
+    assert threat_picture(_situation(s)).i_can_reach == frozenset()
+
+
+def test_bare_hands_reach_an_enemy_beside_him_and_no_farther():
+    near = encounter_on(scene_with({"her": (0, 0, 0), "me": (1, 0, 0)}),
+                        armed("her", None, side=VILLAINS),
+                        armed("me", None, side=HEROES)).sessions[0]
+    assert threat_picture(_situation(near)).i_can_reach == frozenset({"her"})
+    far = encounter_on(scene_with({"her": (0, 0, 0), "me": (30, 0, 0)}),
+                       armed("her", None, side=VILLAINS),
+                       armed("me", None, side=HEROES)).sessions[0]
+    assert threat_picture(_situation(far)).i_can_reach == frozenset()
