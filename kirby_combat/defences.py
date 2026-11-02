@@ -51,8 +51,12 @@ class Defence(str, Enum):
 #: sets, so a new kind fails loudly until someone classifies it.
 
 #: Mental powers that act on a man (6E1 p.150): rolled OMCV against DMCV.
+#: Mind Scan and Telepathy are among them: both roll MCV against the
+#: target's DMCV and act on him (Mind Scan 6E1 p.263; Telepathy as cited
+#: in `mental/telepathy.py`; both resolve in `loop.resolvers`).
 MENTAL_KINDS = frozenset({
     "mental_blast", "mind_control", "mental_entangle", "mental_illusion",
+    "mind_scan", "telepathy",
 })
 DARKNESS_KINDS = frozenset({"darkness_zone"})
 FLASH_KINDS = frozenset({"flash"})
@@ -86,7 +90,7 @@ NON_THREAT_KINDS = frozenset({
     "block", "dodge", "charm", "persuasion", "conversation", "trading",
     "climb", "climb_fast", "coordinate", "disengage", "escape_attack",
     "escape_ego", "escape_str", "escape_teleport", "hide", "hold",
-    "mind_scan", "telepathy", "move", "half_move", "move_to_cover",
+    "move", "half_move", "move_to_cover",
     "pickup", "pick_up_weapon", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_vantage", "set", "stabilize",
     "stand_up", "change_identity", "change_identity_instant",

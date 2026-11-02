@@ -140,3 +140,11 @@ def test_an_unclassified_kind_fails_threatens_a_man():
 def test_haymaker_is_hand_to_hand_in_the_table_and_the_menu():
     assert is_hth("haymaker", _view())
     assert Defence.BLOCK in answers_to(_view(), kind="haymaker")
+
+
+@pytest.mark.parametrize("kind", ["mind_scan", "telepathy"])
+def test_mind_scan_and_telepathy_are_mental_threats(kind):
+    """Both roll MCV against the target's DMCV and act on him
+    (`loop.resolvers`), so they are threats on the mental row."""
+    assert threatens_a_man(kind)
+    assert answers_to(_view(), kind=kind) == {Defence.DISTANCE}
