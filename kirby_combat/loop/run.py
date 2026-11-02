@@ -657,12 +657,17 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
                 + attack_entangle_offers(session, actor, allies, menu, reach_m))
     else:
         menu = ladder_for(session, actor_id, menu)
+    # A LAST RESORT, and only then (squad tactics spec 7): a Self Only damaging
+    # power, when capture is imminent or he judged the squad lost. Added BEFORE
+    # the narrowings below so that they cut it like any other offer:
+    #   * Mind Control's withdraw (`WITHDRAW_KINDS`) drops it: a man ordered
+    #     to withdraw does nothing else;
+    #   * a rage (`RageMenu.narrowed`) drops it: he fights only his target;
+    #   * the Phase's time filters (`rest_of_phase` and the rest) price it as
+    #     the Attack Action it is.
+    menu = menu + self_destruct_offers(session, actor)
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
-    # A LAST RESORT, and only then (squad tactics spec 7): a Self Only damaging
-    # power, when capture is imminent or he judged the squad lost. Added here
-    # so the Phase's time filters below price it like any other offer.
-    menu = menu + self_destruct_offers(session, actor)
     if rage is not None:
         menu = RageMenu.narrowed(menu)
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).

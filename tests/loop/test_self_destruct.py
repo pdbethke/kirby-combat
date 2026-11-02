@@ -257,3 +257,73 @@ def test_self_only_aid_is_untouched():
 
     s = _grabbed(_cast().sessions[0])
     assert self_destruct_offers(s, medic) == []
+
+
+# ---- the narrowings that apply to every offer apply to this one ----
+
+def test_a_man_ordered_to_withdraw_is_not_offered_it(monkeypatch):
+    """Mind Control's withdraw cuts the menu to `WITHDRAW_KINDS` (6E1 p.256)."""
+    from kirby_combat.loop import run
+    from kirby_combat.mental.continuing import Obedience
+
+    s = _grabbed(_cast().sessions[0])
+    assert "self_destruct" in _kinds(s)
+    monkeypatch.setattr(run, "obey", lambda session, actor, enemies, allies: Obedience(
+        enemies=enemies, allies=allies, withdraw=True, entranced=False))
+    assert "self_destruct" not in _kinds(s)
+
+
+def test_a_raging_man_is_not_offered_it():
+    """RULING (`rage.RageMenu.narrowed`): he fights only his rage target."""
+    from kirby_combat.session.events import RageRolled
+
+    s = _grabbed(_cast().sessions[0])
+    assert "self_destruct" in _kinds(s)
+    s = apply_event(s, RageRolled(
+        id="went", session_id=s.id, sequence=len(s.event_log) + 1,
+        timestamp=s.event_log[-1].timestamp, author=make_author_engine(),
+        combatant_id="bot", complication_id="rage-in combat", roll_kind="go",
+        roll=3, target_number=14, succeeded=True, berserk=False,
+        target_id="mark", reason="in_combat", turn=1, segment=12))
+    assert "self_destruct" not in _kinds(s)
+
+
+def test_no_int_roll_when_capture_is_already_imminent():
+    dice = Dice(face=1)
+    s = judge_the_squad(_grabbed(_lost_squad()), "bot", dice)
+    assert dice.calls == []
+
+
+# ---- the blast records what it did to him ----
+
+def _blast_him(dice_face, *, stun=40, bomb_dice=8):
+    enc = _cast()
+    s = _grabbed(enc.sessions[0])
+    if bomb_dice != 8:
+        s.combatants["bot"].attacks[0].damage_dice = bomb_dice
+    result = run_phase(enc.__class__(**{**enc.__dict__, "sessions": [s]}),
+                       Picks(lambda a, _s: a.kind == "self_destruct"),
+                       roller=Dice(face=dice_face), on_unresolvable="raise")
+    return result.encounter.sessions[0]
+
+
+def test_a_lethal_self_blast_leaves_him_dead():
+    from kirby_combat.statuses import DEAD, statuses_for
+
+    after = _blast_him(6)                    # 8d6 killing, every die a 6
+    assert after.combatants["bot"].state.current_body < 0
+    assert DEAD in statuses_for(after, "bot")
+
+
+def test_a_small_self_blast_stuns_him_without_killing_him():
+    from kirby_combat.statuses import DEAD, STUNNED, statuses_for
+
+    after = _blast_him(3, bomb_dice=4)       # 4d6 killing: more STUN than his CON 18, BODY short of death
+    held = statuses_for(after, "bot")
+    payload = [e.result_payload for e in after.event_log
+               if e.kind == "ActionResolved"
+               and (e.result_payload or {}).get("kind") == "self_destruct"][0]
+    assert DEAD not in held
+    assert ("Stunned" in payload["status_changes"]) == (STUNNED in held)
+    assert payload["stun_dealt"] > 18 and STUNNED in held
+    assert "Stunned" in payload["status_changes"]

@@ -124,6 +124,8 @@ def judge_the_squad(session: "CombatSession", actor_id: str, roller) -> "CombatS
     actor = session.combatants[actor_id]
     if is_down(actor) or not squad_is_lost(session, actor_id):
         return session
+    if capture_is_imminent(session, actor_id):
+        return session                       # the offer is already there
     if not self_destruct_powers(actor, spent_charges(session, actor_id)):
         return session
     if _rolled_this_phase(session, actor_id):

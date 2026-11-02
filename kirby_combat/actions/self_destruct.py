@@ -31,11 +31,13 @@ def _resolve_self_destruct(
     """Roll the power's damage, take it through his own defences, spend the
     Charge. Nobody else is touched."""
     from kirby_combat.actions.recording import _apply_damage
+    from kirby_combat.adjustments import adjusted_con
     from kirby_combat.loop.resolvers import (
         _attack_dice, _events_since, _recorded, _with_half_die,
     )
     from kirby_combat.resolution.damage import compute_damage
     from kirby_combat.resolution.defense import compute_defense
+    from kirby_combat.resolution.status import determine_status_changes
 
     power = action._attack_view
     if power is None:
@@ -50,12 +52,19 @@ def _resolve_self_destruct(
         kept = (100 - defense.damage_reduction_pct) / 100.0
         stun, body = int(stun * kept), int(body * kept)
     after = _apply_damage(session, actor.id, stun=stun, body=body, caused_by=actor.id)
+    # Dead and Stunned are folded from this key alone (`statuses`), as for
+    # every direct-damage resolver (`zone_effects._burn`).
+    status = determine_status_changes(
+        stun_before=me.state.current_stun, stun_after=me.state.current_stun - stun,
+        body_before=me.state.current_body, body_after=me.state.current_body - body,
+        con=adjusted_con(session, me), max_body=me.max_body,
+    )
     out = _recorded(after, actor, action, None, {
         "kind": SELF_DESTRUCT, "target_id": actor.id,
         "stun_dealt": stun, "body_dealt": body,
         "power_xmlid": power.xmlid, "power_name": power.name,
         "power_source_id": getattr(power, "source_id", None),
-        "damage_type": power.damage_type,
+        "damage_type": power.damage_type, "status_changes": status,
     })
     from dataclasses import replace
 

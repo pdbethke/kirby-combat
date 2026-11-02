@@ -491,8 +491,11 @@ class RageMenu:
         above), and no power bought with Concentration (p.424)."""
         from kirby_combat.concentration import without_concentration_powers
 
+        # RULING: a raging man fights only his rage target (above), and a
+        # self-destruct is not an attack on it, so it is not offered.
         return without_concentration_powers(
-            a for a in RageMenu.without_defence(menu) if a.kind not in WAITING_KINDS)
+            a for a in RageMenu.without_defence(menu)
+            if a.kind not in WAITING_KINDS and a.kind != "self_destruct")
 
 
 def rage_menu(session: "CombatSession", actor, enemies: list, allies: list) -> RageMenu | None:
