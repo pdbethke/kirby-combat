@@ -30,6 +30,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
+from kirby_combat.actions.area_attack import is_area_attack
 from kirby_combat.enumeration import LegalAction, _friendly, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 from kirby_combat.loop.chooser import (
@@ -246,7 +247,8 @@ def reaction_menu(
     No Abort at all for a kind that is not an attack on a man
     (`REACTABLE_KINDS`), or for a target that is not a combatant (an Image).
     Block is offered only against hand-to-hand attacks (6E2 p.59: "Blocks
-    only affect Ranged attacks with the GM's permission").
+    only affect Ranged attacks with the GM's permission"). Against an Area
+    Of Effect attack only `no_abort` is offered (6E1 p.321, `defences`).
     """
     from kirby_combat.actions.reactive.martial import block_maneuver, dodge_maneuver
 
@@ -256,6 +258,7 @@ def reaction_menu(
         return []
     defender = session.combatants[defender_id]
     dodge = dodge_maneuver(defender)
+    area = is_area_attack(incoming._attack_view)
     # His name, as the rest of the menu and the Brief name him: a player
     # reads these offers as his question (kirby-api), and an id is a uuid.
     who = _friendly(attacker)
@@ -266,6 +269,13 @@ def reaction_menu(
             summary=(f"Don't Abort: take {who}'s attack on your "
                      "ordinary DCV and keep your next Phase"),
         ),
+    ]
+    if area:
+        # 6E1 p.321: an area is rolled against the target point (DCV 3), so
+        # Dodge, Block and Roll With The Punch, which act on his DCV or the
+        # blow, have nothing to act on. Dive for Cover is Task 5.
+        return menu
+    menu += [
         LegalAction(
             action_id=Reaction.DODGE.value, kind=Reaction.DODGE.value,
             target_id=None, power_xmlid=None, power_name=None,
