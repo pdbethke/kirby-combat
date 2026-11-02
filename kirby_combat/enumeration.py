@@ -50,6 +50,15 @@ _EPS_M = 1e-6
 _DEBRIS_KG_PER_BODY = 50.0
 
 
+def cover_half_move(actor: Any) -> float:
+    """How far a `move_to_cover` offer can take him: a Half Move (6E2 p.42,
+    one offer per feature within a Half Move) in Running. RUNNING, not
+    `dive_mode`: the resolver moves the offer by ``action.mode or "running"``,
+    so an offer is judged by the move that will be made. The menu and
+    `threat_picture` both read it here."""
+    return max(0.0, float(actor.hero.characteristic_value("RUNNING") or 0) / 2.0)
+
+
 def can_shoot_from(scene: Any, spot: Any, enemies: Any) -> bool:
     """Whether a man standing at ``spot`` has a clear line to at least one of
     ``enemies``: the test the menu applies before it offers a `move_to_cover`
@@ -3613,9 +3622,7 @@ def enumerate_actions(
             e.id: _cover_positions[e.id] for e in alive_enemies
             if e.id in _cover_positions
         }
-        _cover_half_move = max(
-            0.0, float(actor.hero.characteristic_value("RUNNING") or 0) / 2.0
-        )
+        _cover_half_move = cover_half_move(actor)
         _cover_walls = getattr(scene, "walls", None) or []
 
         # ONE DOOR. `cover_spots` places a spot behind every wall against the

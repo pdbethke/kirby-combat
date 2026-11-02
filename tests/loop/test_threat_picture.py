@@ -205,7 +205,7 @@ def test_cover_is_the_best_three_and_empty_with_no_map(monkeypatch):
     _all_seen(monkeypatch, "her")
     pic = threat_picture(_situation(s))
     assert len(pic.cover) == 3
-    assert pic.reach_m == 12.0                       # his Running this Phase
+    assert pic.reach_m == 6.0               # a Half Move: what move_to_cover can use
     bare = _fight({"her": (0, 0, 0), "me": (10, 0, 0)})
     bare = _use(bare, "her", "Storm")
     assert threat_picture(_situation(bare)).cover == ()
@@ -266,3 +266,47 @@ def test_cover_that_blinds_him_to_the_only_enemy_is_neither_listed_nor_offered(m
     menu = enumerate_actions(me, enemies, has_scene=True, scene=s.scene,
                              distances=distances_from(s.scene, me, enemies))
     assert not [a for a in menu if a.kind == "move_to_cover"]
+
+
+def _cover_fight(away_m, monkeypatch):
+    """`me` (Running 12: Half Move 6 m, Full Move 12 m) at x=30, the enemy at
+    x=60, and one open-sided wall ``away_m`` metres from him on the side away
+    from the enemy, so the spot behind it is about that far off."""
+    from kirby_combat.scene.scene import Position, Wall
+
+    wall_x = 30.0 - away_m
+    crates = Wall(id="w", name="Crates",
+                  segment=(Position(wall_x, -3, 0), Position(wall_x, 3, 0)),
+                  height_m=1.4, blocks_los=False, blocks_movement=False,
+                  cover_level=3)
+    storm = shaped_blast("storm", 4, area=area(4.0), name="Storm")
+    s = encounter_on(scene_with({"her": (60, 0, 0), "me": (30, 0, 0)}, walls=[crates]),
+                     armed("her", storm, side=VILLAINS),
+                     armed("me", None, side=HEROES, running=12)).sessions[0]
+    s = _use(s, "her", "Storm")
+    _all_seen(monkeypatch, "her")
+    me = s.combatants["me"]
+    from kirby_combat.enumeration import enumerate_actions
+    from kirby_combat.loop import Roster
+    from kirby_combat.loop.run import distances_from
+    enemies = Roster(s).enemies_of(me)
+    menu = enumerate_actions(me, enemies, has_scene=True, scene=s.scene,
+                             distances=distances_from(s.scene, me, enemies))
+    return threat_picture(_situation(s)), [a for a in menu if a.kind == "move_to_cover"]
+
+
+def test_cover_beyond_a_half_move_is_not_reachable_and_not_offered(monkeypatch):
+    """The picture and the menu agree on reach: `move_to_cover` is a Half
+    Move (6 m here), so a spot 7-8 m away is within his Full Move and still
+    not reachable this Phase, and not offered."""
+    pic, offers = _cover_fight(8.0, monkeypatch)
+    assert pic.reach_m == 6.0
+    assert pic.cover and 6.0 < pic.cover[0].distance_m <= 12.0
+    assert pic.cover[0].reachable_this_phase is False
+    assert offers == []
+
+
+def test_cover_within_a_half_move_is_reachable_and_offered(monkeypatch):
+    pic, offers = _cover_fight(3.0, monkeypatch)
+    assert pic.cover[0].reachable_this_phase is True
+    assert offers

@@ -484,7 +484,9 @@ def order_fit(situation: PhaseSituation, action: LegalAction, *,
     task in its own terms):
 
     * FOCUS_FIRE: an attack (`defences.threatens_a_man`) or a Coordinated
-      Attack join (``coordinate``, 6E2 p.46) on the target.
+      Attack join (``coordinate``, 6E2 p.46) on the target, or a
+      ``reposition_vantage`` or ``reposition_strike`` aimed at him: getting
+      a line on the target is how a man who cannot see it obeys.
     * CLOSE: a move that ends closer to the target than he stands now.
     * TAKE_COVER: ``move_to_cover``, or an attack while he is in cover where
       he stands (`enumeration.cover_where_he_stands`) against the enemies he
@@ -528,7 +530,8 @@ def order_fit(situation: PhaseSituation, action: LegalAction, *,
     if task is TeamTask.FOCUS_FIRE:
         aimed = (action.target_id == team.target_id
                  or team.target_id in action.target_ids)
-        return aimed and (kind == "coordinate" or _is_attack(kind))
+        return aimed and (kind in ("coordinate", "reposition_vantage")
+                          or _is_attack(kind))
     if task is TeamTask.TAKE_COVER:
         if kind == "move_to_cover":
             return True

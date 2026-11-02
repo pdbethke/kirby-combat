@@ -42,10 +42,10 @@ RULINGS
   ruling `area_attack` makes about who an area holds). None unless the line
   is an area and he is in a squad.
 * COVER is `kirby_world.cover.cover_spots` against the perceived enemies'
-  positions, best three. ``reach_m`` is his movement this Phase: a Full
-  Move in the mode he is using (`loop.reactions.dive_mode`, Flight in the
-  air, else Running; `loop.resolvers._full_move`). It is NOT the
-  situation's ``reach_m``, which is his melee reach (6E2 p.56).
+  positions, best three. ``reach_m`` is how far a `move_to_cover` offer can take him: a Half
+  Move in Running (`enumeration.cover_half_move`, the one the menu uses),
+  so "reachable this Phase" and a `move_to_cover` offer agree. It is NOT
+  the situation's ``reach_m``, which is his melee reach (6E2 p.56).
 """
 from __future__ import annotations
 
@@ -95,7 +95,7 @@ class ThreatPicture:
     men_she_can_reach: dict[str, int]
     #: The best `BEST_COVER` spots, best first.
     cover: tuple[CoverSpot, ...]
-    #: His movement this Phase in metres (what `cover` was reckoned with).
+    #: A Half Move in metres (what `cover` was reckoned with; used only for cover).
     reach_m: float
 
 
@@ -194,14 +194,11 @@ def _squadmates_caught(session: Any, me: Any, radius_m: float,
 def _cover(situation: PhaseSituation, perceived: list[Any]) -> tuple[tuple, float]:
     from kirby_world.cover import cover_spots
 
-    from kirby_combat.enumeration import can_shoot_from
-    from kirby_combat.loop.reactions import dive_mode
-    from kirby_combat.loop.resolvers import _full_move
+    from kirby_combat.enumeration import can_shoot_from, cover_half_move
     from kirby_combat.placement import position_of
 
     session, me = situation.session, situation.actor
-    mode = dive_mode(session, me.id)
-    reach = _full_move(me, mode)
+    reach = cover_half_move(me)
     scene = getattr(session, "scene", None)
     if scene is None:
         return (), reach
@@ -211,7 +208,7 @@ def _cover(situation: PhaseSituation, perceived: list[Any]) -> tuple[tuple, floa
     if here is None or not threats:
         return (), reach
     spots = cover_spots(scene, from_pos=here, threats=threats,
-                        reach_m=reach, mode=mode)
+                        reach_m=reach, mode="running")
     # ONE DOOR with the menu: a spot that blinds him to every enemy he
     # perceives is not offered as a `move_to_cover`, so it is not listed.
     seen = [e for e in perceived if e.id in threats]

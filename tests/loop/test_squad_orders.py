@@ -355,6 +355,17 @@ def test_order_fit_focus_fire():
     assert _fit(s, "b", _offer("move", target_id="her")) is False
 
 
+def test_getting_a_line_on_the_target_carries_out_focus_fire():
+    """A man who cannot see the target obeys by getting a line on him: a
+    `reposition_vantage` or `reposition_strike` aimed at him fits; one aimed
+    at somebody else does not."""
+    s = _session({**_PLACES, "him": (0, 10, 0)}, villains=("her", "him"))
+    s = _ordered(s, _team(["l", "b", "c"], TeamTask.FOCUS_FIRE, target_id="her"))
+    for kind in ("reposition_vantage", "reposition_strike"):
+        assert _fit(s, "b", _offer(kind, target_id="her", dest=(10, 6, 0))) is True
+        assert _fit(s, "b", _offer(kind, target_id="him", dest=(10, 6, 0))) is False
+
+
 def test_order_fit_close():
     s = _ordered(_session(), _team(["l", "b", "c"], TeamTask.CLOSE, target_id="her"))
     menu = _situation_for(s, "b").menu

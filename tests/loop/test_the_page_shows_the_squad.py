@@ -67,7 +67,7 @@ def _section(page, heading):
 
 def _cover_wall():
     return Wall(id="crates", name="Packing crates",
-                segment=(Position(30, -4, 0), Position(30, 4, 0)),
+                segment=(Position(36, -4, 0), Position(36, 4, 0)),
                 height_m=1.0, blocks_los=False, cover_level=3)
 
 
