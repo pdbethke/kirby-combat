@@ -39,6 +39,8 @@ import pathlib
 import sys
 from collections import Counter
 
+from kirby_combat.squads import KEEP_ORDERS
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "examples"))
 
 
@@ -64,6 +66,9 @@ class Recorder:
         #: One example sentence per finding kind, so a count of
         #: "futile: 14" can be chased to the man and the gun.
         self.examples: dict[str, str] = {}
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation) -> str:
         for action in situation.menu:

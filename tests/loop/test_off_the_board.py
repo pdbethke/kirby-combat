@@ -49,6 +49,7 @@ from kirby_combat.models import MovementCapability
 from kirby_combat.off_board import way_back
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import PRONE, statuses_for
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
@@ -204,6 +205,9 @@ def test_a_man_with_no_way_back_has_left():
 class _BlastHim:
     """`a` blasts `t`; nobody else is ever asked in these tests."""
 
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation):
         no_abort = [x for x in situation.menu if x.kind == "no_abort"]
         if no_abort:
@@ -217,6 +221,9 @@ class _BlastHim:
 
 
 class _ThenAnything:
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation):
         return situation.menu[0].action_id
 
@@ -273,6 +280,9 @@ def test_his_phases_bring_him_back_and_then_he_fights():
     class _SeeTheMenu:
         menu: list = []
 
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             _SeeTheMenu.menu = situation.menu
             return next(x.action_id for x in situation.menu if x.kind == "dodge")
@@ -317,6 +327,9 @@ def test_somebody_standing_where_he_crossed_does_not_get_him_on_top_of_him():
         **s.scene.combatant_positions, "a": Position(25.0, 10.0, 0.0)}))
     phase = replace(phase, encounter=replace(phase.encounter, sessions=[s]))
     class _AStandsStill:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.actor.id == "a":
                 still = [x for x in situation.menu

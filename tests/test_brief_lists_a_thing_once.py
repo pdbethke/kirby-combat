@@ -25,6 +25,7 @@ the page a model actually gets.
 from __future__ import annotations
 
 from kirby_combat.brief import Brief
+from kirby_combat.squads import KEEP_ORDERS
 
 
 def _page():
@@ -33,6 +34,9 @@ def _page():
     pages: list[str] = []
 
     class Peek:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if not pages:
                 pages.append(situation.brief().render())

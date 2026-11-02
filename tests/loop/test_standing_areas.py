@@ -33,6 +33,7 @@ from kirby_combat.power_modifiers import (
     AreaShape, AreaSpec, AreaTargeting, DamageOverTimeSpec, unbuilt_reasons,
 )
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.standing_areas import (
     RAISE_DAMAGE_SHIELD, Dose, StandingEnd, active_standing_areas,
     standing_areas,
@@ -112,6 +113,9 @@ def _until(enc, chooser, dice, who, *, skip=0):
 class _NoAborts(Picks):
     """`Picks`, but nobody Aborts out of turn: the first out-of-turn offer
     is always to do nothing (`loop/reactions.py`)."""
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if getattr(situation, "out_of_turn", None):

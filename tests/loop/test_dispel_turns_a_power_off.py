@@ -25,6 +25,7 @@ from kirby_combat.loop import run_phase
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
@@ -98,6 +99,9 @@ def test_a_dispel_that_misses_does_nothing():
 
 
 class _Dodges:
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation):
         return next(a for a in situation.menu if a.kind == "dodge").action_id
 

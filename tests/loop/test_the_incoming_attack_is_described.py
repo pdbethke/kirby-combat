@@ -20,6 +20,7 @@ from kirby_combat.loop import run_phase
 from kirby_combat.loop.chooser import OutOfTurnReason
 from kirby_combat.loop.reactions import IncomingAttack
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
@@ -32,6 +33,9 @@ class Recorder:
     def __init__(self, kind: str = "attack"):
         self.kind = kind
         self.out_of_turn = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         oot = situation.out_of_turn
@@ -86,6 +90,9 @@ def test_a_hand_to_hand_attack_says_so_and_is_the_one_block_is_offered_against()
     shown = []
 
     class Watch(Recorder):
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.out_of_turn is not None:
                 shown.append(situation)
@@ -108,6 +115,9 @@ def test_a_held_action_question_carries_no_attack():
     seen = []
 
     class Watch:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.out_of_turn is not None:
                 seen.append(situation.out_of_turn)
@@ -132,6 +142,9 @@ def test_the_abort_offers_name_the_attacker_not_his_id():
     shown = []
 
     class Watch(Recorder):
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.out_of_turn is not None:
                 shown.append(situation)

@@ -26,6 +26,7 @@ from kirby_combat.encounter import Encounter
 from kirby_combat.loop.run import run_phase
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 
 
@@ -61,6 +62,9 @@ class Shouts:
     def __init__(self, *, group: bool = False) -> None:
         self.kind = "presence_attack_group" if group else "presence_attack"
         self.menus: list[tuple[str, list[str]]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation) -> str:
         if situation.out_of_turn is not None:

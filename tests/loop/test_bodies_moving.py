@@ -32,6 +32,7 @@ from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import FELL, PRONE, statuses_for
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
@@ -279,6 +280,9 @@ def test_knockback_runs_through_run_phase():
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
     class TakeTheBlast:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.actor.id != "a":
                 return next(x.action_id for x in situation.menu if x.kind == "dodge")

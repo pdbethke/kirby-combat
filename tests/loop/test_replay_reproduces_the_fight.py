@@ -34,6 +34,7 @@ from kirby_combat.session import CombatSession, apply_event
 from kirby_combat.session.rewind import rewind_to_sequence
 from kirby_combat.session.state_view import state_view
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import statuses_for
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
@@ -63,6 +64,9 @@ class CloseTheDistanceThenFight:
 
     def __init__(self) -> None:
         self._moved: set[str] = set()
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         actor_id = str(situation.actor.id)

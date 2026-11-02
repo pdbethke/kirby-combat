@@ -20,10 +20,14 @@ from kirby_combat.loop import run_phase
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import ActionResolved, make_author_engine
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 
 
 class _Dodges:
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation):
         return next(a for a in situation.menu if a.kind == "dodge").action_id
 

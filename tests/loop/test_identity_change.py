@@ -25,6 +25,7 @@ from kirby_combat.identity import CHANGE_IDENTITY, CHANGE_IDENTITY_INSTANT
 from kirby_combat.loop import run_phase
 from kirby_combat.serialization import from_dict, to_dict
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 from tests.corpus import require_authored
 
@@ -45,6 +46,9 @@ class _Plays:
     def __init__(self, *, change: bool):
         self.change = change
         self.menus: list[list] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if getattr(situation, "out_of_turn", None) is not None:

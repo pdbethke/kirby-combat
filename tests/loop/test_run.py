@@ -10,6 +10,7 @@ from kirby_combat.loop import (
     run_encounter, run_phase,
 )
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -140,6 +141,9 @@ def test_a_downed_combatant_is_skipped_not_asked():
 
 def test_a_choice_outside_the_menu_raises_at_the_seat():
     class Liar:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation: PhaseSituation) -> str:
             return "attack:nobody:nothing"
 
@@ -153,6 +157,9 @@ def test_the_chooser_sees_enemies_by_side_not_by_id():
     seen: list[PhaseSituation] = []
 
     class Spy:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation: PhaseSituation) -> str:
             seen.append(situation)
             return situation.menu[0].action_id
@@ -189,6 +196,9 @@ def test_skip_records_the_kind_rather_than_hiding_it():
         consumer that invents a kind, so the test invents one -- and this
         also exercises the seat's own guard, since the id must be on the
         menu to get as far as the registry."""
+
+        def give_orders(self, page):
+            return KEEP_ORDERS
 
         def choose(self, situation: PhaseSituation) -> str:
             chosen = situation.menu[0]

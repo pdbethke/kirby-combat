@@ -31,6 +31,7 @@ from kirby_combat.mooks import check_mooks
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import ActionDeclared, ActionResolved, make_author_engine
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import DEAD, statuses_for
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import RAW_HEROIC, RAW_SUPERHEROIC, CombatTemplate
@@ -138,6 +139,9 @@ def test_through_the_loop_a_one_hit_wonder_falls_and_stays_down():
                                    template=COUNTING, dice_roller=RandomRoller(seed=3)).start()
 
     class _Shoot:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             for x in situation.menu:
                 if x.kind == "no_abort":

@@ -10,6 +10,7 @@ from __future__ import annotations
 from conftest import encounter_of, fighter  # tests/loop/conftest.py
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.threat import last_attacker_of
 from kirby_dice import RandomRoller
 
@@ -21,6 +22,9 @@ class ShootAt:
 
     def __init__(self, targets):
         self.targets = targets
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if situation.out_of_turn is not None:

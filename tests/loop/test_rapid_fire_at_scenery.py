@@ -21,6 +21,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -55,6 +56,9 @@ def _encounter(seed: int) -> Encounter:
 class _RapidFireTheShed:
     def __init__(self):
         self.offered: list[str] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         rf = [a for a in situation.menu

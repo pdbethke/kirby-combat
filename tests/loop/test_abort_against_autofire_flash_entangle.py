@@ -20,6 +20,7 @@ from kirby_combat.loop import run_phase
 from kirby_combat.loop.chooser import OutOfTurnReason
 from kirby_combat.loop.reactions import REACTABLE_KINDS
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 
 VILLAINS, HEROES = Side.named("villains"), Side.named("heroes")
 
@@ -28,6 +29,9 @@ class TakeKindDodgeWhenAsked:
     def __init__(self, kind):
         self.kind = kind
         self.asked = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         oot = situation.out_of_turn

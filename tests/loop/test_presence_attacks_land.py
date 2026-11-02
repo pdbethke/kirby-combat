@@ -29,6 +29,7 @@ from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.effects import presence_state
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -72,6 +73,9 @@ class Picks:
     def __init__(self, *kinds: str) -> None:
         self.kinds = kinds
         self.menus: list[tuple[str, list]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation) -> str:
         # Out of turn (an Abort, a Held Action: `loop/reactions.py`) is not

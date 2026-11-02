@@ -19,6 +19,7 @@ from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import ActionResolved, make_author_combatant
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -46,6 +47,9 @@ class Script:
     def __init__(self, own=None, react=None, held=None):
         self.own, self.react, self.held = own or {}, react or {}, held or {}
         self.asked: list[tuple[str, str | None]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         actor = situation.actor.id
@@ -145,6 +149,9 @@ def test_no_block_is_offered_against_a_bullet():
     seen = {}
 
     class Peek(Script):
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             oot = getattr(situation, "out_of_turn", None)
             if oot is not None:
@@ -379,6 +386,9 @@ class HeldPeek(Script):
         super().__init__(**kw)
         self.held_menus: list[set] = []
 
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation):
         oot = getattr(situation, "out_of_turn", None)
         if oot is not None and oot.reason.value == "held_action":
@@ -461,6 +471,9 @@ def test_a_presence_attack_from_a_hold_does_not_use_it():
     enc, own_menus = again.encounter, []
 
     class Own(Script):
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.actor.id == "h" and situation.out_of_turn is None:
                 own_menus.append({a.kind for a in situation.menu})
