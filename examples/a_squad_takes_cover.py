@@ -8,7 +8,7 @@ around (`Squad`, `SquadOrders`, `FireTeam`, `TeamTask`, `KEEP_ORDERS`,
 `ThreatPicture`, `ThreatLine`).
 
 THE SITUATION. Two squads of four, ALPHA and BRAVO, each fighter a
-`minor_hits=1` extra, face the Warlord on a generated arena that has cover
+`minor_hits=1` extra, face the Warlord and his Lieutenant on a generated arena that has cover
 on it (`ArenaGenerator.WITH_COVER`). The Warlord's one attack is a 4 m
 Explosion, so a bunched-up squad is exactly what it was bought to punish.
 The GM declares the squads (a name on each man, like `minor_hits`); the
@@ -64,7 +64,7 @@ from kirby_combat.side import Side
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import RAW_HEROIC
 
-SEED = 11
+SEED = 5
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
 
 
@@ -119,10 +119,25 @@ def the_warlord():
     )
 
 
+def the_lieutenant():
+    """A second foe, so that cover which hides a man from the Warlord can
+    still leave him a line to shoot: a spot that blinds him to EVERY enemy is
+    not offered or listed (`enumeration.can_shoot_from`), because cover is
+    somewhere to fire from."""
+    return synthetic_combatant(
+        id="Lieutenant", name="Lieutenant", ocv=8, dcv=5, omcv=4, dmcv=4,
+        spd=4, dex=15, ego=12, int_=12, str_=15, con=18, pre=15, rec=8,
+        pd=6, ed=6, rpd=2, red=2, md=0, power_defense=0, flash_defense=0,
+        max_stun=60, max_body=15, max_end=40, current_stun=60,
+        current_body=15, current_end=40, side=VILLAINS,
+        attacks=[a_rifle("Lieutenant")],
+    )
+
+
 def the_cast():
     men = [a_man(f"{squad[0]}{i}", squad, tactics_dex=14 - i)
            for squad in ("alpha", "bravo") for i in range(1, 5)]
-    return men + [the_warlord()]
+    return men + [the_warlord(), the_lieutenant()]
 
 
 class SquadSeat(TacticChooser):
@@ -131,7 +146,9 @@ class SquadSeat(TacticChooser):
     The doctrine catalogue has no tactic for a squad's teams, so the stock
     chooser leaves the orders as they are. This seat (an `OrdersChooser`)
     gives them: ALPHA focuses fire on the Warlord when its leader perceives
-    him, BRAVO splits into a team that takes cover and a team that spreads
+    him (a man with a wall across his line has no attack on the Warlord
+    to make, and his fit is 0 of N: the engine offers `reposition_vantage`
+    instead), BRAVO splits into a team that takes cover and a team that spreads
     out, and either squad takes cover whole when it sees nobody to shoot.
     """
 
@@ -179,10 +196,12 @@ class SquadSeat(TacticChooser):
         team = orders_for(situation.session, man)
         if team is not None and man not in self.told_order:
             self.told_order.add(man)
-            carrying = [a.action_id for a in situation.menu
-                        if order_fit(situation, a)]
+            carrying = sorted({a.kind for a in situation.menu
+                               if order_fit(situation, a)})
             print(f"  {man} is under '{team.task.value}'; "
-                  f"{len(carrying)} of {len(situation.menu)} offers carry it out")
+                  f"{len([a for a in situation.menu if order_fit(situation, a)])}"
+                  f" of {len(situation.menu)} offers carry it out"
+                  + (f" ({', '.join(carrying)})" if carrying else ""))
         picture = threat_picture(situation)
         if picture.lines and man not in self.shown:
             self.shown.add(man)
@@ -191,7 +210,7 @@ class SquadSeat(TacticChooser):
 
     def print_picture(self, man: str, picture: ThreatPicture, situation) -> None:
         print(f"  {man}'s threat picture "
-              f"(seen: {', '.join(powers_seen(situation.session, 'Warlord'))}):")
+              f"(seen: {', '.join(sorted({n for line in picture.lines for n in powers_seen(situation.session, line.enemy_id)}))}):")
         for line in picture.lines:
             area = ("" if line.area_radius_m is None
                     else f", {line.area_radius_m:g} m area")

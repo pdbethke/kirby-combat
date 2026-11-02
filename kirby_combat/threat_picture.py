@@ -194,6 +194,7 @@ def _squadmates_caught(session: Any, me: Any, radius_m: float,
 def _cover(situation: PhaseSituation, perceived: list[Any]) -> tuple[tuple, float]:
     from kirby_world.cover import cover_spots
 
+    from kirby_combat.enumeration import can_shoot_from
     from kirby_combat.loop.reactions import dive_mode
     from kirby_combat.loop.resolvers import _full_move
     from kirby_combat.placement import position_of
@@ -211,6 +212,10 @@ def _cover(situation: PhaseSituation, perceived: list[Any]) -> tuple[tuple, floa
         return (), reach
     spots = cover_spots(scene, from_pos=here, threats=threats,
                         reach_m=reach, mode=mode)
+    # ONE DOOR with the menu: a spot that blinds him to every enemy he
+    # perceives is not offered as a `move_to_cover`, so it is not listed.
+    seen = [e for e in perceived if e.id in threats]
+    spots = [s for s in spots if can_shoot_from(scene, s.position, seen)]
     return tuple(spots[:BEST_COVER]), reach
 
 

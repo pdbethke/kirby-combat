@@ -50,6 +50,33 @@ _EPS_M = 1e-6
 _DEBRIS_KG_PER_BODY = 50.0
 
 
+def can_shoot_from(scene: Any, spot: Any, enemies: Any) -> bool:
+    """Whether a man standing at ``spot`` has a clear line to at least one of
+    ``enemies``: the test the menu applies before it offers a `move_to_cover`
+    spot, and the one `threat_picture` lists cover by, so the two cannot
+    disagree about what cover is worth offering.
+
+    Cover he cannot shoot from is withheld (Virgil Earp, behind Fly's Studio,
+    shot the building: see the comment at the call in `enumerate_actions`).
+    No enemies means nothing to be blinded to, so any spot passes; an enemy
+    with no position is no claim, so he passes too.
+    """
+    from kirby_world.geometry import first_blocking_wall
+
+    enemies = list(enemies)
+    if not enemies:
+        return True
+    positions = getattr(scene, "combatant_positions", None) or {}
+    walls = getattr(scene, "walls", None) or []
+    for enemy in enemies:
+        enemy_pos = positions.get(enemy.id)
+        if enemy_pos is None:
+            return True
+        if first_blocking_wall(spot, enemy_pos, walls) is None:
+            return True
+    return False
+
+
 def _xyz_dist(a: Any, b: Any) -> float:
     """3D Euclidean distance between two engine ``Position``-likes."""
     return math.sqrt(
@@ -3682,18 +3709,8 @@ def enumerate_actions(
             # still offered --- the covered/total count exists precisely because
             # hiding from one man while others walk round is a real trade.
             # What is withheld is a spot that blinds him to everybody.
-            if alive_enemies:
-                _sees_any = False
-                for _e in alive_enemies:
-                    _epos = _cover_positions.get(_e.id)
-                    if _epos is None:
-                        _sees_any = True          # no position, no claim
-                        break
-                    if first_blocking_wall(_spot, _epos, _cover_walls) is None:
-                        _sees_any = True
-                        break
-                if not _sees_any:
-                    continue
+            if not can_shoot_from(scene, _spot, alive_enemies):
+                continue
 
             # STATE THE TRADE, NOT JUST THE NUMBER. Cover is applied per
             # shooter, so "cover 2/4" alone invites hiding from one man

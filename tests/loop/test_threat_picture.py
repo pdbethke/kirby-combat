@@ -195,7 +195,7 @@ def test_cover_is_the_best_three_and_empty_with_no_map(monkeypatch):
     def wall(i, x):
         return Wall(id=f"w{i}", name=f"w{i}",
                     segment=(Position(x, -3, 0), Position(x, 3, 0)),
-                    height_m=3.0, blocks_los=True, cover_level=3)
+                    height_m=3.0, blocks_los=False, cover_level=3)
     walls = [wall(i, 28 + 2 * i) for i in range(5)]
     storm = shaped_blast("storm", 4, area=area(4.0), name="Storm")
     s = encounter_on(scene_with({"her": (0, 0, 0), "me": (30, 0, 0)}, walls=walls),
@@ -238,3 +238,31 @@ def test_powers_seen_is_uncapped_and_judge_enemy_caps_it():
     assert powers_seen(s, "her")[:2] == ("P0", "P1")
     j = judge_enemy(_situation(s), s.combatants["her"])
     assert len(j.seen) == MAX_SEEN and j.seen_more == 3
+
+
+def test_cover_that_blinds_him_to_the_only_enemy_is_neither_listed_nor_offered(monkeypatch):
+    """One door with the menu (`enumeration.can_shoot_from`): the menu withholds
+    a `move_to_cover` spot from which he could shoot nobody, so the picture
+    must not list it as best cover. A solid wall is the only cover and it
+    stands between him and the only enemy."""
+    from kirby_combat.loop.run import distances_from
+    from kirby_combat.enumeration import enumerate_actions
+    from kirby_combat.loop import Roster
+    from kirby_combat.scene.scene import Position, Wall
+
+    solid = Wall(id="w", name="Brick wall",
+                 segment=(Position(15, -3, 0), Position(15, 3, 0)),
+                 height_m=3.0, blocks_los=True, blocks_movement=False,
+                 cover_level=3)
+    storm = shaped_blast("storm", 4, area=area(4.0), name="Storm")
+    s = encounter_on(scene_with({"her": (0, 0, 0), "me": (14, 0, 0)}, walls=[solid]),
+                     armed("her", storm, side=VILLAINS),
+                     armed("me", None, side=HEROES, running=12)).sessions[0]
+    s = _use(s, "her", "Storm")
+    _all_seen(monkeypatch, "her")
+    assert threat_picture(_situation(s)).cover == ()
+    me = s.combatants["me"]
+    enemies = Roster(s).enemies_of(me)
+    menu = enumerate_actions(me, enemies, has_scene=True, scene=s.scene,
+                             distances=distances_from(s.scene, me, enemies))
+    assert not [a for a in menu if a.kind == "move_to_cover"]
