@@ -731,9 +731,10 @@ class Brief:
         # WHAT BEARS ON HIM, in the engine's judged voice: names and shown
         # powers, no numbers. Read from the threat picture and the squad, so
         # a SHEET page shows them too and they hold only powers already seen.
-        # "Cover" is the best-three view with reach; "What is around you"
-        # above stays the field of view with each feature's cover number and
-        # hardness, and the two do not repeat each other's figures.
+        # "Cover" is the best-three view with reach and whom each spot hides
+        # him from; "What is around you" above stays the field of view and
+        # is the one place a feature's distance, cover number and hardness
+        # are given, so no figure is said twice.
         if situation.session is not None:
             from kirby_combat.threat_picture import threat_picture
 

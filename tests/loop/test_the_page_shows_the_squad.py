@@ -87,7 +87,7 @@ def _orders(s, task, **kw):
 def test_an_area_is_told_in_words_with_what_answers_it():
     rows = _section(_page(_fight()), "What can hurt you:")
     assert rows[0].startswith(
-        "Talisman has shown Storm, an area of 18 m; 2 of your squad stand inside "
+        "Talisman has shown Storm, an area with a radius of 18 m; 2 of your squad stand inside "
         "one. It reaches you now. Dodge won't help; diving clear, ")
     assert "spacing out" in rows[0] and rows[0].endswith(" will.")
     assert rows[1] == "Talisman can reach 3 of your side."
@@ -117,9 +117,10 @@ def test_nothing_shown_means_no_section():
 def test_cover_names_the_spot_its_distance_reach_and_who_it_hides_from():
     rows = _section(_page(_fight(walls=[_cover_wall()])), "Cover:")
     assert len(rows) <= 3
-    assert rows[0].startswith("Packing crates, ")
-    assert "m away" in rows[0] and "reach it this Phase" in rows[0]
-    assert "hides you from Talisman" in rows[0]
+    assert rows[0] == "Packing crates: you can reach it this Phase, hides you from Talisman."
+    assert "m away" not in rows[0]       # the one distance is in "What is around you"
+    around = _section(_page(_fight(walls=[_cover_wall()])), "What is around you:")
+    assert any(r.startswith("Packing crates: ") for r in around)
 
 
 def test_cover_says_when_a_spot_is_out_of_reach():
@@ -212,3 +213,45 @@ def test_the_perceived_set_is_computed_once_per_page(monkeypatch):
     for a in brief.menu:
         brief.offer_summary(a)
     assert len(calls) == 1
+
+
+# ── Fix round 1 ────────────────────────────────────────────────────────────
+
+
+def _sheet_fight(**kw):
+    from tests.templates import PLAIN
+    return _fight(template=replace(PLAIN, page_knowledge=PageKnowledge.SHEET), **kw)
+
+
+def test_a_sheet_page_with_walls_shows_cover():
+    page = _page(_sheet_fight(walls=[_cover_wall()]))
+    assert _section(page, "Cover:")[0].startswith("Packing crates: ")
+
+
+def test_an_area_he_has_not_used_is_not_on_the_page():
+    storm = shaped_blast("storm", 4, area=area(18.0), name="Storm",
+                         range_m=100, is_ranged=True)
+    e = encounter_on(scene_with(_PLACES),
+                     armed("Talisman", storm, side=VILLAINS, dex=10),
+                     armed("l", None, side=HEROES, squad="alpha"))
+    for page in (_page(e.sessions[0]), _page(replace(
+            e.sessions[0], template=_sheet_fight().template))):
+        assert "What can hurt you" not in page
+        assert "Storm, an area" not in page
+
+
+def test_an_enemy_with_nothing_shown_gets_no_reach_line():
+    page = _page(_fight())
+    assert page.count("can reach") == 1          # Talisman only; he showed Storm
+    quiet = encounter_on(scene_with(_PLACES),
+                         armed("Talisman", None, side=VILLAINS),
+                         armed("l", None, side=HEROES))
+    assert "can reach" not in _page(quiet.sessions[0])
+
+
+def test_orders_that_did_not_name_him_say_so():
+    s = _fight()
+    team = FireTeam(member_ids=("l", "c"), task=TeamTask.HOLD, target_id=None,
+                    radius_m=None, position=None)
+    s = record_orders(s, _alpha(), "l", SquadOrders(teams=(team,)))
+    assert _section(_page(s, "b"), "Your orders:") == ["Your leader's orders did not name you."]

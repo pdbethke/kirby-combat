@@ -1094,7 +1094,7 @@ def threat_lines(situation: "PhaseSituation", picture) -> list[str]:
                 continue
             said = f"{name} has shown {line.power_name}"
             if line.area_radius_m is not None:
-                said += f", an area of {line.area_radius_m:g} m"
+                said += f", an area with a radius of {line.area_radius_m:g} m"
             if line.squadmates_it_would_catch is not None:
                 caught = line.squadmates_it_would_catch
                 said += (f"; {caught} of your squad stand inside one" if caught
@@ -1106,15 +1106,15 @@ def threat_lines(situation: "PhaseSituation", picture) -> list[str]:
 
 
 def cover_lines(situation: "PhaseSituation", picture) -> list[str]:
-    """"Cover": the best spots, how far, whether he can reach each this
-    Phase, and from whom each hides him. The feature's name is the one
-    "What is around you" uses; its cover number and hardness are left to
-    that section."""
+    """"Cover": the best spots, whether he can reach each this Phase, and
+    from whom each hides him. The feature is named as "What is around you"
+    names it (a furnishing's edges carry its name); that section alone gives
+    the distance, the cover number and the hardness."""
     if not picture.cover:
         return []
     session = situation.session
     scene = session.scene
-    names = {w.id: w.name for w in scene.walls}
+    names = {w.id: getattr(w, "name", None) or w.id for w in scene.walls}
     names.update({f.id: f.name for f in scene.furnishings})
     out = []
     for spot in picture.cover:
@@ -1123,8 +1123,7 @@ def cover_lines(situation: "PhaseSituation", picture) -> list[str]:
         reach = ("you can reach it this Phase" if spot.reachable_this_phase
                  else "you cannot reach it this Phase")
         out.append(
-            f"{names.get(spot.feature_id, spot.feature_id)}, "
-            f"{spot.distance_m:.1f} m away, {reach}, hides you from "
+            f"{names.get(spot.feature_id, spot.feature_id)}: {reach}, hides you from "
             f"{_join(hides) if hides else 'none of them'}.")
     return out
 
