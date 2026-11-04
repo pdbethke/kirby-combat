@@ -74,14 +74,21 @@ def test_seating_order_breaks_the_last_tie():
 def test_the_same_name_on_two_sides_is_two_squads():
     s = _fight(_man("a"), _man("b", side=BLUE))
     assert {(q.side, q.member_ids) for q in squads_of(s)} == {
-        ("red", ("a",)), ("blue", ("b",))}
+        (RED, ("a",)), (BLUE, ("b",))}
+    assert all(isinstance(q.side, Side) for q in squads_of(s))
+
+
+def test_a_side_given_as_a_string_is_refused():
+    s = name_leaders(_fight(_man("a")))
+    with pytest.raises(TypeError, match="Side"):
+        leader_of(s, "alpha", "red")
 
 
 def test_leader_down_names_the_next_at_once():
     s = name_leaders(_fight(_man("a", tactics=14), _man("b", tactics=12)))
-    assert leader_of(s, "alpha", "red") == "a"
+    assert leader_of(s, "alpha", RED) == "a"
     s = name_leaders(_knock_out(s, "a"))
-    assert leader_of(s, "alpha", "red") == "b"
+    assert leader_of(s, "alpha", RED) == "b"
     assert [e.kind for e in s.event_log[-2:]] == ["VitalsChanged", "SquadLeaderNamed"]
     assert s.event_log[-1].reason == "a went down"
     assert [e.reason for e in _namings(s)] == ["fight began", "a went down"]
@@ -95,13 +102,13 @@ def test_a_follower_going_down_changes_nothing():
 
 def test_squad_of_one_leads_himself():
     s = name_leaders(_fight(_man("a")))
-    assert leader_of(s, "alpha", "red") == "a"
+    assert leader_of(s, "alpha", RED) == "a"
 
 
 def test_all_down_names_no_one_once():
     s = name_leaders(_fight(_man("a", tactics=14), _man("b", tactics=12)))
     s = name_leaders(_knock_out(_knock_out(s, "a"), "b"))
-    assert leader_of(s, "alpha", "red") is None
+    assert leader_of(s, "alpha", RED) is None
     s = name_leaders(name_leaders(s))
     assert [e.leader_id for e in _namings(s)] == ["a", None]
 
@@ -109,14 +116,14 @@ def test_all_down_names_no_one_once():
 def test_a_squad_that_was_all_down_is_led_again_by_the_man_who_comes_to():
     s = name_leaders(_fight(_man("a", tactics=14), _man("b", tactics=12)))
     s = name_leaders(_knock_out(_knock_out(s, "a"), "b"))
-    assert leader_of(s, "alpha", "red") is None
+    assert leader_of(s, "alpha", RED) is None
     # Recovery (6E2 p.130) puts STUN back: the engine's own door for waking.
     s = apply_event(s, VitalsChanged(
         id=str(uuid.uuid4()), session_id=s.id, sequence=len(s.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
         combatant_id="b", stun=5, body=0, end=0))
     s = name_leaders(name_leaders(s))
-    assert leader_of(s, "alpha", "red") == "b"
+    assert leader_of(s, "alpha", RED) == "b"
     assert _namings(s)[-1].reason == "b came to"
     assert len(_namings(s)) == 3
 
@@ -177,7 +184,7 @@ def test_through_the_loop_the_leader_falls_and_the_next_is_named_in_that_step():
     s = phase.session
     kinds = [(e.kind, getattr(e, "combatant_id", None)) for e in s.event_log]
     assert [e.reason for e in _namings(s)] == ["fight began", "l went down"], kinds
-    assert leader_of(s, "alpha", "red") == "d"
+    assert leader_of(s, "alpha", RED) == "d"
     ko = max(i for i, e in enumerate(s.event_log)
              if e.kind == "VitalsChanged" and e.combatant_id == "l")
     assert s.event_log[ko + 1].kind == "SquadLeaderNamed" or any(

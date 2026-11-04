@@ -72,7 +72,7 @@ def _cover_wall():
 
 
 def _alpha():
-    return Squad(name="alpha", side="heroes", member_ids=("l", "b", "c"))
+    return Squad(name="alpha", side=HEROES, member_ids=("l", "b", "c"))
 
 
 def _orders(s, task, **kw):

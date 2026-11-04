@@ -78,7 +78,7 @@ def _squad_of(session: "CombatSession", actor_id: str):
 
     me = session.combatants[actor_id]
     for squad in squads_of(session):
-        if squad.side == Side.of(me).id and actor_id in squad.member_ids:
+        if squad.side == Side.of(me) and actor_id in squad.member_ids:
             return squad
     return None
 
@@ -137,7 +137,7 @@ def judge_the_squad(session: "CombatSession", actor_id: str, roller) -> "CombatS
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        combatant_id=actor_id, squad=squad.name, side=squad.side,
+        combatant_id=actor_id, squad=squad.name, side=squad.side.id,
         casualty_fraction=squad_casualty_fraction(session, actor_id),
         roll=rolled, target_number=number, succeeded=rolled <= number,
         turn=int(session.timeline.turn), segment=int(session.timeline.segment),

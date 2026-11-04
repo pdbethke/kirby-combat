@@ -1176,9 +1176,9 @@ def orders_lines(situation: "PhaseSituation") -> list[str]:
         if mates:
             rows.append(f"With you: {', '.join(mates)}.")
         return rows
-    leader = leader_of(session, squad, Side.of(me).id)
+    leader = leader_of(session, squad, Side.of(me))
     who = session.combatants[leader].name if leader is not None else None
-    if _latest(session, "SquadOrdersGiven", squad, Side.of(me).id) is not None:
+    if _latest(session, "SquadOrdersGiven", squad, Side.of(me)) is not None:
         return ["Your leader's orders did not name you."]
     if leader == me.id:
         return ["You lead the squad and have given no orders yet."]

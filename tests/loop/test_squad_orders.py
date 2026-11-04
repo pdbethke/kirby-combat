@@ -62,7 +62,7 @@ def _orders(*teams):
 
 
 def _alpha(session):
-    return Squad(name="alpha", side="heroes", member_ids=("l", "b", "c"))
+    return Squad(name="alpha", side=HEROES, member_ids=("l", "b", "c"))
 
 
 def _page(session, leader="l"):
@@ -255,6 +255,20 @@ def test_a_task_needs_its_own_fields_and_no_others(team, problem):
         validate_orders(_page(_session()), _orders(team))
 
 
+@pytest.mark.parametrize("team, problem", [
+    (FireTeam(member_ids=(["l"], "b", "c"), task=TeamTask.HOLD, target_id=None,
+              radius_m=None, position=None), "member_ids"),
+    (FireTeam(member_ids=["l", "b", "c"], task=TeamTask.HOLD, target_id=None,
+              radius_m=None, position=None), "member_ids"),
+    (_team(["l", "b", "c"], TeamTask.FOCUS_FIRE, target_id=["her"]), "target_id"),
+])
+def test_a_wrong_typed_id_is_invalid_orders_not_a_type_error(team, problem):
+    """The engine is the validating door: a Python seat that answers a list
+    where an id belongs is told so, not handed a raw TypeError."""
+    with pytest.raises(InvalidOrders, match=problem):
+        validate_orders(_page(_session()), _orders(team))
+
+
 def test_a_task_must_be_a_team_task():
     with pytest.raises(InvalidOrders, match="TeamTask"):
         validate_orders(_page(_session()), _orders(_team(["l", "b", "c"], "hold")))
@@ -297,7 +311,7 @@ def test_the_latest_orders_win():
 def test_orders_stand_after_the_leader_falls():
     s = _ordered(_session(), _team(["l", "b", "c"], TeamTask.TAKE_COVER))
     s = name_leaders(_knock_out(s, "l"))
-    assert leader_of(s, "alpha", "heroes") == "b"
+    assert leader_of(s, "alpha", HEROES) == "b"
     assert orders_for(s, "c").task is TeamTask.TAKE_COVER
 
 
@@ -491,8 +505,8 @@ def test_a_hidden_nearer_enemy_does_not_change_a_withdraw():
 
 def test_a_squad_of_one_leads_himself():
     s = _session({"her": (0, 0, 0), "l": (20, 0, 0)})
-    assert leader_of(s, "alpha", "heroes") == "l"
-    page = orders_page(s, Squad(name="alpha", side="heroes", member_ids=("l",)), "l",
+    assert leader_of(s, "alpha", HEROES) == "l"
+    page = orders_page(s, Squad(name="alpha", side=HEROES, member_ids=("l",)), "l",
                        situation_for=_situation_for)
     assert page.standing == ("l",)
     assert [ln for ln in page.render().splitlines() if ln.startswith("l: ")] != []

@@ -1159,7 +1159,7 @@ def _ask_for_orders(session: "CombatSession", actor_id: str, chooser) -> "Combat
     name = getattr(actor, "squad", None)
     if name is None:
         return session
-    side = Side.of(actor).id
+    side = Side.of(actor)
     if leader_of(session, name, side) != actor_id:
         return session
     give = getattr(chooser, "give_orders", None)

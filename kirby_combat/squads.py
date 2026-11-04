@@ -50,6 +50,8 @@ from typing import TYPE_CHECKING, Any
 
 from kirby_world.scene import Position
 
+from kirby_combat.side import Side
+
 if TYPE_CHECKING:
     from kirby_world.cover import CoverSpot
 
@@ -66,7 +68,9 @@ class Squad:
     """A named squad on one side, its members in seating order."""
 
     name: str
-    side: str
+    #: The object, not its id (objects, not strings: `kirby_combat.side`);
+    #: the events carry ``side.id``, as every event does.
+    side: Side
     member_ids: tuple[str, ...]
 
 
@@ -76,14 +80,12 @@ def squads_of(session: Any) -> tuple[Squad, ...]:
     In the order each squad's first member was seated; members in seating
     order. A squad name used on two sides is two squads.
     """
-    from kirby_combat.side import Side
-
-    groups: dict[tuple[str, str], list[str]] = {}
+    groups: dict[tuple[Side, str], list[str]] = {}
     for combatant in session.combatants.values():
         name = getattr(combatant, "squad", None)
         if name is None:
             continue
-        groups.setdefault((Side.of(combatant).id, name), []).append(combatant.id)
+        groups.setdefault((Side.of(combatant), name), []).append(combatant.id)
     return tuple(Squad(name=name, side=side, member_ids=tuple(ids))
                  for (side, name), ids in groups.items())
 
@@ -113,19 +115,23 @@ def _standing_ids(session: Any) -> set[str]:
     return {i for ids in Roster(session).standing.values() for i in ids}
 
 
-def _latest(session: Any, kind: str, squad_name: str, side: str):
+def _latest(session: Any, kind: str, squad_name: str, side: Side):
+    if not isinstance(side, Side):
+        raise TypeError(
+            f"squad {squad_name!r}: side={side!r} is not a Side; pass the "
+            "object (Side.of(combatant), or Squad.side), not its id")
     for event in reversed(session.event_log):
         if (getattr(event, "kind", "") == kind
-                and event.squad == squad_name and event.side == side):
+                and event.squad == squad_name and event.side == side.id):
             return event
     return None
 
 
-def _latest_naming(session: Any, squad_name: str, side: str):
+def _latest_naming(session: Any, squad_name: str, side: Side):
     return _latest(session, "SquadLeaderNamed", squad_name, side)
 
 
-def leader_of(session: Any, squad_name: str, side: str) -> str | None:
+def leader_of(session: Any, squad_name: str, side: Side) -> str | None:
     """The squad's leader as the log last named him; None if nobody leads it
     (none standing, or no `SquadLeaderNamed` yet)."""
     named = _latest_naming(session, squad_name, side)
@@ -170,7 +176,7 @@ def name_leaders(session: Any) -> Any:
             id=str(uuid.uuid4()), session_id=session.id,
             sequence=len(session.event_log) + 1,
             timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-            squad=squad.name, side=squad.side, leader_id=leader, reason=reason,
+            squad=squad.name, side=squad.side.id, leader_id=leader, reason=reason,
         ))
     return session
 
@@ -401,6 +407,16 @@ def validate_orders(page: OrdersPage, orders: Any) -> Any:
             raise InvalidOrders(f"team {i}: task {team.task!r} is not a TeamTask")
         if not team.member_ids:
             raise InvalidOrders(f"team {i} ({team.task.name}) has no members")
+        # Types before any set test, so a wrong-typed id is refused here
+        # rather than escaping as a TypeError from the hash.
+        if (not isinstance(team.member_ids, tuple)
+                or not all(isinstance(m, str) for m in team.member_ids)):
+            raise InvalidOrders(
+                f"team {i}: member_ids must be a tuple of ids (str), got "
+                f"{team.member_ids!r}")
+        if team.target_id is not None and not isinstance(team.target_id, str):
+            raise InvalidOrders(
+                f"team {i}: target_id must be an id (str), got {team.target_id!r}")
         for m in team.member_ids:
             if m not in members:
                 raise InvalidOrders(f"team {i}: {m!r} is not in squad {squad.name!r}")
@@ -451,7 +467,7 @@ def record_orders(session: Any, squad: Squad, leader_id: str,
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
         timestamp=datetime.now(timezone.utc), author=make_author_engine(),
-        squad=squad.name, side=squad.side, leader_id=leader_id,
+        squad=squad.name, side=squad.side.id, leader_id=leader_id,
         teams=[t.to_dict() for t in orders.teams],
     ))
 
@@ -460,13 +476,11 @@ def orders_for(session: Any, member_id: str) -> FireTeam | None:
     """His team in the latest orders for his squad and side; None when he
     is in no squad, no orders have been given, or he was down when they
     were (he is in none of their teams)."""
-    from kirby_combat.side import Side
-
     member = session.combatants[member_id]
     name = getattr(member, "squad", None)
     if name is None:
         return None
-    given = _latest(session, "SquadOrdersGiven", name, Side.of(member).id)
+    given = _latest(session, "SquadOrdersGiven", name, Side.of(member))
     if given is None:
         return None
     for team in given.teams:
