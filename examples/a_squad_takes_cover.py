@@ -240,7 +240,7 @@ def main() -> None:
 
     print("Squads declared:")
     for squad in squads_of(session):
-        print(f"  {squad.name} ({squad.side}): {', '.join(squad.member_ids)}")
+        print(f"  {squad.name} ({squad.side.id}): {', '.join(squad.member_ids)}")
 
     seat = SquadSeat()
     result = run_encounter(
