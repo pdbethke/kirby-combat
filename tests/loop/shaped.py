@@ -10,6 +10,7 @@ from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Surface,
 )
 from kirby_combat.session.combat_session import CombatSession
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -97,6 +98,9 @@ class Picks:
     def __init__(self, want):
         self.want = want
         self.menus = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         self.menus.append(list(situation.menu))

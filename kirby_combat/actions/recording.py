@@ -166,6 +166,20 @@ def _spend_attack_end(session: CombatSession, attacker, cost: int,
     return pay_end(session, combatant.id, cost, power=power, template=template)
 
 
+def cover_ocv_for_level(level: int) -> int:
+    """The OCV an attacker pays against a target at cover ``level`` (0-4).
+
+    `compute_cover_level` answers in levels; 6E2 p.45's Behind Cover table
+    is in percent of the target covered (`cover_ocv_modifier`). A level is
+    a quarter of him: level 2 is 50%, -2 OCV, the "behind a low wall"
+    example. The one place that reading is made; `_cover_against` and any
+    seat that prices cover ask here.
+    """
+    from kirby_world.cover import cover_ocv_modifier
+
+    return cover_ocv_modifier(int(level) * 25)
+
+
 def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
     """Cover the TARGET enjoys against THIS attacker, and its OCV cost.
 
@@ -187,7 +201,7 @@ def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, in
     if shooter is None or target is None:
         return 0, 0
 
-    from kirby_world.cover import compute_cover_level, cover_ocv_modifier
+    from kirby_world.cover import compute_cover_level
     from kirby_combat.statuses import statuses_for
 
     prone = "prone" in {
@@ -197,7 +211,7 @@ def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, in
         shooter_pos=shooter, target_pos=target,
         target_is_prone_or_diving=prone, scene=scene,
     )
-    return level, cover_ocv_modifier(level * 25)
+    return level, cover_ocv_for_level(level)
 
 
 def _surprise_for(session: CombatSession, actor, target):

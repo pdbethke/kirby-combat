@@ -33,6 +33,7 @@ from kirby_combat.encounter import Encounter
 from kirby_combat.loop.run import run_phase
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 
 
@@ -59,6 +60,9 @@ class GorgonPlays:
     def __init__(self) -> None:
         self.out_of_turn: list[tuple[str, str, str | None]] = []
         self.dodged = False
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation) -> str:
         if situation.out_of_turn is not None:

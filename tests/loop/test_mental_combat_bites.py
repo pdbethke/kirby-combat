@@ -37,6 +37,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import ActionResolved, BreakoutRolled, make_author_engine
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
@@ -161,6 +162,9 @@ class _Records:
 
     def __init__(self):
         self.menu: list[LegalAction] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if situation.out_of_turn is None:

@@ -212,22 +212,40 @@ class Terrain:
         `cover_level` says what the wall is; it does not say what it is
         worth from where you stand. A building behind you shields you from
         nobody, and its cover_level is 4 either way. So the number quoted
-        is the one `cover_available` computes for the spot beside it
-        against the current threats -- the same figure the offer to move
+        is the one `cover_spots` computes for the spot beside it against
+        the current threats -- the same figure the offer to move
         there quotes, and the same one the rules apply once you are behind
         it.
         """
         import math
 
-        from kirby_world.cover import cover_available
+        from kirby_world.cover import cover_spots
+
+        from kirby_combat.brief_detail import feature_name
+
+        from kirby_combat.loop.reactions import dive_mode
+        from kirby_combat.loop.resolvers import _full_move
 
         here = self.position_of(self._actor.id)
         if here is None:
             return []
-        threats = [
-            p for p in (self.position_of(e.id) for e in self._enemies)
-            if p is not None
-        ]
+        threats = {
+            e.id: p for e in self._enemies
+            if (p := self.position_of(e.id)) is not None
+        }
+        # THE ONE DOOR. Cover is read from `cover_spots`, as the offer to
+        # take it and the threat picture read it, so the page cannot say
+        # "cover 3/4" about a place the menu would not send him. It has
+        # already folded a Furnishing's edges, so a wagon is one entry; what
+        # it leaves out (a wall that shields him from nobody) has no entry,
+        # which is this page's "would not shield you".
+        mode = dive_mode(self._session, self._actor.id)
+        spots = {
+            s.feature_id: s for s in cover_spots(
+                self.scene, from_pos=here, threats=threats,
+                reach_m=_full_move(self._actor, mode), mode=mode,
+            )
+        }
         # ONE THING, ONE LINE. A `Furnishing` projects its footprint into
         # four wall segments so movement and line of sight keep working,
         # and this reads `scene.walls` -- so a wagon arrived as four
@@ -254,11 +272,14 @@ class Terrain:
         best: dict[str, tuple] = {}
         out = []
         for wall in self.features:
-            name = getattr(wall, "name", None) or getattr(wall, "id", "?")
+            name = feature_name(wall)
             a, b = wall.segment
             mid = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
             distance = math.dist((here.x, here.y), mid)
-            spot, level = cover_available(wall, here, threats, self.scene)
+            feature_id = (wall.part_of if wall.part_of in furnishing_ids
+                          else wall.id)
+            spot = spots.get(feature_id)
+            level = max(spot.cover_by_threat.values()) if spot else 0
             worth = (
                 f"would give you cover {level}/4" if level > 0
                 else "would not shield you from where they are"
@@ -315,8 +336,10 @@ class Terrain:
     @property
     def bearings(self) -> list[EnemyBearing]:
         from kirby_combat.resolution.line_of_sight import has_line_of_sight
-        from kirby_world.cover import compute_cover_level, cover_ocv_modifier
+        from kirby_world.cover import compute_cover_level
         from kirby_world.geometry import distance_3d
+
+        from kirby_combat.actions.recording import cover_ocv_for_level
 
         here = self.position_of(self._actor.id)
         out: list[EnemyBearing] = []
@@ -337,7 +360,7 @@ class Terrain:
                 # The cover LEVEL is 0-4; the OCV table is keyed on percent
                 # covered, so the level is converted the way the rules do
                 # rather than by a second table invented here.
-                cover_ocv=cover_ocv_modifier(cover * 25),
+                cover_ocv=cover_ocv_for_level(cover),
                 in_line_of_sight=has_line_of_sight(self.scene, here, there),
             ))
         return sorted(out, key=lambda b: (b.range_m is None, b.range_m or 0.0))
@@ -402,6 +425,8 @@ class Brief:
 
     def __init__(self, situation: "PhaseSituation") -> None:
         self._situation = situation
+        #: The enemies he perceives, once asked (`_carries_out`).
+        self._perceived: list | None = None
 
     @property
     def doctrine(self) -> list[str]:
@@ -565,10 +590,31 @@ class Brief:
         """The text this page shows for an offer: the judged summary (no
         DCV, no to-hit number) on a judged page where the offer has one,
         else its sheet `summary`. The one place that choice is made;
-        `render` and any consumer labelling options go through it."""
-        if self.judged and action.judged_summary:
-            return action.judged_summary
-        return action.summary
+        `render` and any consumer labelling options go through it.
+
+        An offer that carries out his fire team's order (`squads.order_fit`)
+        ends with `brief_detail.CARRIES_OUT_ORDERS`, on a SHEET page too:
+        the order is his own, not a fact about an enemy."""
+        from kirby_combat.brief_detail import CARRIES_OUT_ORDERS
+
+        text = (action.judged_summary if self.judged and action.judged_summary
+                else action.summary)
+        return text + (CARRIES_OUT_ORDERS if self._carries_out(action) else "")
+
+    def _carries_out(self, action) -> bool:
+        """Whether ``action`` carries out his order. The enemies he perceives
+        are worked out once for the page (`order_fit` would otherwise ask
+        `sightings` for every offer)."""
+        from kirby_combat.squads import _perceived, order_fit
+
+        situation = self._situation
+        if situation.session is None or getattr(situation.actor, "squad", None) is None:
+            return False
+        if situation.squad_order is None:
+            return False
+        if self._perceived is None:
+            self._perceived = _perceived(situation)
+        return order_fit(situation, action, perceived=self._perceived)
 
     def _enemy_block(self, line: CombatantLine) -> list[str]:
         """An enemy as the actor can judge him: looks, what he has been seen
@@ -685,6 +731,27 @@ class Brief:
                 lines.append("")
                 lines.append(heading)
                 lines.extend(f"  {row}" for row in rows)
+
+        # WHAT BEARS ON HIM, in the engine's judged voice: names and shown
+        # powers, no numbers. Read from the threat picture and the squad, so
+        # a SHEET page shows them too and they hold only powers already seen.
+        # "Cover" is the best-three view with reach and whom each spot hides
+        # him from; "What is around you" above stays the field of view and
+        # is the one place a feature's distance, cover number and hardness
+        # are given, so no figure is said twice.
+        if situation.session is not None:
+            from kirby_combat.threat_picture import threat_picture
+
+            picture = threat_picture(situation)
+            for heading, rows in (
+                ("What can hurt you:", detail.threat_lines(situation, picture)),
+                ("Cover:", detail.cover_lines(situation, picture)),
+                ("Your orders:", detail.orders_lines(situation)),
+            ):
+                if rows:
+                    lines.append("")
+                    lines.append(heading)
+                    lines.extend(f"  {row}" for row in rows)
 
         # WHAT THE SIDE WANTS, which is not the same as what the man
         # wants. See `Side.objective`.

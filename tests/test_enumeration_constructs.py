@@ -525,3 +525,28 @@ class TestOwnWallNotATarget:
             and a.target_id == wall.obj_id
         }
         assert kinds == {"attack_construct", "rapid_fire"}
+
+
+# ── a bare map asks for no Half Move ──────────────────────────────────────────
+
+
+def test_a_map_with_nothing_to_hide_behind_prices_no_half_move(monkeypatch):
+    """The cover offer measures a Half Move only when there is cover to reach.
+
+    `cover_half_move` reads `movement_view`, which prices Running's END from
+    the HERO Designer template when Running is not bought up. A map with no
+    walls has no cover spot at any reach, so the menu must not ask: before
+    squad tactics it never did, and a caller with no template configured
+    (kirby-combat's own CI) could build a menu on a bare map."""
+    import kirby_combat.enumeration as enumeration
+
+    def _must_not_be_asked(actor):
+        raise AssertionError("asked for a Half Move on a map with no cover")
+
+    monkeypatch.setattr(enumeration, "cover_half_move", _must_not_be_asked)
+    actor = _combatant(
+        id="caster", powers=[_StubPower(xmlid="FORCEWALL", name="Arcane Shield")],
+    )
+    offers = enumerate_actions(actor, [_combatant(id="enemy")],
+                               has_scene=True, scene=_map(), constructs=[])
+    assert any(a.kind == "force_wall" for a in offers)

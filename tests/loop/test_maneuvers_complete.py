@@ -53,6 +53,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.rewind import rewind_to_sequence
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import PRONE, statuses_for
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
@@ -285,6 +286,9 @@ class _Script:
     def __init__(self, **picks):
         self.picks = {k: list(v) for k, v in picks.items()}
         self.played: list[tuple[str, str]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if getattr(situation, "out_of_turn", None):

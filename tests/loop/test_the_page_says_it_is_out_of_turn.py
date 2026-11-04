@@ -17,6 +17,7 @@ from kirby_combat.actions.flash import Flash
 from kirby_combat.brief import Brief
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import PageKnowledge
 from kirby_dice import RandomRoller
 
@@ -30,6 +31,9 @@ class _Reads:
     def __init__(self, *, hold: bool = False):
         self.hold = hold
         self.pages: list[tuple[str, str, str]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         why = situation.out_of_turn
@@ -94,6 +98,9 @@ def test_the_held_action_page_says_what_he_is_holding_for():
 def test_an_ordinary_phase_says_nothing_of_the_kind():
     class _Own:
         page = None
+
+        def give_orders(self, page):
+            return KEEP_ORDERS
 
         def choose(self, situation):
             if situation.out_of_turn is None and self.page is None:

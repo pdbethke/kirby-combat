@@ -41,6 +41,7 @@ from kirby_combat.session.events import (
     HeldActionDeclared, make_author_engine,
 )
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate, PageKnowledge
 from kirby_dice import RandomRoller
@@ -59,6 +60,9 @@ class _Reads:
     def __init__(self):
         self.page = ""
         self.situation = None
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         # Out of turn (an Abort, a Held Action: `loop/reactions.py`) is not

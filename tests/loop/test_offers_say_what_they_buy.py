@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import pytest
 
+from kirby_combat.squads import KEEP_ORDERS
+
 
 def _summaries():
     from examples.the_shootout_we_can_publish import the_fight
@@ -40,6 +42,9 @@ def _summaries():
     seen: dict[str, str] = {}
 
     class Peek:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             for action in situation.menu:
                 seen.setdefault(action.kind, action.summary)

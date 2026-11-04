@@ -339,7 +339,8 @@ def knockback_dice_for(session, attack: "AttackInput", template, *,
     """How many d6 the attacker subtracts from the BODY (6E2 p.117's table).
 
     2d6, +1d6 for a Killing attack, +1d6 for a Martial Maneuver, -1d6 for a
-    target in the air, -1d6 in zero gravity, -1d6 when he Rolled With The
+    target in the air (airborne, or a failed Dive for Cover, 6E2 p.87),
+    -1d6 in zero gravity, -1d6 when he Rolled With The
     Punch (6E2 p.90, `actions/reactive/roll_with_punch.py`), +1d6 underwater
     (p.117, p.170; `in_water`), +1d6 using Clinging (p.117; 6E1 p.184,
     `clinging_holds`); "the modifiers are cumulative". 0 when this attack
@@ -358,7 +359,12 @@ def knockback_dice_for(session, attack: "AttackInput", template, *,
         count -= 1
     target_id = getattr(attack.target, "id", None)
     if target_id in session.combatants:
-        if is_airborne(session, target_id):
+        # In the air: standing on nothing, or still in the air from a
+        # failed Dive for Cover, "1d6 less" (6E2 p.87). Once, either way.
+        from kirby_combat.statuses import IN_THE_AIR, statuses_for
+
+        if (is_airborne(session, target_id)
+                or IN_THE_AIR in statuses_for(session, target_id)):
             count -= 1
         if in_water(session, target_id):
             count += 1

@@ -21,6 +21,7 @@ from shaped import Dice, armed, encounter_on, scene_with      # tests/loop/shape
 from kirby_combat.loop import run_phase
 from kirby_combat.loop.chooser import OutOfTurnReason
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 
 VILLAINS, HEROES = Side.named("villains"), Side.named("heroes")
 
@@ -38,6 +39,9 @@ class Seen:
     def __init__(self, *wants):
         self.wants = list(wants)
         self.seen = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         oot = situation.out_of_turn

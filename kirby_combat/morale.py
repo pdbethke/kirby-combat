@@ -68,6 +68,15 @@ def _is_down(combatant: Any) -> bool:
     return bool(state is not None and getattr(state, "current_body", 1) <= 0)
 
 
+def casualty_fraction(members: list) -> float:
+    """The fraction of ``members`` down or gone: what `side_morale` tiers.
+
+    ``members`` is the group as it STARTED (see `side_morale`). Read by
+    `self_destruct` for a squad, which judges itself by the same number a
+    side does."""
+    return sum(1 for m in members if _is_down(m)) / len(members)
+
+
 def _one_tier_worse(morale: UnitMorale) -> UnitMorale:
     index = _LADDER.index(morale)
     return _LADDER[min(len(_LADDER) - 1, index + 1)]
@@ -84,8 +93,7 @@ def side_morale(session: Any, members: list) -> UnitMorale:
     if not members:
         return UnitMorale.FRESH
 
-    lost = sum(1 for m in members if _is_down(m))
-    fraction = lost / len(members)
+    fraction = casualty_fraction(members)
     morale = UnitMorale.FRESH
     for threshold, tier in _CASUALTY_TIERS:
         if fraction >= threshold:

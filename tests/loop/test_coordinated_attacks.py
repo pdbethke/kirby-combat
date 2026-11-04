@@ -35,6 +35,7 @@ from kirby_combat.loop import run_phase
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import (
     CINEMATIC_SUPERHEROIC, RAW_HEROIC, RAW_SUPERHEROIC, CombatTemplate,
 )
@@ -89,6 +90,9 @@ def test_joining_is_a_half_phase_skill_roll():
 class JoinsThenShoots:
     def __init__(self):
         self.steps = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if getattr(situation, "out_of_turn", None) is not None:

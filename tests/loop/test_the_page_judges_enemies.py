@@ -20,6 +20,7 @@ from kirby_combat.encounter import Encounter
 from kirby_combat.loop import run_phase
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 from kirby_combat.template import PageKnowledge
 from tests.templates import PLAIN
@@ -38,6 +39,9 @@ class _Reads:
         self.page = None
         self.full = None
         self.aborts: list[tuple[str, str]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         why = situation.out_of_turn
@@ -252,6 +256,9 @@ class _Capture:
     def __init__(self):
         self.brief = None
         self.menu = None
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if situation.out_of_turn is None and self.brief is None \

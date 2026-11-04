@@ -25,6 +25,7 @@ from conftest import encounter_of, fighter        # tests/loop/conftest.py
 from kirby_combat.loop import run_encounter
 from kirby_combat.loop.chooser import PhaseSituation
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -36,6 +37,9 @@ class _AlwaysSets:
     benchmark's last two survivors actually did."""
 
     name = "always-sets"
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation: PhaseSituation) -> str:
         for action in situation.menu:

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.32.0 — 2026-11-02
+
+**Squad tactics: a man reads what can hurt him, where cover is, and his squad leader's orders** (squad tactics spec `kirby/docs/superpowers/specs/2026-11-02-squad-tactics-design.md`). Requires **kirby-world >= 0.2.0** and **kirby-terrain >= 0.4.0**. Worked example: `examples/a_squad_takes_cover.py`.
+
+- **Defences and the threat picture.** `Defence` (enum) and `answers_to(view, kind=)` say what answers a threat; `threat_picture(situation)` returns a `ThreatPicture` of `ThreatLine`s (one per power an enemy has been seen using: whether it reaches him, an area's size, how many squadmates one use would catch, what answers it), `i_can_reach` (the perceived enemies his own attacks, or bare hands, reach now) and his best cover; `powers_seen(session, enemy_id)` is the judged list it reads. Cover now comes through `kirby_world.cover.cover_spots`.
+- **Dive for Cover is an area Abort** (6E2 p.25, p.87): `Reaction.DIVE_FOR_COVER`, `area_defenders`, `dive_destination`, `dive_mode`; event `DivedForCover`.
+- **Squads and orders.** The GM declares squads (`HeroCombatant.squad`; `Squad`, `squads_of`). The engine names each leader from the builds (`leader_of`, event `SquadLeaderNamed`). At the top of his own Phase the leader's seat is asked `give_orders(page)` (`OrdersChooser`, `OrdersPage`) and answers `SquadOrders` of `FireTeam`s with a `TeamTask` each, or `KEEP_ORDERS` (`KeepOrders`); `validate_orders` refuses the rest (`InvalidOrders`) and the engine records `SquadOrdersGiven`. Giving orders is a Zero Phase RULING (6E2 p.25). A man reads his order with `orders_for` and `order_fit` says whether an offer carries it out; an order is a fact on his page, never a cut of his menu. The brief gains "What can hurt you", "Cover" and "Your orders" sections and the suffix " (carries out your orders)".
+- **Self-destruct.** A `self_destruct` offer, its resolver and event `SelfDestructRolled`; `morale.casualty_fraction`.
+
+**Breaking changes**
+
+- `react_to_attack(..., *, roller)` requires `roller`.
+- Dodge, Block and Roll With The Punch are no longer offered against an area attack rolled at its target point (6E1 p.321: DCV 3). A ranged Surface is the exception: it is rolled against his own DCV (6E1 p.323), so it keeps the single-target menu and defence row (`area_attack.rolled_against_the_point`).
+- `Squad.side` is a `Side`, and `leader_of(session, squad_name, side)` takes the `Side`; a string side raises `TypeError`. The events still carry `side.id`.
+- Dive for Cover's failure follows RAW (6E2 p.87): he is left in the air at his start with no change to DCV, takes 1d6 less Knockback, and lands prone at his next Phase.
+- `arena_for` and `generate_arena` require a `generator` (kirby-world 0.2.0).
+- A squad leader's chooser needs `give_orders`. `FirstLegalChooser` and `TacticChooser` answer `KEEP_ORDERS`; a seat with no `give_orders` still runs every fight that declares no squads.
+- The furnishing `move_to_cover` offer id changed from `<id>#edgeN` to `<id>`.
+- `events_involving` now also finds names inside lists of dicts in a payload, and `leader_id` is a naming key.
+
+**New events:** `DivedForCover`, `SquadLeaderNamed`, `SquadOrdersGiven`, `SelfDestructRolled` (schema regenerated).
+
+**Known gaps**
+
+- Enumeration does not gate a ranged attack's maximum range, though the threat picture does.
+- The self-destruct's "at or under 0 STUN" capture clause is not built: an unconscious man takes no action.
+- A dive pays no END.
+- A cover spot that hides him from every enemy (pure hiding) is never offered: the menu keeps only cover he can shoot from (ledger R20).
+- The Abort reactor weighs an incoming single-target attack at 1, not 1/men she can reach; the 1/N weight is for his own Phase only (ledger R27).
+- An attack made from a Held Action never reaches `react_to_attack`, so it offers no Dodge or Dive for Cover. This predates squads, but HOLD orders make Held Actions more common.
+
 ## 0.31.0 — 2026-11-02
 
 Three findings from a local Talisman fight. Requires **kirby-cost >= 0.6.4** (the build doc keeps a custom modifier's name).

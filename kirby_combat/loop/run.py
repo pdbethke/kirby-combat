@@ -35,7 +35,7 @@ from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import without_spent_shouts
 from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
 from kirby_combat.pre_attacks.in_the_phase import (
-    PRESENCE_KINDS, can_yield_to, hesitation_owed,
+    PRESENCE_KINDS, acted_this_phase, can_yield_to, hesitation_owed,
     phase_already_begun, presence_attack_made_this_phase,
     yield_phase,
 )
@@ -71,6 +71,7 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
 from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.self_destruct import judge_the_squad, self_destruct_offers
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import PhaseSpent, make_author_engine
 from kirby_combat.constructs import constructs_in
@@ -656,6 +657,15 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
                 + attack_entangle_offers(session, actor, allies, menu, reach_m))
     else:
         menu = ladder_for(session, actor_id, menu)
+    # A LAST RESORT, and only then (squad tactics spec 7): a Self Only damaging
+    # power, when capture is imminent or he judged the squad lost. Added BEFORE
+    # the narrowings below so that they cut it like any other offer:
+    #   * Mind Control's withdraw (`WITHDRAW_KINDS`) drops it: a man ordered
+    #     to withdraw does nothing else;
+    #   * a rage (`RageMenu.narrowed`) drops it: he fights only his target;
+    #   * the Phase's time filters (`rest_of_phase` and the rest) price it as
+    #     the Attack Action it is.
+    menu = menu + self_destruct_offers(session, actor)
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if rage is not None:
@@ -831,6 +841,14 @@ def run_phase(
         template=template,
     )
     session = encounter.sessions[0]
+    # THE LEADERS ARE NAMED BEFORE ANYBODY ACTS, and again if the clock's own
+    # events (bleeding) downed one: `name_leaders` writes only what changed.
+    from kirby_combat.squads import name_leaders
+
+    named = name_leaders(session)
+    if named is not session:
+        encounter = _with(encounter, named)
+        session = named
     if actor_id is None:
         # `_advance_to_an_actor` exhausts a whole Turn before giving up,
         # and every combatant with a SPD of at least 1 has a Phase
@@ -888,6 +906,12 @@ def run_phase(
         from kirby_combat.mooks import check_mooks
 
         session = check_mooks(session)
+        # WHO LEADS EACH SQUAD, again at once if this Phase downed one
+        # (`kirby_combat/squads.py`), after the minor-NPC deaths so a mook
+        # leader killed by rule is replaced in the same step.
+        from kirby_combat.squads import name_leaders
+
+        session = name_leaders(session)
         fields["notes"] = notes + list(fields.get("notes") or [])
         return _phase_result(encounter, session, log_before,
                              actor_id=actor_id, **fields)
@@ -1036,6 +1060,17 @@ def run_phase(
             session, spent = _mark_acted(session, actor_id)
         return _done(session, notes=[note])
 
+    # SQUAD ORDERS, before his first pick of the Phase. Zero Phase (a RULING
+    # on 6E2 p.25, `squads.py`): he still takes his action below. Asked once
+    # a Phase: not again when it comes back after a Zero Phase or first Half
+    # Phase Action, but NOT `continuing` either --- a leader who hesitated
+    # (6E2 p.139) has his Phase back having chosen nothing, and is asked now.
+    if not acted_this_phase(session, actor_id):
+        session = _ask_for_orders(session, actor_id, chooser)
+        # And his INT Roll for the squad being lost, owed once a Phase
+        # (`self_destruct.judge_the_squad`).
+        session = judge_the_squad(session, actor_id, roller)
+
     situation = _situation_for(session, actor_id)
     menu = situation.menu
     if not menu:
@@ -1051,7 +1086,8 @@ def run_phase(
     # that character, but before any rolls are made" (6E2 p.24). His own
     # chooser decides; the Dodge or Block he takes is read at the attack
     # door. See `loop/reactions.react_to_attack`.
-    session, reactions = react_to_attack(session, actor, action, chooser)
+    session, reactions = react_to_attack(session, actor, action, chooser,
+                                         roller=roller)
     for defender_id, reaction in reactions:
         if reaction is not Reaction.NONE:
             notes.append(f"{defender_id} Aborted to {reaction.value} "
@@ -1103,6 +1139,41 @@ def run_phase(
         session, action_id=action.action_id, kind=action.kind,
         result=resolved.result,
     )
+
+
+def _ask_for_orders(session: "CombatSession", actor_id: str, chooser) -> "CombatSession":
+    """If ``actor_id`` leads his squad, ask his seat for orders, validate
+    them and record them; return the session. See `squads.py`.
+
+    A seat with no ``give_orders`` cannot lead a squad, and is told so by
+    name rather than skipped: a leader who silently gives no orders would
+    look like a leader who chose to keep them.
+    """
+    from kirby_combat.side import Side
+    from kirby_combat.squads import (
+        KEEP_ORDERS, leader_of, orders_page, record_orders, squads_of,
+        validate_orders,
+    )
+
+    actor = session.combatants[actor_id]
+    name = getattr(actor, "squad", None)
+    if name is None:
+        return session
+    side = Side.of(actor)
+    if leader_of(session, name, side) != actor_id:
+        return session
+    give = getattr(chooser, "give_orders", None)
+    if give is None:
+        raise TypeError(
+            f"{actor_id!r} leads squad {name!r} and his chooser "
+            f"{type(chooser).__name__} has no give_orders: a squad leader's "
+            f"seat must implement OrdersChooser (kirby_combat.loop.chooser)")
+    (squad,) = [q for q in squads_of(session) if q.name == name and q.side == side]
+    page = orders_page(session, squad, actor_id, situation_for=_situation_for)
+    orders = validate_orders(page, give(page))
+    if orders is KEEP_ORDERS:
+        return session
+    return record_orders(session, squad, actor_id, orders)
 
 
 def _goes_on_note(actor_id: str, action, time: ActionTime) -> str:

@@ -26,6 +26,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import (
     ActionResolved, RageRolled, make_author_engine,
 )
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import FELL
 from kirby_combat.side import Side
 from kirby_combat.statuses import PRONE, statuses_for  # noqa: F401
@@ -40,6 +41,9 @@ class Wants:
     def __init__(self, *wants):
         self.wants = list(wants)
         self.menus: list[tuple[str, list]] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if situation.out_of_turn is not None:
@@ -166,6 +170,9 @@ def test_a_held_half_phase_is_used_as_one():
     seen = []
 
     class Holder:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             if situation.out_of_turn is not None and situation.actor.id == "a":
                 seen.append({a.kind for a in situation.menu})

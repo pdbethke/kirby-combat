@@ -80,6 +80,19 @@ def charge_pool(power: Any) -> tuple[str, int] | None:
     return None
 
 
+def has_charges_left(source: Any, spent: dict[str, int] | None) -> bool:
+    """Is there a use left in this build power, given ``spent`` (the
+    `spent_charges` count)? A power nothing limits never runs dry, and a
+    power with no build behind it (``source`` None) is not limited."""
+    if source is None:
+        return True
+    pool = charge_pool(source)
+    if pool is None:
+        return True                      # innate: never runs dry
+    key, capacity = pool                 # a framework's slots share one
+    return (spent or {}).get(key, 0) < capacity
+
+
 def _pools_of(combatant: Any) -> dict[str, str]:
     """`power id -> pool id` for every build power that draws on a pool
     other than its own: the slots of a charged framework."""

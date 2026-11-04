@@ -26,6 +26,7 @@ from kirby_combat.enumeration import enumerate_actions
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import RAW_HEROIC
 from kirby_combat.vitals import apply_vitals_delta
@@ -148,6 +149,9 @@ def test_the_driver_tells_enumeration_who_is_on_his_side():
         return original(actor, enemies, **kwargs)
 
     class _First:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             return situation.menu[0].action_id
 

@@ -318,6 +318,33 @@ class AbortDeclared(BaseEvent):
 
 
 @dataclass
+class DivedForCover(BaseEvent):
+    """A Dive for Cover, made at the attack's announcement (6E2 p.87).
+
+    He Aborted to it (`AbortDeclared` with ``to_action="dive_for_cover"``,
+    recorded beside this). ``roll`` is the 3d6 DEX Roll and ``target`` the
+    number it had to make, after -1 per 2m of the dive. On a success
+    ``destination`` is where he lands (the `MovementResolved` that follows
+    moves him there) and he is prone. On a failure ``destination`` is None:
+    he is "in the air" where he started until his next Phase, when he lands
+    prone (`statuses._is_in_the_air`).
+
+    ``origin`` is where he dived from: the spot an area aimed at him was
+    aimed at, which it does not leave when he does
+    (`area_attack._announced_spot`). ``x``, ``y``, ``z`` as on
+    `MovementResolved`.
+    """
+    kind: Literal["DivedForCover"] = field(default="DivedForCover", init=False)
+    combatant_id: str = ""
+    against_id: str = ""
+    success: bool = False
+    roll: int = 0
+    target: int = 0
+    destination: dict[str, float] | None = None
+    origin: dict[str, float] | None = None
+
+
+@dataclass
 class BlockPriorityGained(BaseEvent):
     """A successful Block earning its blocker the right to act first.
 
@@ -657,6 +684,48 @@ class MinorFoeKilled(BaseEvent):
 
 
 @dataclass
+class SquadLeaderNamed(BaseEvent):
+    """The engine's pick of who leads a squad (`kirby_combat/squads.py`).
+
+    Written for every squad when the fight begins (``reason`` "fight
+    began") and again, in the same step, after the resolution that downs the
+    leader (``reason`` "<old id> went down"). ``leader_id`` is None when no
+    member is left standing, and that is written once, not every step. When
+    a man of such a squad stands again (he recovered from unconsciousness),
+    he is named with ``reason`` "<id> came to".
+    Folded by `squads.leader_of`: the latest row for the squad and side.
+    """
+    kind: Literal["SquadLeaderNamed"] = field(default="SquadLeaderNamed", init=False)
+    squad: str = ""
+    side: str = ""
+    leader_id: str | None = None
+    reason: str = ""
+
+
+@dataclass
+class SquadOrdersGiven(BaseEvent):
+    """A squad leader's orders (`kirby_combat/squads.py`): every member
+    standing when they were given, each in one fire team with one task.
+
+    ``teams`` is one plain dict per `FireTeam`: ``member_ids`` (a list),
+    ``task`` (the `TeamTask` value), ``target_id``, ``radius_m`` and
+    ``position`` (``{x, y, z}``, the way `ReturnedToTheBoard.at` carries a
+    point), each None when the task does not use it. Written only after
+    `squads.validate_orders` has passed them; a `KEEP_ORDERS` answer writes
+    nothing. Folded by `squads.orders_for`: the latest row for the squad
+    and side, standing until the next one, even after the leader falls.
+    """
+    kind: Literal["SquadOrdersGiven"] = field(default="SquadOrdersGiven", init=False)
+    squad: str = ""
+    side: str = ""
+    leader_id: str = ""
+    #: One dict per team; every value is one of these (see above), so the
+    #: schema describes it rather than waving it through as free-form.
+    teams: list[dict[str, str | float | list[str] | dict[str, float] | None]] = field(
+        default_factory=list)
+
+
+@dataclass
 class ReturnedToTheBoard(BaseEvent):
     """He is back on the board, at ``at``, by ``mode``: the end of the trip
     `ForcedOffTheBoard` began (`off_board.come_back`).
@@ -733,6 +802,29 @@ class RageRolled(BaseEvent):
     berserk: bool = False
     target_id: str = ""
     reason: str = ""
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
+class SelfDestructRolled(BaseEvent):
+    """The INT Roll a man makes at the top of his Phase to judge that his
+    squad is lost (`kirby_combat/self_destruct.py`).
+
+    Made at most once a Phase, and only by a man in a squad whose
+    ``casualty_fraction`` is above half who has a Self Only damaging power
+    with a use left. ``succeeded`` is the roll made: a made roll puts
+    `self_destruct` on his menu that Phase. ``squad`` and ``side`` name the
+    squad he judged.
+    """
+    kind: Literal["SelfDestructRolled"] = field(default="SelfDestructRolled", init=False)
+    combatant_id: str = ""
+    squad: str = ""
+    side: str = ""
+    casualty_fraction: float = 0.0
+    roll: int = 0
+    target_number: int = 0
+    succeeded: bool = False
     turn: int = 0
     segment: int = 0
 
@@ -1003,6 +1095,7 @@ CombatEvent = (
     | MovementResolved
     | StatusEffectsChanged
     | AbortDeclared
+    | DivedForCover
     | BlockPriorityGained
     | HeldActionDeclared
     | HeldActionReleased
@@ -1033,8 +1126,11 @@ CombatEvent = (
     | ForcedOffTheBoard
     | ReturnedToTheBoard
     | MinorFoeKilled
+    | SquadLeaderNamed
+    | SquadOrdersGiven
     | EnduranceReserveChanged
     | RageRolled
+    | SelfDestructRolled
     | RageTargeted
     | LingeringAttackApplied
     | LingeringAttackEnded

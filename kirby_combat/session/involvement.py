@@ -21,6 +21,9 @@ from typing import Any
 _NAMING_KEYS = frozenset({
     "combatant_id", "target_id", "caused_by", "attacker_id",
     "targets", "victims", "fell",
+    # A squad's leader, named by `SquadLeaderNamed` and `SquadOrdersGiven`;
+    # the orders' fire teams, each a dict naming its ``member_ids``.
+    "leader_id", "teams", "member_ids",
 })
 
 
@@ -28,8 +31,13 @@ def _names(value: Any, combatant_id: str) -> bool:
     if isinstance(value, str):
         return value == combatant_id
     if isinstance(value, (list, tuple, set, frozenset)):
-        return combatant_id in value
+        return combatant_id in value or _any_names(value, combatant_id)
     return False
+
+
+def _any_names(values: Any, combatant_id: str) -> bool:
+    """A list of dicts (`SquadOrdersGiven.teams`) is read dict by dict."""
+    return any(_payload_names(v, combatant_id) for v in values if isinstance(v, dict))
 
 
 def _payload_names(payload: Any, combatant_id: str) -> bool:
@@ -39,6 +47,8 @@ def _payload_names(payload: Any, combatant_id: str) -> bool:
         if key in _NAMING_KEYS and _names(value, combatant_id):
             return True
         if isinstance(value, dict) and _payload_names(value, combatant_id):
+            return True
+        if isinstance(value, (list, tuple)) and _any_names(value, combatant_id):
             return True
     return False
 

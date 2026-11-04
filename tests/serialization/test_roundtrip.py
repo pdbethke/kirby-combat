@@ -477,3 +477,37 @@ def test_every_event_class_the_engine_defines_roundtrips(cls):
         # Timestamps included: they came back as ISO strings until
         # "datetime" was registered (see `from_dict._ensure_registry`).
         assert getattr(restored, f.name) == getattr(original, f.name), f.name
+
+
+def test_populated_squad_orders_and_a_dive_survive_the_wire():
+    """The default instances above carry ``teams=[]`` and no destination;
+    these carry the shapes a squad fight writes: a FLANK team with a
+    position, a SPREAD_OUT team with a radius, and a successful dive."""
+    import json
+
+    from kirby_combat.scene import Position
+    from kirby_combat.session.events import DivedForCover, SquadOrdersGiven
+    from kirby_combat.squads import FireTeam, TeamTask
+
+    teams = (
+        FireTeam(member_ids=("a", "b"), task=TeamTask.FLANK, target_id=None,
+                 radius_m=None, position=Position(4.0, -2.5, 0.0)),
+        FireTeam(member_ids=("c",), task=TeamTask.SPREAD_OUT, target_id=None,
+                 radius_m=3.5, position=None),
+    )
+    orders = SquadOrdersGiven(
+        id="evt-1", session_id="s1", sequence=1, timestamp=_ts(),
+        author=make_author_engine(), squad="alpha", side="heroes",
+        leader_id="a", teams=[t.to_dict() for t in teams])
+    dive = DivedForCover(
+        id="evt-2", session_id="s1", sequence=2, timestamp=_ts(),
+        author=make_author_engine(), combatant_id="c", against_id="her",
+        success=True, roll=9, target=12,
+        destination={"x": 3.0, "y": 1.0, "z": 0.0},
+        origin={"x": 1.0, "y": 1.0, "z": 0.0})
+
+    for original in (orders, dive):
+        restored = from_dict(json.loads(json.dumps(to_dict(original))))
+        assert restored == original
+    back = from_dict(json.loads(json.dumps(to_dict(orders))))
+    assert tuple(FireTeam.from_dict(t) for t in back.teams) == teams

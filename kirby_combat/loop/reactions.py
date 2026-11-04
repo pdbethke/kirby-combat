@@ -30,6 +30,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
+from kirby_combat.actions.area_attack import aimed_area, rolled_against_the_point, who_is_in
+from kirby_combat.defences import Defence, answers_to, is_hth
 from kirby_combat.enumeration import LegalAction, _friendly, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 from kirby_combat.loop.chooser import (
@@ -55,6 +57,10 @@ class Reaction(str, Enum):
     #: Conditional: nothing is spent unless it lands
     #: (`actions/reactive/roll_with_punch.py`).
     ROLL_WITH_PUNCH = "roll_with_punch"
+    #: 6E2 p.87: move out of an area, prone; a DEX Roll decides whether he
+    #: makes it. Offered only against an area, with a destination
+    #: (`dive_destination`).
+    DIVE_FOR_COVER = "dive_for_cover"
 
 
 #: The answer to "his Phase is starting --- do you use your Held Action?".
@@ -79,12 +85,7 @@ REACTABLE_KINDS = frozenset({
 
 
 def _is_hth(action: LegalAction) -> bool:
-    power = action._attack_view
-    if action.kind in ("strike", "maneuver", "trip", "disarm", "sweep"):
-        return True
-    if power is None:
-        return False
-    return not getattr(power, "is_ranged", (getattr(power, "range_m", 0) or 0) > 0)
+    return is_hth(action.kind, action._attack_view)
 
 
 def _killing(action: LegalAction) -> bool:
@@ -237,6 +238,144 @@ def defenders_of(incoming: LegalAction) -> tuple[str, ...]:
     return tuple(out)
 
 
+def area_defenders(
+    session: "CombatSession", attacker, incoming: LegalAction,
+) -> tuple[str, ...]:
+    """Every man an area ``incoming`` holds as aimed at its announcement,
+    the named man first.
+
+    6E2 p.24 gives the Abort to a man an attacker "announces he's
+    attacking"; an area attacks everyone in it (6E1 p.321), and each of
+    them may Dive for Cover (6E2 p.87). The area is the one its use will
+    read (`area_attack.aimed_area`, `who_is_in`). With no map, a Surface,
+    or anything that is not an area, the men named on the offer
+    (`defenders_of`).
+    """
+    named = defenders_of(incoming)
+    if not rolled_against_the_point(incoming._attack_view):
+        return named
+    aimed = aimed_area(session, attacker.id, incoming.target_id,
+                       incoming._attack_view)
+    if aimed is None:
+        return named
+    out = list(named)
+    for who, _distance in who_is_in(session, aimed.spec, aimed.geo, attacker.id,
+                                    incoming.target_id, incoming._attack_view):
+        if who != attacker.id and who not in out:
+            out.append(who)
+    return tuple(out)
+
+
+#: How finely `dive_destination` looks for the nearest point out of the
+#: area: rings this far apart, this many bearings to a ring.
+_DIVE_STEP_M = 0.25
+_DIVE_BEARINGS = 24
+
+
+def dive_mode(session: "CombatSession", defender_id: str) -> str:
+    """The mode he dives with. 6E2 p.87 moves him "with the mode of movement
+    used". RULING: the mode he is using now is Flight if he is in the air
+    (`impact.is_airborne`) and Running otherwise."""
+    from kirby_combat.impact import is_airborne
+
+    return "flight" if is_airborne(session, defender_id) else "running"
+
+
+def dive_destination(session: "CombatSession", defender_id: str, area):
+    """Where a Dive for Cover out of ``area`` (an `area_attack.AimedArea`)
+    takes him: the nearest point outside it that he can reach with half his
+    maximum movement in the mode he is using (6E2 p.87; `dive_mode`), at
+    his own height. A geometry rule, not a choice, so the engine picks it.
+
+    Reachable means `movement_reach` gets him there without a fall, inside
+    the map, and not onto anybody (`placement._crowded`). None when he is
+    not in the area, there is no map, or no such point exists: then Dive
+    for Cover is not offered, because a dive that cannot leave the area
+    buys nothing against it.
+    """
+    import math
+
+    from kirby_world.scene import Position
+
+    from kirby_combat.loop.resolvers import _half_move
+    from kirby_combat.off_board import _inside
+    from kirby_combat.placement import _crowded, position_of
+    from kirby_combat.reach import movement_reach
+
+    scene = getattr(session, "scene", None)
+    if area is None or scene is None:
+        return None
+    start = position_of(scene, defender_id)
+    if start is None or not area.holds((start.x, start.y, start.z)):
+        return None
+    mode = dive_mode(session, defender_id)
+    budget = _half_move(session.combatants[defender_id], mode)
+    if budget <= 0.0:
+        return None
+    rings = math.ceil(budget / _DIVE_STEP_M - 1e-9)
+    for ring in range(1, rings + 1):
+        d = min(ring * _DIVE_STEP_M, budget)
+        for k in range(_DIVE_BEARINGS):
+            bearing = 2.0 * math.pi * k / _DIVE_BEARINGS
+            p = Position(start.x + d * math.cos(bearing),
+                         start.y + d * math.sin(bearing), start.z, start.facing)
+            if area.holds((p.x, p.y, p.z)) or _on_the_edge(area, start, p):
+                continue
+            if not _inside(scene.bounds, p.x, p.y) or _crowded(session, defender_id, p):
+                continue
+            outcome = movement_reach(mode, start, p, budget, scene,
+                                     combatant_id=defender_id, session=session)
+            if outcome.reachable and outcome.fall is None and outcome.landing == p:
+                return p
+    return None
+
+
+def _on_the_edge(area, start, p) -> bool:
+    """Is ``p`` only a rounding error outside the area? A point on its edge
+    is in it, and a floating-point distance can put
+    an edge point either side; so a point counts as out only if a hair
+    nearer his start is out too."""
+    import math
+
+    d = math.dist((start.x, start.y, start.z), (p.x, p.y, p.z))
+    if d == 0.0:
+        return False
+    f = 1.0 - 1e-6 / d
+    return area.holds((start.x + (p.x - start.x) * f,
+                       start.y + (p.y - start.y) * f,
+                       start.z + (p.z - start.z) * f))
+
+
+def _dive_offer(session, attacker, defender_id: str, destination) -> LegalAction:
+    """The Dive for Cover a man in an area is offered, its destination and
+    the DEX Roll it needs on it, so the choice is made knowing both."""
+    from kirby_world.geometry import distance_3d
+
+    from kirby_combat.actions.dive_for_cover import DiveForCover
+    from kirby_combat.impact import in_water
+    from kirby_combat.placement import position_of
+
+    start = position_of(session.scene, defender_id)
+    distance = distance_3d(start, destination)
+    mode = dive_mode(session, defender_id)
+    target = DiveForCover.dex_roll_target(
+        int(session.combatants[defender_id].combat_stats().dex),
+        distance_m=distance, underwater=in_water(session, defender_id))
+    return LegalAction(
+        action_id=Reaction.DIVE_FOR_COVER.value,
+        kind=Reaction.DIVE_FOR_COVER.value,
+        target_id=attacker.id, power_xmlid=None, power_name=None,
+        summary=(f"Abort to Dive for Cover: {mode} {distance:.1f}m out of "
+                 f"{_friendly(attacker)}'s area on a DEX Roll of {target}- "
+                 "(-1 per 2m). Make it and you are out, prone at half DCV "
+                 "until your next Phase; miss and you are still in it, in "
+                 "the air, landing prone at your next Phase (6E2 p.87). "
+                 "You give up your next Phase"),
+        mode=mode,
+        reposition_dest=(destination.x, destination.y, destination.z),
+    )
+
+
 def reaction_menu(
     session: "CombatSession", attacker, incoming: LegalAction, defender_id: str,
 ) -> list[LegalAction]:
@@ -246,7 +385,14 @@ def reaction_menu(
     No Abort at all for a kind that is not an attack on a man
     (`REACTABLE_KINDS`), or for a target that is not a combatant (an Image).
     Block is offered only against hand-to-hand attacks (6E2 p.59: "Blocks
-    only affect Ranged attacks with the GM's permission").
+    only affect Ranged attacks with the GM's permission"). Against an Area
+    Of Effect attack rolled at the point Dodge, Block and Roll With The
+    Punch are not offered (6E1 p.321, `defences`); a Surface is rolled
+    against his DCV (6E1 p.323) and takes the single-target menu. Dive for
+    Cover is, when the defence table
+    answers the area with it and there is somewhere out of the area he can
+    reach (`dive_destination`, 6E2 p.87). With no map there is nowhere to
+    go, and only `no_abort` is offered.
     """
     from kirby_combat.actions.reactive.martial import block_maneuver, dodge_maneuver
 
@@ -256,6 +402,7 @@ def reaction_menu(
         return []
     defender = session.combatants[defender_id]
     dodge = dodge_maneuver(defender)
+    area = rolled_against_the_point(incoming._attack_view)
     # His name, as the rest of the menu and the Brief name him: a player
     # reads these offers as his question (kirby-api), and an id is a uuid.
     who = _friendly(attacker)
@@ -266,6 +413,21 @@ def reaction_menu(
             summary=(f"Don't Abort: take {who}'s attack on your "
                      "ordinary DCV and keep your next Phase"),
         ),
+    ]
+    if area:
+        # 6E1 p.321: an area is rolled against the target point (DCV 3), so
+        # Dodge, Block and Roll With The Punch, which act on his DCV or the
+        # blow, have nothing to act on. Dive for Cover gets him out of it
+        # (6E2 p.87), and the menu offers it only where the table does.
+        view = incoming._attack_view
+        if Defence.DIVE_FOR_COVER in answers_to(view, kind=incoming.kind):
+            destination = dive_destination(
+                session, defender_id,
+                aimed_area(session, attacker.id, incoming.target_id, view))
+            if destination is not None:
+                menu.append(_dive_offer(session, attacker, defender_id, destination))
+        return menu
+    menu += [
         LegalAction(
             action_id=Reaction.DODGE.value, kind=Reaction.DODGE.value,
             target_id=None, power_xmlid=None, power_name=None,
@@ -319,15 +481,71 @@ def _situation(session, actor, menu, *, reason, by_id, incoming) -> PhaseSituati
     )
 
 
+def _dive(session: "CombatSession", defender_id: str, attacker_id: str,
+          offer: LegalAction, *, roller) -> "CombatSession":
+    """Make the Dive for Cover ``offer`` names, now, at the announcement.
+
+    6E2 p.87: he is at the point "when the attack goes off" only if the dive
+    is made before it does, so the DEX Roll is made here and the area reads
+    its victims after the move. Success records `MovementResolved` to the
+    destination, and he is prone (`statuses._is_prone`). Failure moves
+    nobody: he is in the air where he was (`statuses._is_in_the_air`).
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_world.geometry import distance_3d
+    from kirby_world.scene import Position
+
+    from kirby_combat.actions.dive_for_cover import DiveForCover
+    from kirby_combat.impact import in_water
+    from kirby_combat.placement import commit_move, position_of
+    from kirby_combat.reach import movement_reach
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import DivedForCover, make_author_combatant
+
+    start = position_of(session.scene, defender_id)
+    destination = Position(*offer.reposition_dest, start.facing)
+    distance = distance_3d(start, destination)
+    result = DiveForCover.resolve_dex_roll(
+        int(session.combatants[defender_id].combat_stats().dex),
+        list(roller.roll_dice(3)), distance_m=distance,
+        underwater=in_water(session, defender_id),
+        requested_destination=offer.reposition_dest,
+    )
+    session = apply_event(session, DivedForCover(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(defender_id),
+        combatant_id=defender_id, against_id=attacker_id,
+        success=result.success, roll=result.roll, target=result.target,
+        destination=({"x": destination.x, "y": destination.y,
+                      "z": destination.z} if result.success else None),
+        origin={"x": start.x, "y": start.y, "z": start.z},
+    ))
+    if not result.success:
+        return session
+    outcome = movement_reach(offer.mode, start, destination, distance,
+                             session.scene, combatant_id=defender_id,
+                             session=session)
+    return commit_move(session, defender_id, outcome)
+
+
 def react_to_attack(
     session: "CombatSession", attacker, incoming: LegalAction, chooser: Chooser,
+    *, roller,
 ) -> tuple["CombatSession", list[tuple[str, Reaction]]]:
     """Ask each man ``incoming`` is announced against whether he Aborts.
 
     Called by `run_phase` after the attacker has chosen and before anything
     is rolled --- the moment 6E2 p.24 fixes. Each target is asked in shot
-    order (`defenders_of`). Returns the new session and ``(defender,
+    order (`defenders_of`); against an area, everyone in it, the named man
+    first (`area_defenders`). Returns the new session and ``(defender,
     reaction)`` for every man who was entitled to be asked.
+
+    ``roller`` is the loop's dice: a Dive for Cover rolls its DEX Roll here
+    (6E2 p.87, `_dive`).
 
     A man Holding his Action Aborts with it: 6E2 p.24, "If he's Holding a
     Phase or Half Phase, he may Abort to use his Held Action to perform a
@@ -337,7 +555,7 @@ def react_to_attack(
     from kirby_combat.actions.reactive.abort import mark_aborting, mark_aborting_with_held
 
     taken: list[tuple[str, Reaction]] = []
-    for defender_id in defenders_of(incoming):
+    for defender_id in area_defenders(session, attacker, incoming):
         menu = reaction_menu(session, attacker, incoming, defender_id)
         if not menu:
             continue
@@ -346,7 +564,8 @@ def react_to_attack(
             session, defender, menu, reason=OutOfTurnReason.ABORT,
             by_id=attacker.id, incoming=incoming,
         )
-        chosen = Reaction(validate_choice(chooser.choose(situation), menu).kind)
+        offer = validate_choice(chooser.choose(situation), menu)
+        chosen = Reaction(offer.kind)
         taken.append((defender_id, chosen))
         if chosen is Reaction.NONE:
             continue
@@ -368,6 +587,8 @@ def react_to_attack(
             )
         else:
             session, _ = mark_aborting(session, defender.id, to_action=chosen.value)
+        if chosen is Reaction.DIVE_FOR_COVER:
+            session = _dive(session, defender.id, attacker.id, offer, roller=roller)
     return session, taken
 
 

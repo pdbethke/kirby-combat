@@ -24,6 +24,7 @@ from kirby_combat.loop.run import run_phase
 from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 
 
@@ -57,6 +58,9 @@ def _man(id: str, side: str, *, dex: int, pd: int, rpd: int):
 
 
 class Shoots:
+    def give_orders(self, page):
+        return KEEP_ORDERS
+
     def choose(self, situation) -> str:
         if situation.out_of_turn is not None:
             return situation.menu[0].action_id

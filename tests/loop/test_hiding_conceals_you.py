@@ -28,6 +28,7 @@ from kirby_combat.enumeration import LegalAction
 from kirby_combat.loop.registry import resolve_chosen
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -157,6 +158,9 @@ class _First:
     is about the menu, not the choice. Not shooting matters: a sneak who
     opens fire Stuns the watcher every Segment, and a Stunned man's Phase
     is spent recovering (6E2 p.107) without a menu ever being built."""
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         dodge = next((a for a in situation.menu if a.kind == "dodge"), None)

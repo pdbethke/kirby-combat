@@ -30,6 +30,7 @@ from kirby_combat.session.events import (
     make_author_engine,
 )
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -81,6 +82,9 @@ class Picks:
     def __init__(self, *kinds):
         self.kinds = kinds
         self.menus = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         # Out of turn (an Abort, a Held Action: `loop/reactions.py`) is not

@@ -93,6 +93,14 @@ def is_area_attack(power: Any) -> bool:
     return getattr(power, "area", None) is not None
 
 
+def rolled_against_the_point(power: Any) -> bool:
+    """An area rolled at its target point (DCV 3, 6E1 p.321), so his own DCV
+    plays no part. Every shape but a Surface: a Surface laid on a man is
+    rolled against his standard DCV (6E1 p.323, `standing_areas.
+    resolve_surface_use`), so it is answered as a single-target attack."""
+    return is_area_attack(power) and power.area.shape is not AreaShape.SURFACE
+
+
 def _position(session, combatant_id):
     scene = getattr(session, "scene", None)
     if scene is None:
@@ -274,6 +282,84 @@ class AreaUse:
     combat_type: str | None
 
 
+def _announced_spot(session, attacker_id: str, named_id: str):
+    """Where the named man stood when the attack was announced.
+
+    An area is aimed at a place, "the spot where Defender ... is standing"
+    (6E1 p.321), fixed when the attacker announces it. A man who Dives for
+    Cover out of it (6E2 p.87) has moved by the time it goes off, and the
+    area does not follow him: his dive's ``origin`` is the spot. Only a dive
+    against this attacker in this Phase counts, so the search stops at the
+    last Phase spent.
+    """
+    for evt in reversed(session.event_log):
+        kind = getattr(evt, "kind", None)
+        if kind == "PhaseSpent":
+            break
+        if (kind == "DivedForCover" and evt.combatant_id == named_id
+                and evt.against_id == attacker_id and evt.success
+                and evt.origin is not None):
+            o = evt.origin
+            return (float(o["x"]), float(o["y"]), float(o.get("z", 0.0)))
+    here = _position(session, named_id)
+    return _xyz(here) if here is not None else None
+
+
+def _geometry(session, attacker_id: str, named_id: str, power) -> "AreaGeometry | None":
+    """Where an area aimed at ``named_id`` lies, before it is rolled.
+
+    WHERE THE AREA GOES. No Range: on the attacker (6E1 p.321-322).
+    Otherwise on the named target's own spot --- the offer named a man,
+    and Pulsar's example targets "the spot where Defender ... is standing".
+    None with no map.
+    """
+    shooter = _position(session, attacker_id)
+    aimed = _announced_spot(session, attacker_id, named_id)
+    if shooter is None or aimed is None:
+        return None
+    shooter_xyz = _xyz(shooter)
+    point = shooter_xyz if _no_range(power) else aimed
+    return AreaGeometry(point=point, axis=_axis(shooter_xyz, aimed))
+
+
+@dataclass(frozen=True)
+class AimedArea:
+    """An area as aimed at declaration: its shape and where it lies. What a
+    defender is asked about before anything is rolled (`loop.reactions`)."""
+
+    spec: AreaSpec
+    geo: AreaGeometry
+
+    def holds(self, here) -> bool:
+        return _in_area(self.spec, self.geo, here)[0]
+
+
+def aimed_area(session, attacker_id: str, named_id: str | None, power) -> "AimedArea | None":
+    """The area ``power`` would cover, aimed at ``named_id`` now, by the
+    same geometry its use reads (`_aim`). None with no map, no named man, or
+    a Surface, which covers a thing rather than a place (6E1 p.323)."""
+    spec = getattr(power, "area", None)
+    if not isinstance(spec, AreaSpec) or spec.shape is AreaShape.SURFACE or named_id is None:
+        return None
+    geo = _geometry(session, attacker_id, named_id, power)
+    return AimedArea(spec=spec, geo=geo) if geo is not None else None
+
+
+def who_is_in(session, spec: AreaSpec, geo: AreaGeometry, attacker_id: str,
+              named_id: str, power) -> list[tuple[str, float]]:
+    """Every man the area holds, with his distance from the target point:
+    `_victims`, then Accurate's one man (6E1 p.322: "automatically targeting
+    only a single person")."""
+    from kirby_combat.roster import Roster
+
+    attacker = session.combatants[attacker_id]
+    enemies = {e.id for e in Roster(session).enemies_of(attacker)}
+    victims = _victims(session, spec, geo, attacker_id, _no_range(power), enemies)
+    if spec.targeting is AreaTargeting.ACCURATE:
+        victims = [(c, d) for c, d in victims if c == named_id]
+    return victims
+
+
 @dataclass(frozen=True)
 class _Aim:
     """Where an Area use goes and what its Attack Roll is made against."""
@@ -294,20 +380,13 @@ def _aim(session, attack, combat_type) -> _Aim:
     attacker = session.combatants[attack.attacker.id]
     named = attack.target
     no_range = _no_range(attack.power)
-    # WHERE THE AREA GOES. No Range: on the attacker (6E1 p.321-322).
-    # Otherwise on the named target's own spot --- the offer named a man,
-    # and Pulsar's example targets "the spot where Defender ... is standing".
     shooter = _position(session, attacker.id)
-    aimed = _position(session, named.id)
-    on_map = shooter is not None and aimed is not None
-    if on_map:
-        shooter_xyz, aimed_xyz = _xyz(shooter), _xyz(aimed)
-        point = shooter_xyz if no_range else aimed_xyz
-        geo = AreaGeometry(point=point, axis=_axis(shooter_xyz, aimed_xyz))
-        range_m = 0.0 if no_range else math.dist(shooter_xyz, aimed_xyz)
+    geo = _geometry(session, attacker.id, named.id, attack.power)
+    if geo is not None:
+        shooter_xyz = _xyz(shooter)
+        range_m = 0.0 if no_range else math.dist(shooter_xyz, geo.point)
     else:
         shooter_xyz = None
-        geo = None
         range_m = None
 
     # THE ATTACK ROLL, against the point. 6E1 p.322: a No Range Area is
@@ -351,7 +430,6 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
     )
     from kirby_combat.endurance import end_cost
     from kirby_combat.resolution.to_hit import resolve_to_hit
-    from kirby_combat.roster import Roster
     from kirby_combat.session.events import (
         ActionDeclared, ActionResolved, make_author_combatant,
     )
@@ -408,7 +486,6 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
     # WHO IS IN IT. A No Range miss affects nobody (6E1 p.322: "the attack
     # has no effect on anyone whatsoever").
     landed = to_hit.hit or (not no_range and geo is not None)
-    enemies = {e.id for e in Roster(s).enemies_of(attacker)}
     if not landed:
         victims: list[tuple[str, float]] = []
         constructs: list[Any] = []
@@ -416,13 +493,10 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
         victims = [(named.id, 0.0)]           # RULING: no map, no neighbours
         constructs = []
     else:
-        victims = _victims(s, spec, geo, attacker.id, no_range, enemies)
+        victims = who_is_in(s, spec, geo, attacker.id, named.id, attack.power)
         constructs = ([] if spec.targeting in (AreaTargeting.SELECTIVE,
                                                AreaTargeting.NONSELECTIVE)
                       else _constructs_hit(s, spec, geo))
-    if spec.targeting is AreaTargeting.ACCURATE:
-        # 6E1 p.322: "automatically targeting only a single person".
-        victims = [(c, d) for c, d in victims if c == named.id]
 
     # THE USE, ONCE: the row that carries the power's id (a Charge spent,
     # `charges.spent_charges`) and the END paid. The victims' rows carry

@@ -298,7 +298,11 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "EntangleApplied", "EntangleEscape",
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
-        "BreakoutRolled", "RageRolled", "RageTargeted",
+        "BreakoutRolled", "RageRolled", "RageTargeted", "SelfDestructRolled",
+        # A Dive for Cover's roll and its outcome: folded by
+        # `kirby_combat/statuses.py` (prone, in the air); the move rides on
+        # its own `MovementResolved`.
+        "DivedForCover",
         # The time an Action took, and a Concentration begun: folded by
         # `kirby_combat/action_time.py` and `kirby_combat/concentration.py`.
         "PhaseTimeUsed", "ConcentrationBegan",
@@ -310,6 +314,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # Who is off the board is read off positions and the forced move
         # that put him there, by `kirby_combat/off_board.py`.
         "ForcedOffTheBoard", "ReturnedToTheBoard",
+        # A squad's leader and its orders are folded off the log by
+        # `kirby_combat/squads.py`.
+        "SquadLeaderNamed", "SquadOrdersGiven",
         # An Endurance Reserve's END is folded off the log by
         # `kirby_combat/endurance.py`.
         "EnduranceReserveChanged",

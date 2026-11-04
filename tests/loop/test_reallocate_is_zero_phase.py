@@ -16,6 +16,7 @@ from conftest import encounter_of, fighter      # tests/loop/conftest.py
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 
 
@@ -35,6 +36,9 @@ class Reallocates:
 
     def __init__(self):
         self.menus = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if getattr(situation, "out_of_turn", None) is not None:

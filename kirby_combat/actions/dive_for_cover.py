@@ -1,19 +1,25 @@
 """Dive for Cover — reactive abort; DEX Roll determines outcome.
 
 Per 6E2 p87 §Using Dive For Cover:
-    - Successful Dive: character ends Phase PRONE at chosen destination,
-      at HALF DCV (until next Phase).
-        - Against an Area-of-Effect attack: target hex is no longer
-          occupied, so the Dive avoids the AoE entirely if the
-          destination is OUTSIDE the AoE radius.
+    - He moves up to half his maximum movement, with the mode of movement
+      he is using, and makes a DEX Roll at -1 per 2m moved.
+    - Successful Dive: he is at the destination, PRONE, at HALF DCV until
+      his next Phase.
+        - Against an Area-of-Effect attack: the Dive avoids the area if
+          the destination is OUTSIDE it.
         - Against a non-Area attack: the Dive succeeds → the attacker's
           attack misses outright.
-    - Failed Dive: character is at HALF DCV but did NOT move, AND the
-      attacker gets +2 OCV against the diver this Phase.
+    - Failed Dive: he is still "in the air" at his starting point when the
+      attack goes off. His DCV does not change, Knockback against him is
+      rolled with 1d6 less, and he lands prone at his next Phase.
 
 The DEX Roll is the standard HERO Characteristic Roll: 3d6 ≤ 9 + round(DEX / 5),
 with a penalty of -1 per 2m of distance moved (rounded up). Underwater
 the penalty doubles to -1 per 1m moved (per 6E2 p170).
+
+Offered against an area by `loop/reactions.py`, which picks the destination
+and records the dive (`DivedForCover`); being in the air is folded by
+`statuses._is_in_the_air`.
 """
 from __future__ import annotations
 
@@ -25,10 +31,9 @@ from kirby_combat.actions.reactive.abort import mark_aborting
 
 
 # 6E2 p87: a successful Dive ends in PRONE at the chosen destination
-# at HALF DCV until next Phase. A failure: half DCV, no movement, +2 OCV
-# to attacker.
+# at HALF DCV until next Phase. A failure leaves his DCV as it was.
 _HALF_DCV = 0.5
-_FAILED_ATTACKER_OCV_BONUS = 2
+_DCV_UNCHANGED = 1.0
 
 
 @dataclass(frozen=True)
@@ -38,15 +43,15 @@ class DiveForCoverResult:
     Per 6E2 p87:
         - On success: diver is prone at destination, at half DCV; AoE
           attacks miss if destination is outside the AoE.
-        - On failure: diver is prone at half DCV, did not move, attacker
-          gets +2 OCV.
+        - On failure: diver is "in the air" where he started, DCV
+          unchanged; he lands prone at his next Phase.
     """
     success: bool
     roll: int                                # 3d6 sum
     target: int                              # the number the roll had to meet (≤ target)
-    diver_prone: bool                        # always True after a Dive (success or fail)
-    diver_dcv_factor: float                  # 0.5 (half DCV) per RAW
-    attacker_ocv_bonus: int                  # +2 if dive failed; 0 if successful
+    diver_prone: bool                        # True on success; a failure lands later
+    diver_dcv_factor: float                  # 0.5 on success, 1.0 on failure (RAW)
+    in_the_air: bool                         # True iff the dive failed
     avoids_aoe: bool                         # True iff dive succeeded AND destination outside AoE
     destination: tuple[float, float, float] | None   # (x,y,z) if moved; None if didn't move
 
@@ -56,7 +61,7 @@ class DiveForCover:
 
     Declares an abort via the existing abort machinery, then the DEX Roll
     determines whether the dive succeeds (move + prone + ½ DCV) or fails
-    (no movement + prone + ½ DCV + attacker gets +2 OCV).
+    (no movement, in the air, DCV unchanged, prone at his next Phase).
 
     DEX Roll formula (HERO standard Characteristic Roll, 6E2 p87):
     3d6 ≤ 9 + round(DEX / 5), with -1 per 2m of distance moved (or fraction).
@@ -74,6 +79,24 @@ class DiveForCover:
         Reuses the abort machinery (same as Dodge/Block). Forfeits next phase.
         """
         return mark_aborting(session, combatant_id, to_action="dive_for_cover")
+
+    @staticmethod
+    def dex_roll_target(
+        combatant_dex: int, *, distance_m: float, underwater: bool,
+    ) -> int:
+        """The number his DEX Roll must make for a dive of ``distance_m``.
+
+        6E2 p87: the standard Characteristic Roll, 9 + round(DEX/5), at -1
+        per 2m moved (or fraction). 6E2 p170: -1 per 1m underwater.
+        """
+        from math import ceil
+        from kirby_cost.engine.rolls import characteristic_roll
+
+        meters_per_penalty_step = 1.0 if underwater else 2.0
+        distance_penalty = (
+            ceil(distance_m / meters_per_penalty_step) if distance_m > 0 else 0
+        )
+        return characteristic_roll(combatant_dex) - distance_penalty
 
     @staticmethod
     def resolve_dex_roll(
@@ -108,19 +131,13 @@ class DiveForCover:
               - Success: diver is prone at destination, at half DCV;
                 attacker's non-AoE attack misses; AoE misses iff
                 destination outside aoe_radius from aoe_origin.
-              - Failure: diver is prone at half DCV, did NOT move,
-                attacker gets +2 OCV against the diver this Phase.
+              - Failure: diver did NOT move and is "in the air" where he
+                started: DCV unchanged, no bonus to the attacker,
+                Knockback against him rolled with 1d6 less, and he lands
+                prone at his next Phase.
         """
-        # 6E2 p87: standard Characteristic Roll target is 9 + round(DEX/5).
-        from kirby_cost.engine.rolls import characteristic_roll
-        base_target = characteristic_roll(combatant_dex)
-        # 6E2 p87: -1 per 2m moved (or fraction). p170: doubled underwater.
-        meters_per_penalty_step = 1.0 if underwater else 2.0
-        from math import ceil as _ceil
-        distance_penalty = (
-            _ceil(distance_m / meters_per_penalty_step) if distance_m > 0 else 0
-        )
-        target = base_target - distance_penalty
+        target = DiveForCover.dex_roll_target(
+            combatant_dex, distance_m=distance_m, underwater=underwater)
         roll = sum(dice)
         success = roll <= target
 
@@ -139,19 +156,20 @@ class DiveForCover:
                 target=target,
                 diver_prone=True,
                 diver_dcv_factor=_HALF_DCV,
-                attacker_ocv_bonus=0,
+                in_the_air=False,
                 avoids_aoe=avoids_aoe,
                 destination=destination,
             )
 
-        # Failed Dive: prone, ½ DCV, didn't move, attacker +2 OCV.
+        # Failed Dive: in the air where he started, DCV unchanged; prone
+        # only when he lands, at his next Phase (6E2 p87).
         return DiveForCoverResult(
             success=False,
             roll=roll,
             target=target,
-            diver_prone=True,
-            diver_dcv_factor=_HALF_DCV,
-            attacker_ocv_bonus=_FAILED_ATTACKER_OCV_BONUS,
+            diver_prone=False,
+            diver_dcv_factor=_DCV_UNCHANGED,
+            in_the_air=True,
             avoids_aoe=False,
             destination=None,
         )

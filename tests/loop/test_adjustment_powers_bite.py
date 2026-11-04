@@ -34,6 +34,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import VitalsChanged, make_author_engine
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
@@ -317,6 +318,9 @@ def test_healing_body_stops_bleeding():
 class _Picks:
     def __init__(self, kind: str):
         self.kind = kind
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         return next(a for a in situation.menu if a.kind == self.kind).action_id

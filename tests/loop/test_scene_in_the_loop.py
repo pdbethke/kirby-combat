@@ -24,6 +24,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -68,6 +69,9 @@ def _menu_kinds(scene: Scene | None, *, apart: float = 20.0) -> set[str]:
     seen: list[set[str]] = []
 
     class Spy:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             seen.append({a.kind for a in situation.menu})
             return situation.menu[0].action_id

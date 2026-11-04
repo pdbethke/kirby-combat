@@ -31,6 +31,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -103,6 +104,9 @@ def test_the_loop_offers_the_movement_he_owns():
     seen = []
 
     class _Look:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             seen.extend(m.action_id for m in situation.menu)
             return "dodge"

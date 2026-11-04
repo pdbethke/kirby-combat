@@ -1341,6 +1341,100 @@
       "title": "ConstructSpawned",
       "type": "object"
     },
+    "DivedForCover": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "DivedForCover",
+          "enum": [
+            "DivedForCover"
+          ],
+          "type": "string"
+        },
+        "against_id": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "DivedForCover",
+          "enum": [
+            "DivedForCover"
+          ],
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "target": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "against_id",
+        "success",
+        "roll",
+        "target",
+        "destination",
+        "origin"
+      ],
+      "title": "DivedForCover",
+      "type": "object"
+    },
     "EnduranceReserveChanged": {
       "additionalProperties": false,
       "properties": {
@@ -3572,6 +3666,88 @@
       "title": "SegmentAdvanced",
       "type": "object"
     },
+    "SelfDestructRolled": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SelfDestructRolled",
+          "enum": [
+            "SelfDestructRolled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "casualty_fraction": {
+          "type": "number"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SelfDestructRolled",
+          "enum": [
+            "SelfDestructRolled"
+          ],
+          "type": "string"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "squad",
+        "side",
+        "casualty_fraction",
+        "roll",
+        "target_number",
+        "succeeded",
+        "turn",
+        "segment"
+      ],
+      "title": "SelfDestructRolled",
+      "type": "object"
+    },
     "SessionEnded": {
       "additionalProperties": false,
       "properties": {
@@ -3728,6 +3904,169 @@
         "combatants"
       ],
       "title": "SessionStateView",
+      "type": "object"
+    },
+    "SquadLeaderNamed": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SquadLeaderNamed",
+          "enum": [
+            "SquadLeaderNamed"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SquadLeaderNamed",
+          "enum": [
+            "SquadLeaderNamed"
+          ],
+          "type": "string"
+        },
+        "leader_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "squad",
+        "side",
+        "leader_id",
+        "reason"
+      ],
+      "title": "SquadLeaderNamed",
+      "type": "object"
+    },
+    "SquadOrdersGiven": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SquadOrdersGiven",
+          "enum": [
+            "SquadOrdersGiven"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SquadOrdersGiven",
+          "enum": [
+            "SquadOrdersGiven"
+          ],
+          "type": "string"
+        },
+        "leader_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "squad": {
+          "type": "string"
+        },
+        "teams": {
+          "items": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": {
+                        "type": "number"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "squad",
+        "side",
+        "leader_id",
+        "teams"
+      ],
+      "title": "SquadOrdersGiven",
       "type": "object"
     },
     "StandingAreaEnded": {
@@ -4329,7 +4668,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.31.0",
+  "$id": "urn:kirby-combat:schema:events:0.32.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4370,6 +4709,9 @@
     },
     {
       "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/DivedForCover"
     },
     {
       "$ref": "#/$defs/EnduranceReserveChanged"
@@ -4456,10 +4798,19 @@
       "$ref": "#/$defs/SegmentAdvanced"
     },
     {
+      "$ref": "#/$defs/SelfDestructRolled"
+    },
+    {
       "$ref": "#/$defs/SessionEnded"
     },
     {
       "$ref": "#/$defs/SessionStarted"
+    },
+    {
+      "$ref": "#/$defs/SquadLeaderNamed"
+    },
+    {
+      "$ref": "#/$defs/SquadOrdersGiven"
     },
     {
       "$ref": "#/$defs/StandingAreaEnded"
@@ -4478,5 +4829,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.31.0"
+  "x-kirby-combat-version": "0.32.0"
 }

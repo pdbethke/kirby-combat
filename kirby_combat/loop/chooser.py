@@ -43,6 +43,7 @@ from kirby_combat.tactics.library import tactics_for
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.squads import FireTeam, OrdersPage, SquadOrders, KeepOrders
 
 
 class InvalidChoice(Exception):
@@ -174,6 +175,18 @@ class PhaseSituation:
         return halves_left(self.session, actor_id)
 
     @property
+    def squad_order(self) -> "FireTeam | None":
+        """His fire team's order, if his squad's leader has given one
+        (`squads.orders_for`). A fact for the seat, never a cut of the
+        menu. Read off the fight, so a situation with none raises."""
+        from kirby_combat.squads import orders_for
+
+        if self.session is None:
+            raise ValueError(
+                "squad_order is read off the fight, and this situation has none")
+        return orders_for(self.session, str(self.actor.id))
+
+    @property
     def action_ids(self) -> list[str]:
         return [a.action_id for a in self.menu]
 
@@ -294,6 +307,21 @@ class Chooser(Protocol):
     def choose(self, situation: PhaseSituation) -> str: ...
 
 
+@runtime_checkable
+class OrdersChooser(Protocol):
+    """A squad leader's seat: asked for orders at the top of his own Phase.
+
+    Returns `squads.SquadOrders` (validated by `squads.validate_orders` and
+    recorded as `SquadOrdersGiven`) or `squads.KEEP_ORDERS`, which records
+    nothing. A structured answer, not an ``action_id``: an order names teams
+    and tasks, which no menu offer can. Asked only when a fight declares
+    squads and the man whose Phase it is leads one (`loop/run.py`), so a
+    seat with no ``give_orders`` still runs every squadless fight.
+    """
+
+    def give_orders(self, page: OrdersPage) -> SquadOrders | KeepOrders: ...
+
+
 class FirstLegalChooser:
     """Takes the first offer, in menu order.
 
@@ -305,6 +333,12 @@ class FirstLegalChooser:
     """
 
     name = "first-legal"
+
+    def give_orders(self, page: "OrdersPage") -> "KeepOrders":
+        """Gives none: deciding the teams is not "the first offer"."""
+        from kirby_combat.squads import KEEP_ORDERS
+
+        return KEEP_ORDERS
 
     def choose(self, situation: PhaseSituation) -> str:
         if not situation.menu:
@@ -384,6 +418,13 @@ class TacticChooser:
             segment=getattr(situation, "segment", 0) or 0,
         ))
         return action_id
+
+    def give_orders(self, page: "OrdersPage") -> "KeepOrders":
+        """Gives none. The doctrine catalogue picks one man's action; it has
+        no tactic for a squad's teams, so it leaves the orders as they are."""
+        from kirby_combat.squads import KEEP_ORDERS
+
+        return KEEP_ORDERS
 
     def choose(self, situation: PhaseSituation) -> str:
         if not situation.menu:

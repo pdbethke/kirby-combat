@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.31.0"
+version = "0.32.0"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 # Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
@@ -23,11 +23,13 @@ dependencies = [
     # Terrain: what is physically there and how hard it is to break.
     # Owns the 6E2 p173 Objects Table, which this package re-exports
     # rather than copying -- one home for a transcribed rulebook table.
-    "kirby-terrain>=0.1.0",
+    "kirby-terrain>=0.4.0,<0.5.0",
     # Places: World, Scene and the geometry inside them, split out at 0.20.0.
     # The fight imports the place, never the other way round.
     # `kirby_combat.scene` stays as a PERMANENT re-export of it.
-    "kirby-world>=0.1.1",
+    # Capped: a replay rebuilds its map from the seed, so the generator's
+    # map must not move under a stored fight (ledger R38).
+    "kirby-world>=0.2.0,<0.3.0",
 ]
 
 [project.urls]

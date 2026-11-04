@@ -28,6 +28,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import ActionResolved, make_author_combatant
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import _SyntheticCombatant, synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
@@ -123,6 +124,9 @@ def _session(*, lockout: bool, maintaining: bool) -> CombatSession:
 class _Records:
     def __init__(self):
         self.menu = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         self.menu = list(situation.menu)

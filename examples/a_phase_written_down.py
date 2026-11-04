@@ -39,6 +39,7 @@ from kirby_combat.loop import PhaseSituation, Roster, run_encounter
 from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
@@ -139,6 +140,9 @@ class ReadsTheBrief:
 
     def __init__(self) -> None:
         self.pages: list[str] = []
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation: PhaseSituation) -> str:
         page = situation.brief().render()

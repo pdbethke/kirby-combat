@@ -325,6 +325,8 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         snapshot=_snapshot_from_dict(data),
         # Absent from snapshots written before 0.28: nobody was a minor NPC.
         minor_hits=data.get("minor_hits"),
+        # Absent from snapshots written before squads: in no squad.
+        squad=data.get("squad"),
     )
     return hc
 

@@ -97,6 +97,23 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
     Breakout Rolls, a rage roll --- were made the first time and are not
     owed twice.
     """
+    if acted_this_phase(session, combatant_id):
+        return True
+    return any(
+        getattr(evt, "kind", None) == "PresenceYielded"
+        and getattr(evt, "target_id", None) == combatant_id
+        for evt in _in_this_phase(session, combatant_id)
+    )
+
+
+def acted_this_phase(session: "CombatSession", combatant_id: str) -> bool:
+    """Has he already taken an Action that left this Phase his?
+
+    `phase_already_begun` less the hesitation: a man who stepped back behind
+    the man who impressed him (6E2 p.139) has had his Phase come back to him
+    without doing anything with it. What is owed before his first choice
+    of the Phase (a squad leader's orders, `loop/run.py`) is still owed.
+    """
     if presence_attack_made_this_phase(session, combatant_id):
         return True
     # Any Action that left the Phase his --- a Half Phase Action, a Zero Phase
@@ -112,15 +129,9 @@ def phase_already_begun(session: "CombatSession", combatant_id: str) -> bool:
         return True
     # A Zero Phase change of identity (Instant Change, 6E1 p.272) leaves
     # the Phase his in the same way; see `kirby_combat/identity.py`.
-    if any(getattr(evt, "kind", None) == "IdentityChanged"
-           and getattr(evt, "combatant_id", None) == combatant_id
-           for evt in _since_his_last_phase(session, combatant_id)):
-        return True
-    return any(
-        getattr(evt, "kind", None) == "PresenceYielded"
-        and getattr(evt, "target_id", None) == combatant_id
-        for evt in _in_this_phase(session, combatant_id)
-    )
+    return any(getattr(evt, "kind", None) == "IdentityChanged"
+               and getattr(evt, "combatant_id", None) == combatant_id
+               for evt in _since_his_last_phase(session, combatant_id))
 
 
 def _owed_tiers(session: "CombatSession", combatant_id: str):

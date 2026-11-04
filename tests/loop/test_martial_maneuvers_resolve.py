@@ -50,6 +50,7 @@ from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import SegmentAdvanced, make_author_engine
 from kirby_combat.side import Side
+from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.statuses import PRONE, statuses_for
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.tables import segments_for_spd
@@ -291,6 +292,9 @@ def test_ravels_joint_lock_is_offered_and_resolves_through_run_phase():
     joint_lock = offers["Joint Lock/Throw"]
 
     class _Picks:
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
         def choose(self, situation):
             assert joint_lock.action_id in {a.action_id for a in situation.menu}
             return joint_lock.action_id
@@ -328,6 +332,9 @@ class _PicksFor:
 
     def __init__(self, actor_id, chooser):
         self.actor_id, self.chooser = actor_id, chooser
+
+    def give_orders(self, page):
+        return KEEP_ORDERS
 
     def choose(self, situation):
         if situation.actor.id == self.actor_id:
