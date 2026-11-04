@@ -12,7 +12,8 @@
 **Breaking changes**
 
 - `react_to_attack(..., *, roller)` requires `roller`.
-- Dodge, Block and Roll With The Punch are no longer offered against an area attack (6E1 p.321: an area is rolled against the target point, DCV 3).
+- Dodge, Block and Roll With The Punch are no longer offered against an area attack rolled at its target point (6E1 p.321: DCV 3). A ranged Surface is the exception: it is rolled against his own DCV (6E1 p.323), so it keeps the single-target menu and defence row (`area_attack.rolled_against_the_point`).
+- `Squad.side` is a `Side`, and `leader_of(session, squad_name, side)` takes the `Side`; a string side raises `TypeError`. The events still carry `side.id`.
 - Dive for Cover's failure follows RAW (6E2 p.87): he is left in the air at his start with no change to DCV, takes 1d6 less Knockback, and lands prone at his next Phase.
 - `arena_for` and `generate_arena` require a `generator` (kirby-world 0.2.0).
 - A squad leader's chooser needs `give_orders`. `FirstLegalChooser` and `TacticChooser` answer `KEEP_ORDERS`; a seat with no `give_orders` still runs every fight that declares no squads.
@@ -26,6 +27,9 @@
 - Enumeration does not gate a ranged attack's maximum range, though the threat picture does.
 - The self-destruct's "at or under 0 STUN" capture clause is not built: an unconscious man takes no action.
 - A dive pays no END.
+- A cover spot that hides him from every enemy (pure hiding) is never offered: the menu keeps only cover he can shoot from (ledger R20).
+- The Abort reactor weighs an incoming single-target attack at 1, not 1/men she can reach; the 1/N weight is for his own Phase only (ledger R27).
+- An attack made from a Held Action never reaches `react_to_attack`, so it offers no Dodge or Dive for Cover. This predates squads, but HOLD orders make Held Actions more common.
 
 ## 0.31.0 — 2026-11-02
 
