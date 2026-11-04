@@ -3632,8 +3632,13 @@ def enumerate_actions(
             e.id: _cover_positions[e.id] for e in alive_enemies
             if e.id in _cover_positions
         }
-        _cover_half_move = cover_half_move(actor)
         _cover_walls = getattr(scene, "walls", None) or []
+        # No wall (a furnishing's edges are walls too) or no threat means no
+        # spot at any reach, so no Half Move is asked for: pricing one reads
+        # Running's END from the template when Running is not bought up.
+        _cover_half_move = (
+            cover_half_move(actor) if _cover_walls and _threats else 0.0
+        )
 
         # ONE DOOR. `cover_spots` places a spot behind every wall against the
         # actual threats, folds a Furnishing's four derived edges into one
