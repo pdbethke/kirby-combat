@@ -21,7 +21,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from kirby_combat.actions.area_attack import is_area_attack
+from kirby_combat.actions.area_attack import rolled_against_the_point
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
 
 
@@ -163,7 +163,7 @@ def answers_to(view: Any, *, kind: str) -> frozenset[Defence]:
     not a threat (a move, a Hold ...) or is not classified at all, because a
     silent fallback would advise a man to Dodge something nobody has
     classified."""
-    area = view is not None and is_area_attack(view)
+    area = view is not None and rolled_against_the_point(view)
     out: set[Defence] = set()
     if kind in PRESENCE_KINDS:
         return _PRESENCE

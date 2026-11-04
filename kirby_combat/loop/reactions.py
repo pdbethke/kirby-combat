@@ -30,7 +30,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
 
-from kirby_combat.actions.area_attack import aimed_area, is_area_attack, who_is_in
+from kirby_combat.actions.area_attack import aimed_area, rolled_against_the_point, who_is_in
 from kirby_combat.defences import Defence, answers_to, is_hth
 from kirby_combat.enumeration import LegalAction, _friendly, is_down
 from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
@@ -252,7 +252,7 @@ def area_defenders(
     (`defenders_of`).
     """
     named = defenders_of(incoming)
-    if not is_area_attack(incoming._attack_view):
+    if not rolled_against_the_point(incoming._attack_view):
         return named
     aimed = aimed_area(session, attacker.id, incoming.target_id,
                        incoming._attack_view)
@@ -386,8 +386,10 @@ def reaction_menu(
     (`REACTABLE_KINDS`), or for a target that is not a combatant (an Image).
     Block is offered only against hand-to-hand attacks (6E2 p.59: "Blocks
     only affect Ranged attacks with the GM's permission"). Against an Area
-    Of Effect attack Dodge, Block and Roll With The Punch are not offered
-    (6E1 p.321, `defences`); Dive for Cover is, when the defence table
+    Of Effect attack rolled at the point Dodge, Block and Roll With The
+    Punch are not offered (6E1 p.321, `defences`); a Surface is rolled
+    against his DCV (6E1 p.323) and takes the single-target menu. Dive for
+    Cover is, when the defence table
     answers the area with it and there is somewhere out of the area he can
     reach (`dive_destination`, 6E2 p.87). With no map there is nowhere to
     go, and only `no_abort` is offered.
@@ -400,7 +402,7 @@ def reaction_menu(
         return []
     defender = session.combatants[defender_id]
     dodge = dodge_maneuver(defender)
-    area = is_area_attack(incoming._attack_view)
+    area = rolled_against_the_point(incoming._attack_view)
     # His name, as the rest of the menu and the Brief name him: a player
     # reads these offers as his question (kirby-api), and an id is a uuid.
     who = _friendly(attacker)

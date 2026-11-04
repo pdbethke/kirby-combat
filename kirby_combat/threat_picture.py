@@ -59,7 +59,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from kirby_combat.actions.area_attack import is_area_attack
+from kirby_combat.actions.area_attack import rolled_against_the_point
 from kirby_combat.brief_detail import sightings
 from kirby_combat.defences import Defence, answers_to, threatens_a_man
 from kirby_combat.judgement import powers_seen
@@ -259,7 +259,9 @@ def threat_picture(situation: PhaseSituation) -> ThreatPicture:
             if kind is None or not threatens_a_man(kind):
                 continue
             view = view_named(enemy, name)
-            area = view is not None and is_area_attack(view)
+            # A Surface covers one man (6E1 p.323): no radius, nobody
+            # else caught.
+            area = view is not None and rolled_against_the_point(view)
             can_reach_me = _can_reach(session, enemy, view, me.id, sight)
             reaches_me = reaches_me or can_reach_me
             mine_reached |= {

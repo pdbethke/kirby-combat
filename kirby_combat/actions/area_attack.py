@@ -93,6 +93,14 @@ def is_area_attack(power: Any) -> bool:
     return getattr(power, "area", None) is not None
 
 
+def rolled_against_the_point(power: Any) -> bool:
+    """An area rolled at its target point (DCV 3, 6E1 p.321), so his own DCV
+    plays no part. Every shape but a Surface: a Surface laid on a man is
+    rolled against his standard DCV (6E1 p.323, `standing_areas.
+    resolve_surface_use`), so it is answered as a single-target attack."""
+    return is_area_attack(power) and power.area.shape is not AreaShape.SURFACE
+
+
 def _position(session, combatant_id):
     scene = getattr(session, "scene", None)
     if scene is None:

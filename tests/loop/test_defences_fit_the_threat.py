@@ -25,7 +25,13 @@ def _view(**kw):
     return SimpleNamespace(**{"area": None, "is_ranged": True, "range_m": 100, **kw})
 
 
-AREA = _view(area=object())
+def _area(shape_name):
+    from kirby_combat.power_modifiers import AreaShape
+
+    return SimpleNamespace(shape=AreaShape[shape_name], size_m=2.0)
+
+
+AREA = _view(area=_area("RADIUS"))
 
 
 def test_presence_attack_has_no_answer():
@@ -74,13 +80,13 @@ def test_an_unclassified_kind_raises_naming_it():
         answers_to(_view(), kind="wibble")
 
 
-def _enc(area):
+def _enc(area, shape=None):
     from kirby_combat.power_modifiers import AreaShape, AreaSpec, AreaTargeting
 
     blast = shaped_blast("blast", 8)
     if area:
         blast = replace(blast, area=AreaSpec(
-            shape=AreaShape.RADIUS, size_m=2.0, targeting=AreaTargeting.STANDARD,
+            shape=shape or AreaShape.RADIUS, size_m=2.0, targeting=AreaTargeting.STANDARD,
             explosion=False, personal_immunity=False, width_m=2.0,
             height_m=2.0, thin_cone=False, unbuilt=()))
     return encounter_on(
@@ -89,8 +95,8 @@ def _enc(area):
         armed("mark", None, side=HEROES)), blast
 
 
-def _menu(area, *, kind="attack", scene=True):
-    enc, blast = _enc(area)
+def _menu(area, *, kind="attack", scene=True, shape=None):
+    enc, blast = _enc(area, shape)
     s = enc.sessions[0]
     if not scene:
         s = replace(s, scene=None)
@@ -110,6 +116,26 @@ def test_no_dodge_offered_against_an_area_attack():
     assert "roll_with_punch" not in kinds
     # Dive for Cover is what answers it (6E2 p.87; tests/loop/test_dive_for_cover.py).
     assert kinds == ["no_abort", "dive_for_cover"]
+
+
+def _surface_view():
+    return _view(area=_area("SURFACE"))
+
+
+def test_a_ranged_surface_is_answered_as_a_single_target_attack():
+    """6E1 p.323: a Surface laid on a man is rolled against his own DCV
+    (`standing_areas.resolve_surface_use`), not the point's DCV 3, so Dodge
+    acts on it and the spacing answers of an area do not."""
+    got = answers_to(_surface_view(), kind="attack")
+    assert got == answers_to(_view(), kind="attack")
+    assert Defence.DODGE in got and Defence.SPACING not in got
+
+
+def test_dodge_is_offered_against_a_ranged_surface():
+    from kirby_combat.power_modifiers import AreaShape
+
+    kinds = [a.kind for a in _menu(True, shape=AreaShape.SURFACE)]
+    assert kinds == ["no_abort", "dodge"]
 
 
 def test_no_map_area_offers_only_none():
