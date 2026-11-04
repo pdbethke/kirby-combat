@@ -485,3 +485,21 @@ def test_a_presence_attack_from_a_hold_does_not_use_it():
         if own_menus:
             break
     assert own_menus and own_menus[0] & PRESENCE_KINDS
+
+
+def test_a_holder_who_is_attacked_aborts_with_his_hold_to_dodge():
+    """6E2 p.24: having Held, he "could Abort to Dodge and sacrifice his Held
+    Half Phase". He keeps holding when asked on x's Phase; x then shoots him,
+    he is asked to Abort and Dodges, and it is the hold that pays for it.
+    This is why a seat need not Dodge pre-emptively from a hold (kirby-ai's
+    EV seat never does)."""
+    from kirby_combat.loop.reactions import usable_hold
+
+    enc = _three_with_a_holder()
+    chooser = Script(own={"x": ("attack", "h")}, react={"h": "dodge"})
+    result = run_phase(enc, chooser, roller=Ones(seed=1), on_unresolvable="raise")
+    assert ("h", "held_action") in chooser.asked
+    assert ("h", "abort") in chooser.asked
+    assert [e for e in result.events if e.kind == "AbortDeclared"
+            and e.combatant_id == "h"]
+    assert usable_hold(result.session, "h") is None
