@@ -38,6 +38,20 @@ def burst_hits(margin: int, shots: int) -> int:
     return min(1 + margin // 2, shots)
 
 
+def burst_hits_on(to_hit, shots: int) -> int:
+    """How many of ``shots`` hit, read off the engine's own to-hit answer
+    (``ToHitResult``: ``hit`` and ``margin``).
+
+    6E2 p.44's count, plus 6E2 p.37: a roll of 3 always hits, so a hit can
+    carry a negative margin, and it lands once. Public because two callers
+    need it, the burst resolver and kirby-ai's EV seat, which prices a burst
+    before it is fired; a second copy of the natural-3 rule would drift.
+    """
+    if not to_hit.hit:
+        return 0
+    return burst_hits(max(0, int(to_hit.margin)), shots)
+
+
 def line_penalty(line_m: float) -> int:
     """6E2 p.44: "-1 OCV penalty for each 2m in the line" (a negative OCV
     modifier; a part of 2m is not a 2m)."""
