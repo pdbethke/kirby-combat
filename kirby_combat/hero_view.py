@@ -53,6 +53,7 @@ LoadedHero + state.
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 import contextlib
 
 import re
@@ -829,9 +830,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                         ))
                     except (ValueError, TypeError, AttributeError):
                         pass
-                sub = getattr(p, "sub_powers", None)
-                if sub:
-                    _walk(sub)
+                _walk(parts_of(p))
         if self.snapshot is not None:
             return _with_adjusted_dice(self._recorded().attacks, self.state.adjusted_dice)
 
@@ -891,7 +890,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     continue
                 if (getattr(p, "xmlid", None) or "").upper() in MENTAL_POWER_XMLIDS:
                     return True
-                if _any_mental(getattr(p, "sub_powers", None)):
+                if _any_mental(parts_of(p)):
                     return True
             return False
 
@@ -1192,11 +1191,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     pname = (getattr(p, "name", None) or "").strip().lower()
                     if x == target_xmlid and pname == target_name:
                         return p
-                    sub = getattr(p, "sub_powers", None)
-                    if sub:
-                        found = _walk_named(sub)
-                        if found is not None:
-                            return found
+                    found = _walk_named(parts_of(p))
+                    if found is not None:
+                        return found
                 return None
 
             power = _walk_named(self._build().powers)
@@ -1315,7 +1312,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     continue
                 xmlid = (getattr(power, "xmlid", None) or "").upper()
                 items.extend(_power_to_defense_items(power, xmlid))
-                _walk(getattr(power, "sub_powers", None))
+                _walk(parts_of(power))
 
         _walk(self._build().powers)
         return items
@@ -1933,7 +1930,7 @@ def _endurance_reserves(hero) -> "list[EnduranceReserve]":
                     rec=int(getattr(rec, "levels", 0) or 0) if rec is not None else 0,
                     recovers_every_turns=_reserve_recovers_every(o),
                 ))
-            walk(getattr(o, "objects", None))
+            walk(parts_of(o))
 
     walk(getattr(hero, "powers", None))
     for r in out:
@@ -2037,8 +2034,7 @@ def _csl_skills(hero) -> list:
             seen.add(id(obj))
             if (getattr(obj, "xmlid", None) or "").upper() == "COMBAT_LEVELS":
                 found.append(obj)
-            for attr in ("objects", "powers", "sub_powers"):
-                walk(getattr(obj, attr, None))
+            walk(parts_of(obj))
 
     for section in ("skills", "powers", "talents", "perks"):
         walk(getattr(hero, section, None))
@@ -2700,7 +2696,7 @@ def _find_power(hero: "LoadedHero", power_xmlid: str, *,
         for p in hero.powers:
             x = (getattr(p, "xmlid", None) or "").upper()
             if x == target:
-                for sub in getattr(p, "sub_powers", None) or []:
+                for sub in parts_of(p):
                     sx = (getattr(sub, "xmlid", None) or "").upper()
                     if sx == slot_target:
                         return sub
@@ -2717,8 +2713,7 @@ def _find_power(hero: "LoadedHero", power_xmlid: str, *,
         x = (getattr(p, "xmlid", None) or "").upper()
         if x == target:
             return p
-        sub = getattr(p, "sub_powers", None) or []
-        queue.extend(sub)
+        queue.extend(parts_of(p))
     return None
 
 

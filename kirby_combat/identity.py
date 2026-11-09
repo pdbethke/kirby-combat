@@ -43,6 +43,7 @@ outside the fight.
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable
@@ -154,10 +155,7 @@ def _purchases(build: Any) -> Iterable[Any]:
             continue
         seen.add(id(p))
         yield p
-        for child in ("sub_powers", "objects", "powers"):
-            nested = getattr(p, child, None)
-            if isinstance(nested, list):
-                stack.extend(nested)
+        stack.extend(parts_of(p))
 
 
 def build_has_alternate_identity(build: Any) -> bool:

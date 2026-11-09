@@ -47,6 +47,7 @@ perceived iff an offer the perception gate keeps names him.
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -276,7 +277,7 @@ def power_names(combatant) -> list[str]:
             if n and n.lower() not in seen:
                 seen.add(n.lower())
                 names.append(n)
-            walk(getattr(p, "sub_powers", None))
+            walk(parts_of(p))
 
     walk(getattr(getattr(combatant, "hero", None), "powers", None))
     return names
@@ -302,7 +303,7 @@ def _walk_powers(combatant):
                 continue
             seen.add(id(p))
             yield p
-            yield from walk(getattr(p, "sub_powers", None))
+            yield from walk(parts_of(p))
 
     yield from walk(getattr(getattr(combatant, "hero", None), "powers", None))
 

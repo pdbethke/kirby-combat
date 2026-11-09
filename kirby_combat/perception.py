@@ -5,6 +5,7 @@ for line-of-sight, per-Sense-Group Invisibility, Stealth, and Mind Scan.
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 import math
 from dataclasses import dataclass, field
 
@@ -85,7 +86,7 @@ def _sense_capabilities(hero) -> list["SenseCapability"]:
                     penetrative=("penetrative" in blob),
                     mental=(x in _MENTAL_SENSE_XMLIDS),
                 ))
-            _walk(getattr(p, "sub_powers", None))
+            _walk(parts_of(p))
 
     _walk(getattr(hero, "powers", None))
     return out
