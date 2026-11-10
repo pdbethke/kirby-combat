@@ -10,6 +10,10 @@
 
 - **Penetrating follows 6E1 p.344.** The minimum is one point per Normal Damage BODY on the dice rolled (0 for a 1, 2 for a 6), on a Normal attack's STUN and a Killing attack's BODY, never with an AVAD, and applied after Damage Reduction, which cannot reduce it (p.186, p.188). It was one BODY per die on every attack, before Damage Reduction. `resolution.penetrating.penetrating_minimum` (`PenetratingMinimum`, `normal_body_on`) replaces `penetrating_floor`.
 
+- **`kirby_combat.odds`: what an attack is worth before it is rolled.** `chance_to_hit`, `expected_burst_hits`, `average_through` (`Through`: mean STUN and BODY through his defences), `expected` (`Expected`: chance, hits, STUN, BODY; Autofire per hit), `expected_area`, `block_chance`, and the dice (`sum_pmf`, `chance_of_rolling`, `damage_rolls`). Lifted from kirby-ai's EV seat, which assembled its own damage step and missed the Penetrating minimum. Every damage roll is a real roll through the attack door's own step, proven equal to brute force over all 6^n rolls.
+- **`resolution.damage_taken`**: the attack door's damage step (defense, Damage Negation, damage, defences, cover, AVAD, Damage Reduction, Penetrating, halving, STUN for BODY), lifted verbatim out of `actions/base.py` so the resolver and `odds` run one function.
+- **The engine reads the fight (6E1 p.93).** At the top of his Phase the loop rolls his Tactics, else his INT Roll, once, and records `FightRead` (new event; schema changes); `PhaseSituation.fight_read` shows it to every seat. kirby-ai rolled this itself, outside the log. **Every Phase now rolls one more 3d6**, so a scripted dice sequence or a replay's dice stream shifts by one roll per Phase.
+
 **Behaviour change:** characters with such powers now use them. A fight recorded before 0.33.0 replays unchanged (the new offers were never chosen in it).
 
 ## 0.32.1 — 2026-11-09

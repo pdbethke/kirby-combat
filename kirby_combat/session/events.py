@@ -807,6 +807,32 @@ class RageRolled(BaseEvent):
 
 
 @dataclass
+class FightRead(BaseEvent):
+    """His roll to read the fight, made at the top of his Phase (6E1 p.93).
+
+    Tactics: "If the roll succeeds, the GM should give the player hints
+    about what his opponent intends to do next, and ways the character
+    could counteract his foe's maneuvers. A failed Tactics roll usually
+    means the character can't think of a way to beat the enemy, but it may
+    mean an incorrect tactic." A man without Tactics reads it on his INT
+    Roll (RULING, ported from the deleted api driver's soft trigger: Tactics
+    is a bonus to reading a fight, not a gate). ``skill`` is ``"TACTICS"``
+    or ``"INT"``; ``made_by`` is the margin (negative on a miss). Rolled by
+    the engine so every seat reads the same roll and the log holds it
+    (`kirby_combat.fight_reading`).
+    """
+    kind: Literal["FightRead"] = field(default="FightRead", init=False)
+    combatant_id: str = ""
+    skill: str = ""
+    roll: int = 0
+    target_number: int = 0
+    made: bool = False
+    made_by: int = 0
+    turn: int = 0
+    segment: int = 0
+
+
+@dataclass
 class SelfDestructRolled(BaseEvent):
     """The INT Roll a man makes at the top of his Phase to judge that his
     squad is lost (`kirby_combat/self_destruct.py`).
@@ -1137,6 +1163,7 @@ CombatEvent = (
     | EnduranceReserveChanged
     | RageRolled
     | SelfDestructRolled
+    | FightRead
     | RageTargeted
     | LingeringAttackApplied
     | LingeringAttackEnded

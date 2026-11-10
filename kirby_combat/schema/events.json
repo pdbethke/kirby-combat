@@ -1734,6 +1734,84 @@
       "title": "EventAuthor",
       "type": "object"
     },
+    "FightRead": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "FightRead",
+          "enum": [
+            "FightRead"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "FightRead",
+          "enum": [
+            "FightRead"
+          ],
+          "type": "string"
+        },
+        "made": {
+          "type": "boolean"
+        },
+        "made_by": {
+          "type": "integer"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "skill": {
+          "type": "string"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "skill",
+        "roll",
+        "target_number",
+        "made",
+        "made_by",
+        "turn",
+        "segment"
+      ],
+      "title": "FightRead",
+      "type": "object"
+    },
     "FlashApplied": {
       "additionalProperties": false,
       "properties": {
@@ -4731,6 +4809,9 @@
     },
     {
       "$ref": "#/$defs/EnvironmentalTriggered"
+    },
+    {
+      "$ref": "#/$defs/FightRead"
     },
     {
       "$ref": "#/$defs/FlashApplied"

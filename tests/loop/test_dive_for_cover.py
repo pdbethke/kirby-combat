@@ -206,10 +206,11 @@ def test_failed_dive_leaves_him_in_the_air_dcv_unchanged():
     before = knockback_dice_for(enc.sessions[0], attack, TEMPLATE,
                                 rolled_with_punch=False)
     # The Segment's acting order rolls one 3d6 tie-break per man first
-    # (`resolve_acting_order`); the fifth roll is the dive's DEX Roll.
+    # (`resolve_acting_order`), then the attacker's read of the fight (6E1
+    # p.93, `fight_reading`); the sixth roll is the dive's DEX Roll.
     ties = [[3, 3, 3]] * 4
     result = run_phase(enc, Picks(_b_dives),
-                       roller=Dice(face=3, queue=ties + [[6, 6, 6]]),
+                       roller=Dice(face=3, queue=ties + [[3, 3, 3], [6, 6, 6]]),
                        on_unresolvable="raise")
     s = result.session
     [dive] = _dived(s, "b")

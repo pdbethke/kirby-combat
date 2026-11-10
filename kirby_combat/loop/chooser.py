@@ -191,6 +191,17 @@ class PhaseSituation:
         return orders_for(self.session, str(self.actor.id))
 
     @property
+    def fight_read(self):
+        """His read of the fight this Phase (`fight_reading.FightRead`, 6E1
+        p.93), rolled by the engine at the top of the Phase; None out of
+        turn, or with no fight behind the situation."""
+        if self.session is None or self.out_of_turn is not None:
+            return None
+        from kirby_combat.fight_reading import fight_read
+
+        return fight_read(self.session, str(self.actor.id))
+
+    @property
     def action_ids(self) -> list[str]:
         return [a.action_id for a in self.menu]
 
