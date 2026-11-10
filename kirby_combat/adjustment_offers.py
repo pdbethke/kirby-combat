@@ -26,11 +26,14 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from kirby_combat.actions.adjust import (
-    healing_targets, is_ranged, power_action_suffix, range_m,
+    CHOICE_SUFFIX, healing_targets, is_ranged, power_action_suffix, range_m,
 )
-from kirby_combat.adjustments import characteristic_targets, effect_dice, power_targets_on
+from kirby_combat.adjustments import (
+    characteristic_choice, characteristic_targets, effect_dice, power_targets_on,
+)
 
 _EPS_M = 1e-6
+
 
 
 def _powers(actor, xmlid: str) -> list:
@@ -107,7 +110,7 @@ def adjustment_offers(
     standing_allies = [a for a in allies if not is_down(a) and a.id != actor.id]
     friends = [actor, *standing_allies]
 
-    def _offer(kind, target, power, summary, suffix=None):
+    def _offer(kind, target, power, summary, suffix=None, choice=None):
         action_id = _power_action_id(kind, target.id, power)
         if suffix:
             action_id = f"{action_id}:{suffix}"
@@ -116,8 +119,25 @@ def adjustment_offers(
             power_xmlid=power.xmlid,
             power_name=getattr(power, "name", None) or power.xmlid.title(),
             summary=summary + limitation_label(actor, power),
-            _attack_view=power,
+            _attack_view=power, choice=choice,
         ))
+
+    def _choosing(kind, target, power, verb, who, tail) -> bool:
+        """A Variable Effect power (6E1 p.144-145): ONE offer that carries
+        the choice, the seat names the characteristics. True when offered."""
+        choice = characteristic_choice(power)
+        if choice is None:
+            return False
+        example = choice.answer(choice.domain[:choice.count])
+        _offer(kind, target, power,
+               f"{verb} {who}'s {choice.count} Characteristic"
+               f"{'s' if choice.count > 1 else ''} OF YOUR CHOICE, each at full "
+               f"effect ({_dice_text(power)} Character Points{tail}; Variable "
+               f"Effect, 6E1 p144). Answer with this id plus the "
+               f"characteristics, e.g. <id>{example}; choose from "
+               f"{', '.join(choice.domain)}",
+               suffix=CHOICE_SUFFIX, choice=choice)
+        return True
 
     for ap in _powers(actor, "AID"):
         chars = characteristic_targets(ap)
@@ -125,6 +145,10 @@ def adjustment_offers(
             if not _in_range(actor, friend, ap, scene, distances):
                 continue
             who = "yourself" if friend.id == actor.id else _friendly(friend)
+            if chars is None and _choosing(
+                    "aid", friend, ap, "AID", who,
+                    "; half effect on a defence; fades 5 points a Turn"):
+                continue
             if chars is not None:
                 named = ", ".join(c.xmlid for c in chars)
                 _offer("aid", friend, ap,
@@ -157,6 +181,11 @@ def adjustment_offers(
         chars = characteristic_targets(ap)
         for enemy in enemies:
             if is_down(enemy) or not _in_range(actor, enemy, ap, scene, distances):
+                continue
+            if chars is None and _choosing(
+                    "drain", enemy, ap, "DRAIN", _friendly(enemy),
+                    " less his Power Defense, on an Attack Roll; half effect on "
+                    "a defence; returns 5 a Turn"):
                 continue
             if chars is not None:
                 named = ", ".join(c.xmlid for c in chars)

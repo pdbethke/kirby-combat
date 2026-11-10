@@ -418,6 +418,13 @@ class LegalAction:
     # ``push_move_metres`` — never a constant.
     push_move_m: float = 0.0
     push_end: int = 0
+    # A choice the SEAT completes (`adjustments.CharacteristicChoice`): a
+    # Variable Effect Drain or Aid picks which characteristics each use
+    # affects (6E1 p.144-145). The offer stands for every legal pick, and the
+    # seat answers ``<action_id>=A+B``; `loop.chooser.validate_choice` holds
+    # the answer to the rule. The bare id is NOT an answer. None for every
+    # offer that is complete as offered.
+    choice: Any = None
     # Climbing: the wall this climb is against. None for every other kind.
     climb_wall_id: str | None = None
     # Sweep / Multiple Attack: the enemies this offer names, in shot order.

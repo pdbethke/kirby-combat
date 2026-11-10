@@ -49,9 +49,13 @@ if TYPE_CHECKING:
 class InvalidChoice(Exception):
     """A chooser returned an ``action_id`` that was not on the menu."""
 
-    def __init__(self, action_id: str, offered: list[str]) -> None:
+    def __init__(self, action_id: str, offered: list[str], *, note: str = "") -> None:
         self.action_id = action_id
         self.offered = offered
+        self.note = note
+        if note:
+            super().__init__(f"chooser returned {action_id!r}, which {note}")
+            return
         super().__init__(
             f"chooser returned {action_id!r}, which was not offered; "
             f"the menu held {len(offered)} actions: {offered[:8]}"
@@ -345,7 +349,12 @@ class FirstLegalChooser:
             raise InvalidChoice("<empty menu>", [])
         # `ordered_menu`, not `menu`: taking the first LEGAL offer must not
         # mean taking the first BUILDING. See `PhaseSituation.ordered_menu`.
-        return situation.ordered_menu[0].action_id
+        first = situation.ordered_menu[0]
+        if first.choice is not None:
+            # The first legal ANSWER: the first names it may pick, in sheet
+            # order. Not a tactic, like the rest of this seat.
+            return complete_choice(first, first.choice.domain[:first.choice.count])
+        return first.action_id
 
 
 @dataclass
@@ -501,5 +510,48 @@ def validate_choice(action_id: str, menu: list[LegalAction]) -> LegalAction:
     """
     for action in menu:
         if action.action_id == action_id:
+            if action.choice is not None:
+                raise InvalidChoice(
+                    action_id, [a.action_id for a in menu],
+                    note=f"the offer names no choice; answer {action_id}"
+                         f"{action.choice.answer(action.choice.domain[:action.choice.count])}"
+                         f" naming {action.choice.count} of {', '.join(action.choice.domain)}")
             return action
+    completed = completion_of(action_id, menu)
+    if completed is not None:
+        return completed
     raise InvalidChoice(action_id, [a.action_id for a in menu])
+
+
+def completion_of(action_id: str, menu: list[LegalAction]) -> LegalAction | None:
+    """The offer ``action_id`` completes, with the answer in its id, or None
+    when it completes none. An answer that completes an offer but breaks the
+    rule (too many, a duplicate, one the power cannot reach) raises
+    ``InvalidChoice`` saying which --- it is not "off the menu", it is wrong.
+
+    6E1 p.144: a Variable Effect power's user names what each use affects;
+    the offer carries what he may name (`LegalAction.choice`).
+    """
+    from dataclasses import replace
+
+    base, sep, tail = action_id.rpartition("=")
+    if not sep:
+        return None
+    for offer in menu:
+        if offer.choice is None or offer.action_id != base:
+            continue
+        try:
+            offer.choice.parse(tail)
+        except ValueError as exc:
+            raise InvalidChoice(action_id, [a.action_id for a in menu],
+                                note=str(exc)) from exc
+        return replace(offer, action_id=action_id)
+    return None
+
+
+def complete_choice(offer: LegalAction, picked) -> str:
+    """The answer that takes ``offer`` with ``picked`` named --- the one way
+    a seat writes it, so no seat spells the grammar itself."""
+    if offer.choice is None:
+        raise ValueError(f"{offer.action_id!r} carries no choice to complete")
+    return offer.action_id + offer.choice.answer(picked)

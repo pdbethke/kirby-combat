@@ -30,13 +30,18 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from kirby_combat.adjustments import (
-    AdjustedCharacteristic, AdjustedPower, characteristic_targets, cost_per_die,
+    AdjustedCharacteristic, AdjustedPower, characteristic_choice, characteristic_targets,
+    cost_per_die,
     cost_per_point, expendable_vital, halved_for, live_adjustments,
     maximum_effect, points_for, power_targets_on, roll_effect,
 )
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
+
+#: The tail on a Variable Effect offer's id; the seat's answer appends the
+#: characteristics: ``<offer id>=CON+STUN`` (`adjustments.CharacteristicChoice`).
+CHOICE_SUFFIX = "chars"
 
 
 AID = "aid"
@@ -62,6 +67,15 @@ def targets_for(action, power, target) -> tuple:
     if chars is not None:
         return chars
     tail = action.action_id.rsplit(":", 1)[-1]
+    if tail.startswith(CHOICE_SUFFIX + "="):
+        # A Variable Effect answer (6E1 p.144): the characteristics the seat
+        # named, held to the power's choice again here --- a resolver does
+        # not trust an id it did not see validated.
+        choice = characteristic_choice(power)
+        if choice is None:
+            raise ValueError(f"{action.action_id!r} names a choice "
+                             f"{getattr(power, 'name', power)!r} does not offer")
+        return choice.parse(tail[len(CHOICE_SUFFIX) + 1:])
     if tail.startswith("power="):
         wanted = tail[len("power="):]
         for candidate in power_targets_on(power, target):
