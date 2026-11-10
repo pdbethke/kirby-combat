@@ -265,3 +265,88 @@ def block_chance(defender: Any, attacker: Any) -> float:
     return sum(p for total, p in sum_pmf(3) if Block.resolve(
         blocker_ocv=blocker, blocker_dice=dice_totalling(3, total),
         attacker_ocv=attacker_ocv).success)
+
+
+# ---------------------------------------------------------------------------
+# Stunning (6E2 p.106) and Coordinated Attacks (6E2 p.46)
+# ---------------------------------------------------------------------------
+
+def stun_through_pmf(power: Any, target: Any, template: Any) -> tuple[tuple[int, float], ...]:
+    """The distribution of STUN one hit gets through, as (stun, p), by the
+    attack door's own damage step (`damage_taken`), over every roll."""
+    from kirby_combat.models import DiceValues
+    from kirby_combat.resolution.damage_taken import damage_taken
+
+    whole = int(getattr(power, "damage_dice", 0) or 0)
+    half = bool(getattr(power, "half_die", False))
+    if whole <= 0 and not half:
+        return ((0, 1.0),)
+    killing = getattr(power, "damage_type", "") == "killing"
+    half_faces = _FACES if half else (None,)
+    mult_faces = (_FACES if killing
+                  and getattr(template, "killing_stun_mult_fixed", None) is None
+                  else (None,))
+    each = 1.0 / (len(half_faces) * len(mult_faces))
+    pmf: dict[int, float] = {}
+    for roll, p in damage_rolls(whole):
+        for h in half_faces:
+            faces = list(roll) + ([h] if h is not None else [])
+            for m in mult_faces:
+                stun = damage_taken(power, target, DiceValues(
+                    damage=faces, stun_multiplier=[m] if m is not None else []),
+                    template).stun
+                pmf[stun] = pmf.get(stun, 0.0) + p * each
+    return tuple(sorted(pmf.items()))
+
+
+def _convolve(a: dict[int, float], b: tuple[tuple[int, float], ...]) -> dict[int, float]:
+    out: dict[int, float] = {}
+    for x, p in a.items():
+        for y, q in b:
+            out[x + y] = out.get(x + y, 0.0) + p * q
+    return out
+
+
+def chance_to_stun(attacker: Any, target: Any, power: Any, *, con: int,
+                   shots: int = 1, coordinated: bool = False,
+                   already_pooled: int = 0, distance_m: float | None = None,
+                   template: Any, dcv_modifier: int = 0,
+                   ocv_modifier: int = 0) -> float:
+    """P(this attack leaves him Stunned), before it is rolled.
+
+    6E2 p.106: Stunned when the STUN one attack does after defences
+    "exceeds his CON" (strictly greater, as `determine_status_changes`
+    reads it). An Autofire hit is its own attack (6E2 p.44), so on its own a
+    burst Stuns if any one hit does. COORDINATED (6E2 p.46) the strike is
+    one attack: the STUN of every hit is added to what the window has
+    already dealt him this Segment (``already_pooled``, the engine's
+    `coordination.pooled_stun`) and the total is checked against CON ---
+    the way the engine folds it. This is what makes several Penetrating or
+    Armor Piercing attacks, each short of his CON, Stun a man together.
+    """
+    from kirby_combat.actions.autofire import burst_hits_on
+
+    per_hit = stun_through_pmf(power, target, template)
+    # Summed directly, not as 1 - P(<= CON): a roll that can never get past
+    # CON is exactly 0, not 1 - 0.999...
+    over_con = sum(p for s, p in per_hit if s > con)
+    pooled_by_hits: dict[int, dict[int, float]] = {0: {0: 1.0}}
+
+    def pooled(k: int) -> dict[int, float]:
+        if k not in pooled_by_hits:
+            pooled_by_hits[k] = _convolve(pooled(k - 1), per_hit)
+        return pooled_by_hits[k]
+
+    total = 0.0
+    for weight, result in to_hit_by_roll(
+            attacker, target, power, distance_m=distance_m, template=template,
+            dcv_modifier=dcv_modifier, ocv_modifier=ocv_modifier):
+        hits = burst_hits_on(result, shots) if shots > 1 else (1 if result.hit else 0)
+        if hits <= 0:
+            continue
+        if coordinated:
+            p = sum(q for s, q in pooled(hits).items() if already_pooled + s > con)
+        else:
+            p = 0.0 if over_con <= 0.0 else 1.0 - (1.0 - over_con) ** hits
+        total += weight * p
+    return total

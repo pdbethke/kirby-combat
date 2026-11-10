@@ -98,3 +98,40 @@ def test_more_shots_land_more_hits_on_an_easy_man():
     one = odds.expected(me, him, _gun(4), shots=1, distance_m=5.0, template=TEMPLATE)
     five = odds.expected(me, him, _gun(4), shots=5, distance_m=5.0, template=TEMPLATE)
     assert five.hits > 1.5 * one.hits and five.stun > 1.5 * one.stun
+
+
+def test_one_hit_stuns_when_what_gets_through_beats_his_con():
+    """P(stun) of one shot = P(hit) x P(STUN through > CON), by the
+    distribution `stun_through_pmf`, which agrees with the brute force."""
+    me, him, gun = _man(), _man(ed=0, dcv=0), _gun(3)
+    pmf = dict(odds.stun_through_pmf(gun, him, TEMPLATE))
+    assert sum(pmf.values()) == pytest.approx(1.0)
+    p_hit = odds.chance_to_hit(me, him, gun, distance_m=2.0, template=TEMPLATE)
+    want = p_hit * sum(p for s, p in pmf.items() if s > 12)
+    got = odds.chance_to_stun(me, him, gun, con=12, distance_m=2.0, template=TEMPLATE)
+    assert got == pytest.approx(want)
+
+
+def test_penetrating_blasts_pooled_in_a_coordinated_strike_stun_a_hard_man():
+    """6E2 p.46 with 6E1 p.344: a 12d6 Penetrating Blast against ED 200
+    puts only its minimum through (about 12 STUN), never past CON 25 alone;
+    joined to a window that has already pooled 20, it nearly always does."""
+    me, him, blast = _man(), _man(ed=200, dcv=0), _gun(12, pen=1)
+    alone = odds.chance_to_stun(me, him, blast, con=25, distance_m=2.0,
+                                template=TEMPLATE)
+    joined = odds.chance_to_stun(me, him, blast, con=25, coordinated=True,
+                                 already_pooled=20, distance_m=2.0,
+                                 template=TEMPLATE)
+    assert alone == 0.0
+    assert joined > 0.9
+
+
+def test_a_coordinated_burst_pools_every_hit():
+    """Coordinated, a burst's hits add up; alone, each hit is checked on its
+    own (6E2 p.44, p.46)."""
+    me, him, gun = _man(), _man(ed=10, dcv=0), _gun(6)
+    alone = odds.chance_to_stun(me, him, gun, con=20, shots=5, distance_m=2.0,
+                                template=TEMPLATE)
+    pooled = odds.chance_to_stun(me, him, gun, con=20, shots=5, coordinated=True,
+                                 distance_m=2.0, template=TEMPLATE)
+    assert pooled > alone
