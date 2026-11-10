@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.32.1 — 2026-11-09
+
+**Anything bought inside a Compound Power reaches combat.** Requires **kirby-cost >= 0.6.5** (Compound parts keep their ids through the build doc).
+
+- kirby-cost keeps a purchase's parts in three lists: a framework's slots in `sub_powers`, a List's contents in `objects`, a Compound Power's parts in `powers`. Nine walks read one list, so a Compound Power's attacks, defences, senses and mental powers were invisible, and `_find` could not resolve a chosen part. The corpus Agent of UNTIL and Agent of VIPER carry their blasters that way and fought unarmed; 353 local characters carry a Compound Power. `kirby_combat.parts.parts_of` (and `PART_LISTS`) is now the one place that knows the three lists, and a ratchet test fails on any new single-list walk.
+- `actions.autofire.burst_hits_on(to_hit, shots)`: 6E2 p.44's Autofire count read off a `ToHitResult`, including 6E2 p.37's natural 3. The burst resolver delegates to it; kirby-ai's EV seat reads it to price a burst.
+
+**Behaviour change:** characters with Compound Power attacks now attack with them, and their Compound Power defences now defend. A replay of a fight recorded before 0.32.1 rebuilds those characters with the extra powers.
+
 ## 0.32.0 — 2026-11-02
 
 **Squad tactics: a man reads what can hurt him, where cover is, and his squad leader's orders** (squad tactics spec `kirby/docs/superpowers/specs/2026-11-02-squad-tactics-design.md`). Requires **kirby-world >= 0.2.0** and **kirby-terrain >= 0.4.0**. Worked example: `examples/a_squad_takes_cover.py`.

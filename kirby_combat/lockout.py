@@ -38,6 +38,7 @@ against. Such a slot locks nothing beyond the Segment it fires in.
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -61,7 +62,7 @@ def _lockout_ids(actor) -> frozenset[str]:
     stack = list(getattr(getattr(actor, "hero", None), "powers", None) or [])
     while stack:
         power = stack.pop()
-        stack.extend(getattr(power, "sub_powers", None) or [])
+        stack.extend(parts_of(power))
         if getattr(power, "id", None) and _has_modifier(power, "LOCKOUT"):
             ids.add(str(power.id))
     return frozenset(ids)

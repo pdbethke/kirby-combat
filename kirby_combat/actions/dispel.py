@@ -47,6 +47,7 @@ NOT BUILT, so not offered:
 """
 from __future__ import annotations
 
+from kirby_combat.parts import PART_LISTS
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -126,7 +127,7 @@ class _PurchaseWithPartsOff:
         return getattr(self.original, name)
 
 
-_PART_LISTS = ("sub_powers", "objects", "powers")
+_PART_LISTS = PART_LISTS
 
 
 def _without(items, off: frozenset[str]):

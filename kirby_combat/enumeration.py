@@ -19,6 +19,7 @@ The caller drives resolution by passing the chosen LegalAction's
 """
 from __future__ import annotations
 
+from kirby_combat.parts import parts_of
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -282,7 +283,7 @@ def source_power_of(actor: Any, view: Any):
             seen.add(id(pw))
             if str(getattr(pw, "id", "")) == target:
                 return pw
-            found = _find(getattr(pw, "sub_powers", None))
+            found = _find(parts_of(pw))
             if found is not None:
                 return found
         return None
@@ -1195,7 +1196,7 @@ def enumerate_actions(
                 seen.add(id(pw))
                 if str(getattr(pw, "id", "")) == target:
                     return pw
-                found = _find(getattr(pw, "sub_powers", None))
+                found = _find(parts_of(pw))
                 if found is not None:
                     return found
             return None

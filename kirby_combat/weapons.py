@@ -44,6 +44,7 @@ Draw's Zero Phase pick-up (6E2 p.62); a weapon flying into or through a wall
 (it lands on the line of the blow, inside the map's bounds).
 """
 from __future__ import annotations
+from kirby_combat.parts import parts_of
 
 import uuid
 from dataclasses import dataclass
@@ -114,12 +115,7 @@ def _focus_of(purchase) -> str | None:
 
 
 def _children(purchase) -> list:
-    out: list = []
-    for attr in ("sub_powers", "objects", "powers"):
-        nested = getattr(purchase, attr, None)
-        if isinstance(nested, list):
-            out.extend(nested)
-    return out
+    return parts_of(purchase)
 
 
 def _ids_under(purchase) -> frozenset[str]:

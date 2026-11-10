@@ -127,13 +127,10 @@ def _burst_roll(session, attack, template):
 
 
 def _hits(to_hit, shots: int) -> int:
-    """6E2 p.44's count. A roll that hits on a 3 (6E2 p.37) with a negative
-    margin still hits once."""
-    from kirby_combat.actions.autofire import burst_hits
+    """6E2 p.44's count; the rule lives in `actions.autofire.burst_hits_on`."""
+    from kirby_combat.actions.autofire import burst_hits_on
 
-    if not to_hit.hit:
-        return 0
-    return burst_hits(max(0, int(to_hit.margin)), shots)
+    return burst_hits_on(to_hit, shots)
 
 
 def _failed_activation(session, attack, activated, template, roller, kind):
