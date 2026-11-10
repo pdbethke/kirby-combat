@@ -61,7 +61,7 @@ def test_the_half_die_maps_to_one_two_or_three():
 def test_a_fight_rolls_the_multiplier():
     """Through the loop, not through a hand-built DiceValues. A killing
     attack that never varies its multiplier is the bug."""
-    import kirby_combat.actions.base as base
+    import kirby_combat.resolution.damage_taken as base   # where the attack door calls it
 
     seen: Counter[int] = Counter()
     original = base.compute_damage
