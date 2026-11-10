@@ -94,6 +94,8 @@ class Lingering:
     doses: int
     increments_remaining: int | None
     ended: bool
+    #: What a Damage Over Time Drain drains each increment; () for an attack.
+    adjusts: tuple[str, ...] = ()
 
 
 def absolute_segment(turn: int, segment: int) -> int:
@@ -120,6 +122,7 @@ def lingering_effects(session: "CombatSession") -> list[Lingering]:
                 "applied_seq": event.sequence,
                 "doses": 0, "increments_remaining": event.increments,
                 "ended": False,
+                "adjusts": tuple(getattr(event, "adjusts", None) or ()),
             }
             order.append(event.id)
         elif kind == "ActionResolved":
@@ -152,17 +155,34 @@ def locked_out(session, attacker_id: str, power, target_id: str) -> bool:
     """6E1 p.332's Lock Out: "one use of the Damage Over Time attack 'locks
     out' the attack for further use on that target until the first use
     stops affecting him"."""
-    dot = getattr(power, "damage_over_time", None)
+    dot = _dot_of(power)
     if dot is None or not dot.lockout:
         return False
-    source = str(getattr(power, "source_id", "") or "")
+    source = _source_of(power)
     return any(e.power_source_id == source for e in active_lingering(
         session, attacker_id=attacker_id, target_id=target_id,
         mode=LingeringMode.DAMAGE_OVER_TIME))
 
 
+def _dot_of(power):
+    """The Damage Over Time on an attack view (`models.AttackPower` carries
+    it) or on a build's own power (a Drain's offer carries the build power,
+    which does not, so it is read off the build)."""
+    if hasattr(power, "damage_over_time"):
+        return power.damage_over_time
+    from kirby_combat.power_modifiers import damage_over_time_of
+
+    return damage_over_time_of(power)
+
+
+def _source_of(power) -> str:
+    """The power's identity: an attack view's ``source_id``, a build
+    power's ``id``."""
+    return str(getattr(power, "source_id", None) or getattr(power, "id", "") or "")
+
+
 def mode_of(power) -> LingeringMode | None:
-    if getattr(power, "damage_over_time", None) is not None:
+    if _dot_of(power) is not None:
         return LingeringMode.DAMAGE_OVER_TIME
     if getattr(power, "constant", False):
         return LingeringMode.CONSTANT
@@ -190,7 +210,8 @@ def _end(session, lingering_id: str, reason: LingeringEnd):
     ))
 
 
-def begin_lingering(session, *, attacker_id: str, target_id: str, power):
+def begin_lingering(session, *, attacker_id: str, target_id: str, power,
+                    adjusts: tuple[str, ...] = ()):
     """Record that a Constant or Damage Over Time attack has hit.
 
     A Constant power used again is a SECOND maintained effect, not a
@@ -207,12 +228,12 @@ def begin_lingering(session, *, attacker_id: str, target_id: str, power):
     if mode is None:
         raise ValueError(f"power {getattr(power, 'name', '?')!r} neither "
                          "Constant nor Damage Over Time")
-    source = str(getattr(power, "source_id", "") or "")
+    source = _source_of(power)
     if not source:
         raise ValueError(
             f"lingering power {getattr(power, 'name', '?')!r} has no "
             "source_id; a later dose has to find the power again by its id")
-    dot = getattr(power, "damage_over_time", None)
+    dot = _dot_of(power)
     return _apply(session, LingeringAttackApplied(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,
@@ -225,6 +246,7 @@ def begin_lingering(session, *, attacker_id: str, target_id: str, power):
         interval_segments=dot.interval_segments if dot is not None else None,
         applied_turn=session.timeline.turn,
         applied_segment=session.timeline.segment,
+        adjusts=list(adjusts),
     ))
 
 
@@ -237,6 +259,11 @@ def _power_of(session, effect: Lingering):
     for ap in attacks or []:
         if str(getattr(ap, "source_id", "") or "") == effect.power_source_id:
             return ap
+    if effect.adjusts:
+        # A Damage Over Time Drain: the build's own power, by its id.
+        from kirby_combat.actions.adjust import adjustment_power_by_id
+
+        return adjustment_power_by_id(attacker, effect.power_source_id)
     return None
 
 
@@ -485,6 +512,12 @@ def fire_due_doses(session, *, template, roller):
                 break
             remaining -= 1
             given += 1
+            if effect.adjusts:
+                from kirby_combat.actions.adjust import drain_dose
+
+                session = drain_dose(session, effect, power, roller=roller,
+                                     increments_remaining=remaining)
+                continue
             session = _dose(session, effect, power, template=template,
                             roller=roller, increments_remaining=remaining)
         if remaining <= 0:

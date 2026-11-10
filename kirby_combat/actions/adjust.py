@@ -314,6 +314,21 @@ def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template
                        target_number=to_hit.target_number)
         if not to_hit.hit:
             return _record(session, actor, action, payload), payload
+        dot = _damage_over_time(power)
+        if dot is not None:
+            # 6E1 p.331: "the first increment of damage affects the target
+            # one time period after the character uses the attack". The use
+            # is the Attack Roll; each increment is a Drain of its own,
+            # dosed on the clock by `lingering.fire_due_doses`.
+            from kirby_combat.lingering import begin_lingering
+
+            payload.update(damage_over_time=True, increments=dot.increments,
+                           interval_segments=dot.interval_segments)
+            session = _record(session, actor, action, dict(payload))
+            session = begin_lingering(session, attacker_id=actor.id,
+                                      target_id=target.id, power=power,
+                                      adjusts=tuple(a.stat for a in adjusted))
+            return session, payload
     else:
         # 6E1 p.169: "If the target's willing to be affected by the Aid,
         # including when the character uses his Aid on himself, the Attack
@@ -360,6 +375,104 @@ def resolve_aid_or_drain(session, actor, action, *, which: str, roller, template
                 fade_interval_turns=fade_interval_turns(power),
             )
     return session, payload
+
+
+def _damage_over_time(power):
+    from kirby_combat.power_modifiers import damage_over_time_of
+
+    return damage_over_time_of(power)
+
+
+def adjustment_power_by_id(combatant, source_id: str):
+    """The Adjustment Power on his build with this id, or None: what a
+    Damage Over Time Drain's later increments are rolled from."""
+    from kirby_combat.identity import build_in_play
+    from kirby_combat.parts import parts_of
+
+    stack = list(build_in_play(combatant).powers or [])
+    while stack:
+        p = stack.pop()
+        if str(getattr(p, "id", "") or "") == str(source_id):
+            return p
+        stack.extend(parts_of(p))
+    return None
+
+
+def _element_of(stat: str):
+    from kirby_combat.adjustments import is_power_stat, power_stat_source
+
+    if is_power_stat(stat):
+        return AdjustedPower(power_stat_source(stat))
+    return AdjustedCharacteristic(stat)
+
+
+def _power_defense_spent(session, lingering_id: str) -> int:
+    """Power Defense this one Damage Over Time Drain has already used up
+    (6E1 p.331, "Target's defenses only apply once")."""
+    return sum(
+        int((e.result_payload or {}).get("power_defense_absorbed", 0) or 0)
+        for e in session.event_log
+        if e.kind == "ActionResolved"
+        and (e.result_payload or {}).get("lingering_id") == lingering_id)
+
+
+def drain_dose(session, effect, power, *, roller, increments_remaining: int):
+    """One increment of a Damage Over Time Drain (6E1 p.330-332).
+
+    Its own effect roll, no Attack Roll (the use made it), less the target's
+    Power Defense --- each increment, or, bought with "defenses only apply
+    once" (p.331), out of what is left of ONE application of it, as
+    `lingering._dose_against_one_defense` spends PD/ED for damage. Each
+    increment is a separate Adjustment and returns at its own rate (p.141).
+    """
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import ActionResolved, make_author_combatant
+
+    target = session.combatants.get(effect.target_id)
+    if target is None:
+        return session
+    dot = _damage_over_time(power)
+    rolled = roll_effect(power, roller)
+    defense = int(target.combat_stats().power_defense)
+    if dot is not None and dot.one_defense:
+        defense = max(0, defense - _power_defense_spent(session, effect.id))
+    soaked = min(rolled, defense)
+    net = rolled - soaked
+    planned = []
+    for stat in effect.adjusts:
+        element = _element_of(stat)
+        points = halved_for(element, net)
+        already = _live_cp(session, target.id, element.stat)
+        per_point = _per_point(target, element)
+        moved = points_for(already - points, per_point) - points_for(already, per_point)
+        planned.append((element, -points, moved))
+    session = apply_event(session, ActionResolved(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1, timestamp=_now(),
+        author=make_author_combatant(effect.attacker_id),
+        declaration_event_id=effect.id,
+        result_payload={
+            "kind": DRAIN, "hit": True, "target_id": target.id,
+            "power_source_id": effect.power_source_id,
+            "power_name": getattr(power, "name", None),
+            "stats": list(effect.adjusts), "rolled": rolled,
+            "power_defense": int(target.combat_stats().power_defense),
+            "power_defense_absorbed": soaked,
+            "character_points": {e.stat: cp for e, cp, _ in planned},
+            "points_moved": {e.stat: m for e, _, m in planned},
+            "lingering_id": effect.id, "lingering_mode": "damage_over_time",
+            "increments_remaining": increments_remaining,
+            "segment": session.timeline.segment,
+        },
+    ))
+    for element, signed, _ in planned:
+        if signed:
+            session, _ = apply_adjustment(
+                session, effect.attacker_id, target.id, element, signed,
+                fade_rate_per_turn=STANDARD_FADE_PER_TURN,
+                fade_interval_turns=fade_interval_turns(power),
+            )
+    return session
 
 
 # ---------------------------------------------------------------------------

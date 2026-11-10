@@ -133,11 +133,20 @@ def test_a_constant_area_flash_is_still_not_offered():
     assert not offer_is_buildable(enc.sessions[0], "a", _offer("flash", flare))
 
 
-def test_a_damage_over_time_drain_is_not_offered_as_one_drain():
-    """18 corpus Drains are Damage Over Time ("Cause Disease"). The Drain
-    resolver adjusts once; offered, it was one Drain."""
+def test_a_damage_over_time_drain_is_offered_since_it_doses_on_its_clock():
+    """18 corpus Drains are Damage Over Time ("Cause Disease"). Refused while
+    the Drain resolver adjusted once; since 0.33.0 each increment is its own
+    Drain (`actions.adjust.drain_dose`, tests/loop/test_drain_over_time.py)."""
     disease = _Power("DRAIN", "Cause Disease", 2, assigned_modifiers=[
         _Mod("DAMAGEOVERTIME", assigned_adders=[
             _Mod("INCREMENTS", option_id="4"), _Mod("TIMEBETWEEN", option_id="TURN")])])
     enc = _fight()
-    assert not offer_is_buildable(enc.sessions[0], "a", _offer("drain", disease))
+    assert offer_is_buildable(enc.sessions[0], "a", _offer("drain", disease))
+
+
+def test_a_constant_drain_is_still_not_offered():
+    """No zone or maintained effect carries an Adjustment yet."""
+    drain = _Power("DRAIN", "Sapping Touch", 2,
+                   assigned_modifiers=[_Mod("CONTINUOUS")])
+    enc = _fight()
+    assert not offer_is_buildable(enc.sessions[0], "a", _offer("drain", drain))

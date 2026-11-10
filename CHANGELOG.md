@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.0 — 2026-11-10
+
+**A disease can be caught: Variable Effect and Damage Over Time Drains reach the menu.** Found when Plague (CV3) never once used his Acute Disease (Drain "any two characteristics at once", Variable Effect, Expanded Effect x2, Damage Over Time 6 increments every 2 Segments, defenses once, Lock Out). Two separate refusals kept it off every menu.
+
+- **Variable Effect (6E1 p.144-145).** An Aid or Drain with Variable Effect bought against "Characteristics" lets its user choose which characteristics each use affects, Expanded Effect's levels saying how many at once. It is offered ONCE per target carrying the choice: new field `LegalAction.choice` (`adjustments.CharacteristicChoice`, `characteristic_choice(power)`, `ADJUSTABLE_CHARACTERISTICS`). "Any two" of 17 is 136 pairs; offering each would be a 1,000-line page. The seat answers `<offer id>=A+B`; `loop.chooser.completion_of` and `validate_choice` hold the answer to the rule (count, distinct, in the domain) and `complete_choice(offer, picked)` writes one. **The bare offer id is not an answer** and raises `InvalidChoice` (which now carries a `note`). `FirstLegalChooser` completes with the first names in sheet order. A special-effect category ("Fire Powers", "Magic") stays unbuilt: no build records a power's special effect.
+- **Damage Over Time on a Drain (6E1 p.330-332).** A one-target Damage Over Time Drain is offered (`attack_shapes.offer_is_buildable` refused every one). The use is the Attack Roll; each increment is its own Drain roll, one interval apart, less Power Defense per increment or out of one application of it with "defenses only apply once" (`actions.adjust.drain_dose`). Lock Out bars a second use on the same victim until the first has run. Increments ride the existing Damage Over Time clock (`lingering.fire_due_doses`); `LingeringAttackApplied` gains `adjusts` (the stats each increment drains), so the schema changes. A Constant or Area Damage Over Time Drain stays unoffered.
+
+**Behaviour change:** characters with such powers now use them. A fight recorded before 0.33.0 replays unchanged (the new offers were never chosen in it).
+
 ## 0.32.1 — 2026-11-09
 
 **Anything bought inside a Compound Power reaches combat.** Requires **kirby-cost >= 0.6.5** (Compound parts keep their ids through the build doc).

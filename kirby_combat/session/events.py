@@ -878,6 +878,12 @@ class LingeringAttackApplied(BaseEvent):
     interval_segments: int | None = None
     applied_turn: int = 0
     applied_segment: int = 0
+    #: A Damage Over Time DRAIN's targets (6E1 p.330 names Drain among the
+    #: Instant powers the Modifier is for): the `AdjustmentApplied.stat` of
+    #: each characteristic or power every increment drains, fixed at the use
+    #: (a Variable Effect choice is made when the power is used, 6E1 p.144).
+    #: Empty for a damage attack.
+    adjusts: list[str] = field(default_factory=list)
 
 
 @dataclass
