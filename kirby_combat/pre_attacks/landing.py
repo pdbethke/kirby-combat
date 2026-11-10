@@ -149,6 +149,59 @@ def without_spent_shouts(session: "CombatSession", actor: Any,
     return kept
 
 
+def stating_the_dice(session: "CombatSession", actor: Any,
+                     menu: list, enemies: list) -> list:
+    """The menu with every Presence Attack offer stating the dice the
+    resolver will roll at each man (`presence_dice`): PRE/5, less 1d6 in
+    combat (6E2 p.138), less 1d6 for each earlier one at him (6E2 p.140).
+
+    Enumeration has no fight to count repeats in, so it wrote PRE/5 --- a
+    die more than any Presence Attack in a fight ever rolls. Found
+    2026-11-10: Plague was offered "4d6" on every shout and rolled 3d6, then
+    2d6.
+    """
+    from dataclasses import replace
+
+    from kirby_combat.enumeration import _friendly, is_down
+    from kirby_combat.pre_attacks.in_the_phase import PRESENCE_KINDS
+
+    standing = [e for e in enemies if not is_down(e)]   # as enumeration offers it
+
+    def at(target) -> tuple[int, int]:
+        n = repeats_against(session, actor.id, target.id)
+        return presence_dice(actor, repeats=n), n
+
+    def why(n: int) -> str:
+        tail = (f", -{n}d6 for {n} earlier at him (6E2 p.140)" if n else "")
+        return f"PRE/5 less 1d6 in combat (6E2 p.138){tail}"
+
+    out = []
+    for offer in menu:
+        if offer.kind not in PRESENCE_KINDS:
+            out.append(offer)
+        elif offer.kind == "presence_attack":
+            target = session.combatants.get(offer.target_id)
+            if target is None:
+                out.append(offer)
+                continue
+            dice, n = at(target)
+            out.append(replace(offer, summary=(
+                f"Presence Attack on {_friendly(target)}: {dice}d6 vs his PRE "
+                f"({why(n)}) --- demoralize / cower instead of damage")))
+        else:
+            parts = []
+            for target in standing:
+                dice, n = at(target)
+                parts.append(f"{dice}d6 at {_friendly(target)}"
+                             + (f" ({n} earlier)" if n else ""))
+            out.append(replace(offer, summary=(
+                f"Group Presence Attack on {len(standing)} enemies: one roll, "
+                f"judged on each man's own dice --- {'; '.join(parts)} "
+                f"(PRE/5 less 1d6 in combat, 6E2 p.138; less 1d6 a man for "
+                f"each earlier at him, 6E2 p.140)")))
+    return out
+
+
 def roll_presence_attack(
     session: "CombatSession", actor: Any, targets: list, roller,
 ) -> dict[str, Any]:

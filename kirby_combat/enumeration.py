@@ -3073,13 +3073,15 @@ def enumerate_actions(
                         f"move:{enemy.id}" if is_running
                         else f"move:{mode}:{enemy.id}"
                     )
+                    # A FULL MOVE (6E2 p.26; `action_time`: "move" is
+                    # FULL). It called itself a "Half-move" that "cuts
+                    # range penalty next phase", so a shooter read it as
+                    # step-up-and-fire; the Half Move that is that offer
+                    # is `half_phase_offers.half_move_offers`.
                     summary = (
-                        f"Half-move toward {_friendly(enemy)} "
-                        f"(up to {combat_m:g}m; cuts range penalty "
-                        f"next phase)"
-                    ) if is_running else (
-                        f"{mode.title()} toward {_friendly(enemy)} "
-                        f"(up to {combat_m:g}m)"
+                        f"Full Move toward {_friendly(enemy)} "
+                        f"({mode}, up to {combat_m:g}m): the whole Phase, "
+                        f"no attack (6E2 p.26)"
                     )
                     actions.append(LegalAction(
                         action_id=aid, kind="move", target_id=enemy.id,
@@ -3161,8 +3163,9 @@ def enumerate_actions(
                     kind="move",
                     target_id=enemy.id, power_xmlid=None, power_name=None,
                     summary=(
-                        f"Half-move toward {_friendly(enemy)} "
-                        f"(up to {half_move_m}m; cuts range penalty next phase)"
+                        f"Full Move toward {_friendly(enemy)} "
+                        f"(running, up to {running_m}m): the whole Phase, "
+                        f"no attack (6E2 p.26)"
                     ),
                     mode="running",
                 ))

@@ -796,8 +796,8 @@ def reach_lines(situation: "PhaseSituation", seen: dict[str, Sighting]) -> list[
             out.append(f"{name}: {d:.1f}m{elev}; Running does not close, "
                        f"{' or '.join(reaching)} reaches him this Phase")
         else:
-            out.append(f"{name}: {d:.1f}m{elev}; none of your movement reaches "
-                       f"him this Phase")
+            out.append(f"{name}: {d:.1f}m{elev}; none of your movement brings "
+                       f"you within reach to strike him this Phase")
     return out
 
 

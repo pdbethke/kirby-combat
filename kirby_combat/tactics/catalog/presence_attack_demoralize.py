@@ -13,8 +13,10 @@ nothing at all (2026-11-10).
 
 Preconditions:
   * Actor PRE >= some enemy's PRE + 10, AND
-  * his last two Presence Attacks this fight were not both met with no
-    effect on anyone: that is evidence, and the next is 1d6 weaker.
+  * his last Presence Attack this fight did something to someone. One
+    that did nothing is evidence, and the next is 1d6 weaker (Peter,
+    2026-11-10: "if he sees a PRE attack doesnt work he's less likely to
+    redo"; it waited for two duds, and Plague shouted a third time).
 """
 from __future__ import annotations
 
@@ -37,8 +39,8 @@ class PresenceAttackDemoralize(Tactic):
 
     @staticmethod
     def _shouted_in_vain(situation: Situation) -> bool:
-        """His last two Presence Attacks this fight both did nothing to
-        anyone (`own_record.own_actions`)."""
+        """His last Presence Attack this fight did nothing to anyone
+        (`own_record.own_actions`)."""
         session = getattr(situation, "session", None)
         if session is None:
             return False
@@ -46,7 +48,7 @@ class PresenceAttackDemoralize(Tactic):
 
         shouts = [p for p in own_actions(session, str(situation.actor.id))
                   if p.get("kind") in ("presence_attack", "presence_attack_group")]
-        if len(shouts) < 2:
+        if not shouts:
             return False
 
         def nothing(p: dict) -> bool:
@@ -54,7 +56,7 @@ class PresenceAttackDemoralize(Tactic):
             tiers = set(effects.values()) if effects else {p.get("effect") or p.get("tier")}
             return tiers <= {"no_effect", None}
 
-        return all(nothing(p) for p in shouts[-2:])
+        return nothing(shouts[-1])
 
     def applicable(self, situation: Situation) -> bool:
         if self._shouted_in_vain(situation):

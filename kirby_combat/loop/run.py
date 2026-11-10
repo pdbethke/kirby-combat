@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from kirby_combat.encounter import SEGMENTS_PER_TURN
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
-from kirby_combat.pre_attacks.landing import without_spent_shouts
+from kirby_combat.pre_attacks.landing import stating_the_dice, without_spent_shouts
 from kirby_combat.framework import REALLOCATE_KIND, reallocated_this_phase
 from kirby_combat.pre_attacks.in_the_phase import (
     PRESENCE_KINDS, acted_this_phase, can_yield_to, hesitation_owed,
@@ -652,7 +652,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # raging friend back (6E1 p.424), and breaking a friend's Entangle
         # off him (6E1 p.218-219). Not to a man in an Entangle, whose menu IS
         # his escape ladder (6E1 p.217).
-        menu = (menu + half_move_offers(session, menu)
+        menu = (menu + half_move_offers(session, actor, menu)
                 + snap_out_offers(session, actor, allies)
                 + attack_entangle_offers(session, actor, allies, menu, reach_m))
     else:
@@ -676,6 +676,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # AND NONE WITH NO DICE LEFT. Each repeat at the same man is -1d6 (6E2
     # p.140); a shout down to 0d6 can affect nobody and is not offered.
     menu = without_spent_shouts(session, actor, menu, enemies)
+    menu = stating_the_dice(session, actor, menu, enemies)
     # ONE CHANGE OF IDENTITY A PHASE. After a Zero Phase change the same
     # Phase comes back to him (below, in `run_phase`), and offering the
     # change again would let him flicker in and out of costume for ever.

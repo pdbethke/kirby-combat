@@ -56,13 +56,16 @@ def _presence_situation(session):
                      enemies=[_Pre("a1", 10), _Pre("a2", 10)], session=session)
 
 
-def test_presence_attack_is_advised_until_two_have_done_nothing():
+def test_presence_attack_is_not_advised_once_his_last_did_nothing():
+    """Peter, 2026-11-10: "if he sees a PRE attack doesnt work he's less
+    likely to redo". Plague shouted, impressed them, shouted to no effect,
+    and the doctrine went on advising a third (it waited for two duds)."""
     tactic = PresenceAttackDemoralize()
     assert tactic.applicable(_presence_situation(None))
-    once = _shouts({"a1": "impressed", "a2": "impressed"}, {"a1": "no_effect", "a2": "no_effect"})
-    assert tactic.applicable(_presence_situation(once))
-    twice = _shouts({"a1": "no_effect", "a2": "no_effect"}, {"a1": "no_effect", "a2": "no_effect"})
-    assert not tactic.applicable(_presence_situation(twice))
+    worked = _shouts({"a1": "no_effect", "a2": "no_effect"}, {"a1": "impressed", "a2": "no_effect"})
+    assert tactic.applicable(_presence_situation(worked))
+    dud = _shouts({"a1": "impressed", "a2": "impressed"}, {"a1": "no_effect", "a2": "no_effect"})
+    assert not tactic.applicable(_presence_situation(dud))
 
 
 def test_the_presence_line_states_the_books_tiers():

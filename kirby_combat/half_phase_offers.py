@@ -29,25 +29,61 @@ HALF_MOVE = "half_move"
 SNAP_OUT_OF_RAGE = "snap_out_of_rage"
 
 
-def half_move_offers(session: "CombatSession",
+def half_move_offers(session: "CombatSession", actor,
                      menu: Iterable[LegalAction]) -> list[LegalAction]:
-    """A Half Move for every Full Move toward a man the menu offers."""
+    """A Half Move for every Full Move toward a man the menu offers.
+
+    EACH ONE SAYS WHAT IT BUYS A SHOOTER: where it ends and the Range
+    Modifier there against the one now (6E2 p.40), because "step up, then
+    fire" is the point of a Half Move for anyone with a ranged attack. The
+    landing is `closing_move` + `placement.landing_of`, the calls the
+    resolver moves him by, and the modifier is `tables.range_penalty`, the
+    one the to-hit roll applies, so the page cannot promise a shot the
+    engine will not give. (Found 2026-11-10: Plague went 0 for 7 at -4 OCV
+    and never closed; his Half Move offer said nothing of range.)
+    """
     out: list[LegalAction] = []
     for move in menu:
         if move.kind != "move" or move.target_id is None or move.mode is None:
             continue
         mode = move.mode
-        out.append(LegalAction(
+        offer = LegalAction(
             action_id=f"{HALF_MOVE}:{mode}:{move.target_id}",
             kind=HALF_MOVE, target_id=move.target_id,
-            power_xmlid=None, power_name=None,
-            summary=(f"Half Move toward {_friendly(session.combatants[move.target_id])} "
-                     f"({mode}, up to half "
-                     f"your movement): a Half Phase Action, your Phase goes on "
-                     f"(6E2 p.26)"),
-            mode=mode,
-        ))
+            power_xmlid=None, power_name=None, summary="", mode=mode,
+        )
+        man = session.combatants[move.target_id]
+        offer.summary = (
+            f"Half Move toward {_friendly(man)} ({mode}, up to half your "
+            f"movement){_what_it_buys(session, actor, offer)}: a Half Phase "
+            f"Action, your Phase goes on (6E2 p.26)")
+        out.append(offer)
     return out
+
+
+def _what_it_buys(session: "CombatSession", actor, offer: LegalAction) -> str:
+    """", ends 8m from him, Range Modifier 0 there, -4 now (6E2 p.40)"; empty
+    when the move cannot be asked about (he or the man is off the map)."""
+    from kirby_combat.loop.resolvers import closing_move
+    from kirby_combat.placement import landing_of
+    from kirby_combat.tables import range_penalty
+    from kirby_world.geometry import distance_3d
+    from kirby_world.occupancy import position_of
+
+    closing = closing_move(session, actor, offer)
+    here = position_of(session.scene, actor.id)
+    there = position_of(session.scene, offer.target_id)
+    if closing is None or here is None or there is None:
+        return ""
+    destination, mode, allowance = closing
+    outcome = landing_of(session, actor.id, destination,
+                         mode=mode, distance_m=allowance)
+    if outcome is None:
+        return ""
+    now = distance_3d(here, there)
+    then = distance_3d(outcome.landing, there)
+    return (f", ends {then:.0f}m from him, Range Modifier "
+            f"{range_penalty(then)} there, {range_penalty(now)} now (6E2 p.40)")
 
 
 def snap_out_offers(session: "CombatSession", actor, allies: Iterable) -> list[LegalAction]:

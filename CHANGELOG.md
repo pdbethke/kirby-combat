@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.33.1 — 2026-11-10
+
+**The menu stops overselling: a move says what it buys a shooter, and a Presence Attack the dice it rolls.** Found in a local Plague-vs-UNTIL fight: 0 hits in 7 shots at -4 OCV, never once closing, and three group Presence Attacks.
+
+- **A Half Move states where it ends and the Range Modifier there against now** ("ends 8m from him, Range Modifier 0 there, -4 now (6E2 p.40)"), from `closing_move` + `placement.landing_of` (the resolver's calls) and `tables.range_penalty` (the to-hit roll's). `half_move_offers` now takes the actor. Rerun: Plague Half Moved to close three times, citing the modifier, and won.
+- **A Full Move is called one.** The `move` offer said "Half-move ... cuts range penalty next phase"; it is a Full Move, the whole Phase, no attack (6E2 p.26).
+- **The brief's "Reaching them" says reach to strike**, so a shooter does not read "none of your movement reaches him" as "you cannot close".
+- **A Presence Attack offer states the dice the resolver rolls** (`pre_attacks.landing.stating_the_dice`): PRE/5 less 1d6 in combat (6E2 p.138), less 1d6 for each earlier one at the same man (p.140); the group offer lists each man's dice. It said PRE/5, a die more than any Presence Attack in a fight rolls.
+- **`presence_attack_demoralize` is not advised once his last Presence Attack did nothing to anyone** (it waited for two). PeterB: "if he sees a PRE attack doesnt work he's less likely to redo". The offer stays; the doctrine stops recommending it.
+
+No event shape changes.
+
 ## 0.33.0 — 2026-11-10
 
 **A disease can be caught: Variable Effect and Damage Over Time Drains reach the menu.** Found when Plague (CV3) never once used his Acute Disease (Drain "any two characteristics at once", Variable Effect, Expanded Effect x2, Damage Over Time 6 increments every 2 Segments, defenses once, Lock Out). Two separate refusals kept it off every menu.
