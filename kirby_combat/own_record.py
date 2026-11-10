@@ -52,7 +52,7 @@ def _name(session: Any, combatant_id: str | None) -> str:
     return getattr(c, "name", None) or str(combatant_id or "someone")
 
 
-def _mine(session: Any, actor_id: str) -> list[dict]:
+def own_actions(session: Any, actor_id: str) -> list[dict]:
     """His resolved actions, oldest first: ActionResolved authored by him,
     not a lingering dose (that is the power working, not his action) and
     not joining a Coordinated attack (said by the attack that follows)."""
@@ -134,7 +134,7 @@ def own_record_lines(situation: "PhaseSituation") -> list[str]:
     if session is None:
         return []
     actor_id = str(situation.actor.id)
-    mine = _mine(session, actor_id)
+    mine = own_actions(session, actor_id)
     if not mine:
         return []
     judged = page_is_judged(situation)

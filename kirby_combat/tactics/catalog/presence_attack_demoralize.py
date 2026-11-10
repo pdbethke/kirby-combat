@@ -1,19 +1,20 @@
 """Use a Presence Attack to demoralize an opponent.
 
-HERO 6E Presence Attack (6E2 p129): roll the actor's PRE total in
-d6 of effect against the target. If the result exceeds target's PRE
-(by various tiers: equal = pause, +5 = target is impressed, +10 =
-target hesitates, +20 = target is awed/cowed, +30 = target is
-frozen). Fueled by character traits: appropriate alignment, dramatic
-moment, intimidating SFX add dice.
+HERO 6E Presence Attack (6E2 p.138-139): roll PRE/5 d6 against the
+target's PRE. At least his PRE: impressed (he hesitates). PRE +10: very
+impressed (only a Half Phase next Phase). PRE +20: awed (he does not act for
+a Full Phase, ½ DCV). PRE +30: cowed (0 DCV; he may surrender or run).
+Each repeat at the same man is 1d6 less (6E2 p.140).
 
-Tactic: actor has substantial PRE (60+) and target has ordinary PRE
-or a CODE OF HONOR / OVERCONFIDENT psych-lim. Spend a phase on PRE
-attack — target's effective OCV/DCV drops next round.
+0.32 told the reader "OCV/DCV drops by 1-3", which is no tier of the book's,
+and stayed on the page after his Presence Attacks had done nothing. Plague
+made three group Presence Attacks at the same agents; the last two did
+nothing at all (2026-11-10).
 
 Preconditions:
-  * Actor PRE ≥ target.PRE + 10  AND
-  * Target doesn't have INSANITY-level psych-lim (immune)
+  * Actor PRE >= some enemy's PRE + 10, AND
+  * his last two Presence Attacks this fight were not both met with no
+    effect on anyone: that is evidence, and the next is 1d6 weaker.
 """
 from __future__ import annotations
 
@@ -27,13 +28,37 @@ class PresenceAttackDemoralize(Tactic):
     basis = Basis(mechanism="6E2 p129", judgement="a PRE attack costs no END and can end a fight without a hit")
     priority = 25
     narrative_summary = (
-        "Spend a phase on a Presence Attack to demoralize an opponent. "
-        "Target's effective OCV/DCV drops by 1-3 next round depending "
-        "on PRE differential. Best when actor has overwhelmingly higher "
-        "PRE than target."
+        "A Presence Attack rolls PRE/5 d6 against his PRE (6E2 p138): at "
+        "least his PRE he hesitates; +10 he gets only a Half Phase next "
+        "Phase; +20 he loses a Full Phase and is at half DCV; +30 he is at "
+        "0 DCV and may run or surrender. Each repeat at the same man is 1d6 "
+        "less. Worth it when your dice clearly beat their PRE."
     )
 
+    @staticmethod
+    def _shouted_in_vain(situation: Situation) -> bool:
+        """His last two Presence Attacks this fight both did nothing to
+        anyone (`own_record.own_actions`)."""
+        session = getattr(situation, "session", None)
+        if session is None:
+            return False
+        from kirby_combat.own_record import own_actions
+
+        shouts = [p for p in own_actions(session, str(situation.actor.id))
+                  if p.get("kind") in ("presence_attack", "presence_attack_group")]
+        if len(shouts) < 2:
+            return False
+
+        def nothing(p: dict) -> bool:
+            effects = p.get("effects") or {}
+            tiers = set(effects.values()) if effects else {p.get("effect") or p.get("tier")}
+            return tiers <= {"no_effect", None}
+
+        return all(nothing(p) for p in shouts[-2:])
+
     def applicable(self, situation: Situation) -> bool:
+        if self._shouted_in_vain(situation):
+            return False
         actor_pre = (situation.actor.combat_stats().pre
                      if hasattr(situation.actor, "combat_stats") else 10)
         for enemy in situation.enemies:
@@ -66,8 +91,8 @@ class PresenceAttackDemoralize(Tactic):
                 notes=(
                     f"Roll {pre_dice}d6 PRE attack vs {best_target.id} "
                     f"(target PRE {best_target.combat_stats().pre}). "
-                    f"PRE diff = +{best_diff}; tier breakdown: "
-                    f"+5 impressed, +10 hesitates, +20 cowed, +30 frozen."
+                    f"PRE diff = +{best_diff}; tiers (6E2 p138): his PRE "
+                    f"impressed, +10 very impressed, +20 awed, +30 cowed."
                 ),
                 params={"pre_dice": pre_dice,
                         "target_pre": best_target.combat_stats().pre},

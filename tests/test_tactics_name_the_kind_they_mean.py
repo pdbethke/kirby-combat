@@ -82,10 +82,43 @@ def _plans():
     --- this test is about what the steps SAY, not about coverage."""
     situation = _situation()
     for tactic in all_tactics():
-        try:
-            yield tactic, tactic.execute(situation)
-        except Exception:                                # pragma: no cover
-            continue
+        for where in (situation, _situation_with_cover()):
+            try:
+                yield tactic, tactic.execute(where)
+                break
+            except Exception:                            # pragma: no cover
+                continue
+
+
+def _situation_with_cover():
+    """The same men on a map, with a low wall between the actor and his
+    mark: `sustained_fire` plans only against a man behind cover (0.33),
+    and on the map-less situation above it would raise and silently drop
+    out of this file's parametrisation."""
+    from types import SimpleNamespace
+
+    from kirby_world.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface, Wall,
+    )
+
+    scene = Scene(
+        id="field", name="field", bounds=SceneBounds(-50.0, -50.0, 0.0, 80.0, 80.0, 20.0),
+        surfaces=[Surface(id="g", name="g",
+                          polygon_xy=[(-50, -50), (80, -50), (80, 80), (-50, 80)],
+                          elevation_m=0.0, surface_type="ground", cover_level=0)],
+        walls=[Wall(id="w", name="w",
+                    segment=(Position(9.0, -3.0, 0.0), Position(9.0, 3.0, 0.0)),
+                    height_m=1.0, blocks_los=False, blocks_movement=True,
+                    cover_level=2)],
+        hazards=[], ambient=AmbientConditions(light_level=4),
+        combatant_positions={"actor": Position(0.0, 0.0, 0.0),
+                             "ally": Position(0.0, 2.0, 0.0),
+                             "mark": Position(10.0, 0.0, 0.0),
+                             "other": Position(0.0, 20.0, 0.0)})
+    base = _situation()
+    return Situation(actor=base.actor, allies=base.allies, enemies=base.enemies,
+                     distances_m={"mark": 10.0, "other": 20.0},
+                     session=SimpleNamespace(scene=scene))
 
 
 _PLANS = list(_plans())
