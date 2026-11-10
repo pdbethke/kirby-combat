@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import replace
 from types import SimpleNamespace
 
-from conftest import fighter                             # tests/loop/conftest.py
+from conftest import fighter  # tests/loop/conftest.py
 from kirby_dice import FakeRoller, RandomRoller
 
 from kirby_combat.attack_shapes import offers_the_engine_can_keep
@@ -201,3 +201,19 @@ def _agent_with_power_defense(pd: int, dex: int = 20):
         ego=15, str_=15, con=18, pre=15, rec=6, pd=4, ed=4, rpd=2, red=2, md=3,
         power_defense=pd, flash_defense=0, max_stun=40, max_body=12, max_end=40,
         current_stun=40, current_body=12, current_end=40, side=HEROES, attacks=[])
+
+
+def test_the_offer_says_what_the_disease_does_over_time() -> None:
+    """The page offered "1d6 Character Points" and Plague, reading one roll
+    beside a 4d6 Killing Attack, never took it. The line names the power and
+    its six increments; a week-apart one says so."""
+    session = _session(_plague(), fighter("agent", side=HEROES))
+    summary = _drain(session).summary
+    assert summary.startswith("Acute Disease: ")
+    assert "6 increments of 1d6, one every 2 Segments" in summary
+    assert "Power Defense counts once" in summary and "Lock Out" in summary
+    weekly = _AcuteDisease()
+    weekly.assigned_modifiers[0].assigned_adders[1] = _adder("TIMEBETWEEN", "WEEK")
+    from kirby_combat.adjustment_offers import over_time_text
+
+    assert "one every 1 Week" in over_time_text(weekly)

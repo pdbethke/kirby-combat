@@ -44,6 +44,45 @@ def _powers(actor, xmlid: str) -> list:
             if (getattr(p, "xmlid", "") or "").upper() == xmlid]
 
 
+#: The Time Chart's steps, in Segments (6E2 p.18: a Segment is a second),
+#: largest first, for saying how far apart a Damage Over Time's increments are.
+_TIME_WORDS = ((604800, "Week"), (86400, "Day"), (3600, "Hour"),
+               (60, "Minute"), (12, "Turn"), (1, "Segment"))
+
+
+def _interval_text(segments: int) -> str:
+    for size, word in _TIME_WORDS:
+        if segments >= size and segments % size == 0:
+            n = segments // size
+            return f"{n} {word}{'s' if n != 1 else ''}"
+    return f"{segments} Segments"
+
+
+def over_time_text(power) -> str:
+    """What a Damage Over Time does, for the offer's line (6E1 p.331-332).
+
+    Without it a page offered Plague's Acute Disease as "1d6 Character
+    Points" --- one roll --- beside a 4d6 Killing Attack, and he rightly
+    never took it: the six increments that make it a disease were invisible,
+    and his week-apart Chronic Disease read the same. Empty for a power with
+    no Damage Over Time.
+    """
+    from kirby_combat.power_modifiers import damage_over_time_of
+
+    dot = damage_over_time_of(power)
+    if dot is None or dot.unbuilt:
+        return ""
+    every = _interval_text(int(dot.interval_segments))
+    text = (f". DAMAGE OVER TIME: nothing on the hit; then {dot.increments} "
+            f"increments of {_dice_text(power)}, one every {every}, the first "
+            f"{every} after it lands (6E1 p331)")
+    text += ("; his Power Defense counts once across them all" if dot.one_defense
+             else "; his Power Defense against each")
+    if dot.lockout:
+        text += "; Lock Out: no second use on him until it has run (6E1 p332)"
+    return text
+
+
 def _dice_text(power) -> str:
     full, half, pips = effect_dice(power)
     text = f"{full}{'½' if half else ''}d6"
@@ -114,11 +153,12 @@ def adjustment_offers(
         action_id = _power_action_id(kind, target.id, power)
         if suffix:
             action_id = f"{action_id}:{suffix}"
+        name = getattr(power, "name", None) or power.xmlid.title()
         out.append(LegalAction(
             action_id=action_id, kind=kind, target_id=target.id,
-            power_xmlid=power.xmlid,
-            power_name=getattr(power, "name", None) or power.xmlid.title(),
-            summary=summary + limitation_label(actor, power),
+            power_xmlid=power.xmlid, power_name=name,
+            summary=(f"{name}: {summary}{over_time_text(power)}"
+                     + limitation_label(actor, power)),
             _attack_view=power, choice=choice,
         ))
 
