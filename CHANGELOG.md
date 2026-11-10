@@ -8,6 +8,8 @@
 - **Damage Over Time on a Drain (6E1 p.330-332).** A one-target Damage Over Time Drain is offered (`attack_shapes.offer_is_buildable` refused every one). The use is the Attack Roll; each increment is its own Drain roll, one interval apart, less Power Defense per increment or out of one application of it with "defenses only apply once" (`actions.adjust.drain_dose`). Lock Out bars a second use on the same victim until the first has run. Increments ride the existing Damage Over Time clock (`lingering.fire_due_doses`); `LingeringAttackApplied` gains `adjusts` (the stats each increment drains), so the schema changes. A Constant or Area Damage Over Time Drain stays unoffered.
 - **The offer says what it does.** Aid, Drain and Healing offer lines now open with the power's name and, for a Damage Over Time power, state its increments, interval, defense and Lock Out (`adjustment_offers.over_time_text`). The page showed Plague's disease as "1d6 Character Points" beside a 4d6 Killing Attack, and his week-apart Chronic Disease read the same.
 
+- **Penetrating follows 6E1 p.344.** The minimum is one point per Normal Damage BODY on the dice rolled (0 for a 1, 2 for a 6), on a Normal attack's STUN and a Killing attack's BODY, never with an AVAD, and applied after Damage Reduction, which cannot reduce it (p.186, p.188). It was one BODY per die on every attack, before Damage Reduction. `resolution.penetrating.penetrating_minimum` (`PenetratingMinimum`, `normal_body_on`) replaces `penetrating_floor`.
+
 **Behaviour change:** characters with such powers now use them. A fight recorded before 0.33.0 replays unchanged (the new offers were never chosen in it).
 
 ## 0.32.1 — 2026-11-09

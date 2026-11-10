@@ -119,62 +119,85 @@ def test_some_defenses_hardened_and_others_not():
 
 # ---- Penetrating, and Impenetrable against it (6E1 p.149, p.188) ----
 
-def test_penetrating_floors_the_body_at_one_per_die():
-    """THE BOOK'S OWN EXAMPLE, 6E1 p.188. "if a character ... is hit by an
-    RKA 4d6, Penetrating that does 12 BODY, 36 STUN (roll of 5, 3, 2, 2),
-    and his defenses ... would reduce the BODY damage to 2 BODY, he takes
-    4 BODY - the minimum BODY damage the Penetrating attack can cause with
-    that roll." Four dice, four BODY.
+def _min(gun, target, roll):
+    from kirby_combat.resolution.penetrating import penetrating_minimum
 
-    Here the defence is heavy enough to stop the lot, which is the case
-    the floor exists for."""
-    from kirby_combat.resolution.penetrating import penetrating_floor
-
-    assert penetrating_floor(_gun(dice=4, pen=1), _target([_armour(30)])) == 4
+    return penetrating_minimum(gun, target, roll)
 
 
-def test_it_is_a_floor_and_not_a_bonus():
-    """A Penetrating attack that already gets more than its minimum
-    through does not get the minimum added on top."""
-    from kirby_combat.resolution.penetrating import penetrating_floor
-
-    floor = penetrating_floor(_gun(dice=4, pen=1), _target([_armour(0)]))
-    assert floor == 4, "the floor is the same number; the caller takes max()"
+def test_the_books_roll_gives_its_four_body():
+    """6E1 p.188: an RKA 4d6, Penetrating, rolling 5, 3, 2, 2 takes 4 BODY
+    through any defence: four Normal BODY on those dice (p.344)."""
+    out = _min(_gun(dice=4, pen=1), _target([_armour(30)]), [5, 3, 2, 2])
+    assert (out.body, out.stun) == (4, 0)
 
 
-def test_no_penetrating_no_floor():
-    from kirby_combat.resolution.penetrating import penetrating_floor
+def test_the_minimum_counts_normal_body_not_dice():
+    """p.344: "no points of effect from each 1 ... 2 points of effect from
+    each 6". The engine counted dice: 4 for every 4d6."""
+    gun, armour = _gun(dice=4, pen=1), _target([_armour(30)])
+    assert _min(gun, armour, [6, 6, 1, 1]).body == 4
+    assert _min(gun, armour, [6, 6, 6, 2]).body == 7
+    assert _min(gun, armour, [1, 1, 1, 2]).body == 1
 
-    assert penetrating_floor(_gun(dice=4), _target([_armour(30)])) == 0
+
+def test_a_normal_attack_is_guaranteed_stun_not_body():
+    """p.344: Penetrating applies "to the STUN of Normal Damage attacks"
+    and may not be used "with the BODY of Normal Damage attacks". This is
+    what lets coordinated Penetrating blasts wear down a high-defence man."""
+    out = _min(_gun(dice=4, pen=1, killing=False), _target([_armour(30)]), [5, 3, 2, 6])
+    assert (out.stun, out.body) == (5, 0)
+
+
+def test_no_penetrating_no_minimum():
+    assert _min(_gun(dice=4), _target([_armour(30)]), [6, 6, 6, 6]).body == 0
+
+
+def test_not_with_an_avad():
+    """p.344: "It also may not be used with AVADs." """
+    gun = _gun(dice=4, pen=1)
+    gun.avad = True
+    assert _min(gun, _target([_armour(30)]), [6, 6, 6, 6]).body == 0
 
 
 def test_impenetrable_ignores_the_minimum():
-    """6E1 p.149: "An attack with Penetrating applies normally ...; the
-    usual 'minimum damage' effect is ignored." """
-    from kirby_combat.resolution.penetrating import penetrating_floor
-
+    """6E1 p.149: "the usual 'minimum damage' effect is ignored." """
     target = _target([_armour(30, impenetrable=1)])
-    assert penetrating_floor(_gun(dice=4, pen=1), target) == 0
+    assert _min(_gun(dice=4, pen=1), target, [5, 3, 2, 2]).body == 0
 
 
 def test_one_impenetrable_does_not_stop_two_penetrating():
-    """"Characters can buy Impenetrable multiple times to counteract
-    multiple purchases of Penetrating" -- level against level, the same
-    way Hardened meets Armor Piercing."""
-    from kirby_combat.resolution.penetrating import penetrating_floor
-
+    """Level against level, the way Hardened meets Armor Piercing."""
     target = _target([_armour(30, impenetrable=1)])
-    assert penetrating_floor(_gun(dice=4, pen=2), target) == 4
+    assert _min(_gun(dice=4, pen=2), target, [5, 3, 2, 2]).body == 4
 
 
-def test_a_half_die_counts():
-    """`damage_dice` is whole dice and `half_die` is the rest of the
-    attack; a 2d6+1/2 Penetrating attack rolls three dice."""
-    from kirby_combat.resolution.penetrating import penetrating_floor
-
+def test_a_half_die_counts_on_a_four_to_six():
+    """A ½d6 of Killing Attack "does 1 BODY if it rolls a 4, 5, or 6"."""
     gun = _gun(dice=2, pen=1)
     gun.half_die = True
-    assert penetrating_floor(gun, _target([_armour(30)])) == 3
+    armour = _target([_armour(30)])
+    assert _min(gun, armour, [3, 3, 4]).body == 3
+    assert _min(gun, armour, [3, 3, 3]).body == 2
+
+
+def test_damage_reduction_does_not_cut_the_minimum():
+    """p.188: "Damage Reduction does not affect the minimum damage caused by
+    a Penetrating attack" --- the engine floored BEFORE Damage Reduction,
+    which then halved it."""
+    from kirby_combat.actions import resolve_attack
+    from kirby_combat.models import AttackInput, DiceValues
+    from kirby_combat.template import CombatTemplate
+
+    target = _target([_armour(30), DefenseItem(name="dr", damage_reduction_pct=50,
+                                               is_resistant=True)])
+    out = resolve_attack(
+        AttackInput(attacker=_target([]), target=target, power=_gun(dice=4, pen=1),
+                    distance_m=5.0, aim=None,
+                    dice=DiceValues(to_hit=[1, 1, 1], damage=[5, 3, 2, 2],
+                                    stun_multiplier=[3])),
+        CombatTemplate.default_6e_superheroic())
+    assert out.body_dealt == 4
 
 
 def test_the_resolver_actually_applies_it():

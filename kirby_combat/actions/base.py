@@ -221,27 +221,6 @@ class AttackAction:
             stun_dealt = 0
             body_dealt = 0
 
-        # PENETRATING: a floor on BODY, whatever the defenses stopped.
-        # 6E1 p.188's worked example -- "he takes 4 BODY - the minimum BODY
-        # damage the Penetrating attack can cause with that roll" for a 4d6
-        # attack -- so one BODY per die, replacing a smaller result and
-        # never adding to a larger one. Impenetrable answers it level for
-        # level (6E1 p.149). Both were parsed off the sheet and read by
-        # nothing until this line.
-        #
-        # BEFORE the AVAD clause below deliberately: an AVAD that does no
-        # BODY does no BODY, and a minimum of something is still a minimum
-        # of BODY.
-        from kirby_combat.resolution.penetrating import penetrating_floor
-
-        floor = penetrating_floor(effective_power, target)
-        if floor > body_dealt and not blocked_by_cover:
-            audit_trail.append(
-                f"Penetrating: BODY {body_dealt} raised to the minimum "
-                f"{floor} ({floor} dice, 6E1 p188)"
-            )
-            body_dealt = floor
-
         # AVAD/NND attacks do STUN only (6E1 p328) unless they bought Does BODY (+1).
         if (getattr(effective_power, "avad", False)
                 and not getattr(effective_power, "avad_does_body", False)):
@@ -273,6 +252,23 @@ class AttackAction:
             )
             stun_dealt = stun_after_dr
             body_dealt = body_after_dr
+
+        # PENETRATING (6E1 p.344): a minimum for the roll made --- STUN on a
+        # Normal attack, BODY on a Killing one --- replacing a smaller result
+        # and never adding to a larger. AFTER Damage Reduction, which
+        # "does not affect the minimum damage caused by a Penetrating
+        # attack" (p.188; Damage Negation's lost dice already lowered the
+        # roll, p.186). Not through the cover: the shot never touched him.
+        from kirby_combat.resolution.penetrating import penetrating_minimum
+
+        minimum = penetrating_minimum(effective_power, target, effective_dice.damage)
+        if not blocked_by_cover and (minimum.stun > stun_dealt or minimum.body > body_dealt):
+            audit_trail.append(
+                f"Penetrating minimum (6E1 p344): STUN {stun_dealt}->"
+                f"{max(stun_dealt, minimum.stun)}, BODY {body_dealt}->"
+                f"{max(body_dealt, minimum.body)}")
+            stun_dealt = max(stun_dealt, minimum.stun)
+            body_dealt = max(body_dealt, minimum.body)
 
         # A SAVE THAT HALVES THE DAMAGE TAKEN (6E2 p.85, the Thrown
         # character's Breakfall). After defenses and Damage Reduction,
