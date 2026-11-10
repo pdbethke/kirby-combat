@@ -74,6 +74,12 @@ def critique(situation: "PhaseSituation", action_id: str) -> tuple[Finding, ...]
     """
     action = next((a for a in situation.menu if a.action_id == action_id), None)
     if action is None:
+        # A seat's answer to an offer that carries a choice (a Variable
+        # Effect Drain's ``...=CON+STUN``) is that offer, completed.
+        from kirby_combat.loop.chooser import completion_of
+
+        action = completion_of(action_id, situation.menu)
+    if action is None:
         raise KeyError(
             f"{action_id!r} is not on this menu; the menu held "
             f"{len(situation.menu)} actions"

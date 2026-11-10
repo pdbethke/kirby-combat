@@ -89,3 +89,31 @@ def _has_ranged_enemy(situation: "Situation") -> bool:
             ):
                 return True
     return False
+
+
+def _enemies_in_cover(situation: "Situation") -> list[tuple[Any, int]]:
+    """``(enemy, cover level 1-4)`` for each enemy behind cover from where
+    the actor stands, nearest first: the same per-pair reading the attack
+    door and the page make (`kirby_world.cover.compute_cover_level`).
+    Empty when the fight has no map."""
+    session = getattr(situation, "session", None)
+    scene = getattr(session, "scene", None) if session is not None else None
+    if scene is None:
+        return []
+    from kirby_combat.placement import position_of
+    from kirby_world.cover import compute_cover_level
+
+    here = position_of(scene, situation.actor.id)
+    if here is None:
+        return []
+    out = []
+    for enemy in situation.enemies:
+        there = position_of(scene, enemy.id)
+        if there is None:
+            continue
+        level = compute_cover_level(shooter_pos=here, target_pos=there,
+                                    target_is_prone_or_diving=False, scene=scene)
+        if level > 0:
+            out.append((enemy, int(level)))
+    distances = situation.distances_m or {}
+    return sorted(out, key=lambda pair: distances.get(pair[0].id, float("inf")))

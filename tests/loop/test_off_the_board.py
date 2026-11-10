@@ -230,7 +230,8 @@ class _ThenAnything:
 
 def _knocked_off_in_segment_12():
     enc = Encounter(id="e", turn=1, segment=12, sessions=[_session()])
-    roller = FakeRoller([TIE, TIE] + list(KNOCKED_20M))
+    # Two DEX tie-breaks, then his read of the fight (6E1 p.93, `fight_reading`).
+    roller = FakeRoller([TIE, TIE, TIE] + list(KNOCKED_20M))
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
     phase = run_phase(enc, _BlastHim(), roller=roller, on_unresolvable="raise")
     assert phase.actor_id == "a"
@@ -254,7 +255,7 @@ def test_the_engine_says_how_long_he_will_be_gone_and_how_he_is_coming_back():
 
 def test_his_phases_bring_him_back_and_then_he_fights():
     phase = _knocked_off_in_segment_12()
-    roller = FakeRoller([TIE] * 8)
+    roller = FakeRoller([TIE] * 16)   # tie-breaks and each Phase's read of the fight
 
     # Segment 12: he gets up (a Half Phase) and runs the other half, 6m.
     phase = run_phase(phase.encounter, _BlastHim(), roller=roller)
@@ -297,7 +298,7 @@ def test_the_trip_back_costs_end():
     12m is 1 END a full move: 6m after getting up is half of it, the last
     1m a twelfth --- each at least 1 (6E1 p.132)."""
     phase = _knocked_off_in_segment_12()
-    roller = FakeRoller([TIE] * 8)
+    roller = FakeRoller([TIE] * 16)   # tie-breaks and each Phase's read of the fight
     spent = []
     while True:
         phase = run_phase(phase.encounter, _ThenAnything(), roller=roller)
@@ -338,7 +339,7 @@ def test_somebody_standing_where_he_crossed_does_not_get_him_on_top_of_him():
                 return still[0].action_id
             return situation.menu[0].action_id
 
-    roller = FakeRoller([TIE] * 8)
+    roller = FakeRoller([TIE] * 16)   # tie-breaks and each Phase's read of the fight
     while True:
         phase = run_phase(phase.encounter, _AStandsStill(), roller=roller)
         if phase.actor_id == "t" and not Roster(phase.session).is_off_board("t"):

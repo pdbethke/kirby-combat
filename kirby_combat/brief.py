@@ -699,6 +699,16 @@ class Brief:
             lines.append("")
             lines.extend(heads_up)
 
+        # WHAT HIS OWN LAST ACTIONS DID, as he saw them: facts, never advice
+        # (`own_record`; combat-decisions spec Phase 7's feedback).
+        from kirby_combat.own_record import own_record_lines
+
+        record = own_record_lines(situation)
+        if record:
+            lines.append("")
+            lines.append("What your last actions did:")
+            lines.extend(f"  {row}" for row in record)
+
         if self.allies:
             lines.append("")
             lines.append("Allies:")

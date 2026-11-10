@@ -208,8 +208,13 @@ def test_an_enemy_he_cannot_perceive_keeps_todays_single_line():
 
     page = fight(invisible=True)
     assert enemies_of(page) == "vex [villains]: you cannot perceive him"
+    # His OWN record names his own Strike and that it connected; it says
+    # nothing of what it did to a man he cannot see now.
+    own, _, rest = page.partition("What your last actions did:")
+    rest = own + rest.split("\n\n", 1)[-1]
+    assert "Strike at vex: hit" in page and "staggered" not in page
     for leak in ("Blast", "Strike", "staggered", "10m", "looks", "acted"):
-        assert leak not in page
+        assert leak not in rest
 
 
 def test_a_sheet_page_is_unchanged():

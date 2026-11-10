@@ -26,11 +26,14 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from kirby_combat.actions.adjust import (
-    healing_targets, is_ranged, power_action_suffix, range_m,
+    CHOICE_SUFFIX, healing_targets, is_ranged, power_action_suffix, range_m,
 )
-from kirby_combat.adjustments import characteristic_targets, effect_dice, power_targets_on
+from kirby_combat.adjustments import (
+    characteristic_choice, characteristic_targets, effect_dice, power_targets_on,
+)
 
 _EPS_M = 1e-6
+
 
 
 def _powers(actor, xmlid: str) -> list:
@@ -39,6 +42,45 @@ def _powers(actor, xmlid: str) -> list:
 
     return [p for p in (build_in_play(actor).powers or [])
             if (getattr(p, "xmlid", "") or "").upper() == xmlid]
+
+
+#: The Time Chart's steps, in Segments (6E2 p.18: a Segment is a second),
+#: largest first, for saying how far apart a Damage Over Time's increments are.
+_TIME_WORDS = ((604800, "Week"), (86400, "Day"), (3600, "Hour"),
+               (60, "Minute"), (12, "Turn"), (1, "Segment"))
+
+
+def _interval_text(segments: int) -> str:
+    for size, word in _TIME_WORDS:
+        if segments >= size and segments % size == 0:
+            n = segments // size
+            return f"{n} {word}{'s' if n != 1 else ''}"
+    return f"{segments} Segments"
+
+
+def over_time_text(power) -> str:
+    """What a Damage Over Time does, for the offer's line (6E1 p.331-332).
+
+    Without it a page offered Plague's Acute Disease as "1d6 Character
+    Points" --- one roll --- beside a 4d6 Killing Attack, and he rightly
+    never took it: the six increments that make it a disease were invisible,
+    and his week-apart Chronic Disease read the same. Empty for a power with
+    no Damage Over Time.
+    """
+    from kirby_combat.power_modifiers import damage_over_time_of
+
+    dot = damage_over_time_of(power)
+    if dot is None or dot.unbuilt:
+        return ""
+    every = _interval_text(int(dot.interval_segments))
+    text = (f". DAMAGE OVER TIME: nothing on the hit; then {dot.increments} "
+            f"increments of {_dice_text(power)}, one every {every}, the first "
+            f"{every} after it lands (6E1 p331)")
+    text += ("; his Power Defense counts once across them all" if dot.one_defense
+             else "; his Power Defense against each")
+    if dot.lockout:
+        text += "; Lock Out: no second use on him until it has run (6E1 p332)"
+    return text
 
 
 def _dice_text(power) -> str:
@@ -107,17 +149,35 @@ def adjustment_offers(
     standing_allies = [a for a in allies if not is_down(a) and a.id != actor.id]
     friends = [actor, *standing_allies]
 
-    def _offer(kind, target, power, summary, suffix=None):
+    def _offer(kind, target, power, summary, suffix=None, choice=None):
         action_id = _power_action_id(kind, target.id, power)
         if suffix:
             action_id = f"{action_id}:{suffix}"
+        name = getattr(power, "name", None) or power.xmlid.title()
         out.append(LegalAction(
             action_id=action_id, kind=kind, target_id=target.id,
-            power_xmlid=power.xmlid,
-            power_name=getattr(power, "name", None) or power.xmlid.title(),
-            summary=summary + limitation_label(actor, power),
-            _attack_view=power,
+            power_xmlid=power.xmlid, power_name=name,
+            summary=(f"{name}: {summary}{over_time_text(power)}"
+                     + limitation_label(actor, power)),
+            _attack_view=power, choice=choice,
         ))
+
+    def _choosing(kind, target, power, verb, who, tail) -> bool:
+        """A Variable Effect power (6E1 p.144-145): ONE offer that carries
+        the choice, the seat names the characteristics. True when offered."""
+        choice = characteristic_choice(power)
+        if choice is None:
+            return False
+        example = choice.answer(choice.domain[:choice.count])
+        _offer(kind, target, power,
+               f"{verb} {who}'s {choice.count} Characteristic"
+               f"{'s' if choice.count > 1 else ''} OF YOUR CHOICE, each at full "
+               f"effect ({_dice_text(power)} Character Points{tail}; Variable "
+               f"Effect, 6E1 p144). Answer with this id plus the "
+               f"characteristics, e.g. <id>{example}; choose from "
+               f"{', '.join(choice.domain)}",
+               suffix=CHOICE_SUFFIX, choice=choice)
+        return True
 
     for ap in _powers(actor, "AID"):
         chars = characteristic_targets(ap)
@@ -125,6 +185,10 @@ def adjustment_offers(
             if not _in_range(actor, friend, ap, scene, distances):
                 continue
             who = "yourself" if friend.id == actor.id else _friendly(friend)
+            if chars is None and _choosing(
+                    "aid", friend, ap, "AID", who,
+                    "; half effect on a defence; fades 5 points a Turn"):
+                continue
             if chars is not None:
                 named = ", ".join(c.xmlid for c in chars)
                 _offer("aid", friend, ap,
@@ -157,6 +221,11 @@ def adjustment_offers(
         chars = characteristic_targets(ap)
         for enemy in enemies:
             if is_down(enemy) or not _in_range(actor, enemy, ap, scene, distances):
+                continue
+            if chars is None and _choosing(
+                    "drain", enemy, ap, "DRAIN", _friendly(enemy),
+                    " less his Power Defense, on an Attack Roll; half effect on "
+                    "a defence; returns 5 a Turn"):
                 continue
             if chars is not None:
                 named = ", ".join(c.xmlid for c in chars)

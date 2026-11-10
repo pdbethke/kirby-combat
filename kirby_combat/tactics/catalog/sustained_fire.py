@@ -7,7 +7,11 @@ each blocked shot DOES apply damage to the wall — eventually the wall
 falls, leaving the enemy exposed mid-firefight.
 
 Preconditions:
-  * Actor has at least one ranged non-mental damaging attack.
+  * Actor has at least one ranged non-mental damaging attack, AND
+  * an enemy is behind cover from where he stands. The whole premise is the
+    wall; 0.32 offered it against men in the open, where "every blocked shot
+    chips the wall" is false, and Plague fired at a dodging agent in the
+    open nine times on its word (2026-11-10).
 
 Terrain linkage:
   This tactic is most effective when terrain lines show the target is
@@ -18,7 +22,7 @@ Terrain linkage:
 from __future__ import annotations
 
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
-from kirby_combat.tactics.catalog._filters import _best_ranged_attack
+from kirby_combat.tactics.catalog._filters import _best_ranged_attack, _enemies_in_cover
 from kirby_combat.tactics.library import register
 
 
@@ -37,12 +41,14 @@ class SustainedFire(Tactic):
     )
 
     def applicable(self, situation: Situation) -> bool:
-        return _best_ranged_attack(situation) is not None
+        return (_best_ranged_attack(situation) is not None
+                and bool(_enemies_in_cover(situation)))
 
     def execute(self, situation: Situation) -> Plan:
         best = _best_ranged_attack(situation)
-        target = (situation.enemies[0] if situation.enemies else None)
-        target_id = target.id if target else None
+        # The nearest man behind cover: the one this tactic is about.
+        target, _level = _enemies_in_cover(situation)[0]
+        target_id = target.id
         return Plan(
             tactic_name=self.name,
             rationale=(

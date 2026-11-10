@@ -1070,6 +1070,11 @@ def run_phase(
         # And his INT Roll for the squad being lost, owed once a Phase
         # (`self_destruct.judge_the_squad`).
         session = judge_the_squad(session, actor_id, roller)
+        # And his read of the fight (6E1 p.93): Tactics, else INT, once a
+        # Phase, for every seat to read (`fight_reading`).
+        from kirby_combat.fight_reading import read_the_fight
+
+        session = read_the_fight(session, actor_id, roller)
 
     situation = _situation_for(session, actor_id)
     menu = situation.menu

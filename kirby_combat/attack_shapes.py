@@ -102,10 +102,18 @@ def offer_is_buildable(session, actor_id: str, action: "LegalAction") -> bool:
 
         return not area_effect_unbuilt(power)
     if action.kind == "drain" and _shaped(power):
-        # An Instant Area Drain (6E1 p.143); the rest stay unoffered.
-        from kirby_combat.actions.area_effects import area_drain_unbuilt
+        area, constant, dot = shape_of(power)
+        if area is not None:
+            # An Instant Area Drain (6E1 p.143); the rest stay unoffered.
+            from kirby_combat.actions.area_effects import area_drain_unbuilt
 
-        return not area_drain_unbuilt(power)
+            return not area_drain_unbuilt(power)
+        # A one-target Damage Over Time Drain (6E1 p.330-332;
+        # `actions/adjust.drain_dose`). A Constant one stays unoffered.
+        if constant or dot is None or dot.unbuilt:
+            return False
+        return not (action.target_id
+                    and locked_out(session, actor_id, power, action.target_id))
     if action.kind == "mind_control" and _shaped(power):
         # An Instant Area Mind Control (6E1 p.154); the rest stay unoffered.
         from kirby_combat.actions.area_effects import area_mind_control_unbuilt

@@ -1734,6 +1734,84 @@
       "title": "EventAuthor",
       "type": "object"
     },
+    "FightRead": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "FightRead",
+          "enum": [
+            "FightRead"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "FightRead",
+          "enum": [
+            "FightRead"
+          ],
+          "type": "string"
+        },
+        "made": {
+          "type": "boolean"
+        },
+        "made_by": {
+          "type": "integer"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "segment": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "skill": {
+          "type": "string"
+        },
+        "target_number": {
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "skill",
+        "roll",
+        "target_number",
+        "made",
+        "made_by",
+        "turn",
+        "segment"
+      ],
+      "title": "FightRead",
+      "type": "object"
+    },
     "FlashApplied": {
       "additionalProperties": false,
       "properties": {
@@ -2397,6 +2475,12 @@
           ],
           "type": "string"
         },
+        "adjusts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "applied_segment": {
           "type": "integer"
         },
@@ -2478,7 +2562,8 @@
         "increments",
         "interval_segments",
         "applied_turn",
-        "applied_segment"
+        "applied_segment",
+        "adjusts"
       ],
       "title": "LingeringAttackApplied",
       "type": "object"
@@ -4668,7 +4753,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.32.1",
+  "$id": "urn:kirby-combat:schema:events:0.33.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4724,6 +4809,9 @@
     },
     {
       "$ref": "#/$defs/EnvironmentalTriggered"
+    },
+    {
+      "$ref": "#/$defs/FightRead"
     },
     {
       "$ref": "#/$defs/FlashApplied"
@@ -4829,5 +4917,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.32.1"
+  "x-kirby-combat-version": "0.33.0"
 }

@@ -174,6 +174,85 @@ def characteristic_targets(power) -> tuple[AdjustedCharacteristic, ...] | None:
     return tuple(AdjustedCharacteristic(x) for x in dict.fromkeys(xmlids))
 
 
+#: Every characteristic this engine can adjust, in the order a character
+#: sheet lists them. A Variable Effect power bought against
+#: "Characteristics" chooses from these.
+ADJUSTABLE_CHARACTERISTICS: tuple[str, ...] = tuple(dict.fromkeys(_CHARACTERISTIC_NAMES.values()))
+
+#: The separator between the characteristics a completed answer names
+#: (``...:chars=CON+STUN``).
+CHOICE_JOIN = "+"
+
+
+@dataclass(frozen=True)
+class CharacteristicChoice:
+    """What a Variable Effect Adjustment Power lets its user pick, per use.
+
+    6E1 p.144: Variable Effect (+1/2) lets a character "switch which
+    Characteristic(s) and/or Power(s) it can affect from use to use" within
+    a defined category; p.145: with Expanded Effect he affects that many at
+    once. ``count`` is how many, ``domain`` what he may pick from.
+
+    It rides on the OFFER (`LegalAction.choice`) rather than becoming one
+    offer per combination: "any two" of 17 characteristics is 136 pairs per
+    enemy. The seat answers with the offer's id plus ``=A+B``, and `parse`
+    holds that answer to the rule.
+    """
+
+    domain: tuple[str, ...]
+    count: int
+
+    def answer(self, picked) -> str:
+        """The tail a seat appends to the offer id: ``=A+B``."""
+        return "=" + CHOICE_JOIN.join(str(p).upper() for p in picked)
+
+    def parse(self, tail: str) -> tuple[AdjustedCharacteristic, ...]:
+        """The characteristics an answer's tail names, or ValueError saying
+        why it breaks the rule."""
+        picked = [p.strip().upper() for p in tail.split(CHOICE_JOIN) if p.strip()]
+        picked = [_CHARACTERISTIC_NAMES.get(p, p) for p in picked]
+        if len(picked) != self.count:
+            raise ValueError(f"names {len(picked)} characteristics; the power affects "
+                             f"exactly {self.count} at once (6E1 p.144)")
+        if len(set(picked)) != len(picked):
+            raise ValueError(f"names a characteristic twice: {picked}")
+        outside = [p for p in picked if p not in self.domain]
+        if outside:
+            raise ValueError(f"names {outside}, which the power cannot affect")
+        return tuple(AdjustedCharacteristic(p) for p in picked)
+
+
+def _names_characteristics_generally(text: str) -> bool:
+    """INPUT texts that name the category "Characteristics" rather than any
+    one: "Characteristics", "any two characteristics at once" (Plague, CV3).
+    A text that also names a characteristic is a fixed list, not a category."""
+    upper = text.upper()
+    if "CHARACTERISTIC" not in upper:
+        return False
+    return not any(n in _CHARACTERISTIC_NAMES for n in re.findall(r"[A-Z]+", upper))
+
+
+def characteristic_choice(power) -> CharacteristicChoice | None:
+    """The choice a Variable Effect power bought against Characteristics
+    offers its user, or None when the power has no such choice.
+
+    Only the category "Characteristics" is built. A special-effect category
+    ("Fire Powers", "Magic") needs each target power's special effect, which
+    no build carries, so such a power stays unbuilt rather than guessed at.
+    Expanded Effect's LEVELS is the number affected at once (p.144: two is
+    +1/2, each more another +1/2; HD writes "x2" as LEVELS 2).
+    """
+    from kirby_cost.model.modifiers import has_modifier, modifier_levels
+
+    if not has_modifier(power, "VARIABLEEFFECT"):
+        return None
+    if not _names_characteristics_generally(getattr(power, "input", None) or ""):
+        return None
+    count = max(1, modifier_levels(power, "EXPANDEDEFFECT")) \
+        if has_modifier(power, "EXPANDEDEFFECT") else 1
+    return CharacteristicChoice(domain=ADJUSTABLE_CHARACTERISTICS, count=count)
+
+
 def power_targets_on(power, target) -> tuple[AdjustedPower, ...]:
     """The target's powers this Adjustment Power can reach, one per power.
 

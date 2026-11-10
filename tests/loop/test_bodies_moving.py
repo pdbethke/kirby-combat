@@ -276,6 +276,7 @@ def test_knockback_runs_through_run_phase():
     session = _session(_scene(), rolls=[])
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     roller = FakeRoller([[3, 3, 3], [3, 3, 3],          # 6E2 p.21 DEX tie-break
+                         [3, 3, 3],   # his read of the fight (6E1 p.93, `fight_reading`)
                          HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [1] * 5])
     enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
 
