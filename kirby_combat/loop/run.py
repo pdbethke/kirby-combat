@@ -652,7 +652,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # raging friend back (6E1 p.424), and breaking a friend's Entangle
         # off him (6E1 p.218-219). Not to a man in an Entangle, whose menu IS
         # his escape ladder (6E1 p.217).
-        menu = (menu + half_move_offers(session, menu)
+        menu = (menu + half_move_offers(session, actor, menu)
                 + snap_out_offers(session, actor, allies)
                 + attack_entangle_offers(session, actor, allies, menu, reach_m))
     else:
