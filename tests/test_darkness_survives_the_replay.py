@@ -16,13 +16,12 @@ is the event, and `apply_event` is what puts the field on the board.
 from __future__ import annotations
 
 from kirby_dice import FakeRoller
+from test_darkness import EAST, WEST, _blocked, _session
 
 from kirby_combat.actions.darkness import Darkness
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.rewind import rewind_to_sequence
-
-from test_darkness import EAST, WEST, _blocked, _session
 
 BOX = [(8.0, 0.0), (12.0, 0.0), (12.0, 10.0), (8.0, 10.0)]
 

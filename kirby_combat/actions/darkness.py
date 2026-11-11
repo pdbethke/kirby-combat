@@ -50,7 +50,7 @@ than hidden.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from kirby_combat.session.combat_session import CombatSession
