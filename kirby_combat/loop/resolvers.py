@@ -1765,6 +1765,27 @@ def _resolve_release_held(
 DARKNESS_HALF_WIDTH_M = 2.0
 
 
+@resolves("drop_darkness")
+def _resolve_drop_darkness(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """He turns his Darkness off (6E2 p.20: "turning off a Power" is a Zero
+    Phase Action). Every field he has up comes down, through the log."""
+    from kirby_combat.darkness_fields import DarknessEnd, darkness_fields, end_field
+
+    fields = darkness_fields(session, owner_id=actor.id)
+    if not fields:
+        raise UnresolvableAction(action.kind, action.action_id)
+    new_session = session
+    for darkness in fields:
+        new_session = end_field(new_session, darkness, DarknessEnd.DROPPED)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
 @resolves("darkness_zone")
 def _resolve_darkness_zone(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -1800,6 +1821,16 @@ def _resolve_darkness_zone(
         sense_groups=sorted(darkness_groups(power)) or ["sight"],
         personal_immunity=darkness_personal_immunity(power),
         roller=roller,
+    )
+    # "Costs END: yes" (6E1 p.188): the use costs its END, hit or miss, as
+    # every power's use does; keeping the field up costs it again at each of
+    # his Phases (`darkness_fields.maintain_darkness`).
+    from kirby_combat.actions.recording import _spend_attack_end
+    from kirby_combat.endurance import end_cost
+
+    new_session = _spend_attack_end(
+        new_session, new_session.combatants[actor.id], end_cost(power),
+        template, power=power,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

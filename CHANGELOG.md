@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.33.4 — 2026-11-11
+
+**A Darkness field is kept up, or it comes down.** 0.33.3 made a field outlive the Phase it was cast in and so made it last the whole fight: nothing ever took one down. Found in a local Talisman vs D-Soldier fight where both were blinded for good and neither was offered an attack again.
+
+- **New module `darkness_fields`.** 6E1 p.188: Darkness is Constant and "remains in existence as long as the character pays the END for it". At the top of the caster's Phase (6E1 p.130) the field is kept only if the power is still his, he has Line Of Sight to it (6E1 p.129), and he can pay its END; then he pays.
+- **Stunned or Knocked Out: off at the end of the Segment** (6E1 p.347, 6E2 p.107), checked against the `stunned` status as the Segment ends, NOT `stunned_or_recovering_for`: a man who has recovered "won't still be Stunned at the end of the Segment", so his field stays.
+- **A Recovery lets it go** (6E2 p.131: he "cannot even maintain a Constant Power").
+- **New offer `drop_darkness`**, a Zero Phase Action (6E2 p.20: "turning off a Power"). The one-field-at-a-time guard is kept as a menu ruling (6E1 p.188 allows more, each paid for); dropping it puts the `darkness_zone` offer back.
+- **The cast costs its END** (6E1 p.188 "Costs END: yes"), hit or miss. It cost nothing. (A Force Wall's cast still costs nothing; not changed here.)
+- **New event `DarknessEnded`** (`construct_ids`, `reason`, `source_combatant`), folded by `apply_event` off the scene. Reasons: `dropped`, `could_not_pay_end`, `lost_line_of_sight`, `owner_stunned_or_out`, `owner_took_a_recovery`, `power_not_on_build`.
+- **Schema change:** a new event kind and a new action kind (`drop_darkness`, classified non-threat). Consumers that check event coverage must handle `DarknessEnded`.
+
 ## 0.33.3 — 2026-11-11
 
 **A Darkness field stays up after the Phase it is cast in.** Found in a local fight (Talisman vs 12 D-Soldiers, session 35de6a41): she cast Darkness at 14/30 STUN, and three Segments later the soldiers knocked her out through it.

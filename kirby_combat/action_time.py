@@ -90,6 +90,7 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     "change_identity_instant": (_T.ZERO, "Instant Change (6E1 p.272)"),
     "reallocate": (_T.ZERO, "Shift a Multipower: 0 Phase (6E2 p.25; 6E1 p.410)"),
     "raise_damage_shield": (_T.ZERO, "\"only ... a Zero Phase Action to activate it\" (6E1 p.323)"),
+    "drop_darkness": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
     # escape_str's Casual offers are ZERO and its full ones BREAKOUT; see
     # `time_of`. The entry here is the full attempt.
     "escape_str": (_T.BREAKOUT, "6E2 p.126; Casual STR is 0 Phase (6E2 p.25)"),

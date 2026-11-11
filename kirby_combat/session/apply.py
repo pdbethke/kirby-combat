@@ -256,6 +256,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "DarknessPlaced":
         return _fold_darkness(session, new_log, now, event)
 
+    if kind == "DarknessEnded":
+        return _fold_darkness_ended(session, new_log, now, event)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)
@@ -434,6 +437,29 @@ def _fold_darkness(session: CombatSession, new_log, now, event) -> CombatSession
     )
     scene = replace(session.scene,
                     constructs=[*(session.scene.constructs or []), zone])
+    return replace(session, event_log=new_log, scene=scene, updated_at=now)
+
+
+def _fold_darkness_ended(session: CombatSession, new_log, now, event) -> CombatSession:
+    """THE ONE REMOVER of a Darkness field: the fields ``construct_ids``
+    names leave the board, on a NEW construct list (see `_fold_darkness`).
+
+    An id that is not on the board RAISES rather than passing quietly: a
+    field ended twice, or ended without being placed, is a broken log."""
+    if session.scene is None:
+        raise ValueError(
+            f"DarknessEnded {event.construct_ids!r} in session {session.id!r}, "
+            f"which has no Scene"
+        )
+    gone = set(event.construct_ids)
+    live = {c.obj_id for c in (session.scene.constructs or [])}
+    if not gone or not gone <= live:
+        raise ValueError(
+            f"DarknessEnded {sorted(gone)!r} in session {session.id!r}: "
+            f"not all of them are on the board ({sorted(gone - live)!r} missing)"
+        )
+    scene = replace(session.scene, constructs=[
+        c for c in session.scene.constructs if c.obj_id not in gone])
     return replace(session, event_log=new_log, scene=scene, updated_at=now)
 
 

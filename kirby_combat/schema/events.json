@@ -1341,6 +1341,67 @@
       "title": "ConstructSpawned",
       "type": "object"
     },
+    "DarknessEnded": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "DarknessEnded",
+          "enum": [
+            "DarknessEnded"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "construct_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "DarknessEnded",
+          "enum": [
+            "DarknessEnded"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "construct_ids",
+        "reason",
+        "source_combatant"
+      ],
+      "title": "DarknessEnded",
+      "type": "object"
+    },
     "DarknessPlaced": {
       "additionalProperties": false,
       "properties": {
@@ -4832,7 +4893,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.33.3",
+  "$id": "urn:kirby-combat:schema:events:0.33.4",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4873,6 +4934,9 @@
     },
     {
       "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/DarknessEnded"
     },
     {
       "$ref": "#/$defs/DarknessPlaced"
@@ -4999,5 +5063,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.33.3"
+  "x-kirby-combat-version": "0.33.4"
 }

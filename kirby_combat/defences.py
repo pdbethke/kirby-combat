@@ -87,6 +87,8 @@ HTH_KINDS = frozenset({
 #: book does not classify offers, the engine does.
 NON_THREAT_KINDS = frozenset({
     "aid", "heal", "attack_construct", "force_wall", "image_decoy",
+    # Turning his own Darkness off threatens nobody (6E2 p.20).
+    "drop_darkness",
     "block", "dodge", "charm", "persuasion", "conversation", "trading",
     "climb", "climb_fast", "coordinate", "disengage", "escape_attack",
     "escape_ego", "escape_str", "escape_teleport", "hide", "hold",

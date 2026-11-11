@@ -751,6 +751,7 @@ def _multi_attack_ocv(base_ocv: int, count: int) -> int:
 ALL_ACTION_KINDS = frozenset({
     "aid", "attack", "attack_construct", "block", "charm", "climb",
     "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
+    "drop_darkness",
     "disengage",
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_ego",
     "escape_str",
@@ -1709,6 +1710,22 @@ def enumerate_actions(
     # darkness_zone up (has_live_own_darkness). Another caster's darkness never
     # blocks this actor's offer (source_combatant_id differs).
     # Placed the force wall's way, so offered only where it can be placed.
+    # Turning his field off: a Zero Phase Action (6E2 p.20). He keeps one
+    # field at a time (the stacking guard below), so one offer turns off
+    # what he has up (`darkness_fields`, through its resolver).
+    if has_live_own_darkness(actor.id, constructs):
+        actions.append(LegalAction(
+            action_id="drop_darkness",
+            kind="drop_darkness",
+            target_id=None,
+            power_xmlid="DARKNESS",
+            power_name="Darkness",
+            summary=(
+                "Turn off your Darkness field (a Zero Phase Action, 6E2 "
+                "p.20): it stops costing END, everyone sees through that "
+                "ground again, and you may put a new field up"
+            ),
+        ))
     if _placeable:
         if not has_live_own_darkness(actor.id, constructs):
             dk_power = darkness_power(build_in_play(actor))

@@ -413,6 +413,12 @@ def _start_of_segment(session, *, template, roller):
     from kirby_combat.standing_areas import tick_standing_areas
     from kirby_combat.zone_effects import zone_effects_for_segment
 
+    # THE SEGMENT THAT JUST ENDED: a Darkness field whose caster is still
+    # Stunned or Knocked Out goes down (6E1 p.347, 6E2 p.107) before anyone
+    # acts in this one.
+    from kirby_combat.darkness_fields import darkness_at_segment_end
+
+    session = darkness_at_segment_end(session)
     session = fire_due_doses(session, template=template, roller=roller)
     # A Damage Over Time ZONE keeps its own clock too (6E1 p.332).
     session = tick_standing_areas(session, template=template, roller=roller)
@@ -897,6 +903,11 @@ def run_phase(
             recovered=fields.get("kind") == "recover",
             template=template, roller=roller,
         )
+        if fields.get("kind") == "recover":
+            # Nor his Darkness (6E2 p.131).
+            from kirby_combat.darkness_fields import after_a_recovery
+
+            session = after_a_recovery(session, actor_id)
         # WHO WAS FORCED OFF THE BOARD THIS PHASE, and how long he will be
         # gone. Here, after everything his Phase and the Holds did.
         from kirby_combat.off_board import announce
@@ -958,6 +969,13 @@ def run_phase(
         from kirby_combat.standing_areas import maintain_standing_areas
 
         session = maintain_standing_areas(
+            session, actor_id, template=template, roller=roller,
+        )
+        # AND HIS DARKNESS FIELDS (6E1 p.188: up as long as he pays). Their
+        # Stunned/Knocked Out check is the end of the Segment's, not this.
+        from kirby_combat.darkness_fields import maintain_darkness
+
+        session = maintain_darkness(
             session, actor_id, template=template, roller=roller,
         )
     actor = session.combatants[actor_id]
