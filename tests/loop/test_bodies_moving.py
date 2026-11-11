@@ -16,6 +16,7 @@ from __future__ import annotations
 import pytest
 from conftest import blast  # tests/loop/conftest.py
 from kirby_dice import FakeRoller
+from kirby_world.geometry import WALL_FACE_CLEARANCE_M
 from kirby_world.scene import (
     AmbientConditions,
     Position,
@@ -166,7 +167,9 @@ def test_into_a_wall_he_stops_and_takes_half_metres_of_the_whole_knockback():
     out = _resolve(session, _blast_at_t(),
                    [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [1] * 10])
     s = out.session
-    assert _where(s) == (20.0, 10.0, 0.0)
+    # Stopped on HIS side of the wall, not on its line (kirby-world's
+    # `short_of_the_wall`): a man on the line is seen by nobody.
+    assert _where(s) == pytest.approx((20.0 - WALL_FACE_CLEARANCE_M, 10.0, 0.0))
     kb = _attack_row(out)["knockback"]
     assert kb["wall_id"] == "w"
     assert kb["impact"]["dice"] == 10
@@ -474,7 +477,7 @@ def test_a_throw_into_a_wall_is_capped_at_its_pd_plus_body():
                 height_m=3.0, body=1, def_value=1)
     out = _resolve(_held(_close(walls=[wall])), _THROW, [HIT, [6, 6], LOCATION, STUN_X])
     assert out.result.stun_dealt == 12 - 4
-    assert _where(out.session) == (14.0, 10.0, 0.0)
+    assert _where(out.session) == pytest.approx((14.0 - WALL_FACE_CLEARANCE_M, 10.0, 0.0))
 
 
 def test_throw_offer_names_an_attack_roll_not_an_auto_hit():

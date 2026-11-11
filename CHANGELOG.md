@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.2 — 2026-11-11
+
+**A man Knocked Back into a wall stops on his side of it, not inside it.** Found in the corral recording: Doc's coach gun knocked Billy Claiborne into Fly's gallery, the engine left him exactly on the wall's line, and every sight line to or from him crossed the wall, so nobody saw him and he saw nobody.
+
+- Knockback (and a throw, which shares it) stops `kirby_world.geometry.WALL_FACE_CLEARANCE_M` (1 cm, numerical, not a rule) back along his path, via `short_of_the_wall`. 6E2 p.118: he hits the wall and stops.
+- `WallCollision.impact_position` is still the point ON the wall; a man who shatters it continues "through the hole" (p.118) from there, and what he has left past it is `distance_into_wall_m` less the wall's PD + BODY.
+- Requires `kirby-world>=0.2.1` (running into a wall stops the same way).
+
 ## 0.33.1 — 2026-11-10
 
 **The menu stops overselling: a move says what it buys a shooter, and a Presence Attack the dice it rolls.** Found in a local Plague-vs-UNTIL fight: 0 hits in 7 shots at -4 OCV, never once closing, and three group Presence Attacks.
