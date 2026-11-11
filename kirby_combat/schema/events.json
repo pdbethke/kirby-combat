@@ -1341,6 +1341,85 @@
       "title": "ConstructSpawned",
       "type": "object"
     },
+    "DarknessPlaced": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "DarknessPlaced",
+          "enum": [
+            "DarknessPlaced"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "construct_id": {
+          "type": "string"
+        },
+        "creator_immune": {
+          "type": "boolean"
+        },
+        "elevation_range_m": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "DarknessPlaced",
+          "enum": [
+            "DarknessPlaced"
+          ],
+          "type": "string"
+        },
+        "polygon_xy": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "sense_group": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source_combatant": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "construct_id",
+        "polygon_xy",
+        "elevation_range_m",
+        "sense_group",
+        "creator_immune",
+        "source_combatant"
+      ],
+      "title": "DarknessPlaced",
+      "type": "object"
+    },
     "DivedForCover": {
       "additionalProperties": false,
       "properties": {
@@ -4753,7 +4832,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.33.2",
+  "$id": "urn:kirby-combat:schema:events:0.33.3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4794,6 +4873,9 @@
     },
     {
       "$ref": "#/$defs/ConstructSpawned"
+    },
+    {
+      "$ref": "#/$defs/DarknessPlaced"
     },
     {
       "$ref": "#/$defs/DivedForCover"
@@ -4917,5 +4999,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.33.2"
+  "x-kirby-combat-version": "0.33.3"
 }

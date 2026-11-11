@@ -253,6 +253,9 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "BarrierRaised":
         return _fold_barrier(session, new_log, now, event)
 
+    if kind == "DarknessPlaced":
+        return _fold_darkness(session, new_log, now, event)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)
@@ -397,6 +400,40 @@ def _fold_barrier(session: CombatSession, new_log, now, event) -> CombatSession:
         ed_value=int(event.ed_value),
     )
     scene = replace(session.scene, walls=[*session.scene.walls, wall])
+    return replace(session, event_log=new_log, scene=scene, updated_at=now)
+
+
+def _fold_darkness(session: CombatSession, new_log, now, event) -> CombatSession:
+    """THE ONE WRITER of a Darkness field placed in the fight (6E1 p.188).
+
+    A NEW construct list on a new Scene, never an append to the old one,
+    for the reason `_fold_barrier` gives: an in-place write leaks into the
+    authored Scene and into the "before" a rewind reads.
+
+    A session with no Scene has no board, and Darkness is only placed on a
+    map, so a row that arrives without one RAISES rather than being kept
+    quietly --- as `_fold_barrier` does.
+    """
+    from kirby_world.construct import construct_from_spawn_spec
+
+    if session.scene is None:
+        raise ValueError(
+            f"DarknessPlaced {event.construct_id!r} in session {session.id!r}, "
+            f"which has no Scene to place it on"
+        )
+    bottom, top = event.elevation_range_m
+    zone = construct_from_spawn_spec(
+        obj_id=event.construct_id,
+        kind="darkness_zone",
+        polygon_xy=[(float(x), float(y)) for x, y in event.polygon_xy],
+        elevation_range_m=(float(bottom), float(top)),
+        source_combatant_id=event.source_combatant,
+        created_at_seq=event.sequence,
+        sense_group=event.sense_group,
+        creator_immune=event.creator_immune,
+    )
+    scene = replace(session.scene,
+                    constructs=[*(session.scene.constructs or []), zone])
     return replace(session, event_log=new_log, scene=scene, updated_at=now)
 
 
