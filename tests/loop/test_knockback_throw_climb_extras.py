@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import blast, fighter, encounter_of  # tests/loop/conftest.py
 from kirby_dice import RandomRoller
+from kirby_world.geometry import WALL_FACE_CLEARANCE_M
 from kirby_world.scene import Position, Surface, Wall
 
 from test_bodies_moving import (  # tests/loop/test_bodies_moving.py
@@ -71,7 +72,7 @@ def test_a_wall_he_does_not_shatter_still_takes_the_impact():
                    [HIT, [6] * 6, LOCATION, STUN_X, [1, 1], [2] * 10])
     struck = _attack_row(out)["knockback"]["walls"][0]
     assert not struck["shattered"] and struck["body_dealt"] == 5
-    assert _where(out.session) == (20.0, 10.0, 0.0)
+    assert _where(out.session) == pytest.approx((20.0 - WALL_FACE_CLEARANCE_M, 10.0, 0.0))
     assert damage_by_object(out.session)["w"] == 5
 
 
@@ -99,7 +100,7 @@ def test_a_wagon_he_does_not_shatter_is_the_wagon_not_a_plank():
     struck = _attack_row(out)["knockback"]["walls"][0]
     assert not struck["shattered"] and struck["body_dealt"] == 4
     assert struck["object_id"] == "wagon"
-    assert _where(out.session) == (14.0, 10.0, 0.0)
+    assert _where(out.session) == pytest.approx((14.0 - WALL_FACE_CLEARANCE_M, 10.0, 0.0))
     assert damage_by_object(out.session) == {"wagon": 4}
 
 

@@ -15,7 +15,9 @@ from typing import TYPE_CHECKING
 from kirby_combat.models import DiceValues
 from kirby_combat.resolution.knockback import compute_knockback
 from kirby_world.scene import Position, Scene, Wall
-from kirby_world.geometry import segments_intersect_xy, segment_intersection_xy, wall_height_blocks
+from kirby_world.geometry import (
+    segment_intersection_xy, segments_intersect_xy, short_of_the_wall, wall_height_blocks,
+)
 from kirby_world.falling import is_supported_at, resolve_fall, FallingResult
 from kirby_world.hazards import compute_hazard_triggers, HazardTriggerResult
 
@@ -194,13 +196,20 @@ def resolve_forced_movement_past(
             d = math.hypot(impact[0] - start.x, impact[1] - start.y)
             if d < closest_dist:
                 closest_dist = d
+                # 6E2 p.118: he hits the wall and stops --- on HIS side of
+                # it. The impact point is ON the wall's line, which is on
+                # neither side: every sight line to him crossed the wall
+                # and nobody could see him (`short_of_the_wall`).
+                stop_x, stop_y = short_of_the_wall((start.x, start.y), impact)
                 actual_end = Position(
-                    x=impact[0], y=impact[1], z=start.z, facing=start.facing,
+                    x=stop_x, y=stop_y, z=start.z, facing=start.facing,
                 )
-                actual_distance = d
+                actual_distance = math.hypot(stop_x - start.x, stop_y - start.y)
                 wall_collision = WallCollision(
                     wall_id=wall.id,
-                    impact_position=actual_end,
+                    impact_position=Position(
+                        x=impact[0], y=impact[1], z=start.z, facing=start.facing,
+                    ),
                     distance_into_wall_m=distance_m - d,
                     pd=wall.pd,
                     body=int(wall.body),

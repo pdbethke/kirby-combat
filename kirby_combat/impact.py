@@ -522,10 +522,13 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
                 payload["wall_id"] = wall.wall_id
                 payload["impact"] = impact
                 break
-            left = left - moved.distance_traveled_m - (pd + body)
+            # What was left past the wall, less what breaking it cost.
+            left = wall.distance_into_wall_m - (pd + body)
             # Through the whole thing: a wagon's far side is the same wagon.
             passed = passed | _faces_of(session, wall.wall_id, object_id)
-            leg_start = moved.travel_end
+            # "Continues through the hole" (6E2 p.118): the next leg starts
+            # ON the wall he broke, not short of it where he would have stopped.
+            leg_start = wall.impact_position
             if left <= 0:
                 left = 0.0
                 break

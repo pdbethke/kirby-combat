@@ -12,6 +12,7 @@ from kirby_combat.scene import (
     AmbientConditions,
 )
 from kirby_combat.template import RAW_SUPERHEROIC
+from kirby_world.geometry import WALL_FACE_CLEARANCE_M, line_of_sight_clear
 
 
 def _open_scene_with_ground() -> Scene:
@@ -96,10 +97,17 @@ def test_kb_into_wall_stops_at_wall():
     )
     assert out.wall_collision is not None
     assert out.wall_collision.wall_id == "brick"
-    # Target stops at x=15 (wall position)
-    assert out.final_position.x == pytest.approx(15.0, abs=1e-6)
+    # He strikes the wall at x=15 and stops on HIS side of it, not on its
+    # line: a point on the line is on neither side, and nobody could see him
+    # (Billy Claiborne in the corral, 2026-11-11).
+    assert out.wall_collision.impact_position.x == pytest.approx(15.0, abs=1e-6)
+    assert out.final_position.x == pytest.approx(15.0 - WALL_FACE_CLEARANCE_M, abs=1e-9)
     assert out.actual_distance_traveled_m < out.intended_distance_m
-    assert out.actual_distance_traveled_m == pytest.approx(5.0, abs=1e-6)
+    assert out.actual_distance_traveled_m == pytest.approx(
+        5.0 - WALL_FACE_CLEARANCE_M, abs=1e-9)
+    # The man who hit him still sees him; a man beyond the wall does not.
+    assert line_of_sight_clear(Position(0, 5, 0), out.final_position, [wall])
+    assert not line_of_sight_clear(Position(20, 5, 0), out.final_position, [wall])
 
 
 def test_kb_off_rooftop_triggers_fall():

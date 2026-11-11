@@ -1,6 +1,6 @@
 [project]
 name = "kirby-combat"
-version = "0.33.1"
+version = "0.33.2"
 description = "HERO System 6E combat engine for Kirby VTT platform"
 requires-python = ">=3.12"
 # Relicensed from MIT at 0.4.0, matching kirby-cost and kirby-sheet.
@@ -29,7 +29,7 @@ dependencies = [
     # `kirby_combat.scene` stays as a PERMANENT re-export of it.
     # Capped: a replay rebuilds its map from the seed, so the generator's
     # map must not move under a stored fight (ledger R38).
-    "kirby-world>=0.2.0,<0.3.0",
+    "kirby-world>=0.2.1,<0.3.0",
 ]
 
 [project.urls]
