@@ -1053,6 +1053,37 @@ class BarrierRaised(BaseEvent):
 
 
 @dataclass
+class DarknessPlaced(BaseEvent):
+    """A Darkness field put on the board (6E1 p.188) --- and what places it.
+
+    THE FIELD WAS NEVER IN THE RECORD. `Darkness.place` appended a
+    darkness_zone to `session.scene.constructs` IN PLACE and logged a
+    `ConstructSpawned` beside it, which `apply_event` keeps as audit only.
+    Anything that rebuilds a fight from its rows --- kirby-api at every
+    Phase, `rewind_to_sequence`, a Krackle replay --- had no field, so the
+    men it was cast to blind went on shooting through it (found live
+    2026-11-11, local fight 35de6a41). The Force Wall's defect exactly, and
+    its cure (`BarrierRaised`).
+
+    `apply_event` folds this onto `session.scene.constructs`, so it is the
+    one writer of a placed field. ONE event per Sense Group, because the
+    engine's zone `Construct` carries one ``sense_group`` (see
+    `Darkness.place`). ``polygon_xy`` is the footprint as ``[x, y]`` pairs;
+    ``elevation_range_m`` its ``[bottom, top]``. The zone's
+    ``created_at_seq`` is this event's own ``sequence``.
+    `ConstructSpawned` is still emitted beside it: it is the cross-kind
+    announcement Krackle and the narrator read.
+    """
+    kind: Literal["DarknessPlaced"] = field(default="DarknessPlaced", init=False)
+    construct_id: str = ""
+    polygon_xy: list[list[float]] = field(default_factory=list)
+    elevation_range_m: list[float] = field(default_factory=list)
+    sense_group: str = ""
+    creator_immune: bool = False
+    source_combatant: str = ""
+
+
+@dataclass
 class PowerDispelled(BaseEvent):
     """One of the target's powers stops working (6E1 p.195).
 
@@ -1173,6 +1204,7 @@ CombatEvent = (
     | ConstructDamaged
     | ConstructSpawned
     | BarrierRaised
+    | DarknessPlaced
     | PowerDispelled
     | PowerRestarted
     | WeaponMoved

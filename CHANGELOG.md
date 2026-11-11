@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.3 — 2026-11-11
+
+**A Darkness field stays up after the Phase it is cast in.** Found in a local fight (Talisman vs 12 D-Soldiers, session 35de6a41): she cast Darkness at 14/30 STUN, and three Segments later the soldiers knocked her out through it.
+
+- `Darkness.place` wrote the zone straight onto `scene.constructs` and logged a `ConstructSpawned`, which `apply_event` keeps as audit only. kirby-api rebuilds the fight from its rows every Phase, so the zone was gone by the next Phase; `rewind_to_sequence` and a Krackle replay never had it at all. The Force Wall's defect (fixed by `BarrierRaised` in 0.22.0), with the same cure.
+- **New event `DarknessPlaced`** (one per Sense Group): `construct_id`, `polygon_xy`, `elevation_range_m`, `sense_group`, `creator_immune`, `source_combatant`. `apply_event` folds it onto a new construct list, and is now the only thing that puts a Darkness field on the board. `ConstructSpawned` is still emitted beside it, as before, for Krackle and the narrator.
+- The zone no longer carries a timeline segment number in `Construct.segment` (a wall's two-point line); a zone's geometry is its polygon only. Its `created_at_seq` is the `DarknessPlaced` event's own sequence.
+- **Schema change:** a new event kind. Consumers that check event coverage (kirby-app's `eventCoverage.test.ts`) must handle `DarknessPlaced` when they pin 0.33.3.
+
 ## 0.33.2 — 2026-11-11
 
 **A man Knocked Back into a wall stops on his side of it, not inside it.** Found in the corral recording: Doc's coach gun knocked Billy Claiborne into Fly's gallery, the engine left him exactly on the wall's line, and every sight line to or from him crossed the wall, so nobody saw him and he saw nobody.

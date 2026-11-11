@@ -50,7 +50,7 @@ than hidden.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from kirby_combat.session.combat_session import CombatSession
@@ -103,16 +103,18 @@ class Darkness:
         this action re-deriving any of it; it has no distance and no
         knowledge of the attacker's intent.
 
-        The placed zones go onto the returned session's ``scene``. The
-        engine's scene is what ``perception`` reads, so a placement that
-        only emitted an event would leave the field invisible to the rule
-        it exists to trigger. ``ConstructSpawned`` is still emitted for the
-        log, matching how every other construct announces itself.
+        The placed zones reach the returned session's ``scene`` through
+        ``DarknessPlaced``, which ``apply_event`` folds: the scene is what
+        ``perception`` reads, and the event is what a fight rebuilt from its
+        rows replays. Writing the zone straight onto the scene (as this did
+        until 0.33.3) blinded the live fight for one Phase and nothing
+        after, because kirby-api rebuilds the fight from its rows every
+        Phase. ``ConstructSpawned`` is still emitted beside each field, as
+        the cross-kind announcement Krackle and the narrator read.
         """
-        from kirby_world.construct import construct_from_spawn_spec
         from kirby_combat.session.apply import apply_event
         from kirby_combat.session.events import (
-            ActionDeclared, ActionResolved, ConstructSpawned,
+            ActionDeclared, ActionResolved, ConstructSpawned, DarknessPlaced,
             make_author_combatant,
         )
 
@@ -150,24 +152,12 @@ class Darkness:
         roll = sum(roller.roll_dice(3))
         hit = roll <= target_number
 
-        construct_ids: list[str] = []
-        if hit:
-            new_constructs = list(s.scene.constructs or []) if s.scene else []
-            for group in sense_groups:
-                obj_id = f"darkness-{uuid.uuid4().hex[:8]}"
-                new_constructs.append(construct_from_spawn_spec(
-                    obj_id=obj_id,
-                    kind="darkness_zone",
-                    segment=s.timeline.segment,
-                    polygon_xy=[tuple(p) for p in polygon_xy],
-                    elevation_range_m=tuple(elevation_range_m),
-                    source_combatant_id=attacker_id,
-                    created_at_seq=len(s.event_log),
-                    sense_group=group,
-                    creator_immune=bool(personal_immunity),
-                ))
-                construct_ids.append(obj_id)
-            s = replace(s, scene=replace(s.scene, constructs=new_constructs))
+        # One id per Sense Group, minted now so the ActionResolved can name
+        # them; the fields themselves go on the board through
+        # `DarknessPlaced` below, never by writing to the Scene here.
+        construct_ids: list[str] = (
+            [f"darkness-{uuid.uuid4().hex[:8]}" for _ in sense_groups] if hit else []
+        )
 
         resolved = ActionResolved(
             id=str(uuid.uuid4()),
@@ -190,8 +180,21 @@ class Darkness:
         )
         s = apply_event(s, resolved)
 
-        for obj_id in construct_ids:
-            spawned = ConstructSpawned(
+        for obj_id, group in zip(construct_ids, sense_groups):
+            s = apply_event(s, DarknessPlaced(
+                id=str(uuid.uuid4()),
+                session_id=s.id,
+                sequence=len(s.event_log) + 1,
+                timestamp=now,
+                author=make_author_combatant(attacker_id),
+                construct_id=obj_id,
+                polygon_xy=[[float(x), float(y)] for x, y in polygon_xy],
+                elevation_range_m=[float(v) for v in elevation_range_m],
+                sense_group=group,
+                creator_immune=bool(personal_immunity),
+                source_combatant=attacker_id,
+            ))
+            s = apply_event(s, ConstructSpawned(
                 id=str(uuid.uuid4()),
                 session_id=s.id,
                 sequence=len(s.event_log) + 1,
@@ -200,8 +203,7 @@ class Darkness:
                 construct_id=obj_id,
                 construct_kind="darkness_zone",
                 source_combatant=attacker_id,
-            )
-            s = apply_event(s, spawned)
+            ))
 
         return s, DarknessResult(
             attacker_id=attacker_id,

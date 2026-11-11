@@ -113,10 +113,11 @@ _VITAL_FIELDS = frozenset({"current_stun", "current_body", "current_end"})
 #:   itself.
 #: * `installs` --- putting a Scene onto a session, which is the step that
 #:   makes an altered board the FIGHT's board. `session/apply.py` is the
-#:   fold. `collapse.py` brings a wall down and `darkness.py` raises a
-#:   field: both swap the Scene for reasons that are not about people, and
-#:   neither can move anybody without also taking one of the three routes
-#:   above, which they are NOT allowed to take.
+#:   fold. `collapse.py` brings a wall down: it swaps the Scene for a
+#:   reason that is not about people, and cannot move anybody without also
+#:   taking one of the three routes above, which it is NOT allowed to take.
+#:   (`darkness.py` was listed here until 0.33.3; a field now goes up
+#:   through `DarknessPlaced`, folded by `session/apply.py`.)
 ALLOWED_PLACERS: dict[str, frozenset[pathlib.Path]] = {
     "mutates": frozenset({
         WORLD / "scene.py",
@@ -127,7 +128,6 @@ ALLOWED_PLACERS: dict[str, frozenset[pathlib.Path]] = {
     "installs": frozenset({
         ENGINE / "session" / "apply.py",
         ENGINE / "collapse.py",
-        ENGINE / "actions" / "darkness.py",
         ENGINE / "gm" / "spawn_despawn.py",
     }),
 }
@@ -712,7 +712,6 @@ def test_the_placement_allow_list_is_asserted_whole():
         "installs": frozenset({
             ENGINE / "session" / "apply.py",
             ENGINE / "collapse.py",
-            ENGINE / "actions" / "darkness.py",
             ENGINE / "gm" / "spawn_despawn.py",
         }),
     }
