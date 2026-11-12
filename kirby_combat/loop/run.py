@@ -58,7 +58,8 @@ from kirby_combat.mental.continuing import (
     ENTRANCED, WITHDRAW_KINDS, mind_scan_locks, obey, roll_breakouts,
 )
 from kirby_combat.concealment import break_hide, concealment_for
-from kirby_combat.actions.decoys import decoy_targets_for, own_decoy_live
+from kirby_combat.actions.decoys import decoy_targets_for
+from kirby_combat.kept_up import kept_up
 from kirby_combat.loop.reactions import (
     Reaction, ask_holders, expire_lapsed_holds, react_to_attack,
 )
@@ -413,12 +414,12 @@ def _start_of_segment(session, *, template, roller):
     from kirby_combat.standing_areas import tick_standing_areas
     from kirby_combat.zone_effects import zone_effects_for_segment
 
-    # THE SEGMENT THAT JUST ENDED: a Darkness field whose caster is still
-    # Stunned or Knocked Out goes down (6E1 p.347, 6E2 p.107) before anyone
-    # acts in this one.
-    from kirby_combat.darkness_fields import darkness_at_segment_end
+    # THE SEGMENT THAT JUST ENDED: a Darkness field or Image whose keeper is
+    # still Stunned or Knocked Out goes down (6E1 p.347, 6E2 p.107) before
+    # anyone acts in this one.
+    from kirby_combat.kept_up import kept_up_at_segment_end
 
-    session = darkness_at_segment_end(session)
+    session = kept_up_at_segment_end(session)
     session = fire_due_doses(session, template=template, roller=roller)
     # A Damage Over Time ZONE keeps its own clock too (6E1 p.332).
     session = tick_standing_areas(session, template=template, roller=roller)
@@ -623,13 +624,11 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # the driver's PR-96 and this caller never passed it, so the
         # limitation cost nothing. Folded from the log; see `lockout.py`.
         blocked_lockout_ids=blocked_lockout_ids(session, actor) or None,
-        # IMAGES HE TAKES FOR MEN (6E1 p.238-239), and whether he has one of
-        # his own standing. Both parameters existed and this caller passed
-        # neither, so no Image ever drew a shot and a caster could conjure
-        # them without end. See `actions/decoys.py`.
+        # IMAGES HE TAKES FOR MEN (6E1 p.238-239). See `actions/decoys.py`.
         decoy_targets=decoy_targets_for(
             session, actor_id, {e.id for e in enemies}) or None,
-        own_decoy_live=own_decoy_live(session, actor_id),
+        # WHAT HE KEEPS UP: a turn-off offer for each (6E2 p.20, `kept_up`).
+        kept_up_items=kept_up(session, owner_id=actor_id),
         # ENTANGLED, PHYSICALLY OR MENTALLY: the menu is the escape ladder
         # (6E1 p.217, p.219). See `_entangle_holds`.
         physical_entangle=physical_hold,
@@ -904,8 +903,8 @@ def run_phase(
             template=template, roller=roller,
         )
         if fields.get("kind") == "recover":
-            # Nor his Darkness (6E2 p.131).
-            from kirby_combat.darkness_fields import after_a_recovery
+            # Nor his Darkness fields or Images (6E2 p.131).
+            from kirby_combat.kept_up import after_a_recovery
 
             session = after_a_recovery(session, actor_id)
         # WHO WAS FORCED OFF THE BOARD THIS PHASE, and how long he will be
@@ -971,11 +970,12 @@ def run_phase(
         session = maintain_standing_areas(
             session, actor_id, template=template, roller=roller,
         )
-        # AND HIS DARKNESS FIELDS (6E1 p.188: up as long as he pays). Their
-        # Stunned/Knocked Out check is the end of the Segment's, not this.
-        from kirby_combat.darkness_fields import maintain_darkness
+        # AND HIS DARKNESS FIELDS AND IMAGES (6E1 p.188, p.238: up as long as
+        # he pays). Their Stunned/Knocked Out check is the end of the
+        # Segment's, not this.
+        from kirby_combat.kept_up import maintain_kept_up
 
-        session = maintain_darkness(
+        session = maintain_kept_up(
             session, actor_id, template=template, roller=roller,
         )
     actor = session.combatants[actor_id]

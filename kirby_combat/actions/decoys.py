@@ -3,10 +3,9 @@
 `actions/images.py` has known for a long time who perceives an Image
 (`perceived_by`), who still believes it (`believers`) and how a PER Roll sees
 through it (`disbelieve`). Nothing outside its own tests asked any of it:
-`enumerate_actions` takes ``decoy_targets`` and ``own_decoy_live`` and
-`loop/run.py` passed neither, so an Image conjured in a fight was never
-something anybody could shoot, and a caster could conjure a second, a third,
-a tenth. This module is the two halves the parked kirby-api driver carried
+`enumerate_actions` takes ``decoy_targets`` and `loop/run.py` did not pass
+it, so an Image conjured in a fight was never something anybody could shoot.
+(How long one stands, and that a caster may keep several, is `kept_up`.) This module is the two halves the parked kirby-api driver carried
 (``_decoy_targets_for``, ``_resolve_attack_decoy``), moved onto the engine's
 own Image model.
 
@@ -64,11 +63,6 @@ def decoy_targets_for(
         caster = session.combatants[image.caster_id]
         out.append((image.image_id, str(getattr(caster, "name", None) or caster.id)))
     return out
-
-
-def own_decoy_live(session: "CombatSession", caster_id: str) -> bool:
-    """Whether this caster already has an Image standing (one at a time)."""
-    return any(img.caster_id == caster_id for img in Images.active(session))
 
 
 def is_decoy(session: "CombatSession", target_id: str | None) -> bool:

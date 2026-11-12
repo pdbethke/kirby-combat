@@ -393,9 +393,10 @@ def _map():
 
 class TestForceWallStackingGuard:
 
-    def test_offer_suppressed_while_own_wall_alive(self):
-        """The actor already has a live force_wall (body > 0); must NOT get a
-        second offer."""
+    def test_a_second_wall_is_offered_while_his_first_stands(self):
+        """6E1 p.172: a Barrier "remains in existence until destroyed", and no
+        page limits how many a man raises --- END, Charges and the reserve
+        do. The one-wall guard this replaced was a menu ruling."""
         actor = _combatant(
             id="caster",
             powers=[_StubPower(xmlid="FORCEWALL", name="Arcane Shield")],
@@ -409,10 +410,7 @@ class TestForceWallStackingGuard:
             )
             if a.kind == "force_wall"
         ]
-        assert not offers, (
-            "force_wall offer must be suppressed while the actor's own wall stands; "
-            f"got {[a.action_id for a in offers]}"
-        )
+        assert offers, "a second wall is offered while his first stands"
 
     def test_offer_returns_when_own_wall_destroyed(self):
         """After the actor's wall is destroyed (body=0), the offer reappears."""

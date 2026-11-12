@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.34.0 — 2026-11-12
+
+**What a man puts on the board lasts exactly as long as the book says.** Darkness, Images and Barriers were each kept by their own rule, and the rules were menu rulings: one field, one Image, one wall at a time; Images never came down at all; a Barrier cost nothing; no Charge was ever spent. Every rule below is cited to its page.
+
+- **New module `upkeep`: the price every maintained power pays, one copy.**
+  - A Charge each Phase if it has Charges (6E1 p.369: "Each Charge normally only lasts for one Phase"; p.403: "Constant Powers require one Charge per Phase").
+  - Otherwise its END (p.129-130), read off the sheet (`end_usage`). A 0 END or Charged Darkness was priced from its Active Points.
+  - The Framework rule (p.402): a Constant power stops when its slot loses the reserve.
+  - Line Of Sight (p.129), and Stunned or Knocked Out as the Segment ends (p.347, 6E2 p.107).
+  - `lingering` (Constant attacks) and `standing_areas` (Constant zones, Damage Shields) now pay through it, so they too run on Charges; their two copies of the slot check are gone.
+- **New module `kept_up`: Darkness fields and Images share one Constant lifetime.** It replaces `darkness_fields`' upkeep; `darkness_fields` keeps only the field record.
+  - At the top of his Phase each thing he keeps pays for itself. p.129's Sapphire keeps two uses going at "20 END per Phase", and p.188: "A character may maintain more than one Darkness field at once, provided he pays the END cost for all fields".
+  - Off at the end of a Segment he is Stunned in; off on a Recovery (6E2 p.131).
+  - **Images now do all of this.** Until now an Image cost nothing, was kept up by nothing, and never came down.
+- **No count limits.** The one-wall, one-field and one-Image guards are gone. They had no page behind them, and the wall guard looked among the constructs, where a raised wall never is. END, Charges and the reserve limit him.
+- **Turning one off is per item:** `drop_darkness:<field>` and the new `drop_image:<image>`, each a Zero Phase Action (6E2 p.20).
+- **Using any of the three costs its use:** END off the sheet, or a Charge (p.334), hit or miss. A Force Wall cost nothing. Their placement rolls now take the Range Modifier (6E2 p.40), which none did.
+- **A Barrier at Range is placed by an Attack Roll against DCV 3** (6E1 p.172). Within Reach (1m, 6E2 p.40) no roll is made. A miss raises nothing; the END is spent. Once up it stays until destroyed and costs nothing more (p.172: "Instant ... only pays END when he first creates a Barrier").
+- **Offered only when he can use it now:** its slot holds the reserve (p.402: allocate, then turn it on), a Charge is left, and nothing on it changes how it lasts in a way not built. **Not offered:** Uncontrolled (p.354), Continuing Charges (p.371-372), Fuel Charges (p.373), and a Barrier bought "Costs Endurance (to maintain)" (p.172, p.376). None of that last is in the corpus.
+- **The chooser sees the reserve.**
+  - A `reallocate` offer names its slots, says fixed or variable and what each draws, which slots it switches off, and any Darkness field or Image that goes down with them (p.402). It read "make active: 4417(30pts)".
+  - The brief's frameworks show "N of M points in use, K free" and what fixed and variable mean (p.405-406).
+- **New event `ChargeSpent`** (`combatant_id`, `power_source_id`, `reason`): a Charge used outside a use's own row (upkeep, or a placement's use). `charges.spent_charges` counts it.
+- **Reasons** (`DarknessEnded.reason`, an Image's `image_ended` row, which now carries `reason`) are `upkeep.UpkeepEnd`. New values: `out_of_charges` and `slot_switched_off`. `LingeringEnd` and `StandingEnd` gain `out_of_charges`.
+- **Breaking, for importers:**
+  - `darkness_fields.DarknessEnd`, `maintain_darkness`, `darkness_at_segment_end` and `after_a_recovery` moved to `upkeep.UpkeepEnd` and `kept_up`.
+  - `enumerate_actions(own_decoy_live=)` is now `kept_up_items=`.
+  - `decoys.own_decoy_live`, `enumeration.has_live_own_force_wall` and `has_live_own_darkness` are deleted.
+  - `Images.dismiss` requires `reason`.
+- **Schema change:** a new event kind (`ChargeSpent`) and a new action kind (`drop_image`). `drop_darkness` ids now name the field.
+- **Still open:** a variable Multipower slot's split is not chosen; variables take what the fixed slots leave, in build order. `damage.scale_variable_slot_dice` (p.405) is still called by nothing. That is the next release.
+
 ## 0.33.4 — 2026-11-11
 
 **A Darkness field is kept up, or it comes down.** 0.33.3 made a field outlive the Phase it was cast in and so made it last the whole fight: nothing ever took one down. Found in a local Talisman vs D-Soldier fight where both were blinded for good and neither was offered an attack again.

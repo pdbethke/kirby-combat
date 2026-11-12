@@ -628,6 +628,43 @@ def _point_near_nearest_enemy(
     )
 
 
+def _distance_to(session: "CombatSession", actor, point) -> float | None:
+    """Metres from ``actor`` to ``point`` on the map, or None off it."""
+    here = (getattr(session.scene, "combatant_positions", None) or {}).get(actor.id)
+    if here is None:
+        return None
+    x, y, z = point
+    return ((here.x - x) ** 2 + (here.y - y) ** 2 + (here.z - z) ** 2) ** 0.5
+
+
+def _placement_range_modifier(session: "CombatSession", actor, point, power) -> int:
+    """The Range Modifier on the Attack Roll that places a thing at a point
+    (6E2 p.40: "When a character attacks a target at Range, the attack is
+    subject to the Range Modifier"; the step it takes in an Attack Roll is
+    6E2 p.38's sixth). None for a power bought No Range Modifier (6E1
+    p.346, HD's NORANGEMODIFIER)."""
+    from kirby_combat.perception import range_modifier
+    from kirby_combat.power_modifiers import _find
+
+    if _find(power, "NORANGEMODIFIER") is not None:
+        return 0
+    distance = _distance_to(session, actor, point)
+    return 0 if distance is None else range_modifier(distance)
+
+
+def _pay_for_the_use(session: "CombatSession", actor, power, template):
+    """A use's price, hit or miss, as every power's use is paid: a Charge if
+    it has them (6E1 p.334) and its END off the sheet (6E1 p.132;
+    `upkeep.end_of`, which is 0 for a 0 END or Charged power)."""
+    from kirby_combat.actions.recording import _spend_attack_end
+    from kirby_combat.upkeep import charged, end_of, spend_a_charge
+
+    if charged(power):
+        session = spend_a_charge(session, actor.id, power, why="use")
+    return _spend_attack_end(session, session.combatants[actor.id],
+                             end_of(power), template, power=power)
+
+
 @resolves("image_decoy")
 def _resolve_image_decoy(
     session: "CombatSession", actor, action: LegalAction, *,
@@ -661,8 +698,13 @@ def _resolve_image_decoy(
 
     new_session, placement = Images.place(
         session, caster_id=actor.id, position=position,
-        sense_groups=sorted(images_groups(power)), roller=roller,
+        sense_groups=sorted(images_groups(power)),
+        ocv_modifier=_placement_range_modifier(session, actor, position, power),
+        roller=roller,
     )
+    # "Costs END: yes" (6E1 p.238), hit or miss; keeping it up costs it again
+    # at each of his Phases (`kept_up.maintain_kept_up`).
+    new_session = _pay_for_the_use(new_session, actor, power, template)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=placement, events=_events_since(session, new_session),
@@ -1765,25 +1807,40 @@ def _resolve_release_held(
 DARKNESS_HALF_WIDTH_M = 2.0
 
 
+def _drop_kept(session, actor, action: LegalAction, kind):
+    """He turns one thing off (6E2 p.20: "turning off a Power" is a Zero
+    Phase Action). The offer's id names which (`kept_up.drop`)."""
+    from kirby_combat.kept_up import drop
+
+    item_id = action.action_id.partition(":")[2]
+    try:
+        new_session = drop(session, actor.id, kind, item_id)
+    except KeyError:
+        raise UnresolvableAction(action.kind, action.action_id) from None
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
 @resolves("drop_darkness")
 def _resolve_drop_darkness(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """He turns his Darkness off (6E2 p.20: "turning off a Power" is a Zero
-    Phase Action). Every field he has up comes down, through the log."""
-    from kirby_combat.darkness_fields import DarknessEnd, darkness_fields, end_field
+    from kirby_combat.kept_up import KeptKind
 
-    fields = darkness_fields(session, owner_id=actor.id)
-    if not fields:
-        raise UnresolvableAction(action.kind, action.action_id)
-    new_session = session
-    for darkness in fields:
-        new_session = end_field(new_session, darkness, DarknessEnd.DROPPED)
-    return ResolvedAction(
-        session=new_session, kind=action.kind, action_id=action.action_id,
-        result=None, events=_events_since(session, new_session),
-    )
+    return _drop_kept(session, actor, action, KeptKind.DARKNESS)
+
+
+@resolves("drop_image")
+def _resolve_drop_image(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    from kirby_combat.kept_up import KeptKind
+
+    return _drop_kept(session, actor, action, KeptKind.IMAGE)
 
 
 @resolves("darkness_zone")
@@ -1820,18 +1877,13 @@ def _resolve_darkness_zone(
         elevation_range_m=(z, z + 2 * h),
         sense_groups=sorted(darkness_groups(power)) or ["sight"],
         personal_immunity=darkness_personal_immunity(power),
+        ocv_modifier=_placement_range_modifier(session, actor, centre, power),
         roller=roller,
     )
-    # "Costs END: yes" (6E1 p.188): the use costs its END, hit or miss, as
-    # every power's use does; keeping the field up costs it again at each of
-    # his Phases (`darkness_fields.maintain_darkness`).
-    from kirby_combat.actions.recording import _spend_attack_end
-    from kirby_combat.endurance import end_cost
-
-    new_session = _spend_attack_end(
-        new_session, new_session.combatants[actor.id], end_cost(power),
-        template, power=power,
-    )
+    # "Costs END: yes" (6E1 p.188): the use costs its END or a Charge, hit or
+    # miss, as every power's use does; keeping the field up costs it again
+    # at each of his Phases (`kept_up.maintain_kept_up`).
+    new_session = _pay_for_the_use(new_session, actor, power, template)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=result, events=_events_since(session, new_session),
@@ -2331,16 +2383,29 @@ def _resolve_force_wall(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Raise a Barrier (6E1 p.167) between the actor and the nearest enemy.
+    """Raise a Barrier (6E1 p.171-173) between the actor and the nearest enemy.
 
     The wall's BODY and DEF come from the power's levels. WHERE it goes is a
     judgement, and the same one a decoy and a Darkness field make --- the
     shared placement helper --- because a barrier that is not between you
     and the threat is not a barrier.
+
+    WHAT THE BOOK ASKS OF IT (6E1 p.172):
+      * "To place a Barrier in the desired Area at Range, the character must
+        succeed with an Attack Roll against DCV 3", with the Range Modifier
+        (6E2 p.40). Within his Reach it is not at Range (6E2 p.40's table:
+        "Within Reach (1m)"), and no roll is made.
+      * "Barrier is an Instant Power, so a character only pays END when he
+        first creates a Barrier" --- paid for the use, hit or miss, with a
+        Charge if it has them.
+      * "A Barrier, once created, is a physical object that remains in
+        existence until destroyed": nothing here or anywhere takes it down
+        but damage, and nothing limits how many he raises.
     """
     import uuid
     from datetime import datetime, timezone
 
+    from kirby_combat.models import BASE_REACH_M
     from kirby_combat.session.apply import apply_event
     from kirby_combat.session.events import BarrierRaised, make_author_combatant
 
@@ -2357,12 +2422,34 @@ def _resolve_force_wall(
     levels = _levels(action)
     half = FORCE_WALL_HALF_WIDTH_M
     wall_id = f"force-wall-{actor.id}-{len(getattr(scene, 'walls', []) or [])}"
+
+    distance = _distance_to(session, actor, centre) or 0.0
+    at_range = distance > BASE_REACH_M
+    placement: dict = {"at_range": at_range, "hit": True}
+    if at_range:
+        from kirby_combat.actions.darkness import AREA_DCV
+
+        modifier = _placement_range_modifier(session, actor, centre, power)
+        target_number = actor.combat_stats().ocv + modifier + 11 - AREA_DCV
+        roll = sum(roller.roll_dice(3))
+        placement = {"at_range": True, "hit": roll <= target_number,
+                     "roll": roll, "target_number": target_number,
+                     "target_dcv": AREA_DCV, "range_modifier": modifier}
+
     # THE WALL IS AN EVENT. This appended to `scene.walls` in place, so a
     # replay from the log never had it; `BarrierRaised` is what puts it on
     # the board now, through `apply_event` like a move.
     new_session = _record_outcome(session, actor, action, {
-        "kind": action.kind, "wall_id": wall_id, "body": levels,
+        "kind": action.kind,
+        "wall_id": wall_id if placement["hit"] else None,
+        "body": levels, **placement,
     })
+    new_session = _pay_for_the_use(new_session, actor, power, template)
+    if not placement["hit"]:
+        return ResolvedAction(
+            session=new_session, kind=action.kind, action_id=action.action_id,
+            result=None, events=_events_since(session, new_session),
+        )
     new_session = apply_event(new_session, BarrierRaised(
         id=str(uuid.uuid4()), session_id=new_session.id,
         sequence=len(new_session.event_log) + 1,

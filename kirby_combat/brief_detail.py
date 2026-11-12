@@ -904,8 +904,13 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
     out: list[str] = []
     for fw in views:
         label, unit = _FRAMEWORK_KINDS.get(fw.kind, (fw.kind.replace("_", " ").title(), "pool"))
-        active = set(allocation.get(fw.framework_id, (0, 0, set(), {}))[2])
+        entry = allocation.get(fw.framework_id, (0, 0, set(), {}))
+        active = set(entry[2])
         out.append(f"{fw.name} ({label}, {fw.reserve_or_pool}-point {unit}):")
+        if fw.kind == "multipower" and active:
+            used = int(entry[1] or 0)
+            free = max(0, int(fw.reserve_or_pool or 0) - used)
+            out.append(f"  {used} of {fw.reserve_or_pool} points in use, {free} free")
         if not fw.slots:
             out.append("  nothing in it yet")
         for slot in fw.slots:
@@ -922,6 +927,12 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
             if slot.slot_id in active:
                 bits.append("switched on")
             out.append(f"  {slot.name}: {', '.join(bits)}")
+    if any(fw.kind == "multipower" for fw in views):
+        # 6E1 p.405-406, so the numbers above can be reasoned with.
+        out.append("A fixed slot draws its full Active Points from the reserve "
+                   "or nothing; variable slots share whatever the fixed ones "
+                   "leave (6E1 p.405-406). A Constant power (Darkness, Images) "
+                   "stops when its slot is switched off (6E1 p.402).")
     kinds = {a.kind for a in situation.menu}
     if "reallocate" in kinds:
         out.append("Switching slots is on the menu (reallocate).")

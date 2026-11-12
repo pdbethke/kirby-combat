@@ -557,27 +557,6 @@ def _is_fragile_vs(actor: HeroCombatant, enemy: HeroCombatant) -> bool:
 # use these helpers so the capability logic can't drift.
 
 
-def has_live_own_force_wall(
-    actor_id: str,
-    constructs: list[Construct] | None,
-) -> bool:
-    """True when the actor already has a live force_wall up.
-
-    A wall is "live" when its source_combatant_id matches actor_id AND
-    its body > 0. A destroyed wall (body == 0 or None) does NOT suppress
-    a new-wall offer — the actor is free to raise another.  Another
-    caster's wall never blocks this actor's offer.
-    """
-    for c in (constructs or []):
-        if (
-            c.kind == "force_wall"
-            and getattr(c, "source_combatant_id", None) == actor_id
-            and (c.body or 0) > 0
-        ):
-            return True
-    return False
-
-
 def forcewall_power(hero: Any) -> Any | None:
     """Return the first FORCEWALL power on ``hero``, or None.
 
@@ -590,26 +569,47 @@ def forcewall_power(hero: Any) -> Any | None:
     return None
 
 
-def has_live_own_darkness(
-    actor_id: str,
-    constructs: list[Construct] | None,
-) -> bool:
-    """True when the actor already has a live OWN darkness_zone up
-    (sense-affecting §2 — the stacking guard, mirror of
-    ``has_live_own_force_wall``).
+def _reallocate_summary(framework: str, reserve: float, drawn: float,
+                        on: Any, off: list[str], *, names: dict[str, str],
+                        kinds: dict[str, str], points: dict[str, float],
+                        kept_on: dict[str, list[str]]) -> str:
+    """A `reallocate` offer in words: which slots it turns on, by name, each
+    fixed or variable and what it draws; which it turns off; and what a
+    slot turning off takes down with it (6E1 p.402)."""
+    def _named(sid: str) -> str:
+        return names.get(sid) or sid
 
-    A darkness zone is "live" when its source_combatant_id matches
-    actor_id. A darkness_zone is a persistent occluder with no body, so
-    presence alone suppresses a second offer; another caster's darkness
-    never blocks this actor's offer (source_combatant_id differs).
+    text = (f"Switch {framework} ({reserve:.0f}-point reserve) to: "
+            + ", ".join(f"{_named(sid)} ({kinds.get(sid, 'fixed')}, "
+                        f"{points[sid]:.0f} pts)" for sid in on)
+            + f"; draws {drawn:.0f} of {reserve:.0f}")
+    if off:
+        text += "; switches off " + ", ".join(_named(sid) for sid in off)
+        ends = [f"{what} ({_named(sid)})" for sid in off
+                for what in kept_on.get(sid, ())]
+        if ends:
+            text += (" --- which ends " + ", ".join(ends)
+                     + ": a Constant power stops when its slot loses the "
+                       "reserve (6E1 p.402)")
+    return text
+
+
+def barrier_not_built(power: Any) -> list[str]:
+    """What on a Barrier changes how it lasts and is not carried out here.
+
+    6E1 p.172: "If a character wants a Barrier that he has to 'maintain,'
+    he should apply the Limitation Costs Endurance (to maintain; -½)", and
+    p.376: such a power costs END every Phase and "turns off when a
+    character is Stunned or Knocked Out". Raised as a plain Barrier it would
+    stand until destroyed, which is the thing that Limitation was taken to
+    give up. No Barrier in the corpus carries it (2026-11-12), so it is
+    refused rather than built.
     """
-    for c in (constructs or []):
-        if (
-            c.kind == "darkness_zone"
-            and getattr(c, "source_combatant_id", None) == actor_id
-        ):
-            return True
-    return False
+    from kirby_combat.power_modifiers import _find
+
+    if power is not None and _find(power, "COSTSEND") is not None:
+        return ["Costs Endurance (to maintain) on a Barrier (6E1 p.172, p.376)"]
+    return []
 
 
 def darkness_power(hero: Any) -> Any | None:
@@ -751,7 +751,7 @@ def _multi_attack_ocv(base_ocv: int, count: int) -> int:
 ALL_ACTION_KINDS = frozenset({
     "aid", "attack", "attack_construct", "block", "charm", "climb",
     "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
-    "drop_darkness",
+    "drop_darkness", "drop_image",
     "disengage",
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_ego",
     "escape_str",
@@ -854,7 +854,7 @@ def enumerate_actions(
     held_construct_id: str | None = None,
     concealment: dict[str, tuple[bool, bool]] | None = None,
     observer_flashed_groups: frozenset[str] | None = None,
-    own_decoy_live: bool = False,
+    kept_up_items: list | None = None,
     decoy_targets: list[tuple[str, str]] | None = None,
     slot_allocation: dict[str, tuple[int, int, set[str], dict[str, int]]] | None = None,
     extra_attacks: list | None = None,
@@ -1510,6 +1510,27 @@ def enumerate_actions(
         # table, including trading claws for legs.
         _armed_now = any(a.kind in _ATTACKING_KINDS for a in actions)
 
+        # WHAT EACH SLOT IS, BY NAME, and what keeps going on it. An offer that
+        # read "make active: 4417(30pts)" asked the chooser to look an id up in
+        # its brief; and 6E1 p.402 takes down a Constant power whose slot
+        # loses the reserve --- so a switch that ends a Darkness field or an
+        # Image he is keeping up says so.
+        _slot_name = {sl.slot_id: sl.name for sl in fv.slots}
+        _slot_kind = {sl.slot_id: ("variable" if sl.variable else "fixed")
+                      for sl in fv.slots}
+        from kirby_combat.kept_up import KeptKind
+        from kirby_combat.upkeep import framework_slot
+
+        _kept_on: dict[str, list[str]] = {}
+        for _item in kept_up_items or ():
+            _src = (darkness_power if _item.kind is KeptKind.DARKNESS
+                    else images_power)(build_in_play(actor))
+            _where = framework_slot(actor, _src) if _src is not None else None
+            if _where is not None and _where[0] == fv.framework_id:
+                _kept_on.setdefault(_where[1], []).append(
+                    "a Darkness field" if _item.kind is KeptKind.DARKNESS
+                    else "an Image")
+
         for _set in _sets:
             if set(_set) == _live:
                 continue
@@ -1523,11 +1544,10 @@ def enumerate_actions(
                 target_id=None,
                 power_xmlid=fv.xmlid,
                 power_name=fv.name,
-                summary=(
-                    f"Reallocate {fv.name} reserve ({fv.reserve_or_pool} pts) — "
-                    f"make active: "
-                    + ", ".join(f"{sid}({_points[sid]:.0f}pts)" for sid in _set)
-                    + f" (draws {drawn:.0f} of {reserve:.0f})"
+                summary=_reallocate_summary(
+                    fv.name, reserve, drawn, _set, sorted(_live - set(_set)),
+                    names=_slot_name, kinds=_slot_kind, points=_points,
+                    kept_on=_kept_on,
                 ),
             ))
 
@@ -1658,101 +1678,76 @@ def enumerate_actions(
                     _attack_view=rf_primary,
                 ))
 
-    # Spec §3 (Task 8): a FORCEWALL-capable actor can raise a destructible
-    # barrier between itself and the nearest enemy — the mirror of the
-    # construct-destruction offers above. One offer regardless of the enemy
-    # list; placement is resolved driver-side from persisted positions
-    # (_resolve_force_wall), so it needs a scene.
-    #
-    # Stacking guard: suppress the offer when the actor already has a live
-    # force_wall up (source_combatant_id matches actor, body > 0). A wall
-    # that has been destroyed (body == 0 or None) does NOT suppress — the
-    # actor is free to raise a new one. Another caster's wall never blocks
-    # this actor's offer (source_combatant_id differs).
-    # Uses has_live_own_force_wall + forcewall_power (shared helpers, above).
-    #
-    # AND ONLY WHERE IT CAN STAND. The resolver puts the wall short of the
-    # nearest enemy ON THE MAP and refuses when the map cannot say where that
-    # is; this offered on `has_scene` alone, and without the power on the
-    # offer at all, so every one it made raised (99 of 99 in a 20-fight
-    # sweep). `placing.has_a_place_near_an_enemy` is the resolver's question.
+    # THE THINGS HE CAN PUT ON THE BOARD: a Barrier (6E1 p.171-173), a
+    # Darkness field (p.188), an Image (p.238). Each is offered when he can
+    # use the power NOW, which the book asks four things of:
+    #   * the map can say where it goes --- the resolvers put it short of
+    #     the nearest enemy and refuse when the map cannot (these offers
+    #     were once made on `has_scene` alone: 99 of 99 raised in a
+    #     20-fight sweep). `placing.has_a_place_near_an_enemy`.
+    #   * its Framework slot holds the reserve (p.402: "When a character
+    #     allocates or re-allocates reserve/Pool points to a Constant or
+    #     Persistent Power, he must then turn the power on"; switching to
+    #     it is the `reallocate` offer). `upkeep.slot_on`.
+    #   * a Charge is left, if it has Charges (p.334). `has_charges_left`.
+    #   * nothing on it changes how it lasts in a way the engine does not
+    #     carry out (`upkeep.not_built`; for a Barrier also Costs Endurance
+    #     to maintain, p.172 and p.376).
+    # NOTHING LIMITS HOW MANY. The one-wall, one-field and one-Image guards
+    # this replaced were menu rulings with no page behind them: p.172's
+    # Barrier "remains in existence until destroyed", p.188 lets a man
+    # "maintain more than one Darkness field at once, provided he pays the
+    # END cost for all fields", and p.129's Sapphire keeps two uses of one
+    # Constant power going at once. What limits him is END, Charges and the
+    # reserve.
+    from kirby_combat.charges import has_charges_left
+    from kirby_combat.upkeep import not_built, slot_on
+
+    def _can_use_now(power: Any, *, extra_unbuilt: list[str] = ()) -> bool:
+        return (power is not None
+                and not not_built(power) and not list(extra_unbuilt)
+                and slot_on(actor, power, slot_allocation)
+                and has_charges_left(power, spent_charges))
+
     _placeable = has_scene and has_a_place_near_an_enemy(
         scene, actor.id, [e.id for e in enemies if not is_down(e)])
+    _build = build_in_play(actor)
     if _placeable:
-        if not has_live_own_force_wall(actor.id, constructs):
-            fw_power = forcewall_power(build_in_play(actor))
-            if fw_power is not None:
-                actions.append(LegalAction(
-                    action_id=f"force_wall:{_src_id(fw_power)}",
-                    kind="force_wall",
-                    target_id=None,
-                    power_xmlid="FORCEWALL",
-                    power_name=getattr(fw_power, "name", None) or "Force Wall",
-                    summary=(
-                        "Raise a Force Wall between you and the nearest "
-                        "enemy (blocks LoS and movement; can be attacked "
-                        "down)"
-                    ),
-                    _attack_view=fw_power,
-                ))
-
-    # Sense-affecting §2 (Darkness): a DARKNESS-capable actor can drop a
-    # sense-group darkness field between itself and the nearest enemy — an
-    # area occluder for a Sense Group (Sight by default). Mirrors the force-
-    # wall offer: one offer regardless of the enemy list; placement +
-    # footprint are resolved driver-side from persisted positions
-    # (_resolve_darkness_field), so it needs a scene. Once spawned, the
-    # perception darkness gate reads it from Scene.constructs automatically —
-    # combatants whose sense-line crosses it can't target across it (blind-
-    # combat tier), while the creator with Personal Immunity perceives through.
-    #
-    # Stacking guard: suppress the offer when the actor already has a live OWN
-    # darkness_zone up (has_live_own_darkness). Another caster's darkness never
-    # blocks this actor's offer (source_combatant_id differs).
-    # Placed the force wall's way, so offered only where it can be placed.
-    # Turning his field off: a Zero Phase Action (6E2 p.20). He keeps one
-    # field at a time (the stacking guard below), so one offer turns off
-    # what he has up (`darkness_fields`, through its resolver).
-    if has_live_own_darkness(actor.id, constructs):
-        actions.append(LegalAction(
-            action_id="drop_darkness",
-            kind="drop_darkness",
-            target_id=None,
-            power_xmlid="DARKNESS",
-            power_name="Darkness",
-            summary=(
-                "Turn off your Darkness field (a Zero Phase Action, 6E2 "
-                "p.20): it stops costing END, everyone sees through that "
-                "ground again, and you may put a new field up"
-            ),
-        ))
-    if _placeable:
-        if not has_live_own_darkness(actor.id, constructs):
-            dk_power = darkness_power(build_in_play(actor))
-            if dk_power is not None:
-                actions.append(LegalAction(
-                    action_id=f"darkness_zone:{_src_id(dk_power)}",
-                    kind="darkness_zone",
-                    target_id=None,
-                    power_xmlid="DARKNESS",
-                    power_name=getattr(dk_power, "name", None) or "Darkness",
-                    summary=(
-                        "Drop a field of Darkness to block line of sight "
-                        "between you and the nearest enemy (combatants can't "
-                        "target across it; you see through your own if you "
-                        "have Personal Immunity)"
-                    ),
-                ))
-
-    # Sense-affecting §3 (Images): an IMAGES-capable actor can conjure a decoy
-    # — a sensory illusion of a foe that draws enemy fire until disbelieved.
-    # Mirrors the darkness/force-wall create offer: one offer, placement
-    # resolved driver-side (_resolve_create_image_decoy); needs a scene.
-    # Stacking guard: suppress when the actor already has a live OWN decoy
-    # (``own_decoy_live``, computed driver-side from the decoy table).
-    if _placeable and not own_decoy_live:
-        img_power = images_power(build_in_play(actor))
-        if img_power is not None:
+        fw_power = forcewall_power(_build)
+        if _can_use_now(fw_power, extra_unbuilt=barrier_not_built(fw_power)):
+            actions.append(LegalAction(
+                action_id=f"force_wall:{_src_id(fw_power)}",
+                kind="force_wall",
+                target_id=None,
+                power_xmlid="FORCEWALL",
+                power_name=getattr(fw_power, "name", None) or "Force Wall",
+                summary=(
+                    "Raise a Force Wall between you and the nearest enemy "
+                    "(blocks LoS and movement; can be attacked down). An "
+                    "Attack Roll against DCV 3 places it at Range (6E1 "
+                    "p.172); once up it stays until destroyed, and costs "
+                    "END only to raise"
+                ),
+                _attack_view=fw_power,
+            ))
+        dk_power = darkness_power(_build)
+        if _can_use_now(dk_power):
+            actions.append(LegalAction(
+                action_id=f"darkness_zone:{_src_id(dk_power)}",
+                kind="darkness_zone",
+                target_id=None,
+                power_xmlid="DARKNESS",
+                power_name=getattr(dk_power, "name", None) or "Darkness",
+                summary=(
+                    "Put a Darkness field between you and the nearest enemy "
+                    "(nobody targets across it by the Senses it blocks; you "
+                    "see through your own if you have Personal Immunity). "
+                    "It is Constant: every field you keep up costs its END "
+                    "or a Charge at the start of each of your Phases"
+                ),
+            ))
+        img_power = images_power(_build)
+        if _can_use_now(img_power):
             actions.append(LegalAction(
                 action_id=f"image_decoy:{_src_id(img_power)}",
                 kind="image_decoy",
@@ -1760,11 +1755,31 @@ def enumerate_actions(
                 power_xmlid="IMAGES",
                 power_name=getattr(img_power, "name", None) or "Images",
                 summary=(
-                    "Conjure an Image decoy near the nearest enemy — a "
+                    "Conjure an Image decoy near the nearest enemy, a "
                     "lifelike illusion that draws fire; an enemy that fails "
-                    "a PER roll to disbelieve wastes attacks on the phantom"
+                    "a PER roll to disbelieve wastes attacks on the phantom. "
+                    "It is Constant: every Image you keep up costs its END "
+                    "or a Charge at the start of each of your Phases"
                 ),
             ))
+
+    # TURNING ONE OFF: a Zero Phase Action (6E2 p.20), one offer per thing he
+    # keeps up, so he chooses which (`kept_up`).
+    from kirby_combat.kept_up import DROP_KIND, KeptKind
+
+    for item in kept_up_items or ():
+        what = "Darkness field" if item.kind is KeptKind.DARKNESS else "Image"
+        actions.append(LegalAction(
+            action_id=f"{DROP_KIND[item.kind]}:{item.id}",
+            kind=DROP_KIND[item.kind],
+            target_id=None,
+            power_xmlid="DARKNESS" if item.kind is KeptKind.DARKNESS else "IMAGES",
+            power_name=what,
+            summary=(
+                f"Turn off your {what} {item.id} (a Zero Phase Action, 6E2 "
+                f"p.20): it stops costing END or Charges and leaves the board"
+            ),
+        ))
 
     # Throwing spec §4 (Task 2B.3): pick up an adjacent PORTABLE object to
     # throw next phase. For each ``portable`` construct whose representative

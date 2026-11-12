@@ -213,12 +213,9 @@ class Images:
 
     # ------------------------------------------------------------------ dismiss
     @staticmethod
-    def dismiss(session: CombatSession, *, image_id: str) -> CombatSession:
-        """End an Image — its creator stopped paying END, or chose to drop it.
-
-        Images is a Constant Power, so ceasing to pay ends it. The engine
-        does not meter END on the caller's behalf here; a driver that tracks
-        the upkeep calls this when it lapses.
+    def dismiss(session: CombatSession, *, image_id: str, reason: str) -> CombatSession:
+        """End an Image. Images is a Constant power (6E1 p.238), kept up by
+        `kept_up`; ``reason`` is the `upkeep.UpkeepEnd` value that ended it.
         """
         from kirby_combat.session.apply import apply_event
         from kirby_combat.session.events import ActionResolved, make_author_engine
@@ -230,7 +227,8 @@ class Images:
             timestamp=datetime.now(timezone.utc),
             author=make_author_engine(),
             declaration_event_id="",
-            result_payload={"type": "image_ended", "image_id": image_id},
+            result_payload={"type": "image_ended", "image_id": image_id,
+                            "reason": reason},
         )
         return apply_event(session, evt)
 

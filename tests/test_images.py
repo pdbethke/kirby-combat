@@ -117,7 +117,7 @@ def test_an_image_ends_when_the_caster_stops_paying():
     """Images is a Constant Power -- it lasts as long as END is paid."""
     s = _session()
     s, result = _place(s)
-    s = Images.dismiss(s, image_id=result.image_id)
+    s = Images.dismiss(s, image_id=result.image_id, reason="dropped")
     assert Images.active(s) == ()
 
 
