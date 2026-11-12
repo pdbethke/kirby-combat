@@ -17,15 +17,16 @@ from dataclasses import replace
 import pytest
 
 from kirby_combat.hero_view import (
-    HeroCombatant, SlotEffect, _slot_contribution,
+    HeroCombatant, SlotEffect, _slot_contribution, _slot_id_of,
 )
-from kirby_cost.engine.allocation import levels_within
+from kirby_cost.engine.allocation import NotLadderable, levels_within
 from kirby_cost.services.power_builder import build_power_from_spec
 
 from tests.corpus import require_authored
 
 FRAMEWORK = "1648348957819"
 RP, FLIGHT, TELE, PD_SLOT, FIXED_FLIGHT = "9001", "9002", "9003", "9004", "9005"
+NAKED, DR, DN, POWD = "9006", "9007", "9008", "9009"
 
 
 def _slot(spec: dict, slot_id: str, name: str, *, variable: bool = True):
@@ -47,7 +48,17 @@ def _kerendor() -> HeroCombatant:
         _slot({"xmlid": "PD", "levels": 20}, PD_SLOT, "Kerendor PD"),
         _slot({"xmlid": "FLIGHT", "levels": 25}, FIXED_FLIGHT, "Fixed Flight",
               variable=False),
+        _slot({"xmlid": "NAKEDMODIFIER", "modifiers": [{"xmlid": "RESISTANT"}]},
+              NAKED, "Naked Resistant"),
+        _slot({"xmlid": "DAMAGEREDUCTION", "option_id": "LVL50RESISTANT"},
+              DR, "Kerendor DR"),
+        _slot({"xmlid": "DAMAGENEGATION"}, DN, "Kerendor DN"),
+        _slot({"xmlid": "POWERDEFENSE", "levels": 20}, POWD, "Kerendor POWD"),
     ):
+        if power.xmlid == "NAKEDMODIFIER":
+            power.input = "for 3 PD/3 ED"
+        if power.xmlid == "DAMAGEREDUCTION":
+            power.input = "Physical"
         power.parent = framework
         build.powers.append(power)
     return HeroCombatant.from_build(build)
@@ -174,3 +185,50 @@ def test_slot_contribution_agrees_with_the_views():
     want_m = _slot_contribution(_power(hero, FLIGHT), 20, str_for_augmentation=0).movement
     assert _defence(hero, "Kerendor RP") == want_d
     assert [m for m in hero.movement_view() if m.combat_m == 20.0 and m.mode == "flight"] == want_m
+
+
+# ── a slot holding nothing is off, whatever its kind (6E1 p.404-405) ────────
+def test_a_naked_resistant_slot_at_nothing_adds_no_armour():
+    off = _split(_kerendor(), **{f"s{NAKED}": 0}).combat_stats()
+    on = _split(_kerendor(), **{f"s{NAKED}": 1}).combat_stats()
+    assert (on.rpd - off.rpd, on.red - off.red) == (3, 3)   # as bought
+
+
+# ── defence kinds that cannot be priced by levels ───────────────────────────
+@pytest.mark.parametrize("slot", [DR, DN])
+def test_unladderable_defence_slot_is_fine_at_nothing_and_at_full_cost(slot):
+    hero = _kerendor()
+    full = int(_power(hero, slot).active_cost)
+    for points in (0, full):
+        got = _split(_kerendor(), **{f"s{slot}": points})
+        got.defense_view()
+        got.combat_stats()
+    assert _defence(_split(_kerendor(), **{f"s{slot}": 0}), "Kerendor DR") == []
+    assert _defence(_split(_kerendor(), **{f"s{DR}": 30}), "Kerendor DR")
+
+
+@pytest.mark.parametrize("slot", [DR, DN])
+def test_unladderable_defence_slot_given_a_part_of_its_cost_raises(slot):
+    """Not a rule invented here: kirby-cost cannot price it by levels, so a
+    partial allocation is refused rather than guessed."""
+    hero = _split(_kerendor(), **{f"s{slot}": 2})
+    with pytest.raises(NotLadderable):
+        hero.defense_view()
+
+
+def test_a_laddered_defence_kind_follows_the_split():
+    hero = _split(_kerendor(), **{f"s{POWD}": 8})
+    [d] = _defence(hero, "Kerendor POWD")
+    assert d.power_defense == int(levels_within(_power(hero, POWD), 8).power.levels)
+    assert d.power_defense < 20
+
+
+# ── the attack a contribution carries keeps the ORIGINAL's slot id ──────────
+def test_slot_contribution_attack_keeps_an_idless_slots_own_id():
+    hero = _kerendor()
+    power, _a, _r = build_power_from_spec({"xmlid": "ENERGYBLAST", "levels": 10})
+    power._id = ""                         # no id: the slot id derives from id()
+    power.parent = next(p for p in hero._build().powers if str(p.id) == FRAMEWORK)
+    eff = _slot_contribution(power, 25, str_for_augmentation=0)
+    assert eff.attack is not None
+    assert eff.attack.slot_id == _slot_id_of(power)

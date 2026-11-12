@@ -586,9 +586,13 @@ def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> Slot
         return SlotEffect(attack=None, defenses=[], movement=[])
     xmlid = (getattr(priced, "xmlid", None) or "").upper()
     movement = _power_movement(priced)
+    attack = (_try_attack(priced, str_for_augmentation=str_for_augmentation)
+              if xmlid in _ATTACK_XMLIDS else None)
+    if attack is not None and attack.slot_id and attack.slot_id != _slot_id_of(power):
+        # an id-less slot derives its id from id(power); the copy's differs.
+        attack = replace(attack, slot_id=_slot_id_of(power))
     return SlotEffect(
-        attack=(_try_attack(priced, str_for_augmentation=str_for_augmentation)
-                if xmlid in _ATTACK_XMLIDS else None),
+        attack=attack,
         defenses=(_power_to_defense_items(priced, xmlid)
                   if xmlid in _DEFENSE_XMLIDS else []),
         movement=[] if movement is None else [movement],
@@ -958,21 +962,12 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Endurance (6E1 p.129-130, on the points used) all come from it.
         This does no cost arithmetic of its own.
         """
-        from kirby_combat.framework import slot_points_for
-        from kirby_cost.io.framework_access import framework_kind, slot_is_variable
+        from kirby_cost.io.framework_access import slot_is_variable
 
-        parent = getattr(power, "parent", None)
-        try:
-            kind = framework_kind(parent) if parent is not None else None
-        except Exception:
-            kind = None
-        if not kind:
+        standing = self._slot_standing(power)
+        if standing is None:
             return power, None
-        points = slot_points_for(self, str(getattr(parent, "id", "") or ""))
-        if points is None:
-            return power, None
-        slot_id = _slot_id_of(power)
-        given = points.get(slot_id, 0)
+        parent, slot_id, given = standing
         if given <= 0:
             return None
         if not slot_is_variable(parent, power):
@@ -980,14 +975,42 @@ class HeroCombatant(Stunnable, CombatParticipant):
         priced = _priced_at(power, given)
         return None if priced is None else (priced, slot_id)
 
+    def _slot_standing(self, power):
+        """``(framework, slot id, points given)`` for a slot of an opened
+        framework; None for anything else (outside a framework, or a
+        framework not yet opened --- the build as written).
+
+        The off-check (``points given <= 0``, 6E1 p.404-405) is the caller's
+        to make on this, and applies to a slot of ANY kind.
+        """
+        from kirby_combat.framework import slot_points_for
+        from kirby_cost.io.framework_access import framework_kind
+
+        parent = getattr(power, "parent", None)
+        try:
+            kind = framework_kind(parent) if parent is not None else None
+        except Exception:
+            kind = None
+        if not kind:
+            return None
+        points = slot_points_for(self, str(getattr(parent, "id", "") or ""))
+        if points is None:
+            return None
+        slot_id = _slot_id_of(power)
+        return parent, slot_id, points.get(slot_id, 0)
+
     def _fitted(self, power, xmlids: frozenset):
         """The power a READER of ``xmlids`` should read, or None when its
         slot is off.
 
-        Only a power of a kind the reader looks at is priced: a variable slot
-        of some other kind contributes nothing here, and pricing it could
-        raise `NotLadderable` for a purchase this reader never needed.
+        A slot holding no points is off whatever its kind. Only a power of a
+        kind the reader looks at is then PRICED: a variable slot of some other
+        kind is read as bought, since pricing it could raise `NotLadderable`
+        for a purchase this reader never needed.
         """
+        standing = self._slot_standing(power)
+        if standing is not None and standing[2] <= 0:
+            return None             # off, whatever its kind (6E1 p.404-405)
         if (getattr(power, "xmlid", None) or "").upper() not in xmlids:
             return power
         fitted = self._power_at_split(power)
