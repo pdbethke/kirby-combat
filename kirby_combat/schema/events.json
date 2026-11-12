@@ -4189,6 +4189,71 @@
       "title": "SessionStateView",
       "type": "object"
     },
+    "SlotsAllocated": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "SlotsAllocated",
+          "enum": [
+            "SlotsAllocated"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "framework_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "SlotsAllocated",
+          "enum": [
+            "SlotsAllocated"
+          ],
+          "type": "string"
+        },
+        "opening": {
+          "type": "boolean"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "slot_points": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "framework_id",
+        "slot_points",
+        "opening"
+      ],
+      "title": "SlotsAllocated",
+      "type": "object"
+    },
     "SquadLeaderNamed": {
       "additionalProperties": false,
       "properties": {
@@ -5100,6 +5165,9 @@
     },
     {
       "$ref": "#/$defs/SessionStarted"
+    },
+    {
+      "$ref": "#/$defs/SlotsAllocated"
     },
     {
       "$ref": "#/$defs/SquadLeaderNamed"

@@ -120,7 +120,7 @@ def to_dict(obj: Any) -> Any:
             "aids": dict(obj.state.aids),
             "adjusted_dice": dict(obj.state.adjusted_dice),
             "used_charges": dict(obj.state.used_charges),
-            "active_slot_per_framework": dict(obj.state.active_slot_per_framework),
+            "slot_points": {fw: dict(slots) for fw, slots in obj.state.slot_points.items()},
             "last_acted_segment": obj.state.last_acted_segment,
             "aborted": obj.state.aborted,
             "in_hero_id": obj.state.in_hero_id,

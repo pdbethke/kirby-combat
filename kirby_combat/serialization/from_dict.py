@@ -297,6 +297,17 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         other_char_values=(None if other_record is None
                            else dict(other_record["characteristics"])),
     )
+    if "slot_points" not in data:
+        # No default: an absent split is a missing decision, not an empty
+        # one. Fights recorded before the Multipower split (which carried
+        # `active_slot_per_framework`, written by nothing) are disposable.
+        old = ("it carries the retired `active_slot_per_framework`, so it was "
+               "written before Multipower splits; such fights are not "
+               "readable, re-create the fight"
+               if "active_slot_per_framework" in data else
+               "the key is required")
+        raise ValueError(
+            f"combatant {data.get('id')!r} has no `slot_points`: {old}")
     state = HeroCombatState(
         current_stun=int(data["current_stun"]),
         current_body=int(data["current_body"]),
@@ -308,7 +319,7 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         # dice, which recorded none.
         adjusted_dice=dict(data.get("adjusted_dice") or {}),
         used_charges=dict(data.get("used_charges") or {}),
-        active_slot_per_framework=dict(data.get("active_slot_per_framework") or {}),
+        slot_points={fw: dict(slots) for fw, slots in data["slot_points"].items()},
         last_acted_segment=data.get("last_acted_segment"),
         aborted=bool(data.get("aborted", False)),
         in_hero_id=bool(data.get("in_hero_id", True)),

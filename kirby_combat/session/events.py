@@ -1084,6 +1084,25 @@ class DarknessPlaced(BaseEvent):
 
 
 @dataclass
+class SlotsAllocated(BaseEvent):
+    """A Multipower's reserve is split among its slots (6E1 p.404-406).
+
+    ``slot_points`` is ABSOLUTE and names EVERY slot of the framework
+    (0 = off), so the fold replaces that framework's entry on the combatant
+    whole and never has to guess what an omitted slot meant. ``opening`` is
+    True for the split a fight begins with, False for a later re-split.
+    `apply_event` folds it onto `CombatantState.slot_points` (the same path
+    an Aid or Drain takes onto ``adjusted_dice``). This event is data only:
+    what a split may be is decided where it is chosen, not here.
+    """
+    kind: Literal["SlotsAllocated"] = field(default="SlotsAllocated", init=False)
+    combatant_id: str = ""
+    framework_id: str = ""
+    slot_points: dict[str, int] = field(default_factory=dict)
+    opening: bool = False
+
+
+@dataclass
 class DarknessEnded(BaseEvent):
     """A Darkness field comes down (6E1 p.188) --- and what takes it down.
 
@@ -1243,6 +1262,7 @@ CombatEvent = (
     | BarrierRaised
     | DarknessPlaced
     | DarknessEnded
+    | SlotsAllocated
     | ChargeSpent
     | PowerDispelled
     | PowerRestarted

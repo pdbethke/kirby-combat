@@ -77,7 +77,7 @@ def test_combat_state_is_blank_at_load():
     assert c.state.used_charges == {}
     assert c.state.aborted is False
     assert c.state.last_acted_segment is None
-    assert c.state.active_slot_per_framework == {}
+    assert c.state.slot_points == {}
 
 
 def test_combat_stats_returns_sane_values():

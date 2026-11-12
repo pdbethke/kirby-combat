@@ -162,10 +162,10 @@ class HeroCombatState:
     via separate dicts when needed."""
 
     # Framework slot allocation
-    active_slot_per_framework: dict[str, str] = field(default_factory=dict)
-    """Map of framework xmlid → currently-allocated slot xmlid. Empty until
-    the combatant first declares a slot use; persists across phases until
-    the combatant changes allocation (which costs an action in 6E)."""
+    slot_points: dict[str, dict[str, int]] = field(default_factory=dict)
+    """framework id -> slot id -> points allocated to that slot (0 = off).
+    A framework with no entry has not been opened yet. Written only by the
+    `SlotsAllocated` fold, which replaces one framework's entry whole."""
 
     # Adjustments (Aid/Drain/Transfer applied to this combatant)
     drains: dict[str, int] = field(default_factory=dict)
@@ -2687,7 +2687,7 @@ def _find_power(hero: "LoadedHero", power_xmlid: str, *,
          slot Energy Blast — top-level is examined first.
 
     Step 3 will wire proper slot-allocation lookup driven by the
-    session's ``active_slot_per_framework`` state.
+    session's ``slot_points`` state.
     """
     target = power_xmlid.upper()
 

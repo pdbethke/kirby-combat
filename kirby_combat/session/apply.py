@@ -233,6 +233,22 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         return project_onto(
             replace(session, event_log=new_log, updated_at=now), event.target_id)
 
+    if kind == "SlotsAllocated":
+        # A Multipower split (6E1 p.404-406) folded onto the combatant: the
+        # framework's entry is replaced whole, other frameworks untouched.
+        combatant = session.combatants.get(event.combatant_id)
+        if combatant is None:
+            raise ValueError(
+                f"SlotsAllocated for {event.combatant_id!r} in session "
+                f"{session.id!r}, which has no such combatant")
+        state = replace(combatant.state, slot_points={
+            **combatant.state.slot_points,
+            event.framework_id: dict(event.slot_points)})
+        return replace(
+            session, event_log=new_log, updated_at=now,
+            combatants={**session.combatants,
+                        event.combatant_id: replace(combatant, state=state)})
+
     if kind in ("PowerDispelled", "PowerRestarted"):
         # The dispelled set is folded into the combatant's build, so every
         # reader of his powers reads it (`actions/dispel.py`).
