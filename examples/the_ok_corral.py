@@ -384,6 +384,63 @@ def the_interloper():
     return replace(c, side=Side.solo("power_lad"))
 
 
+class PresetSplitSeat:
+    """A deterministic seat that also answers a Multipower's split offers.
+
+    `FirstLegalChooser` (the fallback under `TacticChooser`) refuses an
+    opening split by name, and skips a re-split, because stating how the
+    reserve is divided (6E1 p.404-406) is the SEAT's decision and no default
+    may make it for him. A fighter with a Multipower, such as Power Lad, needs
+    a seat that does. This one answers an `opening_split` or re-split offer
+    by naming one of the offer's own presets, and defers every other decision
+    to `inner`.
+
+    The preset is the opening's standard combat set when the offer carries one
+    (the player's own choice), else the preset that buys the most attack dice (the first, on a tie) -- read off the preset's effect text, so the seat prices
+    nothing itself. It never re-splits an opened Multipower: the split in
+    force stands, and the loop never answers for it. This is a stand-in until
+    kirby-ai ships its own `choose_split`.
+    """
+
+    name = "preset-split"
+
+    def __init__(self, inner) -> None:
+        self._inner = inner
+        #: (actor, offer kind, preset name) for every split it stated.
+        self.stated: list[tuple[str, str, str]] = []
+
+    def give_orders(self, page):
+        return self._inner.give_orders(page)
+
+    @property
+    def picks(self):
+        """The inner chooser's recorded picks, so a caller can read them."""
+        return self._inner.picks
+
+    @staticmethod
+    def _dice(preset) -> int:
+        """Attack dice the preset buys; 0 when it buys no damaging attack
+        (an Entangle's dice are not a weapon)."""
+        import re
+        if not re.search(r"Attack|Blast|Strike|Ray|Drain", preset.effect_text):
+            return 0
+        return max((int(n) for n in re.findall(r"(\d+)d6", preset.effect_text)),
+                   default=0)
+
+    def choose(self, situation) -> str:
+        from kirby_combat.framework import SplitChoice
+        from kirby_combat.loop.chooser import complete_choice
+
+        if situation.opening:
+            offer = next(a for a in situation.ordered_menu
+                         if isinstance(a.choice, SplitChoice))
+            choice = offer.choice
+            preset = choice.standard or max(choice.presets, key=self._dice)
+            self.stated.append((situation.actor.hero.name, offer.kind, preset.name))
+            return complete_choice(offer, preset.points)
+        return self._inner.choose(situation)
+
+
 def _seat(name: str, roster: dict):
     """The chooser that decides each Phase.
 
@@ -394,7 +451,9 @@ def _seat(name: str, roster: dict):
     without this repo depending on one.
     """
     if name == "tactics":
-        return TacticChooser()
+        # Wrapped so a Multipower fighter (Power Lad) can state its opening
+        # split; every other decision is the TacticChooser's.
+        return PresetSplitSeat(TacticChooser())
     module_name, _, factory = name.partition(":")
     if not factory:
         raise SystemExit(f"--seat wants 'module:factory', got {name!r}")
@@ -479,6 +538,7 @@ def main() -> None:
         # and a shot to the foot stop being the same shot.
         template=RAW_HEROIC,
         dice_roller=roller).start()
+    seat = _seat(seat_name, {c.id: c for c in fighters})
     result = run_encounter(
         Encounter(id="tombstone", turn=1, segment=12, sessions=[session],
                   # ON THE ENCOUNTER TOO, and this is not belt-and-braces.
@@ -490,7 +550,7 @@ def main() -> None:
                   # heroic flags did nothing; an Encounter with no
                   # template now raises instead.
                   template=RAW_HEROIC),
-        _seat(seat_name, {c.id: c for c in fighters}),
+        seat,
         roller=roller, on_unresolvable="skip", max_turns=40)
 
     print(f"  decided: {result.complete}  winner: {result.winner}  "
@@ -502,6 +562,12 @@ def main() -> None:
         state = "DOWN" if c.is_ko or c.state.current_body <= 0 else "up"
         print(f"  {c.hero.name:<15} STUN {c.state.current_stun:>4} "
               f"BODY {c.state.current_body:>3}  {state}")
+    for who, kind, preset in getattr(seat, "stated", []):
+        print(f"  {who} stated a split ({kind}): {preset}")
+    lad_picks = [p.action_id for p in getattr(seat, "picks", [])
+                 if p.actor_id == "power_lad"]
+    if lad_picks:
+        print(f"  Power Lad's Phases ({len(lad_picks)}): {lad_picks}")
     print("\n  standing:",
           {s.name: len(v)
            for s, v in Roster(result.encounter.sessions[0]).standing.items()})

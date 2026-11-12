@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.35.0 — 2026-11-12
+
+**A Multipower's reserve is divided by the man who owns it, in points.** Until now a variable slot "took what the fixed slots left, in build order" (0.34.0's "still open"), a slot's attack ran at full power wherever the points went, and the engine never asked how the reserve was split. Now (6E1 p.404-406) he states the split, and every reader (attacks, movement, defences) reads a slot at the points it holds: as many LEVELS as fit them, none if it holds none. Pricing is kirby-cost's, not this engine's: `kirby_cost.engine.allocation.levels_within`, reached through `HeroCombatant` (`_priced_at`, `_power_at_split`, `_slot_contribution`). **Needs kirby-cost 0.7.0** (`levels_within`, `ladder`, `step_display`, `NotLadderable`).
+
+- **New event `SlotsAllocated`** (`combatant_id`, `framework_id`, `slot_points`, `opening`). `slot_points` is ABSOLUTE and names every slot of the framework (0 = off). `opening` is True for the split a fight begins with.
+- **The split lives on the combatant:** `CombatantState.slot_points` (`{framework_id: {slot_id: points}}`) and `standing_splits` (the player's named, saved splits: `StandingSplit(name, points, standard, position)`). **`active_slot_per_framework` is removed.**
+- **Every Multipower opens the fight with a stated split.**
+  - Before Segment 12 `run_phase` poses one `opening_split:<framework>:split` offer per Multipower (roster order, then framework order; fixed-only Multipowers too; EC and VPP have no reserve to divide). New menu kind `opening_split`, `PhaseSituation.opening`, `loop.pending_openings`, and `NoOpeningSplit` (a defensive guard: a Segment began with an opening pending).
+  - The offer is a `SplitChoice` with nothing in force. "Every slot off" is a legal, stated answer. An opening is not a Phase and not a re-split, so p.410's once-a-Phase is untouched.
+  - **No default.** The standard combat set is among the presets and is never applied without an answer.
+- **The re-split is one offer per opened Multipower:** `reallocate_slots:<framework>:split`, answered `=<slot>@<points>+<slot>@<points>`; was one offer per whole set of slots (`reallocate_slots:<framework>:<slot,...>`). It carries `presets`: the player's standing splits, "All in <slot>", "Even", "<fixed slot> + remainder", each with what it buys in kirby-cost's words (`step_display`). Fixed-only Multipowers still list whole sets, now with completed split ids.
+- **Removed:** `active_slots` and `validate_allocation` (replaced by `validate_split` and the split held on the combatant); `damage.scale_variable_slot_dice` and its export from `kirby_combat` (nothing called it; it floored dice proportionally, which is not the book's rule); the Elemental Control and VPP slot-switch offers.
+- **`FirstLegalChooser` refuses an opening by name** (`InvalidChoice`, saying so) and passes over re-split offers. Choosing how a reserve is divided is his, and "the first preset" would be this seat choosing it. **Until kirby-ai ships its `choose_split`, a deterministic seat answers a split from the offer's presets;** `examples/the_ok_corral.py` carries one (`PresetSplitSeat`), which takes the standard combat set if there is one, else the preset buying the most attack dice.
+- **Priced vs plain framework views.** `priced_framework_view()` prices every variable slot's rungs (and raises for a variable slot kirby-cost cannot ladder, e.g. Damage Reduction); `framework_view()` is plain and prices nothing. A part share of an unladderable slot is refused (`NotLadderable`); nothing, or its whole cost, is fine.
+- **Defences and movement follow the split:** Resistant Protection 15/15 at 9 points is 3/3, Flight 60m at 20 points is 20m, a slot holding nothing gives nothing (6E1 p.406).
+- **New RAW alignment page `examples/raw_kerendor_multipower.py`** (6E1 p.406, Kerendor): 30/30, 40/20, Protection on with 15 left, 10/40/9, and 30 into Flight 50m with +1/4 Reduced Endurance (24m), each asserted through the real views.
+- **Breaking for consumers:**
+  - **Old fights and snapshots are not replayable.** A snapshot lacking `standing_splits` is refused by name, and one carrying `active_slot_per_framework` is refused as retired; an event log from before this release has no openings, so a fight cannot be re-run from it.
+  - A menu consumer must expect `opening_split` and the new `reallocate_slots` id shape, and a seat must answer both (`complete_choice(offer, points)`).
+  - `events.json` gains `SlotsAllocated`; `x-kirby-combat-version` is 0.35.0.
+- **Suite:** 4041 passed, 3 xfailed with `KIRBY_COST_HDT` and `KIRBY_COMBAT_BUILDS` set (0.34.0 recorded 3902 with the template; `c76ebbb2` on this branch had 4046, and deleting `scale_variable_slot_dice`'s 7 tests while adding the Kerendor page nets the rest). Without either: 3747 passed, 293 skipped, 2 xfailed.
+
 ## 0.34.0 — 2026-11-12
 
 **What a man puts on the board lasts exactly as long as the book says.** Darkness, Images and Barriers were each kept by their own rule, and the rules were menu rulings: one field, one Image, one wall at a time; Images never came down at all; a Barrier cost nothing; no Charge was ever spent. Every rule below is cited to its page.
