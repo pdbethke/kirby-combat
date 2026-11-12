@@ -64,6 +64,7 @@ def _identity_record(record) -> dict[str, Any]:
         "has_combat_sense": v.has_combat_sense,
         "has_self_contained_breathing": v.has_self_contained_breathing,
         "skill_rolls": dict(v.skill_rolls),
+        "defence_terms": to_dict(v.defence_terms),
     }
 
 
@@ -91,7 +92,11 @@ def to_dict(obj: Any) -> Any:
     # only needs enough to rehydrate combat state.
     from kirby_combat.hero_view import CombatantSnapshot, HeroCombatant
     if isinstance(obj, HeroCombatant):
-        s = obj.combat_stats()
+        # THE BUILD AS WRITTEN, not the split in force: the slots are
+        # recorded as priced ladders (`SlotView.steps`) and a rebuilt
+        # combatant swaps each slot's full rung for the one his split picks
+        # (6E1 p.404-406); `slot_points` below carries the split itself.
+        s = obj._as_bought().combat_stats()
         # EVERY DERIVED VIEW, read off the live combatant in one place.
         # The stat keys below are not enough to fight with: `attacks`,
         # `defenses`, `csls`, `senses`, `movement_view`, `maneuver_view`,
@@ -153,6 +158,7 @@ def to_dict(obj: Any) -> Any:
             "has_combat_sense": view.has_combat_sense,
             "has_self_contained_breathing": view.has_self_contained_breathing,
             "skill_rolls": dict(view.skill_rolls),
+            "defence_terms": to_dict(view.defence_terms),
             # HIS OTHER IDENTITY (6E1 p.388), so a rebuilt man who changes
             # costume owns what the live one did. Always written: null for a
             # man with one identity.

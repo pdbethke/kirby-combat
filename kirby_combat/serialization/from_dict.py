@@ -28,7 +28,9 @@ def _ensure_registry() -> None:
         MovementCapability, FrameworkView, SlotView, EnduranceReserve,
     )
     # The rest of a combatant's derived views (see hero_view.CombatantSnapshot).
-    from kirby_combat.hero_view import MartialManeuverView
+    from kirby_combat.hero_view import (
+        DefenceTerms, MartialManeuverView, SlotEffect, SlotStep,
+    )
     from kirby_combat.perception import SenseCapability
     from kirby_combat.side import Side
     from kirby_combat.vehicles import Vehicle, Passenger
@@ -72,6 +74,7 @@ def _ensure_registry() -> None:
         CombatSession, CombatTemplate, EventAuthor,
         MovementCapability, FrameworkView, SlotView, EnduranceReserve,
         MartialManeuverView, SenseCapability, Side,
+        SlotStep, SlotEffect, DefenceTerms,
     ]:
         _register(cls)
     # The shaped-attack modifiers an AttackPower carries
@@ -354,7 +357,7 @@ _REQUIRED_SNAPSHOT_KEYS = (
     "reach_m", "swimming_m", "str_source_id", "side",
     "attacks", "defenses", "csls", "senses", "movement", "reserves",
     "maneuvers", "frameworks", "is_npc", "is_mentalist", "has_combat_sense",
-    "has_self_contained_breathing", "skill_rolls",
+    "has_self_contained_breathing", "skill_rolls", "defence_terms",
 )
 
 
@@ -374,6 +377,22 @@ def _snapshot_from_dict(data: dict) -> Any:
             f"HeroCombatant.from_build(...)."
         )
     from kirby_combat.hero_view import IdentityRecord
+
+    # Old fights are disposable: a slot recorded without its ladder cannot be
+    # split by a rebuilt combatant, and there is no compatibility path.
+    for record in (data, data.get("other_identity") or {}):
+        for fw in record.get("frameworks", ()):
+            for slot in fw.get("slots", ()):
+                if "steps" not in slot:
+                    raise ValueError(
+                        f"combatant snapshot {data.get('id')!r}: slot "
+                        f"{slot.get('slot_id')!r} of framework "
+                        f"{fw.get('framework_id')!r} has no `steps` --- it was "
+                        "recorded before snapshots held each slot's priced "
+                        "ladder (6E1 p.404-406), so a rebuilt combatant could "
+                        "not split his reserve as the live one did. Re-record "
+                        "it from the canonical character with "
+                        "HeroCombatant.from_build(...).")
 
     # A recording made before `other_identity` existed recorded one identity,
     # which is what None says; a current one always writes the key.
@@ -418,6 +437,7 @@ def _views_from_dict(data: dict, CombatantSnapshot, *, in_hero_id: bool,
         has_self_contained_breathing=bool(
             data["has_self_contained_breathing"]),
         skill_rolls={str(k): int(v) for k, v in data["skill_rolls"].items()},
+        defence_terms=from_dict(data["defence_terms"]),
         in_hero_id=in_hero_id,
         other_identity=other_identity,
     )

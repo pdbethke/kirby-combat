@@ -57,7 +57,7 @@ from kirby_combat.parts import parts_of
 import contextlib
 
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -394,6 +394,11 @@ class CombatantSnapshot:
     #: absent from here --- which is exactly what it answers live for a skill
     #: the character does not have.
     skill_rolls: dict[str, int]
+    #: Everything bought's contribution to the defence half of the stat block
+    #: (rPD/rED, MD, Power and Flash Defense, PD/ED as Powers), as written.
+    #: A rebuilt combatant swaps each slot's terms for the rung its split
+    #: picks and composes the stat block again (`compose_defences`).
+    defence_terms: "DefenceTerms"
     #: The identity these views were recorded in (6E1 p.388). Read off the
     #: combatant's own state at record time, never assumed.
     in_hero_id: bool
@@ -444,6 +449,12 @@ class CombatantSnapshot:
 
         if original_hero(combatant.hero) is not combatant.hero:
             combatant = replace(combatant, hero=original_hero(combatant.hero))
+        # THE BUILD AS WRITTEN, NOT THE SPLIT. Every view below is recorded
+        # with no framework opened, and each slot's priced ladder is recorded
+        # beside them (`framework_view`), so a rebuilt combatant swaps each
+        # slot's full rung for the one its split picks (6E1 p.404-406).
+        # Recording the split in force would freeze it into the views.
+        combatant = combatant._as_bought()
         stats = combatant.combat_stats()
         return cls(
             rpd=stats.rpd, red=stats.red, md=stats.md,
@@ -466,6 +477,7 @@ class CombatantSnapshot:
             has_self_contained_breathing=(
                 combatant.has_self_contained_breathing()),
             skill_rolls=combatant.skill_rolls(),
+            defence_terms=combatant._defence_terms_as_written(),
             in_hero_id=combatant.state.in_hero_id,
             other_identity=other_identity,
         )
@@ -565,12 +577,33 @@ def _try_attack(power, *, str_for_augmentation: int):
 @dataclass
 class SlotEffect:
     """What one framework slot gives a fighter at some number of points
-    (6E1 p.404-406): the attack it is, the defences it adds and the movement
-    modes it grants. Any of them may be empty."""
+    (6E1 p.404-406): the attack it is, the defences it adds, the movement
+    modes it grants and what it adds to the stat block. Any may be empty."""
 
     attack: AttackPower | None
     defenses: list[DefenseItem]
     movement: list[MovementCapability]
+    #: What it adds to the stat block's defence half (rPD/rED, MD, Power and
+    #: Flash Defense, PD/ED bought as Powers), as terms, so they are composed
+    #: with the natural PD/ED as live and not added to a total.
+    defence: "DefenceTerms"
+
+    @classmethod
+    def nothing(cls) -> "SlotEffect":
+        return cls(attack=None, defenses=[], movement=[],
+                   defence=DefenceTerms.none())
+
+
+@dataclass
+class SlotStep:
+    """One rung of a slot's priced ladder: holding ``points`` Active Points
+    the slot is ``display`` and has ``effect``. Recorded in a snapshot so a
+    rebuilt combatant needs no build to price a split (kirby-cost's
+    `ladder` prices it; nothing here does)."""
+
+    points: int
+    display: str
+    effect: SlotEffect
 
 
 def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> SlotEffect:
@@ -583,7 +616,7 @@ def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> Slot
     """
     priced = _priced_at(power, points)
     if priced is None:
-        return SlotEffect(attack=None, defenses=[], movement=[])
+        return SlotEffect.nothing()
     xmlid = (getattr(priced, "xmlid", None) or "").upper()
     movement = _power_movement(priced)
     attack = (_try_attack(priced, str_for_augmentation=str_for_augmentation)
@@ -596,6 +629,7 @@ def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> Slot
         defenses=(_power_to_defense_items(priced, xmlid)
                   if xmlid in _DEFENSE_XMLIDS else []),
         movement=[] if movement is None else [movement],
+        defence=defence_terms(priced),
     )
 
 
@@ -747,6 +781,77 @@ class HeroCombatant(Stunnable, CombatParticipant):
         from kirby_combat.identity import in_play
 
         return in_play(purchase, in_hero_id=self.state.in_hero_id)
+
+    def _defence_terms_as_written(self) -> "DefenceTerms":
+        """Everything bought's terms for the defence half of the stat block,
+        with no framework opened (what `CombatantSnapshot` records)."""
+        if self.snapshot is not None:
+            return self._recorded().defence_terms
+        return sum((defence_terms(p) for p in
+                    self._as_bought()._powers_fitted(_STAT_POWER_XMLIDS)),
+                   DefenceTerms.none())
+
+    def _as_bought(self) -> "HeroCombatant":
+        """Himself with no framework opened: every view reads the build as
+        written (6E1 p.404-406 before any split). What a snapshot records,
+        so the split in force is not frozen into the recorded views."""
+        return replace(self, state=replace(self.state, slot_points={}))
+
+    def _slot_swaps(self) -> "list[tuple[SlotEffect, SlotEffect]]":
+        """For each recorded slot of an OPENED framework: what the recording
+        holds for it (its full rung, the build as written) and what the
+        split he holds now gives it instead (6E1 p.404-406): the highest
+        recorded step with ``points <= allocated``, which is the answer
+        `levels_within` gives live. A fixed slot holding anything is as
+        bought; one holding nothing is off. Frameworks not opened swap
+        nothing."""
+        from kirby_combat.framework import slot_points_for
+
+        out: list[tuple[SlotEffect, SlotEffect]] = []
+        for fw in self._recorded().frameworks:
+            split = slot_points_for(self, fw.framework_id)
+            if split is None:
+                continue
+            for slot in fw.slots:
+                if not slot.steps:
+                    raise ValueError(
+                        f"slot {slot.slot_id!r} of {fw.framework_id!r} carries "
+                        "no `steps`: it was recorded before snapshots held each "
+                        "slot's priced ladder, so a split cannot be read from "
+                        "it; re-record the combatant")
+                given = split.get(slot.slot_id, 0)
+                if given <= 0:
+                    chosen = slot.steps[0]
+                elif not slot.variable:
+                    chosen = slot.steps[-1]
+                else:
+                    chosen = [st for st in slot.steps if st.points <= given][-1]
+                out.append((slot.steps[-1].effect, chosen.effect))
+        return out
+
+    def _recorded_split(self, items: list, part) -> list:
+        """A recorded list with each opened slot's full contribution
+        replaced, in place, by the one its split gives (``part`` picks the
+        list off a `SlotEffect`). In place so the order is the live order.
+
+        A slot's items are found by equality (an attack carries its slot id,
+        so two like slots differ); a replacement is locked so it is not
+        mistaken for the next slot's. A recording that does not contain a
+        slot's own full contribution is inconsistent and raises."""
+        out = [(x, False) for x in items]
+        for full_eff, chosen_eff in self._slot_swaps():
+            full, chosen = part(full_eff), part(chosen_eff)
+            if full == chosen:
+                continue
+            at = next((i for i in range(len(out) - len(full) + 1)
+                       if all(not out[i + j][1] and out[i + j][0] == f
+                              for j, f in enumerate(full))), None)
+            if at is None:
+                raise ValueError(
+                    "the recording does not hold a slot's full contribution "
+                    f"{full!r}; it cannot be re-split")
+            out[at:at + len(full)] = [(x, True) for x in chosen]
+        return [x for x, _ in out]
 
     def _recorded(self) -> "CombatantSnapshot":
         """The snapshot's views for the identity he is in NOW.
@@ -901,7 +1006,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
         ``_build_attack_power`` already reads.
         """
         if self.snapshot is not None:
-            return _with_adjusted_dice(self._recorded().attacks, self.state.adjusted_dice)
+            return _with_adjusted_dice(
+                self._recorded_split(
+                    self._recorded().attacks,
+                    lambda e: [] if e.attack is None else [e.attack]),
+                self.state.adjusted_dice)
         return _with_adjusted_dice(
             self._attacks_from_build(at_split=True), self.state.adjusted_dice)
 
@@ -1280,8 +1389,48 @@ class HeroCombatant(Stunnable, CombatParticipant):
             self._build(), ctx, adjustments,
             powers=self._powers_fitted(_STAT_POWER_XMLIDS))
 
-        # What is left: Drains and Aids on the power-derived defenses, which
-        # have no characteristic to be a contribution to.
+        self._adjust_power_stats(stats)
+
+        # The power-derived half. rPD/rED, Mental, Power and Flash Defense
+        # are Powers rather than characteristics, and reach is 1m plus
+        # Stretching --- all of which a rebuilt combatant's stub hero has
+        # nothing to derive from, so they come off the snapshot. Last, after
+        # the Drain/Aid pass and the rPD cap, which is where the instance
+        # monkeypatch this replaces also sat: the recorded values ARE the
+        # post-cap ones, and applying the cap to them again would shrink a
+        # rebuilt man's armour on every read.
+        if self.snapshot is not None:
+            recorded = self._recorded()
+            stats.rpd = recorded.rpd
+            stats.red = recorded.red
+            stats.md = recorded.md
+            stats.power_defense = recorded.power_defense
+            stats.flash_defense = recorded.flash_defense
+            stats.reach_m = recorded.reach_m
+            # The slots, at the split he holds (6E1 p.404-406): PD/ED bought
+            # as Powers and the defence Powers follow it. Each slot's full
+            # rung --- what the recording holds --- gives way to the rung
+            # picked, in the TERMS of everything bought, and the stat block is
+            # composed again from the characteristic PD/ED, so the natural-PD
+            # cap on a Resistant advantage bites as it does live.
+            swaps = self._slot_swaps()
+            if swaps:
+                held = recorded.defence_terms
+                terms = held
+                for full, chosen in swaps:
+                    terms = terms - full.defence + chosen.defence
+                (stats.pd, stats.ed, stats.rpd, stats.red, stats.md,
+                 stats.power_defense, stats.flash_defense) = compose_defences(
+                    stats.pd - held.pd_bonus - held.rpd,
+                    stats.ed - held.ed_bonus - held.red, terms)
+                self._adjust_power_stats(stats)
+        else:
+            stats.reach_m = _base_reach_m(self._build())
+        return stats
+
+    def _adjust_power_stats(self, stats: HeroCombatStats) -> None:
+        """Drains and Aids on the power-derived defenses, which have no
+        characteristic to be a contribution to, and then the cap on rPD/rED."""
         for stat, delta in self.state.drains.items():
             if stat in _CHARACTERISTIC_FOR_STAT:
                 continue
@@ -1305,26 +1454,6 @@ class HeroCombatant(Stunnable, CombatParticipant):
             stats.rpd = min(stats.rpd, stats.pd)
         if "red" not in self.state.aids:
             stats.red = min(stats.red, stats.ed)
-
-        # The power-derived half. rPD/rED, Mental, Power and Flash Defense
-        # are Powers rather than characteristics, and reach is 1m plus
-        # Stretching --- all of which a rebuilt combatant's stub hero has
-        # nothing to derive from, so they come off the snapshot. Last, after
-        # the Drain/Aid pass and the rPD cap, which is where the instance
-        # monkeypatch this replaces also sat: the recorded values ARE the
-        # post-cap ones, and applying the cap to them again would shrink a
-        # rebuilt man's armour on every read.
-        if self.snapshot is not None:
-            recorded = self._recorded()
-            stats.rpd = recorded.rpd
-            stats.red = recorded.red
-            stats.md = recorded.md
-            stats.power_defense = recorded.power_defense
-            stats.flash_defense = recorded.flash_defense
-            stats.reach_m = recorded.reach_m
-        else:
-            stats.reach_m = _base_reach_m(self._build())
-        return stats
 
     def attack_view(
         self,
@@ -1486,7 +1615,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         just the parent.
         """
         if self.snapshot is not None:
-            return self._recorded().defenses
+            return self._recorded_split(
+                self._recorded().defenses, lambda e: e.defenses)
 
         items: list[DefenseItem] = []
         seen: set[int] = set()
@@ -1520,7 +1650,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         levels → metres. Zero-distance entries are suppressed.
         """
         if self.snapshot is not None:
-            return self._recorded().movement
+            return self._recorded_split(
+                self._recorded().movement, lambda e: e.movement)
         return _movement_from(
             self._build(), self._powers_fitted(_MOVE_POWER_XMLIDS))
 
@@ -1717,6 +1848,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 self._attacks_from_build(at_split=False), self.state.adjusted_dice)
             if a.slot_id
         }
+        str_ = self.combat_stats().str_
         out: list[FrameworkView] = []
         for p in (self._build().powers or []):
             kind = framework_kind(p)
@@ -1728,14 +1860,16 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 # Exact same formula as _build_attack_power so attack_by_slot links.
                 sid = _slot_id_of(child)
                 atk = attack_by_slot.get(sid)
+                variable = slot_is_variable(p, child)
                 slots.append(SlotView(
                     slot_id=sid,
                     name=(getattr(child, "name", None) or
                           getattr(child, "alias", "") or cx),
                     active_points=int(getattr(child, "active_cost", 0) or 0),
-                    variable=slot_is_variable(p, child),
+                    variable=variable,
                     kind=("attack" if atk is not None else "other"),
                     attack=atk,
+                    steps=self._slot_steps(child, variable=variable, str_=str_),
                 ))
             out.append(FrameworkView(
                 # The framework's identity. Consumers matched on xmlid, which
@@ -1753,6 +1887,43 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 slots=slots,
             ))
         return out
+
+    def _slot_steps(self, power, *, variable: bool, str_: int) -> "tuple[SlotStep, ...]":
+        """The slot's ladder (6E1 p.404-406), for a snapshot to carry.
+
+        A variable slot's rungs are kirby-cost's own (`ladder`); a fixed slot
+        is nothing or as bought; a variable slot kirby-cost cannot ladder
+        (`NotLadderable`: Damage Reduction, Damage Negation, flat-cost powers)
+        has exactly those two (controller ruling R9) --- the live views raise
+        on a part-share of one, a recording cannot, and the allocation is
+        what keeps a split off those rungs. A slot not in play in this
+        identity (one part of a Compound Power, Only In Alternate Identity)
+        gives nothing at any rung. No cost arithmetic here.
+        """
+        from kirby_cost.engine.allocation import NotLadderable, ladder
+
+        full = int(getattr(power, "active_cost", 0) or 0)
+        in_play = self._in_play(power)
+
+        def rung(points: int, display: str) -> SlotStep:
+            return SlotStep(points, display, _slot_contribution(
+                power, points, str_for_augmentation=str_) if in_play
+                else SlotEffect.nothing())
+
+        rungs = [SlotStep(0, "", SlotEffect.nothing())]
+        if variable:
+            try:
+                fits = ladder(power)
+            except NotLadderable:
+                fits = []
+            rungs += [rung(f.active_points, f.display)
+                      for f in fits if 0 < f.active_points < full]
+        # The top rung is the slot as bought. A purchase costing nothing (a
+        # Naked Advantage) still has to hold a point to be on: a slot holding
+        # none is off (6E1 p.404-405), so its rung is 1.
+        rungs.append(rung(max(full, 1),
+                          str(getattr(power, "damage_display", "") or "")))
+        return tuple(rungs)
 
     def has_self_contained_breathing(self) -> bool:
         """True if a Life Support power grants Self-Contained Breathing / no need
@@ -2434,6 +2605,155 @@ def _characteristic_value(
     return state.value(ctx)
 
 
+@dataclass(frozen=True)
+class DefenceTerms:
+    """What purchases add to the defence half of the stat block, before the
+    natural PD/ED are weighed against them (`_compute_stats_from_hero`).
+
+    ADDITIVE across purchases, which is what lets a snapshot record one
+    framework slot's terms at each step of its ladder and a rebuilt
+    combatant sum the steps it chose.
+    """
+
+    pd_bonus: int       # extra non-resistant PD bought via PD-power rows
+    ed_bonus: int
+    rpd: int            # resistant PD from FORCEFIELD / ARMOR / RESISTANTPROTECTION
+    red: int
+    md: int
+    powd: int
+    flashd: int
+    #: Slice of natural PD/ED/... that NAKEDMODIFIER+RESISTANT (or a RESISTANT
+    #: advantage on a bare PD/ED power row) converts to resistant; capped
+    #: against the pool at composition.
+    naked_resistant: dict
+
+    @classmethod
+    def none(cls) -> "DefenceTerms":
+        return cls(0, 0, 0, 0, 0, 0, 0,
+                   {"PD": 0, "ED": 0, "MD": 0, "POWD": 0, "FLASHD": 0})
+
+    def __sub__(self, other: "DefenceTerms") -> "DefenceTerms":
+        return DefenceTerms(
+            self.pd_bonus - other.pd_bonus, self.ed_bonus - other.ed_bonus,
+            self.rpd - other.rpd, self.red - other.red, self.md - other.md,
+            self.powd - other.powd, self.flashd - other.flashd,
+            {k: v - other.naked_resistant[k]
+             for k, v in self.naked_resistant.items()})
+
+    def __add__(self, other: "DefenceTerms") -> "DefenceTerms":
+        return DefenceTerms(
+            self.pd_bonus + other.pd_bonus, self.ed_bonus + other.ed_bonus,
+            self.rpd + other.rpd, self.red + other.red, self.md + other.md,
+            self.powd + other.powd, self.flashd + other.flashd,
+            {k: v + other.naked_resistant[k]
+             for k, v in self.naked_resistant.items()})
+
+
+def defence_terms(p) -> "DefenceTerms":
+    """One purchase's terms (`_compute_stats_from_hero` composes them)."""
+    pd_bonus = ed_bonus = rpd = red = md = powd = flashd = 0
+    naked_resistant: dict[str, int] = {"PD": 0, "ED": 0, "MD": 0,
+                                       "POWD": 0, "FLASHD": 0}
+
+    def _terms() -> "DefenceTerms":
+        return DefenceTerms(pd_bonus, ed_bonus, rpd, red, md, powd, flashd,
+                             naked_resistant)
+
+    xmlid = (getattr(p, "xmlid", None) or "").upper()
+    levels = int(getattr(p, "levels", 0) or 0)
+    if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
+        # ASK THE BUILD. HD splits Resistant Protection across PD/ED/MD/
+        # POWD on the element itself (PDLEVELS/EDLEVELS/...), and
+        # `ForceField.XML_ATTRS` has read them for a long time. This used
+        # to guess half-and-half instead -- Power Lad's 45 points became
+        # 23/22 rather than the 25/20 he bought -- because the split was
+        # believed to live on adders. Falls back to the old halves only
+        # when a build genuinely declares none.
+        split_pd = int(getattr(p, "pd_levels", 0) or 0)
+        split_ed = int(getattr(p, "ed_levels", 0) or 0)
+        split_md = int(getattr(p, "md_levels", 0) or 0)
+        split_powd = int(getattr(p, "powd_levels", 0) or 0)
+        if split_pd or split_ed or split_md or split_powd:
+            rpd += split_pd
+            red += split_ed
+            md += split_md
+            powd += split_powd
+        else:
+            rpd += levels // 2 + (levels % 2)
+            red += levels // 2
+    elif xmlid == "PD":
+        pd_bonus += levels
+        # If this PD-power row carries a RESISTANT advantage, the
+        # whole bonus is resistant.
+        if _has_assigned_modifier(p, "RESISTANT"):
+            naked_resistant["PD"] += levels
+    elif xmlid == "ED":
+        ed_bonus += levels
+        if _has_assigned_modifier(p, "RESISTANT"):
+            naked_resistant["ED"] += levels
+    elif xmlid == "MENTALDEFENSE":
+        md += levels
+    elif xmlid == "POWERDEFENSE":
+        powd += levels
+    elif xmlid == "FLASHDEFENSE":
+        flashd += levels
+    elif xmlid == "NAKEDMODIFIER":
+        # Defensive naked advantages: carry a RESISTANT or
+        # HARDENED advantage targeting "for X PD/X ED/...".
+        # `input`, the loaded power's field (kirby-cost GenericObject).
+        # This read `input_value`, the api's COLUMN name, which no
+        # loaded power has: every naked Resistant/Hardened advantage on
+        # a real character parsed as nothing.
+        input_str = getattr(p, "input", None)
+        parsed = _parse_input_for_defenses(input_str)
+        if not parsed:
+            return _terms()
+        if _has_assigned_modifier(p, "RESISTANT"):
+            for k, amt in parsed.items():
+                if k in naked_resistant:
+                    naked_resistant[k] += amt
+        # HARDENED on a NAKEDMODIFIER affects how Penetrating /
+        # AP interact with the named defense — not surfaced on
+        # HeroCombatStats yet (it's a per-DefenseItem flag in the
+        # current resolver). Tracked TODO.
+    return _terms()
+
+
+def compose_defences(cv_pd: int, cv_ed: int, t: "DefenceTerms") -> tuple:
+    """``(pd, ed, rpd, red, md, power_defense, flash_defense)`` from the
+    characteristic PD/ED and the terms of everything bought.
+
+    Compose. TWO DIFFERENT THINGS, and conflating them cost Power Lad
+    69 active points of armor.
+
+    `rpd` is defense BOUGHT as a Power -- Resistant Protection. 6E2 p.105:
+    natural PD and ED "can be supplemented by defenses bought as Powers
+    (for example, Limited forms of PD and ED, or Resistant Protection)".
+    The worked example adds leather armor PD 3 on top of natural PD 4 for
+    7 total; the armor is not capped at 4. So it ADDS, to the resistant
+    column and to the total -- resistant defense stops Normal Damage too.
+
+    `naked_resistant` is natural PD PROMOTED to resistant by the Resistant
+    Advantage. That one IS capped, and by exactly this number: the Ogre on
+    the same page has "PD 40, but only 5 of it is Resistant". You cannot
+    promote more PD than you own.
+
+    The cap used to be applied to both, so a brick whose armor was a Power
+    and whose characteristic PD was 2 read rPD 2.
+    """
+    natural_pd = cv_pd + t.pd_bonus
+    natural_ed = cv_ed + t.ed_bonus
+    return (
+        natural_pd + t.rpd,
+        natural_ed + t.red,
+        t.rpd + min(t.naked_resistant["PD"], natural_pd),
+        t.red + min(t.naked_resistant["ED"], natural_ed),
+        t.md + t.naked_resistant["MD"],
+        t.powd + t.naked_resistant["POWD"],
+        t.flashd + t.naked_resistant["FLASHD"],
+    )
+
+
 def _compute_stats_from_hero(
     hero: "LoadedHero",
     ctx: ActivationContext | None = None,
@@ -2494,108 +2814,14 @@ def _compute_stats_from_hero(
         extra = [c for c in all_adjustments if c.xmlid == xmlid]
         return int(_characteristic_value(hero, xmlid, active_ctx, extra, states))
 
-    pd_bonus = 0   # extra non-resistant PD bought via PD-power rows
-    ed_bonus = 0   # extra non-resistant ED bought via ED-power rows
-    rpd = 0        # resistant PD from FORCEFIELD / ARMOR / RESISTANTPROTECTION
-    red = 0
-    md = 0
-    powd = 0
-    flashd = 0
-
-    # Slice of base PD/ED that NAKEDMODIFIER+RESISTANT (or a RESISTANT
-    # advantage on a bare PD/ED power row) converts from non-resistant
-    # to resistant. Capped against the available pool at the end.
-    naked_resistant: dict[str, int] = {"PD": 0, "ED": 0, "MD": 0,
-                                        "POWD": 0, "FLASHD": 0}
-
+    terms = DefenceTerms.none()
     # ``powers`` is the purchases to total: a combatant whose Multipower has
     # been split passes them at the points the split gave (6E1 p.404-406).
     # None is the build as written (setup, before any opening).
     for p in (hero.powers if powers is None else powers):
-        xmlid = (getattr(p, "xmlid", None) or "").upper()
-        levels = int(getattr(p, "levels", 0) or 0)
-        if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
-            # ASK THE BUILD. HD splits Resistant Protection across PD/ED/MD/
-            # POWD on the element itself (PDLEVELS/EDLEVELS/...), and
-            # `ForceField.XML_ATTRS` has read them for a long time. This used
-            # to guess half-and-half instead -- Power Lad's 45 points became
-            # 23/22 rather than the 25/20 he bought -- because the split was
-            # believed to live on adders. Falls back to the old halves only
-            # when a build genuinely declares none.
-            split_pd = int(getattr(p, "pd_levels", 0) or 0)
-            split_ed = int(getattr(p, "ed_levels", 0) or 0)
-            split_md = int(getattr(p, "md_levels", 0) or 0)
-            split_powd = int(getattr(p, "powd_levels", 0) or 0)
-            if split_pd or split_ed or split_md or split_powd:
-                rpd += split_pd
-                red += split_ed
-                md += split_md
-                powd += split_powd
-            else:
-                rpd += levels // 2 + (levels % 2)
-                red += levels // 2
-        elif xmlid == "PD":
-            pd_bonus += levels
-            # If this PD-power row carries a RESISTANT advantage, the
-            # whole bonus is resistant.
-            if _has_assigned_modifier(p, "RESISTANT"):
-                naked_resistant["PD"] += levels
-        elif xmlid == "ED":
-            ed_bonus += levels
-            if _has_assigned_modifier(p, "RESISTANT"):
-                naked_resistant["ED"] += levels
-        elif xmlid == "MENTALDEFENSE":
-            md += levels
-        elif xmlid == "POWERDEFENSE":
-            powd += levels
-        elif xmlid == "FLASHDEFENSE":
-            flashd += levels
-        elif xmlid == "NAKEDMODIFIER":
-            # Defensive naked advantages: carry a RESISTANT or
-            # HARDENED advantage targeting "for X PD/X ED/...".
-            # `input`, the loaded power's field (kirby-cost GenericObject).
-            # This read `input_value`, the api's COLUMN name, which no
-            # loaded power has: every naked Resistant/Hardened advantage on
-            # a real character parsed as nothing.
-            input_str = getattr(p, "input", None)
-            parsed = _parse_input_for_defenses(input_str)
-            if not parsed:
-                continue
-            if _has_assigned_modifier(p, "RESISTANT"):
-                for k, amt in parsed.items():
-                    if k in naked_resistant:
-                        naked_resistant[k] += amt
-            # HARDENED on a NAKEDMODIFIER affects how Penetrating /
-            # AP interact with the named defense — not surfaced on
-            # HeroCombatStats yet (it's a per-DefenseItem flag in the
-            # current resolver). Tracked TODO.
-
-    # Compose. TWO DIFFERENT THINGS, and conflating them cost Power Lad
-    # 69 active points of armor.
-    #
-    # `rpd` is defense BOUGHT as a Power -- Resistant Protection. 6E2 p.105:
-    # natural PD and ED "can be supplemented by defenses bought as Powers
-    # (for example, Limited forms of PD and ED, or Resistant Protection)".
-    # The worked example adds leather armor PD 3 on top of natural PD 4 for
-    # 7 total; the armor is not capped at 4. So it ADDS, to the resistant
-    # column and to the total -- resistant defense stops Normal Damage too.
-    #
-    # `naked_resistant` is natural PD PROMOTED to resistant by the Resistant
-    # Advantage. That one IS capped, and by exactly this number: the Ogre on
-    # the same page has "PD 40, but only 5 of it is Resistant". You cannot
-    # promote more PD than you own.
-    #
-    # The cap used to be applied to both, so a brick whose armor was a Power
-    # and whose characteristic PD was 2 read rPD 2.
-    natural_pd = cv("PD") + pd_bonus
-    natural_ed = cv("ED") + ed_bonus
-    base_pd = natural_pd + rpd
-    base_ed = natural_ed + red
-    final_rpd = rpd + min(naked_resistant["PD"], natural_pd)
-    final_red = red + min(naked_resistant["ED"], natural_ed)
-    final_md = md + naked_resistant["MD"]
-    final_powd = powd + naked_resistant["POWD"]
-    final_flashd = flashd + naked_resistant["FLASHD"]
+        terms = terms + defence_terms(p)
+    pd, ed, rpd, red, md, powd, flashd = compose_defences(
+        cv("PD"), cv("ED"), terms)
 
     return HeroCombatStats(
         ocv=cv("OCV"),
@@ -2610,13 +2836,13 @@ def _compute_stats_from_hero(
         con=cv("CON"),
         pre=cv("PRE"),
         rec=cv("REC"),
-        pd=base_pd,
-        ed=base_ed,
-        rpd=final_rpd,
-        red=final_red,
-        md=final_md,
-        power_defense=final_powd,
-        flash_defense=final_flashd,
+        pd=pd,
+        ed=ed,
+        rpd=rpd,
+        red=red,
+        md=md,
+        power_defense=powd,
+        flash_defense=flashd,
         max_stun=cv("STUN"),
         max_body=cv("BODY"),
         max_end=cv("END"),

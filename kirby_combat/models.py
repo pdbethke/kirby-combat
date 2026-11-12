@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from kirby_combat.hero_view import SlotStep
     from kirby_combat.resolution.surprise import Surprise
 from typing import Any
 
@@ -224,6 +225,13 @@ class SlotView:
     variable: bool
     kind: str                       # "attack" | "defense" | "movement" | "other"
     attack: "AttackPower | None" = None
+    #: The slot's priced ladder, ascending by points (6E1 p.404-406): the
+    #: rungs a split can put it on, each with what it then gives. Starts at
+    #: 0 (off) and ends at the full cost. A fixed slot, and a variable one
+    #: kirby-cost cannot ladder (Damage Reduction, Damage Negation, flat-cost
+    #: powers: R9), has just those two. Empty only on a view nobody recorded
+    #: a ladder for; a snapshot of an opened framework refuses one.
+    steps: tuple[SlotStep, ...] = ()
 
 
 @dataclass
