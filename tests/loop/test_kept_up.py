@@ -345,10 +345,15 @@ def test_a_slot_without_the_reserve_is_not_offered():
     caster = _fight(power).sessions[0].combatants["caster"]
     on_blast = {"mp": (60, 60, {"blast"}, {"blast": 60, "src-DARKNESS": 40})}
     on_dark = {"mp": (60, 40, {"src-DARKNESS"}, {"blast": 60, "src-DARKNESS": 40})}
-    never = {}   # not opened: no entry (framework.allocation_for)
+    # Not opened: a NON-empty allocation that simply omits this framework
+    # (an empty one exits `slot_on` early, before the branch under test).
+    never = {"other": (60, 0, set(), {})}
     assert not slot_on(caster, power, on_blast)
     assert slot_on(caster, power, on_dark)
-    assert slot_on(caster, power, never), "never reallocated: as he brought it in"
+    assert slot_on(caster, power, never), "not opened: as he brought it in"
+    # Opened with every slot at 0: all off (6E1 p.402, p.404-406).
+    all_off = {"mp": (60, 0, set(), {"blast": 60, "src-DARKNESS": 40})}
+    assert not slot_on(caster, power, all_off)
 
 
 # ----------------------------------------------------------------- Images

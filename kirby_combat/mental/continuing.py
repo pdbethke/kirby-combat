@@ -11,7 +11,8 @@ lock** (mental line of sight to a mind the scanner cannot see).
 THE EFFECT IS THE ``ActionResolved`` THAT ESTABLISHED IT. Its payload already
 says who did what to whom with which order; a second "effect applied" event
 would be a second statement of the same fact. This folds the payloads forward
-exactly as `framework.slot_points_for` reads the folded ``SlotsAllocated`` --- and the one thing
+exactly as `framework.slot_points_for` reads the folded
+``SlotsAllocated`` --- and the one thing
 an action record cannot say, the Breakout Rolls the target makes on his own
 Phases, is its own event, `BreakoutRolled`.
 
@@ -85,9 +86,9 @@ def _scan_switched_off(session: "CombatSession", effect: ContinuingEffect) -> bo
 
     Off is either the scanner going down (a Constant Power does not stay on
     in an unconscious man) or his Multipower's latest split leaving the
-    Mind Scan slot with no points --- "if it's in a Multipower, he cannot switch the
-    slots". A framework not yet opened (`framework.slot_points_for` is None) leaves
-    the slot as the build has it.
+    Mind Scan slot with no points --- "if it's in a Multipower, he cannot
+    switch the slots". A framework not yet opened
+    (`framework.slot_points_for` is None) leaves the slot as the build has it.
     """
     from kirby_combat.enumeration import is_down
     from kirby_combat.framework import slot_points_for
