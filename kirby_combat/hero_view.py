@@ -502,8 +502,97 @@ def characteristic_values(combatant: "HeroCombatant") -> dict[str, int]:
     """His characteristics in his current identity, before Drains and Aids."""
     stats = _compute_stats_from_hero(
         combatant._build(),
-        ActivationContext(in_hero_id=combatant.state.in_hero_id))
+        ActivationContext(in_hero_id=combatant.state.in_hero_id),
+        powers=combatant._powers_fitted(_STAT_POWER_XMLIDS))
     return {k: int(getattr(stats, f)) for k, f in _SNAPSHOT_CHARACTERISTICS.items()}
+
+
+_ATTACK_XMLIDS = frozenset({
+    "ENERGYBLAST", "RKA", "HKA", "EGOATTACK", "MENTALBLAST",
+    "KILLINGATTACKRANGED", "KILLINGATTACKHTH",
+    "HANDTOHANDATTACK", "HA",
+})
+
+#: The powers `_compute_stats_from_hero` totals: Resistant Protection and its
+#: older names, the Mental / Power / Flash Defense powers, and PD / ED bought
+#: as powers. A framework slot of one of these is priced at its split before
+#: it is totalled. (NAKEDMODIFIER is an Advantage with no levels to ladder, so
+#: it is read as bought.)
+_STAT_POWER_XMLIDS = frozenset({
+    "FORCEFIELD", "RESISTANTPROTECTION", "ARMOR", "PD", "ED",
+    "MENTALDEFENSE", "POWERDEFENSE", "FLASHDEFENSE",
+})
+
+
+def _slot_id_of(power) -> str:
+    """A purchase's slot id: its object id, or --- for one with none --- its
+    xmlid and the process id of the object. The one formula every reader of
+    framework slots shares; the id-less form is stable only within a process
+    call, so it must never be stored."""
+    raw_id = str(getattr(power, "id", "") or "")
+    return raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+
+
+def _priced_at(power, points: int):
+    """The power as it stands holding ``points`` Active Points of its slot
+    (6E1 p.404-406), or None when it holds none or not even its first step
+    fits. The priced COPY is kirby-cost's (`levels_within`); this does no
+    cost arithmetic. A slot holding its full cost is the power itself.
+    `NotLadderable` (a power with no steps) is raised, not swallowed."""
+    from kirby_cost.engine.allocation import NotLadderable, levels_within
+
+    if points <= 0:
+        return None
+    if points >= int(power.active_cost):
+        return power
+    try:
+        fit = levels_within(power, points)
+    except NotLadderable:
+        raise
+    except ValueError:
+        return None             # not even the first step fits
+    return fit.power if fit.levels > 0 else None
+
+
+def _try_attack(power, *, str_for_augmentation: int):
+    """The attack a power builds, or None when it is not one that builds."""
+    try:
+        return _build_attack_power(power, str_for_augmentation=str_for_augmentation)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+@dataclass
+class SlotEffect:
+    """What one framework slot gives a fighter at some number of points
+    (6E1 p.404-406): the attack it is, the defences it adds and the movement
+    modes it grants. Any of them may be empty."""
+
+    attack: AttackPower | None
+    defenses: list[DefenseItem]
+    movement: list[MovementCapability]
+
+
+def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> SlotEffect:
+    """What ``power`` gives when its slot holds ``points`` Active Points.
+
+    A pure function of the power and the points, plus the one piece of the
+    fighter an attack is built against (his STR, which augments a Hand-To-Hand
+    attack): nothing read from a session or a log, so a step of a ladder can
+    be recorded as one. Nothing at 0 points.
+    """
+    priced = _priced_at(power, points)
+    if priced is None:
+        return SlotEffect(attack=None, defenses=[], movement=[])
+    xmlid = (getattr(priced, "xmlid", None) or "").upper()
+    movement = _power_movement(priced)
+    return SlotEffect(
+        attack=(_try_attack(priced, str_for_augmentation=str_for_augmentation)
+                if xmlid in _ATTACK_XMLIDS else None),
+        defenses=(_power_to_defense_items(priced, xmlid)
+                  if xmlid in _DEFENSE_XMLIDS else []),
+        movement=[] if movement is None else [movement],
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -822,11 +911,6 @@ class HeroCombatant(Stunnable, CombatParticipant):
         0 must be able to find it).
         """
         out: list[AttackPower] = []
-        attack_xmlids = {
-            "ENERGYBLAST", "RKA", "HKA", "EGOATTACK", "MENTALBLAST",
-            "KILLINGATTACKRANGED", "KILLINGATTACKHTH",
-            "HANDTOHANDATTACK", "HA",
-        }
         seen_ids: set[int] = set()  # recursion guard, not xmlid dedup
         def _walk(power_list):
             for p in power_list or []:
@@ -837,18 +921,14 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if not self._in_play(p):
                     continue        # one part of a Compound Power, OIAID
                 x = (getattr(p, "xmlid", None) or "").upper()
-                if x in attack_xmlids:
+                if x in _ATTACK_XMLIDS:
                     # Priced OUTSIDE the try below: a power with no steps
                     # (NotLadderable is a ValueError) must raise, not vanish.
                     fitted = self._power_at_split(p) if at_split else (p, None)
                     if fitted is not None:
                         priced, slot_id = fitted
-                        try:
-                            built = _build_attack_power(
-                                priced, str_for_augmentation=self.combat_stats().str_,
-                            )
-                        except (ValueError, TypeError, AttributeError):
-                            built = None
+                        built = _try_attack(
+                            priced, str_for_augmentation=self.combat_stats().str_)
                         if built is not None:
                             if slot_id is not None and built.slot_id != slot_id:
                                 # an id-less slot derives its id from id(power);
@@ -879,7 +959,6 @@ class HeroCombatant(Stunnable, CombatParticipant):
         This does no cost arithmetic of its own.
         """
         from kirby_combat.framework import slot_points_for
-        from kirby_cost.engine.allocation import NotLadderable, levels_within
         from kirby_cost.io.framework_access import framework_kind, slot_is_variable
 
         parent = getattr(power, "parent", None)
@@ -892,22 +971,38 @@ class HeroCombatant(Stunnable, CombatParticipant):
         points = slot_points_for(self, str(getattr(parent, "id", "") or ""))
         if points is None:
             return power, None
-        raw_id = str(getattr(power, "id", "") or "")
-        slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+        slot_id = _slot_id_of(power)
         given = points.get(slot_id, 0)
         if given <= 0:
             return None
-        if not slot_is_variable(parent, power) or given >= int(power.active_cost):
+        if not slot_is_variable(parent, power):
             return power, slot_id
-        try:
-            fit = levels_within(power, given)
-        except NotLadderable:
-            raise
-        except ValueError:
-            return None             # not even the first step fits
-        if fit.levels <= 0:
-            return None
-        return fit.power, slot_id
+        priced = _priced_at(power, given)
+        return None if priced is None else (priced, slot_id)
+
+    def _fitted(self, power, xmlids: frozenset):
+        """The power a READER of ``xmlids`` should read, or None when its
+        slot is off.
+
+        Only a power of a kind the reader looks at is priced: a variable slot
+        of some other kind contributes nothing here, and pricing it could
+        raise `NotLadderable` for a purchase this reader never needed.
+        """
+        if (getattr(power, "xmlid", None) or "").upper() not in xmlids:
+            return power
+        fitted = self._power_at_split(power)
+        return None if fitted is None else fitted[0]
+
+    def _powers_fitted(self, xmlids: frozenset) -> list:
+        """``hero.powers`` with each framework slot of a kind in ``xmlids`` at
+        the points its split gave it (6E1 p.404-406); slots holding none are
+        left out."""
+        out = []
+        for p in self._build().powers or []:
+            fitted = self._fitted(p, xmlids)
+            if fitted is not None:
+                out.append(fitted)
+        return out
 
     def unadjusted_attacks(self) -> list[AttackPower]:
         """`attacks` as the build has them, before any Aid or Drain on a
@@ -1138,7 +1233,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # floor off, then once more with every adjustment in place.
         adjustments: list[Contribution] = []
         if self.state.drains:
-            undrained = _compute_stats_from_hero(self._build(), ctx)
+            undrained = _compute_stats_from_hero(
+                self._build(), ctx,
+                powers=self._powers_fitted(_STAT_POWER_XMLIDS))
             for stat, delta in self.state.drains.items():
                 xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
                 if xmlid is None:
@@ -1156,7 +1253,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
             adjustments.append(Contribution(
                 xmlid=xmlid, delta=float(delta), source_label="Aided"))
 
-        stats = _compute_stats_from_hero(self._build(), ctx, adjustments)
+        stats = _compute_stats_from_hero(
+            self._build(), ctx, adjustments,
+            powers=self._powers_fitted(_STAT_POWER_XMLIDS))
 
         # What is left: Drains and Aids on the power-derived defenses, which
         # have no characteristic to be a contribution to.
@@ -1378,7 +1477,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 if not self._in_play(power):
                     continue
                 xmlid = (getattr(power, "xmlid", None) or "").upper()
-                items.extend(_power_to_defense_items(power, xmlid))
+                fitted = self._fitted(power, _DEFENSE_XMLIDS)
+                if fitted is not None:
+                    items.extend(_power_to_defense_items(fitted, xmlid))
                 _walk(parts_of(power))
 
         _walk(self._build().powers)
@@ -1397,7 +1498,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """
         if self.snapshot is not None:
             return self._recorded().movement
-        return _movement_capabilities(self._build())
+        return _movement_from(
+            self._build(), self._powers_fitted(_MOVE_POWER_XMLIDS))
 
     def senses(self) -> list["SenseCapability"]:
         """The character's Targeting Senses (spec §1a). Normal Sight always
@@ -1601,8 +1703,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
             for child in framework_slots(self._build(), p):
                 cx = (getattr(child, "xmlid", "") or "").upper()
                 # Exact same formula as _build_attack_power so attack_by_slot links.
-                raw_id = str(getattr(child, "id", "") or "")
-                sid = raw_id or f"{cx}#{id(child)}"
+                sid = _slot_id_of(child)
                 atk = attack_by_slot.get(sid)
                 slots.append(SlotView(
                     slot_id=sid,
@@ -1852,7 +1953,44 @@ _MOVE_XMLID_TO_MODE: dict[str, str] = {
 
 
 def _movement_capabilities(hero) -> list[MovementCapability]:
+    """Every movement mode the hero has as BOUGHT (see `_movement_from`)."""
+    return _movement_from(hero, getattr(hero, "powers", []) or [])
+
+
+def _power_movement(p) -> MovementCapability | None:
+    """The mode one movement power gives, or None when it gives no metres."""
+    xmlid = (getattr(p, "xmlid", None) or "").upper()
+    if xmlid not in _MOVE_POWER_XMLIDS:
+        return None
+    combat_m = int(getattr(p, "levels", 0) or 0) * _MOVE_M_PER_LEVEL
+    if combat_m <= 0:
+        return None
+    mode = _MOVE_XMLID_TO_MODE[xmlid]
+    ncm = noncombat_multiple(_improved_noncombat_levels(p))
+    try:
+        active_cost = float(getattr(p, "active_cost", None))
+    except (TypeError, ValueError):
+        active_cost = None
+    if active_cost is not None and active_cost <= 0:
+        active_cost = None      # unusable as a points-per-metre divisor
+    return MovementCapability(
+        mode=mode,
+        combat_m=combat_m,
+        noncombat_m=combat_m * ncm,
+        # The cost engine's END column, modifiers and all (6E1 p.158).
+        end_cost=int(getattr(p, "end_usage", 0) or 0),
+        vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
+        active_cost=active_cost,
+        uses_end_reserve=bool(getattr(p, "use_end_reserve", False)),
+    )
+
+
+def _movement_from(hero, powers) -> list[MovementCapability]:
     """Enumerate every movement mode available to the hero.
+
+    ``powers`` are the purchases to read the power-derived modes from: the
+    build's own for `_movement_capabilities`, or the same list with each
+    framework slot at the points its split gave it (6E1 p.404-406).
 
     Emits one ``MovementCapability`` per mode that has combat_m > 0:
     - RUNNING and LEAPING come from ``hero.characteristic_value()``; these
@@ -1884,31 +2022,10 @@ def _movement_capabilities(hero) -> list[MovementCapability]:
         ))
 
     # ── Power-derived modes ─────────────────────────────────────────────────
-    for p in getattr(hero, "powers", []) or []:
-        xmlid = (getattr(p, "xmlid", None) or "").upper()
-        if xmlid not in _MOVE_POWER_XMLIDS:
-            continue
-        combat_m = int(getattr(p, "levels", 0) or 0) * _MOVE_M_PER_LEVEL
-        if combat_m <= 0:
-            continue
-        mode = _MOVE_XMLID_TO_MODE[xmlid]
-        ncm = noncombat_multiple(_improved_noncombat_levels(p))
-        try:
-            active_cost = float(getattr(p, "active_cost", None))
-        except (TypeError, ValueError):
-            active_cost = None
-        if active_cost is not None and active_cost <= 0:
-            active_cost = None      # unusable as a points-per-metre divisor
-        out.append(MovementCapability(
-            mode=mode,
-            combat_m=combat_m,
-            noncombat_m=combat_m * ncm,
-            # The cost engine's END column, modifiers and all (6E1 p.158).
-            end_cost=int(getattr(p, "end_usage", 0) or 0),
-            vertical_m=combat_m * _MOVE_VERTICAL_FRACTION[mode],
-            active_cost=active_cost,
-            uses_end_reserve=bool(getattr(p, "use_end_reserve", False)),
-        ))
+    for p in powers:
+        capability = _power_movement(p)
+        if capability is not None:
+            out.append(capability)
 
     # ── Climbing (6E1 p70) ──────────────────────────────────────────────────
     # Neither a characteristic nor a power, so it gets its own unconditional
@@ -2298,6 +2415,8 @@ def _compute_stats_from_hero(
     hero: "LoadedHero",
     ctx: ActivationContext | None = None,
     adjustments: "list[Contribution] | None" = None,
+    *,
+    powers: "list | None" = None,
 ) -> HeroCombatStats:
     """Read the temporal characteristic values + sum defense powers.
 
@@ -2312,7 +2431,8 @@ def _compute_stats_from_hero(
     time).
 
     Resistant defenses (rPD/rED), MD, POWD, FLASHD are bought via
-    powers, not characteristics. We walk hero.powers to total them.
+    powers, not characteristics. We walk hero.powers (or ``powers``, the
+    same list with framework slots at their split) to total them.
 
     ``adjustments`` are extra ``Contribution`` records to weigh alongside the
     hero's own purchases — this is how ``combat_stats()`` hands Drains and
@@ -2365,7 +2485,10 @@ def _compute_stats_from_hero(
     naked_resistant: dict[str, int] = {"PD": 0, "ED": 0, "MD": 0,
                                         "POWD": 0, "FLASHD": 0}
 
-    for p in hero.powers:
+    # ``powers`` is the purchases to total: a combatant whose Multipower has
+    # been split passes them at the points the split gave (6E1 p.404-406).
+    # None is the build as written (setup, before any opening).
+    for p in (hero.powers if powers is None else powers):
         xmlid = (getattr(p, "xmlid", None) or "").upper()
         levels = int(getattr(p, "levels", 0) or 0)
         if xmlid in {"FORCEFIELD", "RESISTANTPROTECTION", "ARMOR"}:
@@ -2849,8 +2972,7 @@ def _build_attack_power(
     framework_id = (str(getattr(parent, "id", "") or "") if fw_kind else "")
     framework_name = ((getattr(parent, "name", "") or "") if fw_kind else "")
     if fw_kind:
-        raw_id = str(getattr(power, "id", "") or "")
-        slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+        slot_id = _slot_id_of(power)
     else:
         slot_id = ""
 
