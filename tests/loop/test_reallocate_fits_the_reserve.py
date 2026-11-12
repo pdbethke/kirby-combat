@@ -293,3 +293,81 @@ def test_he_may_trade_his_weapon_for_the_legs_to_reach_anybody():
     assert any("legs" in parse_reallocation(o.action_id)[1] for o in offers), (
         "he cannot reach anybody and must be allowed to pick up his legs"
     )
+
+
+def test_the_offer_names_its_slots_and_what_it_switches_off():
+    """A chooser returns an id from the menu; the words beside it are all it
+    reads. "make active: s2(45pts)" asked it to look an id up. The offer
+    names each slot, says fixed or variable (6E1 p.405-406) and what it
+    draws, and which slots go off."""
+    from kirby_combat.models import FrameworkView, SlotView
+
+    fw = FrameworkView(
+        framework_id="fw1", xmlid="MULTIPOWER", name="Wind Magic",
+        kind="multipower", reserve_or_pool=60,
+        slots=[SlotView(slot_id="s1", name="Lightning Bolt", active_points=60,
+                        variable=True, kind="attack"),
+               SlotView(slot_id="s2", name="Wall Of Wind", active_points=45,
+                        variable=False, kind="other")],
+    )
+    # His Wall is up and he switches to the Bolt (a switch AWAY from his
+    # only attack slot is withheld from an armed man: the O.K. Corral guard).
+    actor = _actor(fw)
+    menu = enumerate_actions(actor, [fighter("foe", side=Side.named("y"))],
+                             slot_allocation={"fw1": (60, 45, {"s2"},
+                                                      {"s1": 60, "s2": 45})})
+    words = [a.summary for a in menu if a.kind == "reallocate"]
+    assert any("Lightning Bolt (variable, 60 pts)" in w
+               and "switches off Wall Of Wind" in w for w in words), words
+
+
+def test_a_switch_that_ends_a_kept_up_field_says_so():
+    """6E1 p.402: the Constant power on a slot that loses the reserve stops."""
+    from kirby_combat.enumeration import _reallocate_summary
+
+    text = _reallocate_summary(
+        "Shadows", 60, 60, ["blast"], ["dark"],
+        names={"blast": "Shadow Bolt", "dark": "Pall"},
+        kinds={"blast": "variable", "dark": "fixed"},
+        points={"blast": 60, "dark": 40},
+        kept_on={"dark": ["a Darkness field"]},
+    )
+    assert "switches off Pall" in text
+    assert "ends a Darkness field (Pall)" in text and "6E1 p.402" in text
+
+
+def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
+    """The juggling is the chooser's: it must see what is drawn and what is
+    free, and what a fixed and a variable slot are (6E1 p.405-406)."""
+    import uuid
+    from datetime import UTC, datetime
+
+    from conftest import session_of
+    from kirby_combat.brief_detail import framework_lines
+    from kirby_combat.loop.chooser import PhaseSituation
+    from kirby_combat.models import FrameworkView, SlotView
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import ActionResolved, make_author_engine
+
+    fw = FrameworkView(
+        framework_id="fw1", xmlid="MULTIPOWER", name="Wind Magic",
+        kind="multipower", reserve_or_pool=60,
+        slots=[SlotView(slot_id="s1", name="Wind Riding", active_points=60,
+                        variable=True, kind="other"),
+               SlotView(slot_id="s3", name="Wall Of Wind", active_points=45,
+                        variable=False, kind="other")],
+    )
+    actor = _actor(fw)
+    s = session_of(actor, fighter("foe", side=Side.named("y")))
+    s.combatants["lad"].framework_view = lambda: [fw]       # type: ignore[method-assign]
+    s = apply_event(s, ActionResolved(
+        id=str(uuid.uuid4()), session_id=s.id, sequence=len(s.event_log) + 1,
+        timestamp=datetime.now(UTC), author=make_author_engine(),
+        declaration_event_id="r",
+        result_payload={"kind": "reallocate", "combatant_id": "lad",
+                        "framework_id": "fw1", "active_slot_ids": ["s3"]},
+    ))
+    lines = framework_lines(PhaseSituation(actor=s.combatants["lad"], menu=[], session=s))
+    assert "  45 of 60 points in use, 15 free" in lines
+    assert any("fixed slot draws its full Active Points" in ln and "6E1 p.405-406" in ln
+               for ln in lines)

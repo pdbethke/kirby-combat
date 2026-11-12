@@ -76,6 +76,7 @@ class LingeringEnd(str, Enum):
     TARGET_DOWN = "target_out_of_the_fight"    # RULING
     POWER_NOT_ON_BUILD = "power_not_on_build"
     RECOVERED = "attacker_took_a_recovery"     # 6E2 p.131
+    NO_CHARGES = "out_of_charges"              # 6E1 p.369, p.403
 
 
 @dataclass(frozen=True)
@@ -435,14 +436,10 @@ def _line_of_sight(session, effect: Lingering) -> bool:
 
 
 def _slot_still_on(session, effect: Lingering, power) -> bool:
-    framework_id = str(getattr(power, "framework_id", "") or "")
-    slot_id = str(getattr(power, "slot_id", "") or "")
-    if not framework_id or not slot_id:
-        return True
-    from kirby_combat.framework import active_slots
+    """6E1 p.402, the one copy every maintained power shares (`upkeep`)."""
+    from kirby_combat.upkeep import slot_still_allocated
 
-    active = active_slots(session, effect.attacker_id, framework_id)
-    return not active or slot_id in active
+    return slot_still_allocated(session, effect.attacker_id, power)
 
 
 def maintain_constant_attacks(session, actor_id: str, *, template, roller):
@@ -453,9 +450,8 @@ def maintain_constant_attacks(session, actor_id: str, *, template, roller):
     target takes the damage, "in every Segment in which the attacker has a
     Phase". Maintaining takes no Action, so the Phase is still his.
     """
-    from kirby_combat.actions.recording import _spend_attack_end
-    from kirby_combat.endurance import end_available, end_cost
     from kirby_combat.enumeration import is_down
+    from kirby_combat.upkeep import pay_for_the_phase
 
     for effect in active_lingering(session, attacker_id=actor_id,
                                    mode=LingeringMode.CONSTANT):
@@ -476,15 +472,14 @@ def maintain_constant_attacks(session, actor_id: str, *, template, roller):
         if not _slot_still_on(session, effect, power):
             session = _end(session, effect.id, LingeringEnd.SLOT_SWITCHED)
             continue
-        attacker = session.combatants[actor_id]
-        cost = end_cost(power)
-        left = end_available(session, actor_id, power=power, template=template)
-        if cost and left is not None and left < cost:
-            # RULING: he stops maintaining rather than burn STUN for END
-            # (6E2 p.133 permits it; the engine does not implement it).
-            session = _end(session, effect.id, LingeringEnd.NO_END)
+        # A Charge or its END (6E1 p.129, p.369, p.403), the price every
+        # maintained power pays (`upkeep`; its RULING: he stops rather than
+        # burn STUN for END).
+        session, unpaid = pay_for_the_phase(session, actor_id, power,
+                                            template=template)
+        if unpaid is not None:
+            session = _end(session, effect.id, LingeringEnd(unpaid.value))
             continue
-        session = _spend_attack_end(session, attacker, cost, template, power=power)
         session = _dose(session, effect, power, template=template,
                         roller=roller, increments_remaining=None)
     return session

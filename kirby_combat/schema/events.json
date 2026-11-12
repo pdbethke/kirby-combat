@@ -743,6 +743,64 @@
       "title": "BreakoutRolled",
       "type": "object"
     },
+    "ChargeSpent": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "ChargeSpent",
+          "enum": [
+            "ChargeSpent"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ChargeSpent",
+          "enum": [
+            "ChargeSpent"
+          ],
+          "type": "string"
+        },
+        "power_source_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "power_source_id",
+        "reason"
+      ],
+      "title": "ChargeSpent",
+      "type": "object"
+    },
     "CombatantStateView": {
       "additionalProperties": false,
       "properties": {
@@ -4893,7 +4951,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.33.4",
+  "$id": "urn:kirby-combat:schema:events:0.34.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -4925,6 +4983,9 @@
     },
     {
       "$ref": "#/$defs/BreakoutRolled"
+    },
+    {
+      "$ref": "#/$defs/ChargeSpent"
     },
     {
       "$ref": "#/$defs/ConcentrationBegan"
@@ -5063,5 +5124,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.33.4"
+  "x-kirby-combat-version": "0.34.0"
 }

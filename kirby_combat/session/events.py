@@ -1090,16 +1090,34 @@ class DarknessEnded(BaseEvent):
     "A Darkness field remains in existence as long as the character pays
     the END for it" (6E1 p.188): it is a Constant power, so it goes when he
     stops paying, loses sight of it, takes a Recovery, is Stunned or Knocked
-    Out at the end of a Segment, or turns it off (`darkness_fields`, which
-    says which page each reason comes from). ``construct_ids`` are the
-    fields ONE use put up (one per Sense Group, `DarknessPlaced`); ``reason``
-    is a `darkness_fields.DarknessEnd` value. `apply_event` folds it off
+    Out at the end of a Segment, turns it off, or its Framework slot loses
+    the reserve (`kept_up`, which says which page each reason comes from).
+    ``construct_ids`` are the fields ONE use put up (one per Sense Group,
+    `DarknessPlaced`); ``reason`` is an `upkeep.UpkeepEnd` value. `apply_event` folds it off
     `session.scene.constructs`.
     """
     kind: Literal["DarknessEnded"] = field(default="DarknessEnded", init=False)
     construct_ids: list[str] = field(default_factory=list)
     reason: str = ""
     source_combatant: str = ""
+
+
+@dataclass
+class ChargeSpent(BaseEvent):
+    """One Charge of a power used up OUTSIDE a use's own row.
+
+    A use spends its Charge through its `ActionResolved` (``power_source_id``,
+    `charges.spent_charges`). Keeping a Charged Constant power up spends one
+    more each Phase with no use to carry it --- 6E1 p.369: "Each Charge
+    normally only lasts for one Phase"; p.403: "Constant Powers require one
+    Charge per Phase, as usual" --- so it is this row (`upkeep`).
+    ``power_source_id`` is the power's own id; `spent_charges` counts it
+    against the same pool a use would.
+    """
+    kind: Literal["ChargeSpent"] = field(default="ChargeSpent", init=False)
+    combatant_id: str = ""
+    power_source_id: str = ""
+    reason: str = ""
 
 
 @dataclass
@@ -1225,6 +1243,7 @@ CombatEvent = (
     | BarrierRaised
     | DarknessPlaced
     | DarknessEnded
+    | ChargeSpent
     | PowerDispelled
     | PowerRestarted
     | WeaponMoved

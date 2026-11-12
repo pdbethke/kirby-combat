@@ -101,6 +101,7 @@ class StandingEnd(str, Enum):
     SLOT_SWITCHED = "slot_switched_off"               # 6E1 p.400
     RECOVERED = "owner_took_a_recovery"               # 6E2 p.131
     POWER_NOT_ON_BUILD = "power_not_on_build"
+    NO_CHARGES = "out_of_charges"                     # 6E1 p.369, p.403
 
 
 class Dose(str, Enum):
@@ -190,14 +191,10 @@ def _persistent_id(owner_id: str, source_id: str) -> str:
 
 
 def _slot_on(session, owner_id: str, power) -> bool:
-    framework_id = str(getattr(power, "framework_id", "") or "")
-    slot_id = str(getattr(power, "slot_id", "") or "")
-    if not framework_id or not slot_id:
-        return True
-    from kirby_combat.framework import active_slots
+    """6E1 p.402, the one copy every maintained power shares (`upkeep`)."""
+    from kirby_combat.upkeep import slot_still_allocated
 
-    active = active_slots(session, owner_id, framework_id)
-    return not active or slot_id in active
+    return slot_still_allocated(session, owner_id, power)
 
 
 def _implicit(session) -> list[StandingArea]:
@@ -594,8 +591,7 @@ def maintain_standing_areas(session, actor_id: str, *, template, roller):
 
     Maintaining takes no Action (6E1 p.129), so the Phase is still his.
     """
-    from kirby_combat.actions.recording import _spend_attack_end
-    from kirby_combat.endurance import end_available, end_cost
+    from kirby_combat.upkeep import pay_for_the_phase
 
     for area in active_standing_areas(session, owner_id=actor_id,
                                       mode=StandingMode.CONSTANT):
@@ -605,15 +601,13 @@ def maintain_standing_areas(session, actor_id: str, *, template, roller):
             if not area.persistent or reason is StandingEnd.POWER_NOT_ON_BUILD:
                 session = end_area(session, area.id, reason)
             continue
-        owner = session.combatants[actor_id]
-        cost = end_cost(power)
-        left = end_available(session, actor_id, power=power, template=template)
-        if cost and left is not None and left < cost:
-            # RULING (as `lingering.maintain_constant_attacks`): he stops
-            # rather than burn STUN for END (6E2 p.133 permits it).
-            session = end_area(session, area.id, StandingEnd.NO_END)
+        # A Charge or its END (6E1 p.129, p.369, p.403; `upkeep`, whose
+        # RULING is the one this always made: he stops rather than burn STUN).
+        session, unpaid = pay_for_the_phase(session, actor_id, power,
+                                            template=template)
+        if unpaid is not None:
+            session = end_area(session, area.id, StandingEnd(unpaid.value))
             continue
-        session = _spend_attack_end(session, owner, cost, template, power=power)
         if area.shape is AreaShape.SURFACE:
             # A Damage Shield does its work on contact --- and a man he
             # holds is in contact with it: "A Grabbed character takes the

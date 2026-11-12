@@ -123,6 +123,13 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
     pools = _pools_of((getattr(session, "combatants", None) or {}).get(combatant_id))
     for event in list(getattr(session, "event_log", None) or []):
         kind = getattr(event, "kind", "")
+        if kind == "ChargeSpent":
+            # Keeping a Charged Constant power up (`upkeep`, 6E1 p.403).
+            if getattr(event, "combatant_id", "") == combatant_id:
+                source = str(getattr(event, "power_source_id", "") or "")
+                key = pools.get(source, source)
+                out[key] = out.get(key, 0) + 1
+            continue
         if kind == "ActionDeclared":
             if getattr(event, "combatant_id", "") == combatant_id:
                 mine.add(getattr(event, "id", ""))

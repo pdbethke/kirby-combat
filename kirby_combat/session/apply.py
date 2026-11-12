@@ -259,6 +259,11 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "DarknessEnded":
         return _fold_darkness_ended(session, new_log, now, event)
 
+    if kind == "ChargeSpent":
+        # Counted where Charges are counted (`charges.spent_charges`), from
+        # the log; nothing on the snapshot holds a Charge count.
+        return replace(session, event_log=new_log, updated_at=now)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)
