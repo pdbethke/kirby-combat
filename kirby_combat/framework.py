@@ -6,8 +6,8 @@ has a field for it. That is a reasonable split --- a framework's reserve is
 build data --- but it left the caller tracking something the fight changes,
 with nothing to read it back from.
 
-`active_slots` closes that: a `reallocate` records the new set on the log,
-and this folds the latest one forward per framework.
+`slot_points_for` closes that: a `SlotsAllocated` is folded onto the
+combatant (`CombatantState.slot_points`) and this reads it back.
 
 `allocation_for` goes the rest of the way. The reserve and the per-slot
 costs were never really the caller's either --- they are build data, and
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from kirby_combat.models import FrameworkView
@@ -64,69 +64,70 @@ def parse_reallocation(action_id: str) -> tuple[str, tuple[str, ...]]:
     return framework_id, tuple(x for x in parts[2].split(",") if x)
 
 
-def active_slots(
-    session: "CombatSession", combatant_id: str, framework_id: str,
-) -> tuple[str, ...]:
-    """The slots this combatant has switched on for ``framework_id``: those
-    holding points in his current split (6E1 p.404-406).
+def slot_points_for(actor, framework_id: str) -> dict[str, int] | None:
+    """The points ``actor`` has put in each slot of ``framework_id``, as the
+    latest `SlotsAllocated` left them on his state (6E1 p.404-406), or None
+    when the framework has not been opened.
 
-    Read from the folded `CombatantState.slot_points`, which the latest
-    `SlotsAllocated` replaced whole --- the same absolute-value discipline
-    `session/effects.py` requires of every state-changing event.
+    None means the build reads as written. That state exists only during
+    setup: the opening is part of starting a fight, and a Segment is
+    refused without it. There is deliberately no default split here ---
+    a default would be one build's choice imposed on every other.
 
-    Empty when the framework has not been opened, which means "no
-    opinion", not "nothing active": the build's own default set is the
-    caller's to supply.
+    Takes the combatant, not the session: the split is folded onto him
+    (`apply_event`), so reading it needs no log scan.
     """
-    combatant = session.combatants.get(combatant_id)
-    if combatant is None:
-        return ()
-    split = combatant.state.slot_points.get(framework_id, {})
-    return tuple(sid for sid, pts in split.items() if pts > 0)
+    if actor is None:
+        return None
+    split = actor.state.slot_points.get(framework_id)
+    return None if split is None else dict(split)
 
 
-def allocation_for(session: "CombatSession", actor) -> dict[str, tuple] | None:
+class Allocation(NamedTuple):
+    """One framework's allocation, as `enumerate_actions` and the upkeep
+    readers see it. Indexes 0-3 keep the order the old 4-tuple had."""
+
+    reserve: int
+    #: Points drawn: the sum of the split.
+    used: int
+    #: Slots holding points (> 0): the ones that are on (6E1 p.402).
+    active: set
+    #: Full Active Points of each slot --- build data.
+    slot_costs: dict
+    #: The split itself, slot id -> points.
+    points: dict
+
+
+def allocation_for(session: "CombatSession", actor) -> dict[str, Allocation] | None:
     """The `slot_allocation` mapping `enumerate_actions` wants, assembled.
 
-    Shape: ``framework_id -> (reserve, used_points, active_slot_ids,
-    slot_costs)``. The reserve and the per-slot costs come from the BUILD
-    (`framework_view()`); which slots are active comes from the LOG (the
-    fight's own reallocations). Neither half was ever the caller's to
-    invent, and keeping them in step by hand is what this removes.
+    ``framework_id -> Allocation`` for every framework the actor has
+    OPENED: the reserve and per-slot costs from the BUILD
+    (`framework_view()`), the points from his folded state
+    (`slot_points_for`). A framework not yet opened has no entry, which
+    every reader takes as "the build as written".
 
-    ``used_points`` is the total cost of the active slots --- the reserve a
-    Multipower is currently drawing --- so the gate in `enumerate_actions`
-    ("this slot costs more than what is left") reads a real remainder
-    rather than assuming an empty framework.
+    ``session`` is accepted for the callers' sake and no longer read: the
+    split is on the combatant, not scanned out of the log.
 
     Returns ``None`` when the actor has no frameworks, which
-    `enumerate_actions` reads as "no gate" --- the same thing a caller
-    passing nothing has always meant.
+    `enumerate_actions` reads as "no gate".
     """
     views = list(getattr(actor, "framework_view", lambda: [])() or [])
     if not views:
         return None
 
-    allocation: dict[str, tuple] = {}
+    allocation: dict[str, Allocation] = {}
     for view in views:
-        slot_costs = {s.slot_id: int(s.active_points or 0) for s in view.slots}
-        active = active_slots(session, actor.id, view.framework_id)
-        # Fixed slots draw in full; a variable slot takes only what is left,
-        # so the same accounting a split uses applies here --
-        # a used total that charged variables at full cost would gate away
-        # slots the reserve can actually carry.
-        by_id = {s.slot_id: s for s in view.slots}
-        reserve = int(view.reserve_or_pool or 0)
-        used = sum(
-            slot_costs.get(sid, 0) for sid in active
-            if sid in by_id and not by_id[sid].variable
-        )
-        for sid in active:
-            slot = by_id.get(sid)
-            if slot is not None and slot.variable:
-                used += min(int(slot.active_points or 0), max(0, reserve - used))
-        allocation[view.framework_id] = (
-            reserve, used, set(active), slot_costs,
+        points = slot_points_for(actor, view.framework_id)
+        if points is None:
+            continue
+        allocation[view.framework_id] = Allocation(
+            reserve=int(view.reserve_or_pool or 0),
+            used=sum(points.values()),
+            active={sid for sid, pts in points.items() if pts > 0},
+            slot_costs={s.slot_id: int(s.active_points or 0) for s in view.slots},
+            points=points,
         )
     return allocation
 

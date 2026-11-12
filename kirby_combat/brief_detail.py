@@ -904,11 +904,11 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
     out: list[str] = []
     for fw in views:
         label, unit = _FRAMEWORK_KINDS.get(fw.kind, (fw.kind.replace("_", " ").title(), "pool"))
-        entry = allocation.get(fw.framework_id, (0, 0, set(), {}))
-        active = set(entry[2])
+        entry = allocation.get(fw.framework_id)
+        active = set(entry.active) if entry is not None else set()
         out.append(f"{fw.name} ({label}, {fw.reserve_or_pool}-point {unit}):")
         if fw.kind == "multipower" and active:
-            used = int(entry[1] or 0)
+            used = int(entry.used)
             free = max(0, int(fw.reserve_or_pool or 0) - used)
             out.append(f"  {used} of {fw.reserve_or_pool} points in use, {free} free")
         if not fw.slots:

@@ -89,7 +89,7 @@ def framework_slot(combatant: Any, power: Any) -> tuple[str, str] | None:
 def slot_on(combatant: Any, power: Any, slot_allocation) -> bool:
     """Is ``power``'s slot holding the reserve, by the menu's
     ``slot_allocation`` (`framework.allocation_for`)? The same answer
-    `slot_still_allocated` gives from the log, for enumeration, which is
+    `slot_still_allocated` gives from the combatant's state, for enumeration, which is
     handed the allocation rather than the fight.
 
     6E1 p.402: "When a character allocates or re-allocates reserve/Pool
@@ -101,29 +101,29 @@ def slot_on(combatant: Any, power: Any, slot_allocation) -> bool:
     if where is None or not slot_allocation:
         return True
     entry = slot_allocation.get(where[0])
-    if not entry:
+    if entry is None:
+        # not opened: the build as written
         return True
-    active = entry[2]
-    return not active or where[1] in active
+    return where[1] in entry[2]
 
 
 def slot_still_allocated(session, owner_id: str, power: Any) -> bool:
     """6E1 p.402: he "must keep the Framework's reserve or Pool allocated to
     that slot to maintain" it. A power in no Framework always is.
 
-    A framework the fight has never reallocated is in the set it started
-    with (`framework.active_slots`: empty means "no opinion"), so its slots
-    are as their user brought them in.
+    The slot is allocated while it holds points (6E1 p.404-406): a slot cut
+    to 0 is off. A framework not yet opened is as the build has it
+    (`framework.slot_points_for` is None); that exists only during setup.
     """
-    from kirby_combat.framework import active_slots
+    from kirby_combat.framework import slot_points_for
 
     owner = session.combatants.get(owner_id)
     where = framework_slot(owner, power)
     if where is None:
         return True
     framework_id, slot_id = where
-    active = active_slots(session, owner_id, framework_id)
-    return not active or slot_id in active
+    points = slot_points_for(owner, framework_id)
+    return points is None or points.get(slot_id, 0) > 0
 
 
 # ------------------------------------------------------------ not built

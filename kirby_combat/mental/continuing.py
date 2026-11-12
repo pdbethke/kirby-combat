@@ -11,7 +11,7 @@ lock** (mental line of sight to a mind the scanner cannot see).
 THE EFFECT IS THE ``ActionResolved`` THAT ESTABLISHED IT. Its payload already
 says who did what to whom with which order; a second "effect applied" event
 would be a second statement of the same fact. This folds the payloads forward
-exactly as `framework.active_slots` folds ``reallocate`` --- and the one thing
+exactly as `framework.slot_points_for` reads the folded ``SlotsAllocated`` --- and the one thing
 an action record cannot say, the Breakout Rolls the target makes on his own
 Phases, is its own event, `BreakoutRolled`.
 
@@ -84,13 +84,13 @@ def _scan_switched_off(session: "CombatSession", effect: ContinuingEffect) -> bo
     """A Mind Scan is a Constant Power: off breaks the lock (6E1 p.263).
 
     Off is either the scanner going down (a Constant Power does not stay on
-    in an unconscious man) or his Multipower's latest reallocation leaving the
-    Mind Scan slot out --- "if it's in a Multipower, he cannot switch the
-    slots". A framework this fight never reallocated has "no opinion" (see
-    `framework.active_slots`), which leaves the slot as the build has it.
+    in an unconscious man) or his Multipower's latest split leaving the
+    Mind Scan slot with no points --- "if it's in a Multipower, he cannot switch the
+    slots". A framework not yet opened (`framework.slot_points_for` is None) leaves
+    the slot as the build has it.
     """
     from kirby_combat.enumeration import is_down
-    from kirby_combat.framework import active_slots
+    from kirby_combat.framework import slot_points_for
 
     scanner = session.combatants.get(effect.attacker_id)
     if scanner is None or is_down(scanner):
@@ -99,8 +99,8 @@ def _scan_switched_off(session: "CombatSession", effect: ContinuingEffect) -> bo
         slot_ids = {s.slot_id for s in view.slots}
         if effect.source_id not in slot_ids:
             continue
-        active = active_slots(session, scanner.id, view.framework_id)
-        if active and effect.source_id not in active:
+        points = slot_points_for(scanner, view.framework_id)
+        if points is not None and points.get(effect.source_id, 0) <= 0:
             return True
     return False
 

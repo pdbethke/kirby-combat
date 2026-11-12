@@ -13,7 +13,7 @@ Ninth of the same shape in a week. The engine can pick a thing up and can
 throw a thing; it could not remember between those two Phases that it was
 holding one.
 
-Folded from the log, absolute rather than a delta, the way `active_slots`
+Folded from the log, absolute rather than a delta, the way `slot_points_for`
 folds reallocations: the LATEST pickup or throw wins. A delta would be
 unrecoverable the moment one was missed.
 """
@@ -63,7 +63,7 @@ def test_throwing_it_empties_his_hands():
 
 
 def test_the_latest_pickup_wins():
-    """Absolute, not a delta --- the same discipline `active_slots` holds
+    """Absolute, not a delta --- the same discipline `slot_points_for` holds
     to, and for the same reason."""
     log = _Log(_did("lad", "pickup", {"object_id": "barrel"})
                + _did("lad", "pickup", {"object_id": "freight-wagon"}))

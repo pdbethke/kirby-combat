@@ -14,7 +14,7 @@ from kirby_combat.coordination import (
 )
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.framework import (
-    ReserveExceeded, active_slots, allocation_for, parse_reallocation,
+    ReserveExceeded, allocation_for, parse_reallocation, slot_points_for,
     validate_split,
 )
 from kirby_combat.loop import registered_kinds
@@ -256,19 +256,19 @@ def test_reallocating_records_the_whole_split():
         _act("opening_split", "opening_split:fw1:split=a@20+b@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
-    assert active_slots(session, "alice", "fw1") == ("a", "b")
+    assert slot_points_for(session.combatants["alice"], "fw1") == {"a": 20, "b": 20, "c": 0}
 
     session = resolve_chosen(
         session, alice,
         _act("reallocate", "reallocate_slots:fw1:split=c@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
-    assert active_slots(session, "alice", "fw1") == ("c",), "the latest wins"
+    assert slot_points_for(session.combatants["alice"], "fw1") == {"a": 0, "b": 0, "c": 20}, "the latest wins"
 
 
 def test_no_reallocation_means_no_opinion_not_nothing_active():
     """The build's own default set is the caller's to supply."""
-    assert active_slots(_session(), "alice", "fw1") == ()
+    assert slot_points_for(_session().combatants["alice"], "fw1") is None
 
 
 def test_frameworks_and_combatants_do_not_bleed_into_each_other():
@@ -281,8 +281,8 @@ def test_frameworks_and_combatants_do_not_bleed_into_each_other():
         _act("opening_split", "opening_split:fw1:split=a@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
-    assert active_slots(session, "alice", "fw2") == ()
-    assert active_slots(session, "bob", "fw1") == ()
+    assert slot_points_for(session.combatants["alice"], "fw2") is None
+    assert slot_points_for(session.combatants["bob"], "fw1") is None
 
 
 def test_reconfiguring_a_vpp_records_the_intent_and_builds_nothing():
@@ -402,9 +402,7 @@ def test_the_allocation_is_assembled_from_the_build_and_the_log():
         _framework(reserve=60, slots=[_slot("a", 20), _slot("b", 20)]),
     )
     alloc = allocation_for(session, session.combatants["alice"])
-    reserve, used, active, costs = alloc["fw1"]
-    assert (reserve, used, active) == (60, 0, set())
-    assert costs == {"a": 20, "b": 20}
+    assert alloc == {}, "not yet opened: no entry, the build as written"
 
     session = resolve_chosen(
         session, session.combatants["alice"],
@@ -417,10 +415,8 @@ def test_the_allocation_is_assembled_from_the_build_and_the_log():
         session.combatants["alice"],
         _framework(reserve=60, slots=[_slot("a", 20), _slot("b", 20)]),
     )
-    reserve, used, active, _ = allocation_for(
-        session, session.combatants["alice"],
-    )["fw1"]
-    assert (used, active) == (20, {"a"}), "the fight's own reallocation"
+    got = allocation_for(session, session.combatants["alice"])["fw1"]
+    assert (got.used, got.active) == (20, {"a"}), "the fight's own split"
 
 
 def test_no_frameworks_means_no_gate():

@@ -11,7 +11,7 @@ fact that lives in the log, which the caller was expected to track by
 hand and never did.
 
 ABSOLUTE, NOT A DELTA. The latest pickup or throw wins, which is the
-discipline every other fold in this engine holds to --- `active_slots`,
+discipline every other fold in this engine holds to --- `slot_points_for`,
 the presence tiers, the status folds. A delta is unrecoverable the moment
 one is missed.
 """

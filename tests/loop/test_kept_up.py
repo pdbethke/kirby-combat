@@ -345,7 +345,7 @@ def test_a_slot_without_the_reserve_is_not_offered():
     caster = _fight(power).sessions[0].combatants["caster"]
     on_blast = {"mp": (60, 60, {"blast"}, {"blast": 60, "src-DARKNESS": 40})}
     on_dark = {"mp": (60, 40, {"src-DARKNESS"}, {"blast": 60, "src-DARKNESS": 40})}
-    never = {"mp": (60, 0, set(), {"blast": 60, "src-DARKNESS": 40})}
+    never = {}   # not opened: no entry (framework.allocation_for)
     assert not slot_on(caster, power, on_blast)
     assert slot_on(caster, power, on_dark)
     assert slot_on(caster, power, never), "never reallocated: as he brought it in"

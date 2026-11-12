@@ -856,7 +856,7 @@ def enumerate_actions(
     observer_flashed_groups: frozenset[str] | None = None,
     kept_up_items: list | None = None,
     decoy_targets: list[tuple[str, str]] | None = None,
-    slot_allocation: dict[str, tuple[int, int, set[str], dict[str, int]]] | None = None,
+    slot_allocation: dict[str, tuple] | None = None,
     extra_attacks: list | None = None,
     physical_entangle: PhysicalEntangleState | None = None,
     mental_paralysis: MentalParalysisState | None = None,
@@ -889,13 +889,13 @@ def enumerate_actions(
         ``has_scene=True`` — the driver will read positions and
         step toward the chosen target.
 
-    ``slot_allocation`` (Task 8): per-framework reserve gate. Maps
-    ``framework_id → (reserve, used_points, active_slot_ids,
-    slot_costs)``, where ``slot_costs: dict[slot_id, active_points]``.
-    When provided:
-      * slots whose cost (slot_costs[slot_id]) > remaining (reserve −
-        used) are skipped UNLESS the slot is already active (in
-        ``active_slot_ids``).
+    ``slot_allocation``: per-framework allocation. Maps
+    ``framework_id -> framework.Allocation`` (``reserve, used,
+    active_slot_ids, slot_costs, points``; a plain 4-tuple of the first
+    four still reads). When provided:
+      * a slot with no points (not in ``active_slot_ids``) is skipped
+        (6E1 p.402, p.404-406): the split was checked against the reserve
+        when it was made, so no remainder is computed here.
       * None / missing → no gate (all slots offered; existing
         single-attack behavior unchanged).
     Also offers one ``reallocate_slots:{framework_id}:{slot_id,...}``
@@ -1306,32 +1306,20 @@ def enumerate_actions(
                     # 33bf8bee, three `move_strike`s in a row that left the
                     # mover standing where he was.
                     continue
-            # Task 8: Multipower reserve gate.  When ``slot_allocation``
-            # is provided and this power belongs to a framework, skip
-            # the slot if its active_points exceed the remaining reserve
-            # UNLESS the slot is already active (already drawing from
-            # the reserve — it's in, not blocked).
-            # Plain top-level powers (framework_id empty) are never
-            # gated; None slot_allocation = no gate (fail-open).
-            # Key the reserve gate on the framework OBJECT. Keyed on its
-            # xmlid, a character with two Multipowers had both reserves
-            # collapse under one entry.
+            # A Multipower slot is usable iff it holds points (6E1 p.402,
+            # p.404-406): the split was checked against the reserve when it
+            # was made (`framework.validate_split`), so there is no
+            # "does it fit what is left" to ask here. Plain top-level powers
+            # (framework_id empty) are never gated; no entry for the
+            # framework (not opened) or None slot_allocation = the build as
+            # written. Keyed on the framework OBJECT's id, so a character
+            # with two Multipowers keeps two allocations.
             ap_fw = getattr(ap, "framework_id", "") or ""
             ap_sid = getattr(ap, "slot_id", "") or ""
             if slot_allocation is not None and ap_fw:
                 alloc = slot_allocation.get(ap_fw)
-                if alloc is not None:
-                    reserve, used, active_ids, slot_costs = alloc
-                    remaining = max(0, reserve - used)
-                    # slot_costs maps slot_id → active_points (the cost
-                    # to draw this slot from the framework reserve).
-                    # Fall back to 0 (always fits) when the slot is absent
-                    # from the map — safe default for non-variable slots
-                    # or slots the driver hasn't seen before.
-                    ap_pts = slot_costs.get(ap_sid, 0)
-                    already_active = ap_sid in active_ids
-                    if not already_active and ap_pts > remaining:
-                        continue  # skip: not enough reserve room
+                if alloc is not None and ap_sid not in alloc[2]:
+                    continue  # no points in this slot: it is off
 
             aid = _power_action_id("attack", enemy.id, ap)
             label = ap.name or pname
