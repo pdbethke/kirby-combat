@@ -60,7 +60,7 @@ REQUIRED_BY_CONSUMERS = {
     # Presence Attacks
     "base_pre_dice", "resolve_presence_attack",
     # Resolution helpers
-    "compute_damage", "compute_defense", "scale_variable_slot_dice",
+    "compute_damage", "compute_defense",
     "compute_impact_damage_dice", "ImpactTarget",
     "apply_attack_to_construct", "apply_autofire_to_construct",
     "has_line_of_sight", "gate_ranged_attack", "blocking_wall_for_shot",
@@ -188,7 +188,7 @@ def test_deep_imports_still_work():
 #: Two different problems wear this label, and the set does not distinguish
 #: them because the remedy is the same either way (look at it and decide):
 #:
-#: * **Symptoms.** `scale_variable_slot_dice`, `compute_impact_damage_dice`,
+#: * **Symptoms.** `compute_impact_damage_dice`,
 #:   `range_penalty`, `apply_attack_to_construct`, `apply_autofire_to_construct`,
 #:   `gate_ranged_attack`, `has_line_of_sight`, `blocking_wall_for_shot` are
 #:   resolution internals exported ONLY because kirby-api reaches for them. A
@@ -201,7 +201,7 @@ def test_deep_imports_still_work():
 #:   write one.
 UNDEMONSTRATED = {
     # symptoms of rules math in the wrong repo
-    "scale_variable_slot_dice", "compute_impact_damage_dice", "range_penalty",
+    "compute_impact_damage_dice", "range_penalty",
     "apply_attack_to_construct", "apply_autofire_to_construct",
     "gate_ranged_attack", "has_line_of_sight", "blocking_wall_for_shot",
     # gaps in the engine's own demonstrations

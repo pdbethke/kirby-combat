@@ -66,7 +66,7 @@ from kirby_cost.engine import rolls as _rolls  # noqa: F401,E402
 # Measured 2026-08-28: eight exported names have NO usage anywhere in
 # `examples/` -- the engine never demonstrates them as things a caller uses:
 #
-#     scale_variable_slot_dice, compute_impact_damage_dice, range_penalty,
+#     compute_impact_damage_dice, range_penalty,
 #     apply_attack_to_construct, apply_autofire_to_construct,
 #     gate_ranged_attack, has_line_of_sight, blocking_wall_for_shot
 #
@@ -159,7 +159,7 @@ from kirby_combat.pre_attacks.presence_effects import (  # noqa: E402
     PRESENCE_TIERS, PresenceEffects, PresenceTier, effect_for_tier,
 )
 from kirby_combat.resolution.damage import (  # noqa: E402
-    compute_damage, scale_variable_slot_dice,
+    compute_damage,
 )
 from kirby_combat.resolution.defense import compute_defense  # noqa: E402
 from kirby_combat.resolution.knockback import (  # noqa: E402
@@ -286,7 +286,7 @@ __all__ = [
     "ImpactTarget", "apply_attack_to_construct", "apply_autofire_to_construct",
     "blocking_wall_for_shot", "compute_damage", "compute_defense",
     "compute_impact_damage_dice", "gate_ranged_attack", "has_line_of_sight",
-    "range_penalty", "scale_variable_slot_dice",
+    "range_penalty",
     # Rules configuration
     "CombatTemplate", "RAW_SUPERHEROIC",
     # Terrain durability, 6E2 p173
