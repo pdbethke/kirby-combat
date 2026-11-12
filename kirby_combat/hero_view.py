@@ -807,6 +807,20 @@ class HeroCombatant(Stunnable, CombatParticipant):
         away) is carried on the power's own modifiers, which
         ``_build_attack_power`` already reads.
         """
+        if self.snapshot is not None:
+            return _with_adjusted_dice(self._recorded().attacks, self.state.adjusted_dice)
+        return _with_adjusted_dice(
+            self._attacks_from_build(at_split=True), self.state.adjusted_dice)
+
+    def _attacks_from_build(self, *, at_split: bool) -> list[AttackPower]:
+        """Every attack the build holds, before any Aid or Drain.
+
+        ``at_split=True`` is what the combatant FIGHTS with: a framework slot
+        is priced at the points its split gave it (`_power_at_split`).
+        ``False`` is the slot as bought, which `framework_view` wants so a
+        slot cut to nothing is still seen as an attack slot (a re-split from
+        0 must be able to find it).
+        """
         out: list[AttackPower] = []
         attack_xmlids = {
             "ENERGYBLAST", "RKA", "HKA", "EGOATTACK", "MENTALBLAST",
@@ -824,15 +838,24 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     continue        # one part of a Compound Power, OIAID
                 x = (getattr(p, "xmlid", None) or "").upper()
                 if x in attack_xmlids:
-                    try:
-                        out.append(_build_attack_power(
-                            p, str_for_augmentation=self.combat_stats().str_,
-                        ))
-                    except (ValueError, TypeError, AttributeError):
-                        pass
+                    # Priced OUTSIDE the try below: a power with no steps
+                    # (NotLadderable is a ValueError) must raise, not vanish.
+                    fitted = self._power_at_split(p) if at_split else (p, None)
+                    if fitted is not None:
+                        priced, slot_id = fitted
+                        try:
+                            built = _build_attack_power(
+                                priced, str_for_augmentation=self.combat_stats().str_,
+                            )
+                        except (ValueError, TypeError, AttributeError):
+                            built = None
+                        if built is not None:
+                            if slot_id is not None and built.slot_id != slot_id:
+                                # an id-less slot derives its id from id(power);
+                                # the copy's differs from the original's.
+                                built = replace(built, slot_id=slot_id)
+                            out.append(built)
                 _walk(parts_of(p))
-        if self.snapshot is not None:
-            return _with_adjusted_dice(self._recorded().attacks, self.state.adjusted_dice)
 
         _walk(self._build().powers)
         # Carried weapons. Second, so an innate power keeps its position in
@@ -840,7 +863,51 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # and a character with both heat vision and a pistol should not have
         # the pistol shadow the power they were built around.
         _walk(getattr(self._build(), "equipment", None))
-        return _with_adjusted_dice(out, self.state.adjusted_dice)
+        return out
+
+    def _power_at_split(self, power):
+        """``(power to build the attack from, slot id)``, or None when the
+        slot is off.
+
+        6E1 p.404-406: a Multipower slot holds the points its split gave it.
+        None for a slot holding none (it is off, so it is no attack), the
+        power itself for anything outside a framework, a framework not yet
+        opened (the build as written), a fixed slot (it fights as bought,
+        p.404-405) or a slot holding its full cost; otherwise the priced
+        COPY kirby-cost returns for those points, so dice, Active Points and
+        Endurance (6E1 p.129-130, on the points used) all come from it.
+        This does no cost arithmetic of its own.
+        """
+        from kirby_combat.framework import slot_points_for
+        from kirby_cost.engine.allocation import NotLadderable, levels_within
+        from kirby_cost.io.framework_access import framework_kind, slot_is_variable
+
+        parent = getattr(power, "parent", None)
+        try:
+            kind = framework_kind(parent) if parent is not None else None
+        except Exception:
+            kind = None
+        if not kind:
+            return power, None
+        points = slot_points_for(self, str(getattr(parent, "id", "") or ""))
+        if points is None:
+            return power, None
+        raw_id = str(getattr(power, "id", "") or "")
+        slot_id = raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+        given = points.get(slot_id, 0)
+        if given <= 0:
+            return None
+        if not slot_is_variable(parent, power) or given >= int(power.active_cost):
+            return power, slot_id
+        try:
+            fit = levels_within(power, given)
+        except NotLadderable:
+            raise
+        except ValueError:
+            return None             # not even the first step fits
+        if fit.levels <= 0:
+            return None
+        return fit.power, slot_id
 
     def unadjusted_attacks(self) -> list[AttackPower]:
         """`attacks` as the build has them, before any Aid or Drain on a
@@ -1521,7 +1588,9 @@ class HeroCombatant(Stunnable, CombatParticipant):
             return self._recorded().frameworks
 
         attack_by_slot: dict[str, "AttackPower"] = {
-            a.slot_id: a for a in self.attacks if a.slot_id
+            a.slot_id: a for a in _with_adjusted_dice(
+                self._attacks_from_build(at_split=False), self.state.adjusted_dice)
+            if a.slot_id
         }
         out: list[FrameworkView] = []
         for p in (self._build().powers or []):
