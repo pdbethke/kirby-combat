@@ -3198,7 +3198,9 @@ def _resolve_split(
     if view is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
-    in_session = session.combatants.get(actor.id, actor)
+    in_session = session.combatants.get(actor.id)
+    if in_session is None:
+        raise UnresolvableAction(action.kind, action.action_id)
     # An absent entry is "not opened yet" (structural), not a domain default.
     opened = framework_id in in_session.state.slot_points
     if opening == opened:

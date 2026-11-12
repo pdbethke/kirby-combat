@@ -58,7 +58,8 @@ def _resolve(s, actor, action_id, kind="reallocate"):
 
 
 BREAKS = ["wall@30", "bolt@61", "bolt@-5", "ghost@10", "wall@45+bolt@20", "bolt@x",
-          "bolt@10+bolt@20"]
+          "bolt@10+bolt@20",
+          "bolt@ 40", "bolt@4_0", "bolt@10++wind@5", "bolt@\u0664\u0660"]
 
 
 def test_answer_and_parse_round_trip():
@@ -156,3 +157,15 @@ def test_the_legacy_slot_list_id_is_refused():
     s = _open(s, actor)
     with pytest.raises(UnresolvableAction):
         _resolve(s, actor, "reallocate_slots:kmp:bolt,wind")
+
+
+def test_an_empty_whole_tail_means_every_slot_off():
+    assert _choice({"wall": 45}).parse("") == {"wind": 0, "bolt": 0, "wall": 0}
+
+
+def test_an_actor_not_in_the_session_is_refused():
+    s, actor = _world()
+    stranger = fighter("stranger", side=Side.named("x"))
+    stranger.framework_view = lambda: [_view()]         # type: ignore[method-assign]
+    with pytest.raises(UnresolvableAction):
+        _resolve(s, stranger, "opening_split:kmp:split=wall@45", "opening_split")

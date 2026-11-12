@@ -18,6 +18,7 @@ to do is keep one in step with a fight it is not otherwise tracking.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -160,6 +161,12 @@ SPLIT_JOIN = "+"
 SPLIT_AT = "@"
 
 
+#: A points field is ASCII digits only (int() would also take spaces,
+#: underscores and non-ASCII digits); the minus is kept so a negative
+#: reaches the rule check and is refused there with its reason.
+_POINTS = re.compile(r"-?[0-9]+")
+
+
 @dataclass(frozen=True)
 class SlotTerms:
     """What a split needs to know about one slot (6E1 p.404-406).
@@ -261,14 +268,12 @@ class SplitChoice:
         """The split an answer's tail states, over EVERY slot (0 = off), or
         ValueError saying which rule it breaks."""
         stated: dict[str, int] = {}
-        for term in (t for t in tail.split(SPLIT_JOIN) if t):
+        # The empty WHOLE tail means every slot off; an empty TERM is a typo.
+        for term in (tail.split(SPLIT_JOIN) if tail else ()):
             sid, at, raw = term.partition(SPLIT_AT)
-            try:
-                if not at:
-                    raise ValueError
-                pts = int(raw)
-            except ValueError:
-                raise ValueError(f"{term!r} is not <slot>{SPLIT_AT}<points>") from None
+            if not (sid and at and _POINTS.fullmatch(raw)):
+                raise ValueError(f"{term!r} is not <slot>{SPLIT_AT}<integer points>")
+            pts = int(raw)
             if sid in stated:
                 raise ValueError(f"names slot {sid!r} twice")
             stated[sid] = pts

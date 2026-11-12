@@ -1415,7 +1415,7 @@ def enumerate_actions(
         # WHAT THE RESERVE CAN ACTUALLY PAY FOR. This used to name every
         # slot in one id and let the resolver refuse it: Power Lad's five
         # 44-45 point slots against a 45-point reserve draw 224, so
-        # `validate_allocation` raised `ReserveExceeded` every time. He
+        # the resolver refused it with `ReserveExceeded` every time. He
         # chose it 152 times in one fight and the O.K. Corral ran to
         # `max_turns` undecided --- the menu offering what the engine
         # rejects, for ever, with nothing on either side learning.
