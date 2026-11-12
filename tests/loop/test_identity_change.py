@@ -28,6 +28,7 @@ from kirby_combat.side import Side
 from kirby_combat.squads import KEEP_ORDERS
 from kirby_dice import RandomRoller
 from tests.corpus import require_authored
+from tests.support.splits import Opens
 
 STRING_STORM = "String Storm"
 
@@ -73,11 +74,20 @@ def _storms(menu) -> list:
 
 
 def _until_ravel_acts(encounter, chooser, roller):
+    """His next PHASE. Changing into costume brings his Multipower (Only In
+    Alternate Identity) into the fight, and `run_phase` then asks him for
+    its opening split first (6E1 p.404-406); that is not a Phase."""
     while True:
         r = run_phase(encounter, chooser, roller=roller, on_unresolvable="raise")
         encounter = r.encounter
-        if r.actor_id == "ravel":
+        if r.actor_id == "ravel" and r.kind != "opening_split":
             return r
+
+
+def _seat(*, change: bool):
+    """`_Plays`, stating that his Multipower opens on String Storm."""
+    plays = _Plays(change=change)
+    return plays, Opens(plays, {"ravel": STRING_STORM})
 
 
 def test_a_civilian_cannot_fire_the_costumed_blast_and_can_after_the_change():
@@ -85,10 +95,10 @@ def test_a_civilian_cannot_fire_the_costumed_blast_and_can_after_the_change():
     Phase's menu reads it."""
     enc = encounter_of(_ravel(in_hero_id=False),
                        fighter("thug", side=Side.named("thugs"), dex=5))
-    chooser = _Plays(change=True)
+    chooser, seat = _seat(change=True)
     roller = RandomRoller(seed=3)
 
-    first = _until_ravel_acts(enc, chooser, roller)
+    first = _until_ravel_acts(enc, seat, roller)
     assert _storms(chooser.menus[0]) == [], "a civilian fired String Storm"
     assert [a.kind for a in chooser.menus[0]
             if a.kind in (CHANGE_IDENTITY, CHANGE_IDENTITY_INSTANT)] == [CHANGE_IDENTITY]
@@ -101,7 +111,7 @@ def test_a_civilian_cannot_fire_the_costumed_blast_and_can_after_the_change():
             if e.kind == "PhaseSpent" and e.combatant_id == "ravel"] == ["acted"]
     assert first.session.combatants["ravel"].state.in_hero_id is True
 
-    second = _until_ravel_acts(first.encounter, chooser, roller)
+    second = _until_ravel_acts(first.encounter, seat, roller)
     assert _storms(chooser.menus[1]), "in costume and still no String Storm"
     assert second.kind == "attack"
 
@@ -180,17 +190,21 @@ def _ravel_with_instant_change() -> HeroCombatant:
 def test_with_instant_change_the_change_takes_no_time_and_he_fires_in_the_same_phase():
     enc = encounter_of(_ravel_with_instant_change(),
                        fighter("thug", side=Side.named("thugs"), dex=5))
-    chooser = _Plays(change=True)
+    chooser, seat = _seat(change=True)
     roller = RandomRoller(seed=3)
 
-    first = _until_ravel_acts(enc, chooser, roller)
+    first = _until_ravel_acts(enc, seat, roller)
     assert first.kind == CHANGE_IDENTITY_INSTANT
     assert [e.zero_phase for e in first.events if e.kind == "IdentityChanged"] == [True]
     assert not [e for e in first.events
                 if e.kind == "PhaseSpent" and e.combatant_id == "ravel"]
 
-    # The SAME Phase comes back to him: no second change, String Storm on it.
-    again = run_phase(first.encounter, chooser, roller=roller,
+    # The SAME Phase comes back to him, after the opening of the Multipower
+    # the change brought: no second change, String Storm on it.
+    opening = run_phase(first.encounter, seat, roller=roller,
+                        on_unresolvable="raise")
+    assert (opening.actor_id, opening.kind) == ("ravel", "opening_split")
+    again = run_phase(opening.encounter, seat, roller=roller,
                       on_unresolvable="raise")
     assert again.actor_id == "ravel"
     assert not [a for a in chooser.menus[-1]

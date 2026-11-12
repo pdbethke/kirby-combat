@@ -145,6 +145,11 @@ class PhaseSituation:
     #: else's Phase (6E2 p.22). See `loop/reactions.py`. None on his own
     #: Phase, which is what every chooser has always been shown.
     out_of_turn: "OutOfTurn | None" = None
+    #: Set when this is the OPENING SPLIT of one of his Multipowers, asked
+    #: before Segment 12 (6E1 p.404-406; spec §5.2): the menu is one
+    #: ``opening_split`` offer that he answers with a split. False on every
+    #: other question; a structural marker, not a domain choice.
+    opening: bool = False
 
     @property
     def halves_left(self) -> int | None:
@@ -360,7 +365,21 @@ class FirstLegalChooser:
             raise InvalidChoice("<empty menu>", [])
         # `ordered_menu`, not `menu`: taking the first LEGAL offer must not
         # mean taking the first BUILDING. See `PhaseSituation.ordered_menu`.
-        first = situation.ordered_menu[0]
+        from kirby_combat.framework import SplitChoice
+
+        # NO DEFAULTS: how a Multipower's reserve is divided (6E1 p.404-406)
+        # is his to state, and "the first preset" would be this seat
+        # choosing it for him. A re-split may be passed over (the split in
+        # force stands); an opening may not, so it is refused by name.
+        answerable = [a for a in situation.ordered_menu
+                      if not isinstance(a.choice, SplitChoice)]
+        first = answerable[0] if answerable else situation.ordered_menu[0]
+        if isinstance(first.choice, SplitChoice):
+            raise InvalidChoice(
+                first.action_id, situation.action_ids,
+                note=(f"asks for a split of {first.choice.framework_id!r}, "
+                      f"which first-legal will not choose for him: state one "
+                      f"(6E1 p.404-406)"))
         if first.choice is not None:
             # The first legal ANSWER: the first names it may pick, in sheet
             # order. Not a tactic, like the rest of this seat.

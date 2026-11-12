@@ -84,6 +84,49 @@ if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.template import CombatTemplate
 
+
+class NoOpeningSplit(RuntimeError):
+    """A Segment was about to begin with a Multipower nobody had opened.
+
+    6E1 p.404-406 divides a Multipower's reserve among its slots, and the
+    fight starts with that division stated (spec §5.2, decision 7): an
+    unopened framework would otherwise read as the build written, every
+    slot on at once. `run_phase` poses every opening before it advances the
+    clock, so this is defensive: reaching it means a caller started a
+    Segment some other way.
+    """
+
+    def __init__(self, pending: list[tuple[str, str]]) -> None:
+        self.pending = pending
+        super().__init__(
+            f"a Segment cannot begin while these Multipowers have no opening "
+            f"split (combatant, framework): {pending} (6E1 p.404-406)")
+
+
+#: The menu kind of the split a fight begins with (`resolvers`).
+OPENING_KIND = "opening_split"
+
+
+def pending_openings(session: "CombatSession") -> list[tuple[str, str]]:
+    """``(combatant_id, framework_id)`` for every Multipower in the fight
+    with no split stated yet, in roster order and then framework order.
+
+    Every Multipower counts, fixed-only ones too: the gap the opening closes
+    (nothing divided, so every slot reads as on) is the same there. Elemental
+    Controls and VPPs have no reserve to divide and are not asked. "Opened"
+    is a `CombatantState.slot_points` entry, which only `SlotsAllocated`
+    writes.
+    """
+    out = []
+    for combatant in session.combatants.values():
+        views = getattr(combatant, "framework_view", lambda: [])() or []
+        for view in views:
+            if (view.kind == "multipower"
+                    and view.framework_id not in combatant.state.slot_points):
+                out.append((str(combatant.id), view.framework_id))
+    return out
+
+
 @dataclass
 class PhaseResult:
     """One combatant's Phase, and the fight it left behind.
@@ -380,6 +423,11 @@ def _advance_to_an_actor(
     for _ in range(SEGMENTS_PER_TURN + 1):
         session = encounter.sessions[0]
         if not session.timeline.acting_order:
+            # NO SEGMENT WITHOUT EVERY OPENING STATED (6E1 p.404-406, spec
+            # §5.2). `run_phase` poses them first; this is the guard.
+            pending = pending_openings(session)
+            if pending:
+                raise NoOpeningSplit(pending)
             encounter = encounter.run_segment(
                 campaign=campaign, roller=tie_roller,
             )
@@ -786,6 +834,11 @@ def run_phase(
     passed in beside them where the two could disagree. The result
     carries the new ``Encounter``; ``result.session`` is a view of it.
 
+    THE OPENING SPLITS COME FIRST. While any Multipower in the fight has no
+    split stated (`pending_openings`), a call poses the first of them and
+    returns, before any Segment begins: ``actor_id`` is that combatant and
+    ``kind`` is ``"opening_split"`` (`_pose_opening`, 6E1 p.404-406).
+
     ``actor_id`` is ``None`` in exactly ONE case now: the fight is
     already decided by ``until`` (default: last side standing). Nothing
     is emitted in that case. Every other return has an actor.
@@ -841,6 +894,17 @@ def run_phase(
         return PhaseResult(
             encounter=encounter, notes=["the fight is already decided"],
         )
+
+    # THE OPENING SPLITS, BEFORE THE CLOCK MOVES (6E1 p.404-406; spec §5.2,
+    # decision 7). One per call, so a seat that cannot answer now (a player:
+    # kirby-ai's NoChoice, which kirby-api turns into a paused question)
+    # stops the fight exactly where a Phase question would, with nothing
+    # written.
+    openings = pending_openings(encounter.sessions[0])
+    if openings:
+        return _pose_opening(encounter, chooser, *openings[0],
+                             template=template, roller=roller,
+                             log_before=log_before)
 
     encounter, actor_id = _advance_to_an_actor(
         encounter, campaign=campaign, tie_roller=tie_roller, roller=roller,
@@ -1165,6 +1229,65 @@ def run_phase(
     )
 
 
+def _pose_opening(
+    encounter: "Encounter", chooser: Chooser, actor_id: str,
+    framework_id: str, *, template, roller, log_before: int,
+) -> PhaseResult:
+    """Ask ``actor_id``'s seat for the split ``framework_id`` opens with,
+    hold the answer to the rule, and record it.
+
+    6E1 p.404-406: the reserve is divided among the slots, fixed ones whole
+    or not at all, variable ones in any share, within the reserve. The menu
+    is ONE `opening_split` offer, a completion offer (`SplitChoice`, nothing
+    in force) carrying the presets, the player's standing splits first and
+    his standard combat set marked (`SplitChoice.standard`). Its bare id is
+    not an answer, so a seat must state a split: none is chosen for him.
+
+    Recorded through the `opening_split` resolver, as `SlotsAllocated(
+    opening=True)`. Not a re-split, so 6E1 p.410's once a Phase is not spent
+    (`reallocated_this_phase` counts only ``reallocate``). Not a Phase
+    either: no Segment has begun, so nothing a Phase owes (Constant powers,
+    Held Actions, END) happens here.
+    """
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.split_menu import opening_offer
+
+    session = encounter.sessions[0]
+    actor = session.combatants[actor_id]
+    view = actor.priced_framework(framework_id)
+    if view is None:
+        # Listed by `framework_view` and not priceable: the split could not
+        # be held to the rule (R10), so nothing is asked rather than half.
+        raise ValueError(
+            f"{actor_id!r} lists Multipower {framework_id!r} and cannot price "
+            f"it, so its opening split cannot be checked (6E1 p.404-406)")
+    choice, summary = opening_offer(
+        view, actor.state.standing_splits.get(framework_id, ()))
+    offer = LegalAction(
+        action_id=f"{OPENING_KIND}:{framework_id}:split", kind=OPENING_KIND,
+        target_id=None, power_xmlid=view.xmlid, power_name=view.name,
+        summary=summary, choice=choice,
+    )
+    roster = Roster(session)
+    situation = PhaseSituation(
+        actor=actor, menu=[offer],
+        enemies=roster.enemies_of(actor), allies=roster.allies_of(actor),
+        fallen_allies=roster.fallen_allies_of(actor),
+        session=session, segment=session.timeline.segment,
+        turn=session.timeline.turn, opening=True,
+    )
+    action = validate_choice(chooser.choose(situation), [offer])
+    # Never skipped (``on_unresolvable``): a split not recorded would be a
+    # fight starting on one nobody stated.
+    resolved = resolve_chosen(session, actor, action, template=template,
+                              roller=roller)
+    return _phase_result(
+        encounter, resolved.session, log_before, actor_id=actor_id,
+        action_id=action.action_id, kind=action.kind, result=resolved.result,
+        notes=[f"{actor_id} opens {view.name} (6E1 p.404-406)"],
+    )
+
+
 def _ask_for_orders(session: "CombatSession", actor_id: str, chooser) -> "CombatSession":
     """If ``actor_id`` leads his squad, ask his seat for orders, validate
     them and record them; return the session. See `squads.py`.
@@ -1329,6 +1452,10 @@ def run_encounter(
         if phase.actor_id is None:
             # The only `actor_id=None` there is: the fight is decided.
             break
+        if phase.kind == OPENING_KIND:
+            # An opening split is set-up, not a Phase (spec §5.2): not
+            # counted, and not "nothing happened" for the stalemate guard.
+            continue
 
         if phase.skipped_kind:
             skipped[phase.skipped_kind] = skipped.get(phase.skipped_kind, 0) + 1

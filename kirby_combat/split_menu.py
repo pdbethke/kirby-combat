@@ -16,6 +16,14 @@ a short list of PRESETS a person at the table can read and pick (spec §5.3):
 4. **<fixed slot> + remainder**: one per fixed slot that fits, the rest to
    the variable slots in slot order.
 
+A Multipower with ONLY fixed slots has no share to suggest: its neutral
+presets are the whole sets its reserve can carry (`whole_sets`), the same
+sets its re-split offers name.
+
+THE OPENING (spec §5.2, decision 7) is the same offer with nothing in force:
+`opening_offer`. The fight does not start until each Multipower's seat has
+stated one.
+
 Duplicates collapse (the first name wins, so a player's own split beats a
 neutral one that happens to equal it) and a preset equal to the split in
 force is dropped: answering with it changes nothing (`SplitChoice.parse`).
@@ -127,6 +135,40 @@ def _neutral(view: "FrameworkView") -> list[tuple[str, dict[str, int], str]]:
     return out
 
 
+def whole_sets(view: "FrameworkView") -> list[tuple[str, ...]]:
+    """The sets of slots a FIXED-only Multipower can have on at once (6E1
+    p.404-405: each at its full Active Points or off; p.404: within the
+    reserve). Everything when the reserve carries it all, no reason to make
+    him switch one at a time; otherwise each slot that fits by itself. A
+    slot bigger than the whole reserve can never be on.
+
+    Power Lad's five 44-45 point slots against a 45-point reserve draw 224
+    together: offering them as one set is the menu offering what the engine
+    refuses, which he chose 152 times in one fight.
+    """
+    reserve = int(view.reserve_or_pool or 0)
+    points = {s.slot_id: int(s.active_points) for s in view.slots}
+    if reserve and sum(points.values()) <= reserve:
+        return [tuple(points)]
+    return [(sid,) for sid, cost in points.items() if reserve and cost <= reserve]
+
+
+def _whole_set_presets(view: "FrameworkView") -> list[tuple[str, dict[str, int], str | None]]:
+    """``(name, split, lead slot)`` for each of `whole_sets`: a single slot
+    by its own name, everything as "Everything on"."""
+    names = {s.slot_id: s.name for s in view.slots}
+    off = {s.slot_id: 0 for s in view.slots}
+    full = {s.slot_id: int(s.active_points) for s in view.slots}
+    out = []
+    for slots in whole_sets(view):
+        points = {**off, **{sid: full[sid] for sid in slots}}
+        if len(slots) == 1:
+            out.append((names[slots[0]], points, slots[0]))
+        else:
+            out.append(("Everything on", points, None))
+    return out
+
+
 def standing_refusals(view: "FrameworkView",
                       standing: tuple[StandingSplit, ...]) -> list[tuple[StandingSplit, str]]:
     """Each standing split that no longer fits the build in play, with the
@@ -160,11 +202,13 @@ def presets_for(view: "FrameworkView", current: dict[str, int],
         named.append(Preset(sp.name, points,
                             effect_text(view, points, lead=None),
                             standing=True, standard=sp.standard))
-    for name, points, lead in _neutral(view):
+    neutral = (_neutral(view) if any(sl.variable for sl in view.slots)
+               else _whole_set_presets(view))
+    for name, points, lead in neutral:
         named.append(Preset(name, points, effect_text(view, points, lead=lead),
                             standing=False, standard=False))
-    in_force = {**off, **current}
-    seen: list[dict[str, int]] = [in_force]
+    # Before the opening ({}) nothing is in force, so nothing is "as is".
+    seen: list[dict[str, int]] = [{**off, **current}] if current else []
     out = []
     for preset in named:
         if preset.points in seen:
@@ -183,4 +227,22 @@ def split_offer(view: "FrameworkView", current: dict[str, int],
     in_force = {**{s.slot_id: 0 for s in view.slots}, **current}
     summary = (f"Re-split {view.name} ({int(view.reserve_or_pool)} reserve): "
                f"now {effect_text(view, in_force, lead=None)}")
+    return choice, summary
+
+
+def opening_offer(view: "FrameworkView",
+                  standing: tuple[StandingSplit, ...]) -> tuple[SplitChoice, str]:
+    """The opening split's choice and its words, for a PRICED view of any
+    Multipower, variable slots or not (spec §5.2, decision 7).
+
+    6E1 p.404-406: the reserve is divided among the slots before the fight
+    begins. Nothing is in force yet (``current`` is {}), so no preset is
+    dropped as "as is", and every legal split, nothing-on included, is an
+    answer (`SplitChoice.parse`). The player's standing splits come first and his standard combat
+    set is marked (`SplitChoice.standard`); none is applied without an
+    answer.
+    """
+    choice = split_choice_of(view, {}, presets_for(view, {}, standing))
+    summary = (f"Open {view.name} ({int(view.reserve_or_pool)} reserve): state "
+               f"the split it starts the fight with")
     return choice, summary

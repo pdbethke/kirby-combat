@@ -32,6 +32,7 @@ from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import _SyntheticCombatant, synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
+from tests.support.splits import open_with
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
@@ -46,6 +47,23 @@ class _WithFramework(_SyntheticCombatant):
 
     def framework_view(self):
         return self._framework
+
+    def priced_framework(self, framework_id):
+        """Fixed slots: each ladder is off or as bought (6E1 p.404-405)."""
+        from kirby_combat.hero_view import SlotEffect, SlotStep
+        from kirby_combat.models import PricedSlotView
+
+        for v in self._framework:
+            if v.framework_id == framework_id:
+                return FrameworkView(v.framework_id, v.xmlid, v.name, v.kind,
+                                     v.reserve_or_pool, [
+                    PricedSlotView(s.slot_id, s.name, s.active_points, s.variable,
+                                   s.kind, s.attack, steps=(
+                                       SlotStep(0, "", SlotEffect.nothing()),
+                                       SlotStep(s.active_points, s.name,
+                                                SlotEffect.nothing())))
+                    for s in v.slots])
+        return None
 
 
 class _Power:
@@ -78,7 +96,9 @@ def _psi(*, lockout: bool):
         _Power("MINDCONTROL", 12, mods=("LOCKOUT",) if lockout else ()))
     multipower = FrameworkView(
         framework_id="mp", xmlid="MULTIPOWER", name="Psionics",
-        kind="multipower", reserve_or_pool=60,
+        # 120, so BOTH slots can be on at once (6E1 p.404): the Lockout,
+        # not the reserve, is what must shut the Mind Blast out.
+        kind="multipower", reserve_or_pool=120,
         slots=[
             SlotView(slot_id="src-MINDCONTROL", name="Will", active_points=60,
                      variable=False, kind="attack"),
@@ -118,6 +138,9 @@ def _session(*, lockout: bool, maintaining: bool) -> CombatSession:
         id="s", combatants=[_psi(lockout=lockout), _mark()], scene=None,
         template=TEMPLATE, dice_roller=RandomRoller(seed=3),
     ).start()
+    # Both slots on, stated (6E1 p.404-406): the fight starts opened.
+    session = open_with(session, "psi", "mp",
+                        {"src-MINDCONTROL": 60, "src-MENTALBLAST": 60})
     return _maintaining_mind_control(session) if maintaining else session
 
 

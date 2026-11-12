@@ -45,7 +45,7 @@ from kirby_combat.encounter import Encounter
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.loop import run_phase
 from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
-from kirby_combat.loop.run import _situation_for
+from kirby_combat.loop.run import _situation_for, pending_openings
 from kirby_combat.scene.scene import (
     AmbientConditions, Position, Scene, SceneBounds, Wall,
 )
@@ -59,6 +59,7 @@ from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 
 from tests.corpus import require_authored, require_authored_doc
+from tests.support.splits import open_on
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
@@ -306,9 +307,25 @@ class _Script:
         return (dodge or situation.menu)[0].action_id
 
 
+#: The slot each corpus Multipower opens the fight on, STATED here (6E1
+#: p.404-406; `run_phase` poses the opening and picks none). These tests are
+#: about maneuvers, not the split.
+OPENS_ON = {"Maleable Sting Body": "String Storm",
+            "Vodou Powers - gris gris bag powders": "Digitalis dust"}
+
+
+def _opened(session) -> CombatSession:
+    for cid, fid in pending_openings(session):
+        (view,) = [v for v in session.combatants[cid].framework_view()
+                   if v.framework_id == fid]
+        session = open_on(session, cid, OPENS_ON[view.name])
+    return session
+
+
 def _play(session, chooser: _Script, *, roller, phases: int) -> CombatSession:
     """Step the fight through `run_phase`, refusing anything unresolvable,
     until every scripted pick has been played (or ``phases`` run out)."""
+    session = _opened(session)
     encounter = Encounter(id="e", turn=session.timeline.turn,
                           segment=session.timeline.segment, sessions=[session])
     for _ in range(phases):

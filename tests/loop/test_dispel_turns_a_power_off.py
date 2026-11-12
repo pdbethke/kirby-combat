@@ -27,6 +27,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
+from tests.support.splits import open_on
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 FORCE_FIELD = "1727273798229"
@@ -110,6 +111,8 @@ def test_he_turns_it_back_on_at_his_next_phase():
     """6E2 p.20: activating a Power is a Zero Phase Action at the start of a
     Phase. `run_phase` makes it for him before he chooses."""
     dispelled = _dispel(_fight(), [HIT, [6] * 16]).session
+    # His Multipower opens on a stated slot (6E1 p.404-406); not the point here.
+    dispelled = open_on(dispelled, "lad", "Rending and Tearing")
     assert dispelled.combatants["lad"].combat_stats().rpd < 25
     enc = Encounter(id="e", turn=1, segment=12, sessions=[dispelled])
     result = run_phase(enc, _Dodges(), roller=RandomRoller(seed=4),

@@ -289,9 +289,11 @@ class SplitChoice:
     the rule. Same shape as `adjustments.CharacteristicChoice`.
 
     ``current`` is the split in force ({} before the opening); answering
-    with it changes nothing and is refused. ``presets`` are the menu's
-    suggestions (`split_menu.presets_for`), each one an answer; any other
-    legal split is one too.
+    with it changes nothing and is refused. Before the opening nothing is
+    in force, so every legal split is an answer, "every slot off" included:
+    he STATES it, nothing is assumed. ``presets`` are the menu's suggestions
+    (`split_menu.presets_for`), each one an answer; any other legal split is
+    one too.
     """
 
     framework_id: str
@@ -299,6 +301,13 @@ class SplitChoice:
     slots: tuple[SlotTerms, ...]
     current: dict[str, int]
     presets: tuple[Preset, ...]
+
+    @property
+    def standard(self) -> "Preset | None":
+        """The player's standard combat set among the presets (spec §5.5a,
+        decision 8), or None. The opening panel opens on it; it is never
+        applied without an answer, so it is not a default."""
+        return next((p for p in self.presets if p.standard), None)
 
     def instructions(self) -> str:
         """How to answer, for the refusal a bare id earns."""
@@ -331,7 +340,9 @@ class SplitChoice:
         except (KeyError, ReserveExceeded) as exc:
             raise ValueError(str(exc.args[0] if isinstance(exc, KeyError) else exc)) from exc
         full = {sid: stated.get(sid, 0) for sid in terms}
-        if full == {sid: self.current.get(sid, 0) for sid in terms}:
+        # An opened framework's split names every slot, so {} is "not
+        # opened" (structural): nothing is in force to repeat.
+        if self.current and full == {sid: self.current.get(sid, 0) for sid in terms}:
             raise ValueError("that is the split already in force; it changes nothing")
         return full
 

@@ -47,6 +47,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
+from tests.support.splits import open_on
 
 from fixtures.synthetic_hero import synthetic_combatant
 
@@ -99,12 +100,16 @@ def _rebuilt(combatants: list[HeroCombatant]) -> list[HeroCombatant]:
     return [from_dict(json.loads(json.dumps(to_dict(c)))) for c in combatants]
 
 
-def _fight(combatants: list[HeroCombatant]):
+def _fight(combatants: list[HeroCombatant], opens_on: dict[str, str]):
+    """``opens_on``: the slot (by name) each man's Multipower opens on,
+    stated here (6E1 p.404-406); the loop picks none."""
     session = CombatSession.create(
         id="s", combatants=combatants, scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=SESSION_SEED),
     ).start()
+    for cid, slot_name in opens_on.items():
+        session = open_on(session, cid, slot_name)
     result = run_encounter(
         Encounter(id="e", turn=1, segment=12, sessions=[session]),
         FirstLegalChooser(), roller=RandomRoller(seed=FIGHT_SEED),
@@ -141,7 +146,7 @@ def test_the_fight_is_worth_comparing():
     """THE NEGATIVE CONTROL, first. Two logs of a fight in which nobody
     could attack are trivially identical, which is exactly the state this
     file exists to catch -- so the fight must land blows and end."""
-    result = _fight(_cast())
+    result = _fight(_cast(), {})
     kinds = [e.kind for e in result.encounter.sessions[0].event_log]
 
     assert result.complete, f"the fight did not finish: {result.notes}"
@@ -165,8 +170,8 @@ def test_a_rebuilt_combatant_still_has_something_to_fight_with():
 def test_the_same_seeded_fight_from_rebuilt_combatants_writes_the_same_log():
     """THE PROPERTY. Same seeds, same cast, one of them rebuilt from
     nothing but its snapshot -- row for row, the same fight."""
-    live = _fight(_cast())
-    replayed = _fight(_rebuilt(_cast()))
+    live = _fight(_cast(), {})
+    replayed = _fight(_rebuilt(_cast()), {})
 
     assert replayed.winner == live.winner
     assert ([_shape(e) for e in replayed.encounter.sessions[0].event_log]
@@ -192,7 +197,7 @@ def test_a_rebuilt_corpus_cast_fights():
     rebuilt = _rebuilt(_corpus_cast())
     assert all(c.attacks for c in rebuilt), "the corpus cast came back unarmed"
 
-    result = _fight(rebuilt)
+    result = _fight(rebuilt, {"ravel": "String Storm", "bokor": "Digitalis dust"})
     kinds = [e.kind for e in result.encounter.sessions[0].event_log]
 
     assert "ActionResolved" in kinds
@@ -218,8 +223,9 @@ def test_a_rebuilt_corpus_cast_fights():
     ),
 )
 def test_a_corpus_fight_from_rebuilt_combatants_writes_the_same_log():
-    live = _fight(_corpus_cast())
-    replayed = _fight(_rebuilt(_corpus_cast()))
+    opens_on = {"ravel": "String Storm", "bokor": "Digitalis dust"}
+    live = _fight(_corpus_cast(), opens_on)
+    replayed = _fight(_rebuilt(_corpus_cast()), opens_on)
 
     assert replayed.winner == live.winner
     assert ([_shape(e) for e in replayed.encounter.sessions[0].event_log]

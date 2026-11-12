@@ -57,6 +57,7 @@ from kirby_combat.tables import segments_for_spd
 from kirby_combat.template import CombatTemplate
 
 from tests.corpus import require_authored, require_authored_doc
+from tests.support.splits import open_on
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 
@@ -285,7 +286,8 @@ def test_ravels_joint_lock_is_offered_and_resolves_through_run_phase():
     from kirby_combat.encounter import Encounter
     from kirby_combat.loop import run_phase
 
-    session = _session(_ravel())
+    # Her Multipower opens on a stated slot (6E1 p.404-406); not the point.
+    session = open_on(_session(_ravel()), "ravel", "String Storm")
     offers = _maneuvers(session)
     assert set(offers) == {"Joint Lock/Throw"}, (
         "Grappling Block is a Block (Abort) and is not an offensive offer")

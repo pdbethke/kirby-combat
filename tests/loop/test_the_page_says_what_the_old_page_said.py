@@ -45,6 +45,7 @@ from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate, PageKnowledge
 from kirby_dice import RandomRoller
+from tests.support.splits import open_on
 
 # A SHEET page: these tests are about the numbers a page can carry of an
 # enemy, which the named (judged) templates deliberately do not show.
@@ -171,7 +172,8 @@ def test_the_powers_are_on_the_page_by_their_authored_names():
     ravel = HeroCombatant.from_build(require_authored("Ravel"), id="ravel")
     ravel.side = Side.named("x")
     goon = fighter("goon", side=Side.named("y"), dex=1)
-    page = _page(_fight(ravel, goon), "ravel").page
+    # His Multipower opens on a stated slot (6E1 p.404-406).
+    page = _page(open_on(_fight(ravel, goon), "ravel", "String Storm"), "ravel").page
     assert "powers: " in page and "Floating String Form" in page
 
 
@@ -181,7 +183,8 @@ def test_a_character_with_identity_bound_purchases_says_which_identity_he_is_in(
     ravel = HeroCombatant.from_build(require_authored("Ravel"), id="ravel")
     ravel.side = Side.named("x")
     goon = fighter("goon", side=Side.named("y"), dex=1)
-    page = _page(_fight(ravel, goon), "ravel").page
+    # His Multipower opens on a stated slot (6E1 p.404-406).
+    page = _page(open_on(_fight(ravel, goon), "ravel", "String Storm"), "ravel").page
     assert "in his Hero identity; " in page
     assert "work only in it (Only In Alternate Identity, 6E1 p.388)" in page
     assert "Hero identity" not in _block(page, "goon")
@@ -446,7 +449,8 @@ def test_the_frameworks_block_names_slots_dice_and_the_nnd_defense():
     bokor = HeroCombatant.from_build(require_authored("Bokor"), id="bokor")
     bokor.side = Side.named("x")
     goon = fighter("goon", side=Side.named("y"), dex=1)
-    page = _page(_fight(bokor, goon), "bokor").page
+    # His Multipower opens on a stated slot (6E1 p.404-406).
+    page = _page(open_on(_fight(bokor, goon), "bokor", "Digitalis dust"), "bokor").page
     assert "Frameworks:" in page
     assert "Vodou Powers - gris gris bag powders (Multipower, 41-point reserve):" in page
     nnd = next(l for l in page.splitlines() if "Digitalis dust:" in l)

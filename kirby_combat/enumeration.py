@@ -661,30 +661,26 @@ def _fixed_set_offers(actor: Any, fv: Any, current: dict, *, actions: list,
     # and the O.K. Corral ran to `max_turns` undecided --- the menu offering
     # what the engine rejects, for ever. 6E1 p.404 makes the reserve the
     # total a Multipower's slots may draw AT ONCE.
+    from kirby_combat.split_menu import whole_sets
+
     reserve = int(fv.reserve_or_pool)
     _points = {sl.slot_id: int(sl.active_points) for sl in fv.slots}
 
-    # Everything at once when the reserve is generous enough --- no reason
-    # to make a fighter switch one at a time.
-    _sets: list[tuple[str, ...]] = []
-    if reserve and sum(_points.values()) <= reserve:
-        _sets.append(tuple(_points))
-    else:
-        # Otherwise one offer per slot he can actually switch TO; a slot
-        # bigger than the whole reserve can never be turned on.
-        _sets = [(sid,) for sid, cost in _points.items()
-                 if reserve and cost <= reserve]
-        # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
-        # something that fights. At the O.K. Corral Power Lad --- whose
-        # claws are a slot that was not switched on, so he had no attack
-        # offers and no tactic matched --- shuffled his own powers for two
-        # hundred and eighty-nine Phases while one cowboy aimed at him. The
-        # signal is "nothing on this MENU can attack", not "the build has no
-        # attacks": his claws are gated off the menu while their slot draws
-        # nothing.
-        if not any(a.kind in _ATTACKING_KINDS for a in actions):
-            _attackish = {sl.slot_id for sl in fv.slots if sl.kind == "attack"}
-            _sets.sort(key=lambda st: 0 if _attackish.intersection(st) else 1)
+    # Everything at once when the reserve is generous enough, else one offer
+    # per slot he can actually switch TO (`split_menu.whole_sets`, shared
+    # with the opening's presets).
+    _sets = whole_sets(fv)
+    # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
+    # something that fights. At the O.K. Corral Power Lad --- whose
+    # claws are a slot that was not switched on, so he had no attack
+    # offers and no tactic matched --- shuffled his own powers for two
+    # hundred and eighty-nine Phases while one cowboy aimed at him. The
+    # signal is "nothing on this MENU can attack", not "the build has no
+    # attacks": his claws are gated off the menu while their slot draws
+    # nothing. (A single "everything" set has nothing to order.)
+    if not any(a.kind in _ATTACKING_KINDS for a in actions):
+        _attackish = {sl.slot_id for sl in fv.slots if sl.kind == "attack"}
+        _sets.sort(key=lambda st: 0 if _attackish.intersection(st) else 1)
 
     # AND IT MUST CHANGE SOMETHING: Power Lad once reallocated to the slot
     # he already had, 152 times, for 289 Phases.
@@ -3366,7 +3362,11 @@ def enumerate_actions(
                 from kirby_combat.reach import movement_reach
                 from kirby_world.visibility import nearest_visible_point
 
-                best_name = best_attack.name or (best_attack.xmlid or "").lower()
+                # Named only when there IS one: the vantage loop below runs
+                # without an attack (see above), and reading the name first
+                # crashed the menu of a man whose attacks do no damage dice.
+                best_name = ((best_attack.name or (best_attack.xmlid or "").lower())
+                             if best_attack is not None else None)
                 for enemy in alive_enemies:
                     perc = perc_by_enemy.get(enemy.id)
                     if perc is None:

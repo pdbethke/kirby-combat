@@ -23,8 +23,8 @@ from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, registered_kinds, resolve_chosen, resolves,
 )
 from kirby_combat.loop.run import (
-    EncounterResult, PhaseResult, TurnResult,
-    next_actor_id, resolve_next_actor, run_encounter, run_phase,
+    EncounterResult, NoOpeningSplit, PhaseResult, TurnResult,
+    next_actor_id, pending_openings, resolve_next_actor, run_encounter, run_phase,
 )
 from kirby_combat.roster import (
     AmbiguousSides, LastSideStanding, Roster, StopCondition, UnexpectedSide,
@@ -37,7 +37,8 @@ __all__ = [
     "TacticChooser", "validate_choice",
     "ResolvedAction", "UnresolvableAction", "registered_kinds",
     "resolve_chosen", "resolves",
-    "EncounterResult", "PhaseResult", "StopCondition", "TurnResult",
+    "EncounterResult", "NoOpeningSplit", "PhaseResult", "StopCondition",
+    "TurnResult", "pending_openings",
     "next_actor_id", "resolve_next_actor", "run_encounter", "run_phase",
     "Roster", "Verdict", "LastSideStanding",
     "AmbiguousSides", "UnexpectedSide",

@@ -143,3 +143,23 @@ def test_no_scene_means_no_wall_to_go_around():
                           enemies=[session.combatants["virgil"]],
                           current_segment=12, turn=1, session=session)
     assert GoAroundTheCover().applicable(situation) is False
+
+
+def test_a_man_with_no_damaging_attack_behind_a_wall_still_gets_a_menu():
+    """`reposition_vantage` is a no-attack move (enumeration says so), and
+    the strike offer's attack name was read before the strike loop checked
+    there was a damaging attack: a man whose only attack does no damage
+    dice (an NND powder, say) with a wall in front of him crashed the menu. Surfaced when a Multipower opened on a slot
+    that is not a damaging attack (6E1 p.404-406)."""
+    from kirby_combat.loop.run import _situation_for
+
+    scene = _scene([_studio()], tom=(2.0, 5.0), virgil=(9.0, 5.0))
+    session = CombatSession.create(
+        id="s", scene=scene, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=5),
+        combatants=[fighter("tom", side=Side.named("cow"), dice=0),
+                    fighter("virgil", side=Side.named("law"))],
+    ).start()
+    kinds = {a.kind for a in _situation_for(session, "tom").menu}
+    assert "move" in kinds
+    assert "reposition_strike" not in kinds, "nothing to fire from the vantage"
