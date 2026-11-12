@@ -15,7 +15,7 @@ from kirby_combat.coordination import (
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.framework import (
     ReserveExceeded, active_slots, allocation_for, parse_reallocation,
-    validate_allocation,
+    validate_split,
 )
 from kirby_combat.loop import registered_kinds
 from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
@@ -36,7 +36,7 @@ class _Skill:
 
 
 # ---------------------------------------------------------------------------
-# Framework fixtures. `validate_allocation` reads the build, so a combatant
+# Framework fixtures. `validate_split` reads the build, so a combatant
 # with no frameworks can reallocate nothing -- which is correct, and is why
 # these tests need a real one.
 # ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ def test_every_enumerable_kind_is_registered():
         f"registered but never offered: "
         f"{sorted(registered_kinds() - ALL_ACTION_KINDS)}"
     )
-    assert len(ALL_ACTION_KINDS) == 77     # half_move, snap_out_of_rage, attack_entangle, 2026-10-27; self_destruct; drop_darkness
+    assert len(ALL_ACTION_KINDS) == 78     # opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, 2026-10-27; self_destruct; drop_darkness
 
 
 def test_the_declared_kinds_cover_every_literal_in_enumeration():
@@ -240,11 +240,11 @@ def test_an_unidentifiable_framework_refuses():
             )
 
 
-def test_reallocating_records_the_whole_active_set():
-    """The LATEST reallocation wins, and each states the whole set rather
-    than a change to it -- the same absolute-value discipline every other
-    state-changing event in this engine uses. A delta would be
-    unrecoverable the moment one was missed."""
+def test_reallocating_records_the_whole_split():
+    """The LATEST split wins, and each states the whole split rather than a
+    change to it -- the same absolute-value discipline every other
+    state-changing event in this engine uses (6E1 p.404-406). A delta would
+    be unrecoverable the moment one was missed."""
     session = _session()
     alice = _with_frameworks(
         session.combatants["alice"],
@@ -252,13 +252,15 @@ def test_reallocating_records_the_whole_active_set():
     )
 
     session = resolve_chosen(
-        session, alice, _act("reallocate", "reallocate_slots:fw1:a,b", None),
+        session, alice,
+        _act("opening_split", "opening_split:fw1:split=a@20+b@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
     assert active_slots(session, "alice", "fw1") == ("a", "b")
 
     session = resolve_chosen(
-        session, alice, _act("reallocate", "reallocate_slots:fw1:c", None),
+        session, alice,
+        _act("reallocate", "reallocate_slots:fw1:split=c@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
     assert active_slots(session, "alice", "fw1") == ("c",), "the latest wins"
@@ -276,7 +278,7 @@ def test_frameworks_and_combatants_do_not_bleed_into_each_other():
     )
     session = resolve_chosen(
         session, session.combatants["alice"],
-        _act("reallocate", "reallocate_slots:fw1:a", None),
+        _act("opening_split", "opening_split:fw1:split=a@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
     assert active_slots(session, "alice", "fw2") == ()
@@ -301,45 +303,41 @@ def test_reconfiguring_a_vpp_records_the_intent_and_builds_nothing():
 
 # ---------------------------------------------------------------------------
 # THE POOL RESTRICTION. The reserve is the entire reason a Multipower is
-# cheaper than buying its powers outright (6E1 p.204): it caps the Active
+# cheaper than buying its powers outright (6E1 p.404): it caps the Active
 # Points the slots may draw AT ONCE.
 # ---------------------------------------------------------------------------
 
 
-def test_a_set_that_fits_the_reserve_is_allowed():
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=60, slots=[_slot("a", 30), _slot("b", 30)]),
-    )
-    assert validate_allocation(actor, "fw1", ("a", "b")) == 60
+def _view(reserve, *slots):
+    return _framework(reserve=reserve, slots=list(slots))
+
+
+def test_a_split_that_fits_the_reserve_is_allowed():
+    view = _view(60, _slot("a", 30), _slot("b", 30))
+    assert validate_split(view, {"a": 30, "b": 30}) == 60
 
 
 def test_fixed_slots_over_the_reserve_are_REFUSED():
     """The one thing the framework exists to prevent."""
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=60, slots=[_slot("a", 40), _slot("b", 40)]),
-    )
+    view = _view(60, _slot("a", 40), _slot("b", 40))
     with pytest.raises(ReserveExceeded) as excinfo:
-        validate_allocation(actor, "fw1", ("a", "b"))
+        validate_split(view, {"a": 40, "b": 40})
     assert excinfo.value.requested == 80
     assert excinfo.value.reserve == 60
 
 
-def test_the_resolver_refuses_an_over_reserve_reallocation():
-    """An OFFER IS NOT A PERMISSION SLIP. `enumerate_actions` gates which
-    slots it offers, but a reallocate names its whole set in one id -- a
-    chooser returning a hand-built id would otherwise switch on a
-    configuration the build cannot pay for."""
+def test_the_resolver_refuses_an_over_reserve_split():
+    """An OFFER IS NOT A PERMISSION SLIP. A chooser returning a hand-built
+    id would otherwise switch on a configuration the build cannot pay for."""
     session = _session()
     _with_frameworks(
         session.combatants["alice"],
         _framework(reserve=60, slots=[_slot("a", 40), _slot("b", 40)]),
     )
-    with pytest.raises(UnresolvableAction, match="reallocate"):
+    with pytest.raises(UnresolvableAction, match="opening_split"):
         resolve_chosen(
             session, session.combatants["alice"],
-            _act("reallocate", "reallocate_slots:fw1:a,b", None),
+            _act("opening_split", "opening_split:fw1:split=a@40+b@40", None),
             template=TEMPLATE, roller=RandomRoller(seed=2),
         )
 
@@ -349,68 +347,47 @@ def test_an_unknown_slot_is_refused():
     _with_frameworks(
         session.combatants["alice"], _framework(slots=[_slot("a", 10)]),
     )
-    with pytest.raises(UnresolvableAction, match="reallocate"):
+    with pytest.raises(UnresolvableAction, match="opening_split"):
         resolve_chosen(
             session, session.combatants["alice"],
-            _act("reallocate", "reallocate_slots:fw1:a,ghost", None),
+            _act("opening_split", "opening_split:fw1:split=a@10+ghost@5", None),
             template=TEMPLATE, roller=RandomRoller(seed=2),
         )
 
 
-# ---- Fixed vs variable ----
+# ---- Fixed vs variable (6E1 p.404-406) ----
 
-def test_a_variable_slot_dials_down_to_fit_what_is_left():
-    """A variable slot may run at ANY portion of its Active Points -- it
-    costs more real points for exactly that flexibility -- so charging it
-    full price would refuse configurations the book allows."""
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=60, slots=[
-            _slot("fixed", 40), _slot("flex", 40, variable=True),
-        ]),
-    )
-    # 40 fixed + a variable capped at the remaining 20.
-    assert validate_allocation(actor, "fw1", ("fixed", "flex")) == 60
+def test_a_variable_slot_takes_what_is_left():
+    """A variable slot may run at ANY share of its Active Points -- it costs
+    more real points for exactly that flexibility."""
+    view = _view(60, _slot("fixed", 40), _slot("flex", 40, variable=True))
+    assert validate_split(view, {"fixed": 40, "flex": 20}) == 60
 
 
-def test_the_same_set_of_fixed_slots_would_be_refused():
+def test_the_same_points_on_fixed_slots_would_be_refused():
     """The contrast that makes the distinction load-bearing: identical
     point values, different legality."""
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=60, slots=[_slot("f1", 40), _slot("f2", 40)]),
-    )
+    view = _view(60, _slot("f1", 40), _slot("f2", 40))
     with pytest.raises(ReserveExceeded):
-        validate_allocation(actor, "fw1", ("f1", "f2"))
+        validate_split(view, {"f1": 40, "f2": 40})
+    with pytest.raises(ValueError):
+        validate_split(view, {"f1": 40, "f2": 20})
 
 
 def test_variable_slots_alone_never_exceed_the_reserve():
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=50, slots=[
-            _slot("v1", 40, variable=True), _slot("v2", 40, variable=True),
-        ]),
-    )
-    assert validate_allocation(actor, "fw1", ("v1", "v2")) == 50
+    view = _view(50, _slot("v1", 40, variable=True), _slot("v2", 40, variable=True))
+    assert validate_split(view, {"v1": 40, "v2": 10}) == 50
+    with pytest.raises(ReserveExceeded):
+        validate_split(view, {"v1": 40, "v2": 40})
 
 
-def test_a_variable_slot_with_no_room_left_is_on_at_zero():
-    """Legal: the slot is switched on, drawing nothing."""
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=40, slots=[
-            _slot("fixed", 40), _slot("flex", 30, variable=True),
-        ]),
-    )
-    assert validate_allocation(actor, "fw1", ("fixed", "flex")) == 40
+def test_a_variable_slot_may_be_left_at_zero():
+    view = _view(40, _slot("fixed", 40), _slot("flex", 30, variable=True))
+    assert validate_split(view, {"fixed": 40, "flex": 0}) == 40
 
 
 def test_switching_everything_off_is_legal():
-    actor = _with_frameworks(
-        fighter("a", side=Side.named("x")),
-        _framework(reserve=60, slots=[_slot("a", 30)]),
-    )
-    assert validate_allocation(actor, "fw1", ()) == 0
+    assert validate_split(_view(60, _slot("a", 30)), {}) == 0
 
 
 # ---- The gate the loop now feeds ----
@@ -431,9 +408,15 @@ def test_the_allocation_is_assembled_from_the_build_and_the_log():
 
     session = resolve_chosen(
         session, session.combatants["alice"],
-        _act("reallocate", "reallocate_slots:fw1:a", None),
+        _act("opening_split", "opening_split:fw1:split=a@20", None),
         template=TEMPLATE, roller=RandomRoller(seed=2),
     ).session
+    # The fold replaces the combatant, which drops a synthetic view; a real
+    # one derives it from `hero.powers`.
+    _with_frameworks(
+        session.combatants["alice"],
+        _framework(reserve=60, slots=[_slot("a", 20), _slot("b", 20)]),
+    )
     reserve, used, active, _ = allocation_for(
         session, session.combatants["alice"],
     )["fw1"]

@@ -37,7 +37,7 @@ from kirby_combat.kept_up import (
 from kirby_combat.loop import run_phase
 from kirby_combat.loop.run import _situation_for
 from kirby_combat.session.apply import apply_event
-from kirby_combat.session.events import ActionResolved, make_author_engine
+from kirby_combat.session.events import ActionResolved, SlotsAllocated, make_author_engine
 from kirby_combat.side import Side
 from kirby_combat.upkeep import UpkeepEnd
 
@@ -325,12 +325,11 @@ def test_switching_the_slot_off_takes_it_down():
     power.framework_id, power.slot_id = "mp", "src-DARKNESS"
     enc = _cast(_fight(power), _then("darkness_zone"))
     s = enc.sessions[0]
-    s = apply_event(s, ActionResolved(
+    s = apply_event(s, SlotsAllocated(
         id=str(uuid.uuid4()), session_id=s.id, sequence=len(s.event_log) + 1,
         timestamp=datetime.now(UTC), author=make_author_engine(),
-        declaration_event_id="realloc",
-        result_payload={"kind": "reallocate", "combatant_id": "caster",
-                        "framework_id": "mp", "active_slot_ids": ["blast"]},
+        combatant_id="caster", framework_id="mp",
+        slot_points={"blast": 60, "src-DARKNESS": 0}, opening=False,
     ))
     s = maintain_kept_up(s, "caster", template=TEMPLATE, roller=Dice(face=3))
     assert [e.reason for e in s.event_log if e.kind == "DarknessEnded"] == [

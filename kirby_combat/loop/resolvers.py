@@ -3162,52 +3162,98 @@ def _resolve_coordinate(
     })
 
 
+def _resolve_split(
+    session: "CombatSession", actor, action: LegalAction, *,
+    kind_prefix: str, opening: bool,
+) -> ResolvedAction:
+    """Record a split of a Multipower's reserve and fold it onto the actor.
+
+    6E1 p.404-406: the reserve is divided among the slots. The completed id
+    (`framework.SPLIT_SUFFIX`) carries the points; they are re-held to the
+    rule HERE rather than trusted from the menu, because an offer is not a
+    permission slip --- a hand-built id would otherwise switch on a split
+    the build cannot pay for. The legacy ``reallocate_slots:<fw>:<a,b>``
+    names slots, not points, and is refused (`split_of_action`).
+
+    Two events: the ActionDeclared/ActionResolved pair every resolver
+    records, and `SlotsAllocated`, which `apply_event` folds onto
+    `CombatantState.slot_points`. An opening is not a re-split: its kind is
+    ``opening_split``, so `reallocated_this_phase` (6E1 p.410) never counts
+    it.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.framework import (
+        split_choice_of, split_of_action,
+    )
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import SlotsAllocated, make_author_combatant
+
+    framework_id, tail = split_of_action(action.action_id, kind_prefix)
+    if not framework_id:
+        raise UnresolvableAction(action.kind, action.action_id)
+    view = next((v for v in (getattr(actor, "framework_view", lambda: [])() or [])
+                 if v.framework_id == framework_id), None)
+    if view is None:
+        raise UnresolvableAction(action.kind, action.action_id)
+
+    in_session = session.combatants.get(actor.id, actor)
+    # An absent entry is "not opened yet" (structural), not a domain default.
+    opened = framework_id in in_session.state.slot_points
+    if opening == opened:
+        # An opening on an opened framework, or a re-split of one never opened.
+        raise UnresolvableAction(action.kind, action.action_id)
+    current = in_session.state.slot_points[framework_id] if opened else {}
+    try:
+        slot_points = split_choice_of(view, current).parse(tail)
+    except ValueError as exc:
+        raise UnresolvableAction(action.kind, action.action_id) from exc
+
+    drawn = sum(slot_points.values())
+    new_session = _record_outcome(session, actor, action, {
+        "kind": action.kind,
+        "combatant_id": actor.id,
+        "framework_id": framework_id,
+        "slot_points": slot_points,
+        "active_points_drawn": drawn,
+    })
+    new_session = apply_event(new_session, SlotsAllocated(
+        id=str(uuid.uuid4()), session_id=new_session.id,
+        sequence=len(new_session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc),
+        author=make_author_combatant(actor.id),
+        combatant_id=actor.id, framework_id=framework_id,
+        slot_points=slot_points, opening=opening,
+    ))
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=(framework_id, slot_points),
+        events=_events_since(session, new_session),
+    )
+
+
 @resolves("reallocate")
 def _resolve_reallocate(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Change which slots of a Multipower are active.
+    """Re-split a Multipower's reserve as a Zero Phase Action (6E1 p.404-406,
+    once a Phase: p.410). See `_resolve_split`."""
+    return _resolve_split(session, actor, action,
+                          kind_prefix="reallocate_slots", opening=False)
 
-    The offer names the framework and the slots it is offering, in its
-    action_id (`reallocate_slots:<framework>:<slot,slot,...>`), so the
-    resolver reads both back rather than re-deriving them --- the menu
-    chose the set, and re-deciding here would change it after the fact.
 
-    Recorded, not applied to a combatant: framework state is not a field on
-    any combatant in this engine. `enumerate_actions` takes
-    `slot_allocation` as a PARAMETER, so the active set has always been the
-    caller's to hold; `framework.active_slots` now folds it out of the log
-    so a caller can read it back instead of tracking it separately.
-    """
-    from kirby_combat.framework import (
-        ReserveExceeded, parse_reallocation, validate_allocation,
-    )
-
-    framework_id, slot_ids = parse_reallocation(action.action_id)
-    if not framework_id:
-        raise UnresolvableAction(action.kind, action.action_id)
-
-    # THE RESERVE IS ENFORCED HERE, not assumed from the menu. 6E1 p.204:
-    # a Multipower's reserve is the total Active Points its slots may draw
-    # AT ONCE, and that constraint is the entire reason a framework is
-    # cheaper than buying the powers outright. `enumerate_actions` gates
-    # which slots it OFFERS, but an offer is not a permission slip -- a
-    # reallocate names its whole set in one id, so a chooser returning a
-    # hand-built id would otherwise switch on a configuration the build
-    # cannot pay for.
-    try:
-        drawn = validate_allocation(actor, framework_id, slot_ids)
-    except (ReserveExceeded, KeyError) as exc:
-        raise UnresolvableAction(action.kind, action.action_id) from exc
-
-    return _recorded(session, actor, action, (framework_id, slot_ids), {
-        "kind": action.kind,
-        "combatant_id": actor.id,
-        "framework_id": framework_id,
-        "active_slot_ids": list(slot_ids),
-        "active_points_drawn": drawn,
-    })
+@resolves("opening_split")
+def _resolve_opening_split(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """State the split a fight begins with (6E1 p.404-406). Not a re-split,
+    so it does not spend the Phase's one allowance (p.410). See
+    `_resolve_split`."""
+    return _resolve_split(session, actor, action,
+                          kind_prefix="opening_split", opening=True)
 
 
 @resolves("reconfigure_vpp")
@@ -3229,9 +3275,9 @@ def _resolve_reconfigure_vpp(
     would put cost math in the combat engine --- the exact thing the north
     star forbids.
     """
-    from kirby_combat.framework import parse_reallocation
+    from kirby_combat.framework import framework_id_of
 
-    framework_id, _slots = parse_reallocation(action.action_id)
+    framework_id = framework_id_of(action.action_id)
     if not framework_id:
         raise UnresolvableAction(action.kind, action.action_id)
 

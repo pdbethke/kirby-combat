@@ -89,6 +89,7 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     # ── Zero Phase ─────────────────────────────────────────────────────
     "change_identity_instant": (_T.ZERO, "Instant Change (6E1 p.272)"),
     "reallocate": (_T.ZERO, "Shift a Multipower: 0 Phase (6E2 p.25; 6E1 p.410)"),
+    "opening_split": (_T.ZERO, "State the split a fight begins with: no action (6E1 p.404-406)"),
     "raise_damage_shield": (_T.ZERO, "\"only ... a Zero Phase Action to activate it\" (6E1 p.323)"),
     "drop_darkness": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
     "drop_image": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),

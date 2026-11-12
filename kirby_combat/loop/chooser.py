@@ -525,8 +525,7 @@ def validate_choice(action_id: str, menu: list[LegalAction]) -> LegalAction:
                 raise InvalidChoice(
                     action_id, [a.action_id for a in menu],
                     note=f"the offer names no choice; answer {action_id}"
-                         f"{action.choice.answer(action.choice.domain[:action.choice.count])}"
-                         f" naming {action.choice.count} of {', '.join(action.choice.domain)}")
+                         f"{action.choice.instructions()}")
             return action
     completed = completion_of(action_id, menu)
     if completed is not None:

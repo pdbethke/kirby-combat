@@ -93,7 +93,7 @@ NON_THREAT_KINDS = frozenset({
     "climb", "climb_fast", "coordinate", "disengage", "escape_attack",
     "escape_ego", "escape_str", "escape_teleport", "hide", "hold",
     "move", "half_move", "move_to_cover",
-    "pickup", "pick_up_weapon", "reallocate", "reconfigure_vpp", "recover",
+    "pickup", "pick_up_weapon", "opening_split", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_vantage", "set", "stabilize",
     "stand_up", "change_identity", "change_identity_instant",
     "raise_damage_shield", "snap_out_of_rage",

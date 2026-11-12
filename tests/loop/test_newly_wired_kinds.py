@@ -169,7 +169,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 77   # half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
+    assert len(registered_kinds()) == 78   # opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -193,8 +193,8 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "reposition_push", "reposition_strike", "reposition_vantage",
         #                                        test_movement_execution
         "trip", "disarm", "spread",              # test_subproject_b_maneuvers
-        "coordinate", "reallocate", "reconfigure_vpp",
-        #                          test_coordination_and_frameworks
+        "coordinate", "reallocate", "opening_split", "reconfigure_vpp",
+        #                          test_coordination_and_frameworks, test_split_choice
         "sweep", "multiple_attack", "climb", "climb_fast",
         "charm", "persuasion", "conversation", "trading",
         #                          test_hidden_kinds

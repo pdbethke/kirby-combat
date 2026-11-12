@@ -757,7 +757,7 @@ ALL_ACTION_KINDS = frozenset({
     "escape_str",
     "escape_teleport", "flash", "force_wall", "grab", "haymaker", "heal",
     "hide", "hold", "image_decoy", "maneuver", "mental_blast",
-    "mind_scan", "move_to_cover",
+    "mind_scan", "move_to_cover", "opening_split",
     "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
     "move_strike", "move_through", "multiple_attack", "persuasion",
     "pickup", "pick_up_weapon", "presence_attack", "presence_attack_group", "push",
@@ -1424,7 +1424,7 @@ def enumerate_actions(
         # chooser cannot do: it returns an id from this menu, so an id
         # naming all five offered no choice at all.
         #
-        # 6E1 p.204 makes the reserve the total a Multipower's slots may
+        # 6E1 p.404 makes the reserve the total a Multipower's slots may
         # draw AT ONCE, and it is the entire reason a framework costs less
         # than buying the powers outright.
         reserve = float(getattr(fv, "reserve_or_pool", 0) or 0)

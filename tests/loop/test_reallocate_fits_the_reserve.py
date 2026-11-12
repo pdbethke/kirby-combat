@@ -11,8 +11,8 @@ The offer named EVERY slot of the framework at once:
     reallocate_slots:{framework}:{slot,slot,slot,slot,slot}
 
 Power Lad's Brick Tricks reserve is 45 Active Points and each of its five
-slots draws 44-45, so that set draws 224 against 45. `validate_allocation`
-raises `ReserveExceeded`, correctly --- 6E1 p.204 makes the reserve the
+slots draws 44-45, so that set draws 224 against 45. `validate_split`
+raises `ReserveExceeded`, correctly --- 6E1 p.404 makes the reserve the
 total a Multipower's slots may draw AT ONCE, and it is the whole reason a
 framework costs less than buying the powers outright.
 
@@ -32,7 +32,7 @@ import pytest
 
 from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.enumeration import enumerate_actions
-from kirby_combat.framework import parse_reallocation, validate_allocation
+from kirby_combat.framework import parse_reallocation, validate_split
 from kirby_combat.side import Side
 
 
@@ -101,10 +101,13 @@ def test_every_offer_the_menu_makes_would_be_accepted():
     """The guard that matters, and the one this engine keeps needing: ask
     the resolver's own validator, so the two cannot disagree."""
     framework = _framework(45, [45, 45, 45, 44, 45])
-    actor = _actor(framework)
     for offer in _offers(framework):
-        framework_id, slot_ids = parse_reallocation(offer.action_id)
-        validate_allocation(actor, framework_id, slot_ids)      # must not raise
+        _, slot_ids = parse_reallocation(offer.action_id)
+        # An offered set, each slot at its full Active Points, must be a
+        # legal split.
+        validate_split(framework, {
+            sl.slot_id: sl.active_points for sl in framework.slots
+            if sl.slot_id in slot_ids})      # must not raise
 
 
 # ---- and it must CHANGE something ----
@@ -347,7 +350,7 @@ def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
     from kirby_combat.loop.chooser import PhaseSituation
     from kirby_combat.models import FrameworkView, SlotView
     from kirby_combat.session.apply import apply_event
-    from kirby_combat.session.events import ActionResolved, make_author_engine
+    from kirby_combat.session.events import SlotsAllocated, make_author_engine
 
     fw = FrameworkView(
         framework_id="fw1", xmlid="MULTIPOWER", name="Wind Magic",
@@ -359,14 +362,14 @@ def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
     )
     actor = _actor(fw)
     s = session_of(actor, fighter("foe", side=Side.named("y")))
-    s.combatants["lad"].framework_view = lambda: [fw]       # type: ignore[method-assign]
-    s = apply_event(s, ActionResolved(
+    s = apply_event(s, SlotsAllocated(
         id=str(uuid.uuid4()), session_id=s.id, sequence=len(s.event_log) + 1,
         timestamp=datetime.now(UTC), author=make_author_engine(),
-        declaration_event_id="r",
-        result_payload={"kind": "reallocate", "combatant_id": "lad",
-                        "framework_id": "fw1", "active_slot_ids": ["s3"]},
+        combatant_id="lad", framework_id="fw1",
+        slot_points={"s1": 0, "s3": 45}, opening=True,
     ))
+    # The fold replaces the combatant, so the (synthetic) view is attached after.
+    s.combatants["lad"].framework_view = lambda: [fw]       # type: ignore[method-assign]
     lines = framework_lines(PhaseSituation(actor=s.combatants["lad"], menu=[], session=s))
     assert "  45 of 60 points in use, 15 free" in lines
     assert any("fixed slot draws its full Active Points" in ln and "6E1 p.405-406" in ln

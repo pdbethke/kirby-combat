@@ -202,6 +202,11 @@ class CharacteristicChoice:
     domain: tuple[str, ...]
     count: int
 
+    def instructions(self) -> str:
+        """How to answer, for the refusal a bare id earns."""
+        return (f"{self.answer(self.domain[:self.count])} naming {self.count} "
+                f"of {', '.join(self.domain)}")
+
     def answer(self, picked) -> str:
         """The tail a seat appends to the offer id: ``=A+B``."""
         return "=" + CHOICE_JOIN.join(str(p).upper() for p in picked)
