@@ -3197,6 +3197,12 @@ def _resolve_split(
                  if v.framework_id == framework_id), None)
     if view is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    # The same framework with its ladders, so the split is held to them
+    # (`SlotTerms.steps`); an actor that cannot price one (a hand-made view)
+    # is held to the rest of the rule only.
+    view = next((v for v in (getattr(actor, "priced_framework_view",
+                                     lambda: [])() or [])
+                 if v.framework_id == framework_id), view)
 
     in_session = session.combatants.get(actor.id)
     if in_session is None:

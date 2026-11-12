@@ -26,6 +26,7 @@ def _ensure_registry() -> None:
         DiceValues, AttackInput, ToHitResult, DamageResult,
         DefenseProfile, KnockbackResult, AttackResult,
         MovementCapability, FrameworkView, SlotView, EnduranceReserve,
+        PricedSlotView,
     )
     # The rest of a combatant's derived views (see hero_view.CombatantSnapshot).
     from kirby_combat.hero_view import (
@@ -74,7 +75,7 @@ def _ensure_registry() -> None:
         CombatSession, CombatTemplate, EventAuthor,
         MovementCapability, FrameworkView, SlotView, EnduranceReserve,
         MartialManeuverView, SenseCapability, Side,
-        SlotStep, SlotEffect, DefenceTerms,
+        SlotStep, SlotEffect, DefenceTerms, PricedSlotView,
     ]:
         _register(cls)
     # The shaped-attack modifiers an AttackPower carries

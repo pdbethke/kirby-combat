@@ -172,16 +172,18 @@ _POINTS = re.compile(r"-?[0-9]+")
 class SlotTerms:
     """What a split needs to know about one slot (6E1 p.404-406).
 
-    ``max_points`` is the slot's Active Points; ``steps`` the step sizes
-    that decide a variable slot's effect (the points themselves need not
-    sit on a step: p.406).
+    ``max_points`` is the slot's Active Points; ``steps`` the points of
+    each rung of its priced ladder (the points themselves need not sit on a
+    rung: p.406), or None for a slot nobody priced (a hand-made view). A
+    variable slot whose ladder is just ``(0, max_points)`` has nothing
+    between off and as bought, so a share in between is refused (R9).
     """
 
     slot_id: str
     name: str
     variable: bool
     max_points: int
-    steps: tuple[int, ...]
+    steps: tuple[int, ...] | None
 
 
 def _check_split(
@@ -206,6 +208,12 @@ def _check_split(
                 raise ValueError(
                     f"{t.name!r} is a variable slot of {t.max_points} Active "
                     f"Points; {pts} is outside 0..{t.max_points} (6E1 p.405)")
+            if (t.steps is not None and tuple(t.steps) == (0, t.max_points)
+                    and 0 < pts < t.max_points):
+                raise ValueError(
+                    f"{t.name!r} cannot be split: it has no step between off "
+                    f"and its full {t.max_points} Active Points, so it takes "
+                    f"0 or {t.max_points}, not {pts} (6E1 p.404-406)")
         elif pts not in (0, t.max_points):
             raise ValueError(
                 f"{t.name!r} is a fixed slot: it is off (0) or on at its "
@@ -216,6 +224,18 @@ def _check_split(
     return drawn
 
 
+def _terms_of(slot) -> SlotTerms:
+    """A slot's `SlotTerms`: its ladder when the view is priced
+    (`PricedSlotView`), None for a plain `SlotView`."""
+    from kirby_combat.models import PricedSlotView
+
+    return SlotTerms(
+        slot.slot_id, slot.name, bool(slot.variable),
+        int(slot.active_points or 0),
+        tuple(st.points for st in slot.steps)
+        if isinstance(slot, PricedSlotView) else None)
+
+
 def validate_split(view: "FrameworkView", points: dict[str, int]) -> int:
     """Check a proposed split of ``view``'s reserve; returns the total drawn.
 
@@ -223,11 +243,7 @@ def validate_split(view: "FrameworkView", points: dict[str, int]) -> int:
     a step. ENFORCED, NOT ASSUMED: an offer is not a permission slip, so
     the resolver re-asks this of whatever id it is handed.
     """
-    terms = {
-        s.slot_id: SlotTerms(s.slot_id, s.name, bool(s.variable),
-                             int(s.active_points or 0), ())
-        for s in view.slots
-    }
+    terms = {s.slot_id: _terms_of(s) for s in view.slots}
     return _check_split(view.framework_id, int(view.reserve_or_pool or 0),
                         terms, points)
 
@@ -316,17 +332,15 @@ def reallocated_this_phase(session: "CombatSession", combatant_id: str) -> bool:
 def split_choice_of(view: "FrameworkView", current: dict[str, int]) -> SplitChoice:
     """The `SplitChoice` for ``view`` given the split in force.
 
-    ``steps`` is left empty here: nothing in the build view carries a
-    slot's step sizes yet (the offers that advertise them arrive with the
-    enumeration rewrite), and the rule `parse` enforces does not read them.
+    Pass the PRICED view (`HeroCombatant.priced_framework_view`) and each
+    slot's ladder rides in its `SlotTerms.steps`, so `parse` can refuse a
+    share of a slot that has no step between off and as bought. A plain view
+    carries no ladders and that rule is then not checked.
     """
     return SplitChoice(
         framework_id=view.framework_id,
         reserve=int(view.reserve_or_pool or 0),
-        slots=tuple(
-            SlotTerms(s.slot_id, s.name, bool(s.variable),
-                      int(s.active_points or 0), ())
-            for s in view.slots),
+        slots=tuple(_terms_of(s) for s in view.slots),
         current=dict(current),
     )
 

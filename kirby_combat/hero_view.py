@@ -57,6 +57,7 @@ from kirby_combat.parts import parts_of
 import contextlib
 
 import re
+import weakref
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -470,7 +471,7 @@ class CombatantSnapshot:
             movement=list(combatant.movement_view()),
             reserves=list(combatant.reserves()),
             maneuvers=list(combatant.maneuver_view()),
-            frameworks=list(combatant.framework_view()),
+            frameworks=list(combatant.priced_framework_view()),
             is_npc=combatant.is_npc,
             is_mentalist=combatant.is_mentalist,
             has_combat_sense=combatant.has_combat_sense(),
@@ -636,6 +637,25 @@ def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> Slot
 # ─────────────────────────────────────────────────────────────────────────────
 # HeroCombatant — the participant that wraps a LoadedHero
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+#: Slot ladders, per build (`HeroCombatant._ladders`): build -> (in_hero_id,
+#: STR) -> slot id -> steps. Weak, so a build that goes takes its ladders.
+_LADDERS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def _unpriced(framework):
+    """A framework view with its slots as plain `SlotView`s: what
+    `framework_view` answers, whether the ladders were recorded or not."""
+    from kirby_combat.models import FrameworkView, SlotView
+
+    names = [f.name for f in fields(SlotView)]
+    return FrameworkView(
+        framework_id=framework.framework_id, xmlid=framework.xmlid,
+        name=framework.name, kind=framework.kind,
+        reserve_or_pool=framework.reserve_or_pool,
+        slots=[SlotView(**{n: getattr(sl, n) for n in names})
+               for sl in framework.slots])
 
 
 def _with_adjusted_dice(attacks, adjusted: dict[str, int]) -> list[AttackPower]:
@@ -824,6 +844,17 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     chosen = slot.steps[0]
                 elif not slot.variable:
                     chosen = slot.steps[-1]
+                elif ([st.points for st in slot.steps] == [0, slot.steps[-1].points]
+                      and given < slot.steps[-1].points):
+                    # Nothing lies between off and as bought (R9), and the live
+                    # views raise NotLadderable on a share in between; a split
+                    # never holds one (`framework._check_split`), so meeting it
+                    # means the two paths disagree: say so, do not read it as off.
+                    raise ValueError(
+                        f"slot {slot.name!r} of {fw.framework_id!r} has no step "
+                        f"between 0 and {slot.steps[-1].points} Active Points "
+                        f"and was given {given}; such a share is not a split "
+                        "(6E1 p.404-406)")
                 else:
                     chosen = [st for st in slot.steps if st.points <= given][-1]
                 out.append((slot.steps[-1].effect, chosen.effect))
@@ -1834,21 +1865,37 @@ class HeroCombatant(Stunnable, CombatParticipant):
         Both paths run in the same process call, so id(power) is stable
         across self.attacks and this loop (same object in hero.powers).
         """
+        if self.snapshot is not None:
+            return [_unpriced(fw) for fw in self._recorded().frameworks]
+        return self._framework_views(priced=False)
+
+    def priced_framework_view(self) -> "list[FrameworkView]":
+        """`framework_view` with each slot's priced ladder (`PricedSlotView`).
+
+        Pricing every rung of every slot is the costly part of reading a
+        framework, and the per-Phase readers (allocation, enumeration,
+        lockout, upkeep) never look at it, so `framework_view` leaves it out.
+        Asked for by the snapshot, which records it, and by a split, which is
+        held to it (`framework.SlotTerms`). The ladders are memoised
+        (`_ladders`).
+        """
+        if self.snapshot is not None:
+            return self._recorded().frameworks
+        return self._framework_views(priced=True)
+
+    def _framework_views(self, *, priced: bool) -> "list[FrameworkView]":
         from kirby_cost.io.framework_access import (  # lazy
             framework_kind, framework_slots, reserve_or_pool, slot_is_variable,
             vpp_pool,
         )
-        from kirby_combat.models import FrameworkView, SlotView
-
-        if self.snapshot is not None:
-            return self._recorded().frameworks
+        from kirby_combat.models import FrameworkView, PricedSlotView, SlotView
 
         attack_by_slot: dict[str, "AttackPower"] = {
             a.slot_id: a for a in _with_adjusted_dice(
                 self._attacks_from_build(at_split=False), self.state.adjusted_dice)
             if a.slot_id
         }
-        str_ = self.combat_stats().str_
+        ladders = self._ladders() if priced else None
         out: list[FrameworkView] = []
         for p in (self._build().powers or []):
             kind = framework_kind(p)
@@ -1860,17 +1907,18 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 # Exact same formula as _build_attack_power so attack_by_slot links.
                 sid = _slot_id_of(child)
                 atk = attack_by_slot.get(sid)
-                variable = slot_is_variable(p, child)
-                slots.append(SlotView(
+                plain = dict(
                     slot_id=sid,
                     name=(getattr(child, "name", None) or
                           getattr(child, "alias", "") or cx),
                     active_points=int(getattr(child, "active_cost", 0) or 0),
-                    variable=variable,
+                    variable=slot_is_variable(p, child),
                     kind=("attack" if atk is not None else "other"),
                     attack=atk,
-                    steps=self._slot_steps(child, variable=variable, str_=str_),
-                ))
+                )
+                slots.append(
+                    SlotView(**plain) if ladders is None else PricedSlotView(
+                        **plain, steps=ladders(child, plain["variable"])))
             out.append(FrameworkView(
                 # The framework's identity. Consumers matched on xmlid, which
                 # is ambiguous for the 113 corpus characters carrying two or
@@ -1888,17 +1936,38 @@ class HeroCombatant(Stunnable, CombatParticipant):
             ))
         return out
 
+    def _ladders(self):
+        """``(power, variable) -> steps``, memoised per build.
+
+        A slot's ladder is a pure function of the purchase, the identity he
+        is in (which parts of a Compound Power are in play) and the STR an
+        attack is built against, so it is kept on the BUILD (`_LADDERS`),
+        keyed by those, and a fresh combatant over the same build (every
+        `replace`, every Phase) does not price it again.
+        """
+        str_ = self.combat_stats().str_
+        held = _LADDERS.setdefault(self.hero, {}).setdefault(
+            (self.state.in_hero_id, str_), {})
+
+        def steps_of(power, variable: bool):
+            key = _slot_id_of(power)
+            if key not in held:
+                held[key] = self._slot_steps(power, variable=variable, str_=str_)
+            return held[key]
+        return steps_of
+
     def _slot_steps(self, power, *, variable: bool, str_: int) -> "tuple[SlotStep, ...]":
         """The slot's ladder (6E1 p.404-406), for a snapshot to carry.
 
         A variable slot's rungs are kirby-cost's own (`ladder`); a fixed slot
         is nothing or as bought; a variable slot kirby-cost cannot ladder
         (`NotLadderable`: Damage Reduction, Damage Negation, flat-cost powers)
-        has exactly those two (controller ruling R9) --- the live views raise
-        on a part-share of one, a recording cannot, and the allocation is
-        what keeps a split off those rungs. A slot not in play in this
-        identity (one part of a Compound Power, Only In Alternate Identity)
-        gives nothing at any rung. No cost arithmetic here.
+        has exactly those two (controller ruling R9). The live views raise on
+        a part-share of one, so a split must never hold one
+        (`framework._check_split` refuses it, from these steps) and a rebuilt
+        combatant raises if it meets one (`_slot_swaps`). A slot not in play
+        in this identity (one part of a Compound Power, Only In Alternate
+        Identity) gives nothing at any rung. No cost arithmetic here.
         """
         from kirby_cost.engine.allocation import NotLadderable, ladder
 

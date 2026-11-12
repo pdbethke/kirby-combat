@@ -52,7 +52,7 @@ def _views(c: HeroCombatant):
 
 
 def _variable_slots(c: HeroCombatant):
-    return [s for f in c.framework_view() if f.framework_id == FRAMEWORK
+    return [s for f in c.priced_framework_view() if f.framework_id == FRAMEWORK
             for s in f.slots if s.variable]
 
 
@@ -126,6 +126,31 @@ def test_a_drained_combatant_with_a_split_rebuilds_the_same():
     _assert_same(live, rebuilt, {**off, PD_SLOT: 20, RP: 45})
 
 
+def test_points_between_two_rungs_read_the_lower_rung():
+    """6E1 p.406: points need not sit on a step; the highest rung that fits."""
+    live = _kerendor()
+    rebuilt = _rebuilt(live)
+    off = _all_off(live)
+    checked = 0
+    for slot in _variable_slots(live):
+        pts = [st.points for st in slot.steps]
+        for lo, hi in zip(pts, pts[1:]):
+            if hi - lo > 1 and hi - lo != slot.active_points:
+                _assert_same(live, rebuilt, {**off, slot.slot_id: lo + 1})
+                checked += 1
+    assert checked
+
+
+def test_recording_while_a_split_is_in_force_records_the_build_not_the_split():
+    live = _kerendor()
+    off = _all_off(live)
+    held = _with_split(live, {**off, RP: 9, FLIGHT: 20, PD_SLOT: 8})
+    rebuilt = _rebuilt(held)
+    assert rebuilt.state.slot_points == held.state.slot_points
+    assert _views(held) == _views(rebuilt)                 # the split in force
+    _assert_same(held, rebuilt, {**off, RP: 45, TELE: 12})  # and a different one
+
+
 def test_a_snapshot_whose_slots_carry_no_ladder_is_refused():
     """Old fights are disposable: it says why and offers no way round."""
     payload = json.loads(json.dumps(to_dict(_kerendor())))
@@ -141,3 +166,102 @@ def test_re_recording_a_rebuilt_combatant_keeps_the_ladders():
     again = _rebuilt(_rebuilt(live))
     off = _all_off(live)
     _assert_same(live, again, {**off, RP: 9, FLIGHT: 20})
+
+
+# ── the plain framework_view prices nothing ─────────────────────────────────
+def test_the_plain_framework_view_prices_no_ladder(monkeypatch):
+    live = _kerendor()
+
+    def boom(*a, **k):
+        raise AssertionError("framework_view priced a ladder")
+    monkeypatch.setattr(HeroCombatant, "_slot_steps", boom)
+    views = live.framework_view()
+    assert views and not any(hasattr(sl, "steps")
+                             for f in views for sl in f.slots)
+
+
+def test_a_ladder_is_priced_once_per_build():
+    import kirby_cost.engine.allocation as allocation
+    live = _kerendor()
+    real, calls = allocation.ladder, []
+    allocation.ladder = lambda p: (calls.append(1), real(p))[1]
+    try:
+        live.priced_framework_view()
+        first = len(calls)
+        live.priced_framework_view()
+        again = replace(live, state=replace(live.state, current_stun=1))
+        again.priced_framework_view()
+    finally:
+        allocation.ladder = real
+    assert first and len(calls) == first
+
+
+def test_a_priced_slot_view_must_state_its_steps():
+    from kirby_combat.models import PricedSlotView
+    with pytest.raises(TypeError):
+        PricedSlotView(slot_id="a", name="a", active_points=1, variable=True,
+                       kind="other")
+
+
+def test_the_rebuilt_plain_view_equals_the_live_plain_view():
+    live = _kerendor()
+    assert _rebuilt(live).framework_view() == live.framework_view()
+
+
+# ── a share of a slot with no step between off and as bought (R9) ───────────
+def _offer(live):
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.framework import split_choice_of
+    [view] = [f for f in live.priced_framework_view() if f.framework_id == FRAMEWORK]
+    choice = split_choice_of(view, {})
+    return LegalAction(
+        action_id=f"reallocate_slots:{FRAMEWORK}:split", kind="reallocate",
+        target_id=None, power_xmlid=None, power_name=None, summary="split",
+        choice=choice)
+
+
+def test_the_split_check_refuses_a_part_share_of_an_unladderable_slot():
+    from kirby_combat.loop.chooser import InvalidChoice, validate_choice
+    live = _kerendor()
+    offer = _offer(live)
+    [dr] = [s for s in _variable_slots(live) if s.slot_id == DR]
+    base = offer.action_id
+    with pytest.raises(InvalidChoice, match="Kerendor DR"):
+        validate_choice(f"{base}={DR}@1", [offer])
+    for ok in (0, dr.active_points):
+        validate_choice(f"{base}={DR}@{ok}+{RP}@9" if ok else f"{base}={RP}@9",
+                        [offer])
+
+
+def test_the_resolver_refuses_a_part_share_of_an_unladderable_slot():
+    from kirby_combat.encounter import Encounter  # noqa: F401
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.side import Side
+    from kirby_combat.template import CombatTemplate
+    from kirby_dice import RandomRoller
+    from fixtures.synthetic_hero import synthetic_combatant
+
+    live = replace(_kerendor(), side=Side.named("blue"))
+    foe = synthetic_combatant(id="foe", name="foe", side=Side.named("red"))
+    session = CombatSession.create(
+        id="s", scene=None, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=1), combatants=[live, foe]).start()
+    act = lambda tail: LegalAction(   # noqa: E731
+        action_id=f"opening_split:{FRAMEWORK}:split={tail}", kind="opening_split",
+        target_id=None, power_xmlid=None, power_name=None, summary="")
+    kw = dict(template=CombatTemplate.default_6e_superheroic(),
+              roller=RandomRoller(seed=1))
+    me = session.combatants[live.id]
+    with pytest.raises(UnresolvableAction):
+        resolve_chosen(session, me, act(f"{DR}@1"), **kw)
+    resolve_chosen(session, me, act(f"{RP}@9"), **kw)
+
+
+def test_a_rebuilt_combatant_raises_on_a_part_share_of_an_unladderable_slot():
+    live = _kerendor()
+    rebuilt = _rebuilt(live)
+    bad = _with_split(rebuilt, {**_all_off(rebuilt), DR: 1})
+    with pytest.raises(ValueError, match="Kerendor DR"):
+        bad.defense_view()

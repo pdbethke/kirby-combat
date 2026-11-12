@@ -225,13 +225,24 @@ class SlotView:
     variable: bool
     kind: str                       # "attack" | "defense" | "movement" | "other"
     attack: "AttackPower | None" = None
-    #: The slot's priced ladder, ascending by points (6E1 p.404-406): the
-    #: rungs a split can put it on, each with what it then gives. Starts at
-    #: 0 (off) and ends at the full cost. A fixed slot, and a variable one
-    #: kirby-cost cannot ladder (Damage Reduction, Damage Negation, flat-cost
-    #: powers: R9), has just those two. Empty only on a view nobody recorded
-    #: a ladder for; a snapshot of an opened framework refuses one.
-    steps: tuple[SlotStep, ...] = ()
+
+
+@dataclass
+class PricedSlotView(SlotView):
+    """A `SlotView` that also carries the slot's priced ladder.
+
+    The ladder (6E1 p.404-406) is the rungs a split can put the slot on,
+    ascending by points, each with what it then gives. It starts at 0 (off)
+    and ends at the full cost; a fixed slot, and a variable one kirby-cost
+    cannot ladder (Damage Reduction, Damage Negation, flat-cost powers:
+    R9), have just those two. Pricing it is the expensive part of reading a
+    framework, so only the readers that need it ask for it
+    (`HeroCombatant.priced_framework_view`): a snapshot records it and a
+    split is checked against it. Required, with no default: a view either
+    is priced or is a plain `SlotView`.
+    """
+
+    steps: tuple[SlotStep, ...] = field(kw_only=True)
 
 
 @dataclass
