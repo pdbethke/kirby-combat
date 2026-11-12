@@ -3495,7 +3495,10 @@ def enumerate_actions(
                     # Offered only where the free option found nothing —
                     # paying END for a reachable destination is dominated.
                     push_offered = 0
-                    for cap in movement_caps:
+                    # The pushed vantage KEEPS the attack and the offer
+                    # carries it, so with no damaging attack there is no
+                    # push offer (the free full-move vantage above stands).
+                    for cap in (movement_caps if best_attack is not None else ()):
                         if push_offered >= 2:
                             break
                         if any(m == cap.mode for m, _d in strike_dests):

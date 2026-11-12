@@ -318,3 +318,54 @@ def test_run_encounter_opens_then_fights_and_counts_no_opening_as_a_phase():
                     sessions=[open_with(pre.sessions[0], "kerendor", "kmp", {"bolt": 60})])
     same = run_encounter(pre, _States({}), roller=_roller(), max_turns=1)
     assert out.phases == same.phases
+
+
+# ── review fixes ──────────────────────────────────────────────────────────
+
+def test_a_decided_fight_poses_no_opening_and_emits_nothing():
+    """The decided check comes BEFORE the openings: a fight already over
+    asks nobody for a split (actor_id None, no events)."""
+    from kirby_combat.roster import Verdict
+
+    class AlreadyOver:
+        def decide(self, roster):
+            return Verdict(over=True, winner=None)
+
+    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    seat = _States({("kerendor", "kmp"): "bolt@60"})
+    out = run_phase(enc, seat, roller=_roller(), until=AlreadyOver())
+    assert out.actor_id is None and out.events == []
+    assert seat.seen == []
+
+
+def test_first_legal_passes_over_a_resplit_and_takes_the_next_offer():
+    """A re-split may be passed over (the split in force stands), so
+    first-legal takes the first offer it can answer without stating one."""
+    from kirby_combat.enumeration import LegalAction
+    from kirby_combat.framework import split_choice_of
+    from kirby_combat.loop.chooser import PhaseSituation
+
+    resplit = LegalAction(
+        action_id="reallocate_slots:kmp:split", kind="reallocate", summary="x",
+        target_id=None, power_xmlid="", power_name="",
+        choice=split_choice_of(_magic(), {"bolt": 60, "wind": 0, "wall": 0}, presets=()))
+    dodge = LegalAction(action_id="dodge", kind="dodge", summary="Dodge",
+                        target_id=None, power_xmlid="", power_name="")
+    man = _carrying("kerendor", "heroes", _magic())
+    assert FirstLegalChooser().choose(PhaseSituation(actor=man, menu=[resplit, dodge])) == "dodge"
+
+
+def test_a_stat_block_has_no_multipower_and_a_stranger_is_refused():
+    """Only a build carries frameworks: an object or vehicle (a stat block)
+    is not asked, and a combatant of neither kind is an error, not a
+    silent 'none'."""
+    from types import SimpleNamespace
+
+    from kirby_combat.breakables.object_combatant import ObjectCombatant
+
+    wall = ObjectCombatant.make(id="wall", name="Wall", material="stone")
+    kerendor = _carrying("kerendor", "heroes", _magic())
+    assert pending_openings(SimpleNamespace(
+        combatants={"wall": wall, "kerendor": kerendor})) == [("kerendor", "kmp")]
+    with pytest.raises(TypeError):
+        pending_openings(SimpleNamespace(combatants={"x": SimpleNamespace(id="x")}))

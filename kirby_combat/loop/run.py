@@ -116,11 +116,25 @@ def pending_openings(session: "CombatSession") -> list[tuple[str, str]]:
     Controls and VPPs have no reserve to divide and are not asked. "Opened"
     is a `CombatantState.slot_points` entry, which only `SlotsAllocated`
     writes.
+
+    Only a BUILD carries frameworks (`HeroCombatant.framework_view`). A
+    stat block (`StatBlockCombatant`: an object, a vehicle) has none, by
+    what it is; a combatant of neither kind is refused rather than read as
+    having none.
     """
+    from kirby_combat.hero_view import HeroCombatant
+    from kirby_combat.models import StatBlockCombatant
+
     out = []
     for combatant in session.combatants.values():
-        views = getattr(combatant, "framework_view", lambda: [])() or []
-        for view in views:
+        if isinstance(combatant, StatBlockCombatant):
+            continue
+        if not isinstance(combatant, HeroCombatant):
+            raise TypeError(
+                f"{getattr(combatant, 'id', combatant)!r} is a "
+                f"{type(combatant).__name__}, neither a build (HeroCombatant) "
+                f"nor a stat block: cannot say whether he carries a Multipower")
+        for view in combatant.framework_view():
             if (view.kind == "multipower"
                     and view.framework_id not in combatant.state.slot_points):
                 out.append((str(combatant.id), view.framework_id))

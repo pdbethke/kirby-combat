@@ -163,3 +163,33 @@ def test_a_man_with_no_damaging_attack_behind_a_wall_still_gets_a_menu():
     kinds = {a.kind for a in _situation_for(session, "tom").menu}
     assert "move" in kinds
     assert "reposition_strike" not in kinds, "nothing to fire from the vantage"
+
+
+def test_a_flier_with_no_damaging_attack_behind_a_wall_still_gets_a_menu():
+    """The same man with a PUSHABLE mode (Flight, a power with an Active
+    Point cost): the pushed-vantage offer carries the attack it keeps, so a
+    man with no damaging attack is offered no push (6E2 p.133) --- and the
+    menu does not crash building one."""
+    import dataclasses
+
+    from kirby_combat.loop.run import _situation_for
+    from kirby_combat.models import MovementCapability
+    from kirby_combat.synthetic import _SyntheticCombatant
+
+    @dataclasses.dataclass
+    class _Flier(_SyntheticCombatant):
+        def movement_view(self):
+            return [MovementCapability(mode="flight", combat_m=8.0, noncombat_m=16.0,
+                                       end_cost=1, vertical_m=8.0, active_cost=8.0)]
+
+    base = fighter("tom", side=Side.named("cow"), dice=0)
+    tom = _Flier(**{f.name: getattr(base, f.name) for f in dataclasses.fields(base)})
+    scene = _scene([_studio()], tom=(2.0, 5.0), virgil=(9.0, 5.0))
+    session = CombatSession.create(
+        id="s", scene=scene, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=5),
+        combatants=[tom, fighter("virgil", side=Side.named("law"))],
+    ).start()
+    kinds = {a.kind for a in _situation_for(session, "tom").menu}
+    assert "move" in kinds or "reposition_vantage" in kinds
+    assert not {"reposition_strike", "reposition_push"} & kinds
