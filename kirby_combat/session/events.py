@@ -1084,6 +1084,25 @@ class DarknessPlaced(BaseEvent):
 
 
 @dataclass
+class DarknessEnded(BaseEvent):
+    """A Darkness field comes down (6E1 p.188) --- and what takes it down.
+
+    "A Darkness field remains in existence as long as the character pays
+    the END for it" (6E1 p.188): it is a Constant power, so it goes when he
+    stops paying, loses sight of it, takes a Recovery, is Stunned or Knocked
+    Out at the end of a Segment, or turns it off (`darkness_fields`, which
+    says which page each reason comes from). ``construct_ids`` are the
+    fields ONE use put up (one per Sense Group, `DarknessPlaced`); ``reason``
+    is a `darkness_fields.DarknessEnd` value. `apply_event` folds it off
+    `session.scene.constructs`.
+    """
+    kind: Literal["DarknessEnded"] = field(default="DarknessEnded", init=False)
+    construct_ids: list[str] = field(default_factory=list)
+    reason: str = ""
+    source_combatant: str = ""
+
+
+@dataclass
 class PowerDispelled(BaseEvent):
     """One of the target's powers stops working (6E1 p.195).
 
@@ -1205,6 +1224,7 @@ CombatEvent = (
     | ConstructSpawned
     | BarrierRaised
     | DarknessPlaced
+    | DarknessEnded
     | PowerDispelled
     | PowerRestarted
     | WeaponMoved
