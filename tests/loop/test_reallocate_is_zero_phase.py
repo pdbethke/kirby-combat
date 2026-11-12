@@ -60,7 +60,7 @@ def _fight():
     lad.framework_view = lambda: [_framework()]       # type: ignore[method-assign]
     # Both slots fixed: on at full or off, so no ladder is needed to check
     # the split the resolver is handed (R10 reads the priced view).
-    lad.priced_framework_view = lambda: [_framework()]  # type: ignore[method-assign]
+    lad.priced_framework = lambda fid: _framework()  # type: ignore[method-assign]
     foe = fighter("foe", side=Side.named("villains"), dex=10)
     return encounter_of(lad, foe)
 

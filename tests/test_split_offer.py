@@ -275,7 +275,7 @@ def _fixed_only(reserve, costs, *, on):
         f"s{i}": (cost if f"s{i}" in on else 0)
         for i, cost in enumerate(costs, 1)}}))
     c.framework_view = lambda: [view(False)]              # type: ignore[method-assign]
-    c.priced_framework_view = lambda: [view(True)]        # type: ignore[method-assign]
+    c.priced_framework = lambda fid: view(True)            # type: ignore[method-assign]
     return c
 
 
@@ -313,7 +313,47 @@ def test_a_multipower_with_one_variable_slot_is_still_offered_a_resplit():
     c = fighter("solo", side=Side.named("x"))
     c = replace(c, state=replace(c.state, slot_points={"one": {"v": 10}}))
     c.framework_view = lambda: [view(False)]              # type: ignore[method-assign]
-    c.priced_framework_view = lambda: [view(True)]        # type: ignore[method-assign]
+    c.priced_framework = lambda fid: view(True)            # type: ignore[method-assign]
     [offer] = _splits(c)
     assert offer.summary == "Re-split Knob (30 reserve): now Dial 10"
     assert [p.name for p in offer.choice.presets] == ["All in Dial"]
+
+
+# ── pricing one framework cannot break the menu over another ───────────────
+
+VPP = "1787050971209"                  # Ravel's Variable Power Pool
+
+
+def _with_a_vpp_slot(hero: HeroCombatant) -> HeroCombatant:
+    build = hero._build()
+    vpp = next(p for p in build.powers if str(p.id) == VPP)
+    slot = _slot({"xmlid": "ENERGYBLAST", "levels": 4}, "vppslot", "Pool Bolt")
+    slot.parent = vpp
+    build.powers.append(slot)
+    return hero
+
+
+def _ladder_breaks_on(monkeypatch, slot_id):
+    real = HeroCombatant._slot_steps
+
+    def steps(self, power, **kw):
+        if str(power.id) == slot_id:
+            raise RuntimeError(f"cannot price {slot_id}")
+        return real(self, power, **kw)
+    monkeypatch.setattr(HeroCombatant, "_slot_steps", steps)
+
+
+def test_a_ladder_error_in_another_framework_leaves_the_offer(monkeypatch):
+    hero = _with_a_vpp_slot(_kerendor())
+    _ladder_breaks_on(monkeypatch, "vppslot")
+    with pytest.raises(RuntimeError):     # control: pricing everything breaks
+        hero.priced_framework_view()
+    [offer] = _splits(hero)
+    assert offer.action_id == OFFER
+
+
+def test_a_ladder_error_in_the_offered_framework_is_loud(monkeypatch):
+    hero = _kerendor()
+    _ladder_breaks_on(monkeypatch, "wind")
+    with pytest.raises(RuntimeError, match="cannot price wind"):
+        _splits(hero)

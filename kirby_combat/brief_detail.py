@@ -902,16 +902,15 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
         return []
     offers = {a.choice.framework_id: a.choice for a in situation.menu
               if a.kind == "reallocate" and a.choice is not None}
-    priced = None
     out: list[str] = []
     for fw in views:
         label, unit = _FRAMEWORK_KINDS.get(fw.kind, (fw.kind.replace("_", " ").title(), "pool"))
         points = slot_points_for(actor, fw.framework_id) if fw.kind == "multipower" else None
         out.append(f"{fw.name} ({label}, {fw.reserve_or_pool}-point {unit}):")
         if points is not None:
-            if priced is None:
-                priced = {v.framework_id: v for v in actor.priced_framework_view()}
-            pfw = priced[fw.framework_id]
+            # This framework only (`priced_framework`), so another one's
+            # ladder cannot break the page.
+            pfw = actor.priced_framework(fw.framework_id)
             used = sum(points.values())
             free = max(0, int(fw.reserve_or_pool or 0) - used)
             out.append(f"  {used} of {fw.reserve_or_pool} points in use, {free} free")

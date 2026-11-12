@@ -77,7 +77,8 @@ def _with_frameworks(combatant, *frameworks):
     object.__setattr__(combatant, "framework_view", lambda: list(frameworks))
     # A split is checked against the priced view (R10). These slots are all
     # fixed, which carry no ladder the check reads (on at full or off).
-    object.__setattr__(combatant, "priced_framework_view", lambda: list(frameworks))
+    object.__setattr__(combatant, "priced_framework", lambda fid: next(
+        (f for f in frameworks if f.framework_id == fid), None))
     return combatant
 
 

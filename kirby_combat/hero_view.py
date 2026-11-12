@@ -1874,7 +1874,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """
         if self.snapshot is not None:
             return [_unpriced(fw) for fw in self._recorded().frameworks]
-        return self._framework_views(priced=False)
+        return self._framework_views(priced=False, only=None)
 
     def priced_framework_view(self) -> "list[FrameworkView]":
         """`framework_view` with each slot's priced ladder (`PricedSlotView`).
@@ -1888,9 +1888,25 @@ class HeroCombatant(Stunnable, CombatParticipant):
         """
         if self.snapshot is not None:
             return self._recorded().frameworks
-        return self._framework_views(priced=True)
+        return self._framework_views(priced=True, only=None)
 
-    def _framework_views(self, *, priced: bool) -> "list[FrameworkView]":
+    def priced_framework(self, framework_id: str) -> "FrameworkView | None":
+        """One framework with its ladders (`priced_framework_view`), or None
+        when he has no framework of that id.
+
+        Prices THAT framework only, so a reader offering or checking one
+        Multipower's split (the menu, the brief, the resolver) cannot be
+        broken by a ladder error in some other framework he carries; an error
+        pricing this one still raises.
+        """
+        if self.snapshot is not None:
+            views = self._recorded().frameworks
+        else:
+            views = self._framework_views(priced=True, only=framework_id)
+        return next((v for v in views if v.framework_id == framework_id), None)
+
+    def _framework_views(self, *, priced: bool,
+                         only: str | None) -> "list[FrameworkView]":
         from kirby_cost.io.framework_access import (  # lazy
             framework_kind, framework_slots, reserve_or_pool, slot_is_variable,
             vpp_pool,
@@ -1907,6 +1923,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         for p in (self._build().powers or []):
             kind = framework_kind(p)
             if kind is None:
+                continue
+            if only is not None and str(getattr(p, "id", "") or "") != only:
                 continue
             slots: list[SlotView] = []
             for child in framework_slots(self._build(), p):

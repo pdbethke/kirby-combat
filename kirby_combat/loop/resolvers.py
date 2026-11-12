@@ -3196,8 +3196,7 @@ def _resolve_split(
     # The framework WITH ITS LADDERS, so the split is held to every rule
     # (`SlotTerms.steps`, R9/R10). One the actor cannot price is refused,
     # never checked against half the rule.
-    view = next((v for v in actor.priced_framework_view()
-                 if v.framework_id == framework_id), None)
+    view = actor.priced_framework(framework_id)
     if view is None:
         raise UnresolvableAction(action.kind, action.action_id)
 

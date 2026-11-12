@@ -55,7 +55,7 @@ def _choice(current=None):
 
 def _priced(c, view=None):
     c.framework_view = lambda: [_plain_view()]          # type: ignore[method-assign]
-    c.priced_framework_view = lambda: [view or _view()]  # type: ignore[method-assign]
+    c.priced_framework = lambda fid: view or _view()     # type: ignore[method-assign]
     return c
 
 
@@ -211,6 +211,6 @@ def test_a_fixed_only_split_needs_no_ladder():
 def test_the_resolver_refuses_a_framework_it_cannot_price():
     s, actor = _world()
     s = _open(s, actor)
-    actor.priced_framework_view = lambda: []           # type: ignore[method-assign]
+    actor.priced_framework = lambda fid: None          # type: ignore[method-assign]
     with pytest.raises(UnresolvableAction):
         _resolve(s, actor, f"{OFFER}=bolt@40")

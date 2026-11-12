@@ -382,7 +382,7 @@ def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
                for sl in fw.slots],
     )
     s.combatants["lad"].framework_view = lambda: [fw]       # type: ignore[method-assign]
-    s.combatants["lad"].priced_framework_view = lambda: [priced]  # type: ignore[method-assign]
+    s.combatants["lad"].priced_framework = lambda fid: priced  # type: ignore[method-assign]
     lines = framework_lines(PhaseSituation(actor=s.combatants["lad"], menu=[], session=s))
     assert "  45 of 60 points in use, 15 free" in lines
     assert any("fixed slot draws its full Active Points" in ln and "6E1 p.404-405" in ln

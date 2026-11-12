@@ -612,7 +612,6 @@ def _multipower_offers(actor: Any, fw_views: list, *, actions: list,
     from kirby_combat.split_menu import split_offer
 
     out: list[LegalAction] = []
-    priced = None
     for fv in fw_views:
         if fv.kind != "multipower":
             continue
@@ -621,11 +620,11 @@ def _multipower_offers(actor: Any, fw_views: list, *, actions: list,
             continue
         if any(sl.variable for sl in fv.slots):
             # THE PRICED VIEW (R10): the presets and the summary read each
-            # slot's ladder, and the choice holds an answer to it.
-            if priced is None:
-                priced = {v.framework_id: v for v in actor.priced_framework_view()}
+            # slot's ladder, and the choice holds an answer to it. Only THIS
+            # framework is priced, so a ladder error in another one cannot
+            # take the menu away; an error pricing this one still raises.
             choice, summary = split_offer(
-                priced[fv.framework_id], current,
+                actor.priced_framework(fv.framework_id), current,
                 actor.state.standing_splits.get(fv.framework_id, ()))
             # NO "DON'T DISARM HIM" GUARD HERE (spec §5.3). It existed
             # because a first-on-menu fallback took the first switch it

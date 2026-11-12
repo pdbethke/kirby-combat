@@ -139,7 +139,7 @@ def test_a_zero_point_slot_is_not_usable_in_enumeration():
     alice = cls(id=alice.id, hero=alice.hero, state=alice.state,
                 knockback_resistance=alice.knockback_resistance)
     object.__setattr__(alice, "framework_view", lambda: [_view()])
-    object.__setattr__(alice, "priced_framework_view", lambda: [_priced_view()])
+    object.__setattr__(alice, "priced_framework", lambda fid: _priced_view())
     offers = enumerate_actions(alice, [bob],
                                slot_allocation=allocation_for(s, alice))
     used = {a.action_id for a in offers if a.kind == "attack"}
