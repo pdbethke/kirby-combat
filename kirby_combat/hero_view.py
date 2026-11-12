@@ -106,6 +106,7 @@ if TYPE_CHECKING:                                  # pragma: no cover
     # Named in `framework_view`'s return annotation and imported only
     # inside the method body, so the annotation referred to nothing.
     from kirby_combat.models import EnduranceReserve, FrameworkView
+    from kirby_combat.framework import StandingSplit
     # Avoid forcing kirby-cost import at module load time;
     # callers that don't use the new path won't pay the dep.
     from kirby_cost.io.hdc_loader import LoadedHero
@@ -167,6 +168,11 @@ class HeroCombatState:
     """framework id -> slot id -> points allocated to that slot (0 = off).
     A framework with no entry has not been opened yet. Written only by the
     `SlotsAllocated` fold, which replaces one framework's entry whole."""
+    standing_splits: dict[str, tuple["StandingSplit", ...]] = field(default_factory=dict)
+    """framework id -> the player's named splits for it (spec §5.5a), as
+    the consumer seated him: plain data the engine re-checks against the
+    build in play before it offers one (`split_menu.presets_for`). Not
+    changed by the fight."""
 
     # Adjustments (Aid/Drain/Transfer applied to this combatant)
     drains: dict[str, int] = field(default_factory=dict)
@@ -598,7 +604,8 @@ class SlotEffect:
 @dataclass
 class SlotStep:
     """One rung of a slot's priced ladder: holding ``points`` Active Points
-    the slot is ``display`` and has ``effect``. Recorded in a snapshot so a
+    the slot is ``display`` (kirby-cost's words for it: "Blast 6d6"; "" at
+    0) and has ``effect``. Recorded in a snapshot so a
     rebuilt combatant needs no build to price a split (kirby-cost's
     `ladder` prices it; nothing here does)."""
 
@@ -1969,7 +1976,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         in this identity (one part of a Compound Power, Only In Alternate
         Identity) gives nothing at any rung. No cost arithmetic here.
         """
-        from kirby_cost.engine.allocation import NotLadderable, ladder
+        from kirby_cost.engine.allocation import NotLadderable, ladder, step_display
 
         full = int(getattr(power, "active_cost", 0) or 0)
         in_play = self._in_play(power)
@@ -1985,13 +1992,13 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 fits = ladder(power)
             except NotLadderable:
                 fits = []
-            rungs += [rung(f.active_points, f.display)
+            rungs += [rung(f.active_points, step_display(f.power))
                       for f in fits if 0 < f.active_points < full]
         # The top rung is the slot as bought. A purchase costing nothing (a
         # Naked Advantage) still has to hold a point to be on: a slot holding
-        # none is off (6E1 p.404-405), so its rung is 1.
-        rungs.append(rung(max(full, 1),
-                          str(getattr(power, "damage_display", "") or "")))
+        # none is off (6E1 p.404-405), so its rung is 1. Each rung's words
+        # are kirby-cost's (`step_display`: "Blast 6d6", "Flight 30m").
+        rungs.append(rung(max(full, 1), step_display(power)))
         return tuple(rungs)
 
     def has_self_contained_breathing(self) -> bool:

@@ -28,12 +28,28 @@ for --- the recurring lesson of this whole engine.
 """
 from __future__ import annotations
 
-import pytest
+from dataclasses import replace
 
 from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.enumeration import enumerate_actions
-from kirby_combat.framework import parse_reallocation, validate_split
+from kirby_combat.framework import split_of_action, validate_split
 from kirby_combat.side import Side
+
+
+def _on(offer) -> set[str]:
+    """The slots a whole-set offer switches on: its id is a completed split
+    (``reallocate_slots:<fw>:split=<sid>@<AP>+...``)."""
+    fw, tail = split_of_action(offer.action_id, "reallocate_slots")
+    assert fw, offer.action_id
+    return {t.split("@")[0] for t in tail.split("+") if t and int(t.split("@")[1]) > 0}
+
+
+def _opened(c, framework, active=()):
+    """The framework opened with ``active`` on at full AP, the rest off: a
+    re-split is offered only once the fight has stated a split."""
+    return replace(c, state=replace(c.state, slot_points={framework.framework_id: {
+        sl.slot_id: (sl.active_points if sl.slot_id in active else 0)
+        for sl in framework.slots}}))
 
 
 def _framework(reserve, slot_points):
@@ -54,8 +70,8 @@ def _framework(reserve, slot_points):
     )
 
 
-def _actor(framework):
-    c = fighter("lad", side=Side.named("x"))
+def _actor(framework, active=()):
+    c = _opened(fighter("lad", side=Side.named("x")), framework, active)
     c.framework_view = lambda: [framework]                  # type: ignore[method-assign]
     return c
 
@@ -69,7 +85,7 @@ def test_it_does_not_offer_a_set_the_reserve_cannot_pay_for():
     """Five 45-point slots against a 45-point reserve is 224 of 45."""
     offers = _offers(_framework(45, [45, 45, 45, 44, 45]))
     for offer in offers:
-        _, slot_ids = parse_reallocation(offer.action_id)
+        slot_ids = _on(offer)
         drawn = sum(45 if s != "s4" else 44 for s in slot_ids)
         assert drawn <= 45, f"{offer.action_id} draws {drawn} against a reserve of 45"
 
@@ -85,16 +101,14 @@ def test_a_slot_bigger_than_the_whole_reserve_is_never_offered():
     """Buildable, and it can never be turned on."""
     offers = _offers(_framework(30, [60, 20]))
     for offer in offers:
-        _, slot_ids = parse_reallocation(offer.action_id)
-        assert "s1" not in slot_ids
+        assert "s1" not in _on(offer)
 
 
 def test_a_framework_whose_slots_all_fit_is_offered_them_together():
     """The other ordinary case: a generous reserve, and no reason to make
     a fighter switch one at a time."""
     offers = _offers(_framework(100, [20, 30]))
-    assert any(set(parse_reallocation(o.action_id)[1]) == {"s1", "s2"}
-               for o in offers)
+    assert any(_on(o) == {"s1", "s2"} for o in offers)
 
 
 def test_every_offer_the_menu_makes_would_be_accepted():
@@ -102,7 +116,7 @@ def test_every_offer_the_menu_makes_would_be_accepted():
     the resolver's own validator, so the two cannot disagree."""
     framework = _framework(45, [45, 45, 45, 44, 45])
     for offer in _offers(framework):
-        _, slot_ids = parse_reallocation(offer.action_id)
+        slot_ids = _on(offer)
         # An offered set, each slot at its full Active Points, must be a
         # legal split.
         validate_split(framework, {
@@ -113,18 +127,9 @@ def test_every_offer_the_menu_makes_would_be_accepted():
 # ---- and it must CHANGE something ----
 
 def _offers_with_active(framework, active):
-    """As the loop calls it: `slot_allocation` carries what is already on."""
-    actor = _actor(framework)
-    points = {sl.slot_id: sl.active_points for sl in framework.slots}
-    menu = enumerate_actions(
-        actor, [fighter("foe", side=Side.named("y"))],
-        slot_allocation={framework.framework_id: (
-            framework.reserve_or_pool,
-            sum(points[s] for s in active),
-            set(active),
-            points,
-        )},
-    )
+    """What is already on is the split folded onto him."""
+    actor = _actor(framework, active)
+    menu = enumerate_actions(actor, [fighter("foe", side=Side.named("y"))])
     return [a for a in menu if a.kind == "reallocate"]
 
 
@@ -138,8 +143,7 @@ def test_it_does_not_offer_the_allocation_already_in_force():
     framework = _framework(45, [45, 45, 45, 44, 45])
     offers = _offers_with_active(framework, ["s1"])
     for offer in offers:
-        _, slot_ids = parse_reallocation(offer.action_id)
-        assert set(slot_ids) != {"s1"}, (
+        assert _on(offer) != {"s1"}, (
             f"{offer.action_id} switches to what is already switched on"
         )
 
@@ -191,12 +195,12 @@ def test_a_fighter_with_no_attack_is_offered_his_weapon_first():
         current_stun=40, current_body=10, current_end=40,
         side=Side.named("x"), attacks=[],
     )
+    actor = _opened(actor, framework)
     actor.framework_view = lambda: [framework]              # type: ignore[method-assign]
     assert not actor.attacks, "this fighter has nothing to hit with"
     offers = [a for a in enumerate_actions(
         actor, [fighter("foe", side=Side.named("y"))]) if a.kind == "reallocate"]
-    first_ids = parse_reallocation(offers[0].action_id)[1]
-    assert "claws" in first_ids, (
+    assert "claws" in _on(offers[0]), (
         "a man with no attack should be shown the slot that gives him one"
     )
 
@@ -286,41 +290,36 @@ def test_he_may_trade_his_weapon_for_the_legs_to_reach_anybody():
         current_stun=40, current_body=10, current_end=40,
         side=Side.named("x"), attacks=[],
     )
+    actor = _opened(actor, framework, {"claws"})
     actor.framework_view = lambda: [framework]          # type: ignore[method-assign]
-    points = {sl.slot_id: sl.active_points for sl in framework.slots}
-    menu = enumerate_actions(
-        actor, [fighter("foe", side=Side.named("y"))],
-        slot_allocation={"fw1": (45, 45, {"claws"}, points)},
-    )
+    menu = enumerate_actions(actor, [fighter("foe", side=Side.named("y"))])
     offers = [a for a in menu if a.kind == "reallocate"]
-    assert any("legs" in parse_reallocation(o.action_id)[1] for o in offers), (
+    assert any("legs" in _on(o) for o in offers), (
         "he cannot reach anybody and must be allowed to pick up his legs"
     )
 
 
 def test_the_offer_names_its_slots_and_what_it_switches_off():
     """A chooser returns an id from the menu; the words beside it are all it
-    reads. "make active: s2(45pts)" asked it to look an id up. The offer
-    names each slot, says fixed or variable (6E1 p.405-406) and what it
-    draws, and which slots go off."""
+    reads. "make active: s2(45pts)" asked it to look an id up. A whole-set
+    offer (every slot fixed: a variable one gets the re-split offer
+    instead) names each slot, what it draws, and which slots go off."""
     from kirby_combat.models import FrameworkView, SlotView
 
     fw = FrameworkView(
         framework_id="fw1", xmlid="MULTIPOWER", name="Wind Magic",
         kind="multipower", reserve_or_pool=60,
         slots=[SlotView(slot_id="s1", name="Lightning Bolt", active_points=60,
-                        variable=True, kind="attack"),
+                        variable=False, kind="attack"),
                SlotView(slot_id="s2", name="Wall Of Wind", active_points=45,
                         variable=False, kind="other")],
     )
     # His Wall is up and he switches to the Bolt (a switch AWAY from his
     # only attack slot is withheld from an armed man: the O.K. Corral guard).
-    actor = _actor(fw)
-    menu = enumerate_actions(actor, [fighter("foe", side=Side.named("y"))],
-                             slot_allocation={"fw1": (60, 45, {"s2"},
-                                                      {"s1": 60, "s2": 45})})
+    actor = _actor(fw, {"s2"})
+    menu = enumerate_actions(actor, [fighter("foe", side=Side.named("y"))])
     words = [a.summary for a in menu if a.kind == "reallocate"]
-    assert any("Lightning Bolt (variable, 60 pts)" in w
+    assert any("Lightning Bolt (fixed, 60 pts)" in w
                and "switches off Wall Of Wind" in w for w in words), words
 
 
@@ -341,14 +340,15 @@ def test_a_switch_that_ends_a_kept_up_field_says_so():
 
 def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
     """The juggling is the chooser's: it must see what is drawn and what is
-    free, and what a fixed and a variable slot are (6E1 p.405-406)."""
+    free, and what a fixed and a variable slot are (6E1 p.404-405)."""
     import uuid
     from datetime import UTC, datetime
 
     from conftest import session_of
     from kirby_combat.brief_detail import framework_lines
     from kirby_combat.loop.chooser import PhaseSituation
-    from kirby_combat.models import FrameworkView, SlotView
+    from kirby_combat.hero_view import SlotEffect, SlotStep
+    from kirby_combat.models import FrameworkView, PricedSlotView, SlotView
     from kirby_combat.session.apply import apply_event
     from kirby_combat.session.events import SlotsAllocated, make_author_engine
 
@@ -368,9 +368,23 @@ def test_the_brief_shows_the_reserve_in_use_and_what_fixed_means():
         combatant_id="lad", framework_id="fw1",
         slot_points={"s1": 0, "s3": 45}, opening=True,
     ))
-    # The fold replaces the combatant, so the (synthetic) view is attached after.
+    # The fold replaces the combatant, so the (synthetic) view is attached
+    # after; the brief reads each slot's current effect off the priced one.
+    priced = FrameworkView(
+        framework_id="fw1", xmlid="MULTIPOWER", name="Wind Magic",
+        kind="multipower", reserve_or_pool=60,
+        slots=[PricedSlotView(slot_id=sl.slot_id, name=sl.name,
+                              active_points=sl.active_points,
+                              variable=sl.variable, kind=sl.kind,
+                              steps=(SlotStep(0, "", SlotEffect.nothing()),
+                                     SlotStep(sl.active_points, f"{sl.name} up",
+                                              SlotEffect.nothing())))
+               for sl in fw.slots],
+    )
     s.combatants["lad"].framework_view = lambda: [fw]       # type: ignore[method-assign]
+    s.combatants["lad"].priced_framework_view = lambda: [priced]  # type: ignore[method-assign]
     lines = framework_lines(PhaseSituation(actor=s.combatants["lad"], menu=[], session=s))
     assert "  45 of 60 points in use, 15 free" in lines
-    assert any("fixed slot draws its full Active Points" in ln and "6E1 p.405-406" in ln
+    assert any("fixed slot draws its full Active Points" in ln and "6E1 p.404-405" in ln
                for ln in lines)
+    assert "  Wall Of Wind: 45 AP, fixed, now Wall Of Wind up (45 pts)" in lines

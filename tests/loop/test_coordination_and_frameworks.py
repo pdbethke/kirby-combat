@@ -14,7 +14,7 @@ from kirby_combat.coordination import (
 )
 from kirby_combat.enumeration import LegalAction
 from kirby_combat.framework import (
-    ReserveExceeded, allocation_for, parse_reallocation, slot_points_for,
+    ReserveExceeded, allocation_for, framework_id_of, slot_points_for,
     validate_split,
 )
 from kirby_combat.loop import registered_kinds
@@ -54,10 +54,17 @@ def _framework(
 
 
 def _slot(slot_id: str, points: int, *, variable: bool = False) -> SlotView:
-    return SlotView(
-        slot_id=slot_id, name=slot_id.title(), active_points=points,
-        variable=variable, kind="attack", attack=None,
-    )
+    """A fixed slot plain; a variable one PRICED (R10: a share is checked
+    against its ladder), with a rung at every point as stand-ins."""
+    plain = dict(slot_id=slot_id, name=slot_id.title(), active_points=points,
+                 variable=variable, kind="attack", attack=None)
+    if not variable:
+        return SlotView(**plain)
+    from kirby_combat.hero_view import SlotEffect, SlotStep
+    from kirby_combat.models import PricedSlotView
+
+    return PricedSlotView(**plain, steps=tuple(
+        SlotStep(p, f"{p} pts", SlotEffect.nothing()) for p in range(points + 1)))
 
 
 def _with_frameworks(combatant, *frameworks):
@@ -68,6 +75,9 @@ def _with_frameworks(combatant, *frameworks):
     power objects the deriver would have to parse.
     """
     object.__setattr__(combatant, "framework_view", lambda: list(frameworks))
+    # A split is checked against the priced view (R10). These slots are all
+    # fixed, which carry no ladder the check reads (on at full or off).
+    object.__setattr__(combatant, "priced_framework_view", lambda: list(frameworks))
     return combatant
 
 
@@ -219,15 +229,14 @@ def test_the_window_is_scoped_to_its_target():
 # ---- Framework state ----
 
 @pytest.mark.parametrize("action_id, expected", [
-    ("reallocate_slots:fw1:a,b,c", ("fw1", ("a", "b", "c"))),
-    ("reallocate_slots:fw1:a", ("fw1", ("a",))),
-    ("reconfigure_vpp:pool9", ("pool9", ())),
-    ("reallocate_slots:fw1:", ("fw1", ())),
-    ("reallocate_slots", ("", ())),
-    ("", ("", ())),
+    ("reallocate_slots:fw1:split", "fw1"),
+    ("reallocate_slots:fw1:split=a@20+b@20", "fw1"),
+    ("reconfigure_vpp:pool9", "pool9"),
+    ("reallocate_slots", ""),
+    ("", ""),
 ])
 def test_the_framework_is_read_off_the_offer(action_id, expected):
-    assert parse_reallocation(action_id) == expected
+    assert framework_id_of(action_id) == expected
 
 
 def test_an_unidentifiable_framework_refuses():

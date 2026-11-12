@@ -594,6 +594,155 @@ def _reallocate_summary(framework: str, reserve: float, drawn: float,
     return text
 
 
+def _multipower_offers(actor: Any, fw_views: list, *, actions: list,
+                       alive_enemies: list, kept_up_items: Any) -> list["LegalAction"]:
+    """The reallocate offers for each OPENED Multipower of ``actor``.
+
+    A Multipower with a variable slot gets ONE offer, ``reallocate_slots:
+    <fw>:split``, which a seat completes with points per slot
+    (`framework.SplitChoice`, 6E1 p.404-406), carrying neutral presets
+    (`split_menu`). One with only fixed slots keeps whole-set offers, each a
+    complete id with every slot named at its full Active Points or off.
+
+    A framework not yet opened (no `slot_points` entry) is offered nothing:
+    stating the first split is part of setting up the fight, not a re-split,
+    and the resolver refuses a re-split of it.
+    """
+    from kirby_combat.framework import slot_points_for
+    from kirby_combat.split_menu import split_offer
+
+    out: list[LegalAction] = []
+    priced = None
+    for fv in fw_views:
+        if fv.kind != "multipower":
+            continue
+        current = slot_points_for(actor, fv.framework_id)
+        if current is None:
+            continue
+        if any(sl.variable for sl in fv.slots):
+            # THE PRICED VIEW (R10): the presets and the summary read each
+            # slot's ladder, and the choice holds an answer to it.
+            if priced is None:
+                priced = {v.framework_id: v for v in actor.priced_framework_view()}
+            choice, summary = split_offer(
+                priced[fv.framework_id], current,
+                actor.state.standing_splits.get(fv.framework_id, ()))
+            # NO "DON'T DISARM HIM" GUARD HERE (spec §5.3). It existed
+            # because a first-on-menu fallback took the first switch it
+            # saw; this offer has no answerable id of its own, so a chooser
+            # must state a split, and everything into Flight to get away is
+            # a legal and sometimes smart one.
+            out.append(LegalAction(
+                action_id=f"reallocate_slots:{fv.framework_id}:split",
+                kind="reallocate", target_id=None,
+                power_xmlid=fv.xmlid, power_name=fv.name,
+                summary=summary, choice=choice,
+            ))
+        elif len(fv.slots) > 1:
+            out.extend(_fixed_set_offers(
+                actor, fv, current, actions=actions,
+                alive_enemies=alive_enemies, kept_up_items=kept_up_items))
+    return out
+
+
+def _fixed_set_offers(actor: Any, fv: Any, current: dict, *, actions: list,
+                      alive_enemies: list, kept_up_items: Any) -> list["LegalAction"]:
+    """Whole-set offers for a Multipower whose slots are all fixed (6E1
+    p.404-405: each on at its full Active Points or off).
+
+    Each id is a completed split (``reallocate_slots:<fw>:split=<sid>@<AP>
+    +...``) the resolver holds to the rule like any other answer.
+    """
+    from kirby_combat.framework import SPLIT_AT, SPLIT_JOIN, SPLIT_SUFFIX
+
+    # WHAT THE RESERVE CAN ACTUALLY PAY FOR. This used to name every slot in
+    # one id and let the resolver refuse it: Power Lad's five 44-45 point
+    # slots against a 45-point reserve draw 224, so the resolver refused it
+    # with `ReserveExceeded` every time. He chose it 152 times in one fight
+    # and the O.K. Corral ran to `max_turns` undecided --- the menu offering
+    # what the engine rejects, for ever. 6E1 p.404 makes the reserve the
+    # total a Multipower's slots may draw AT ONCE.
+    reserve = int(fv.reserve_or_pool)
+    _points = {sl.slot_id: int(sl.active_points) for sl in fv.slots}
+
+    # Everything at once when the reserve is generous enough --- no reason
+    # to make a fighter switch one at a time.
+    _sets: list[tuple[str, ...]] = []
+    if reserve and sum(_points.values()) <= reserve:
+        _sets.append(tuple(_points))
+    else:
+        # Otherwise one offer per slot he can actually switch TO; a slot
+        # bigger than the whole reserve can never be turned on.
+        _sets = [(sid,) for sid, cost in _points.items()
+                 if reserve and cost <= reserve]
+        # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
+        # something that fights. At the O.K. Corral Power Lad --- whose
+        # claws are a slot that was not switched on, so he had no attack
+        # offers and no tactic matched --- shuffled his own powers for two
+        # hundred and eighty-nine Phases while one cowboy aimed at him. The
+        # signal is "nothing on this MENU can attack", not "the build has no
+        # attacks": his claws are gated off the menu while their slot draws
+        # nothing.
+        if not any(a.kind in _ATTACKING_KINDS for a in actions):
+            _attackish = {sl.slot_id for sl in fv.slots if sl.kind == "attack"}
+            _sets.sort(key=lambda st: 0 if _attackish.intersection(st) else 1)
+
+    # AND IT MUST CHANGE SOMETHING: Power Lad once reallocated to the slot
+    # he already had, 152 times, for 289 Phases.
+    _live = {sid for sid, pts in current.items() if pts > 0}
+
+    # AND IT MUST NOT DISARM HIM --- kept for fixed-only Multipowers only
+    # (spec §5.3). These offers are complete ids a first-on-menu fallback can
+    # still pick, and that fallback, with his claws on and enemies up, took
+    # the first switch it saw and put his only weapon down; next Phase he
+    # switched back. ARMED MEANS "CAN HIT SOMEBODY ON THIS MENU", not "owns
+    # a weapon" (PeterB: "powerlad can also superleap"): with nobody in
+    # reach, trading claws for legs is what a Multipower is for.
+    _attack_slots = {sl.slot_id for sl in fv.slots if sl.kind == "attack"}
+    _armed_now = any(a.kind in _ATTACKING_KINDS for a in actions)
+
+    # WHAT EACH SLOT IS, BY NAME, and what keeps going on it: 6E1 p.402
+    # takes down a Constant power whose slot loses the reserve, so a switch
+    # that ends a Darkness field or an Image he is keeping up says so.
+    _slot_name = {sl.slot_id: sl.name for sl in fv.slots}
+    _slot_kind = {sl.slot_id: "fixed" for sl in fv.slots}
+    from kirby_combat.kept_up import KeptKind
+    from kirby_combat.upkeep import framework_slot
+
+    _kept_on: dict[str, list[str]] = {}
+    for _item in kept_up_items or ():
+        _src = (darkness_power if _item.kind is KeptKind.DARKNESS
+                else images_power)(build_in_play(actor))
+        _where = framework_slot(actor, _src) if _src is not None else None
+        if _where is not None and _where[0] == fv.framework_id:
+            _kept_on.setdefault(_where[1], []).append(
+                "a Darkness field" if _item.kind is KeptKind.DARKNESS
+                else "an Image")
+
+    out: list[LegalAction] = []
+    for _set in _sets:
+        if set(_set) == _live:
+            continue
+        if (alive_enemies and _armed_now and _attack_slots
+                and not (set(_set) & _attack_slots)):
+            continue
+        tail = SPLIT_JOIN.join(f"{sid}{SPLIT_AT}{_points[sid]}" for sid in _set)
+        out.append(LegalAction(
+            action_id=(f"reallocate_slots:{fv.framework_id}:"
+                       f"{SPLIT_SUFFIX}={tail}"),
+            kind="reallocate",
+            target_id=None,
+            power_xmlid=fv.xmlid,
+            power_name=fv.name,
+            summary=_reallocate_summary(
+                fv.name, reserve, sum(_points[sid] for sid in _set), _set,
+                sorted(_live - set(_set)), names=_slot_name, kinds=_slot_kind,
+                points=_points, kept_on=_kept_on,
+            ),
+        ))
+    return out
+
+
 def barrier_not_built(power: Any) -> list[str]:
     """What on a Barrier changes how it lasts and is not carried out here.
 
@@ -898,9 +1047,10 @@ def enumerate_actions(
         when it was made, so no remainder is computed here.
       * None / missing → no gate (all slots offered; existing
         single-attack behavior unchanged).
-    Also offers one ``reallocate_slots:{framework_id}:{slot_id,...}``
-    action per framework that has >1 slot (the actor can change the
-    active set this phase without spending an attack).
+    Also offers, per opened Multipower, one re-split
+    (``reallocate_slots:{framework_id}:split``, completed with points) or,
+    when every slot is fixed, whole-set switches (`_multipower_offers`;
+    6E1 p.404-406, a Zero Phase Action once a Phase: p.410).
 
     ``extra_attacks`` (Task 6): additional ``AttackPower`` instances to offer
     alongside ``actor.attacks`` — used to hydrate a VPP-built power (carrying
@@ -1386,158 +1536,17 @@ def enumerate_actions(
         block_follow_ups=block_follow_ups or frozenset(), weapons=weapons,
     ))
 
-    # Task 8: Multipower reallocate offer.  When the actor has a power
-    # framework with >1 slot, offer one
-    # ``reallocate_slots:{framework_id}:{slot_id,...}`` action per
-    # framework.  This is a zero-phase action: the actor can change
-    # which slots are drawing from the reserve without spending an
-    # attack phase.  Wrapped defensively — a raising framework_view
-    # yields no offers (never breaks the menu).
+    # MULTIPOWER RE-SPLITS (6E1 p.404-406; once a Phase, p.410, which the
+    # loop enforces: `loop.run`). The VPP offer below reuses ``fw_views``.
+    # Wrapped defensively as before: a raising framework_view yields no
+    # framework offers rather than breaking the menu.
     try:
         fw_views = actor.framework_view()
     except Exception:  # noqa: BLE001
         fw_views = []
-    for fv in fw_views:
-        if len(fv.slots) < 2:
-            continue
-        # WHAT THE RESERVE CAN ACTUALLY PAY FOR. This used to name every
-        # slot in one id and let the resolver refuse it: Power Lad's five
-        # 44-45 point slots against a 45-point reserve draw 224, so
-        # the resolver refused it with `ReserveExceeded` every time. He
-        # chose it 152 times in one fight and the O.K. Corral ran to
-        # `max_turns` undecided --- the menu offering what the engine
-        # rejects, for ever, with nothing on either side learning.
-        #
-        # The summary also said "choose which slots are active", which a
-        # chooser cannot do: it returns an id from this menu, so an id
-        # naming all five offered no choice at all.
-        #
-        # 6E1 p.404 makes the reserve the total a Multipower's slots may
-        # draw AT ONCE, and it is the entire reason a framework costs less
-        # than buying the powers outright.
-        reserve = float(getattr(fv, "reserve_or_pool", 0) or 0)
-        _points = {sl.slot_id: float(getattr(sl, "active_points", 0) or 0)
-                   for sl in fv.slots}
-
-        # Everything at once when the reserve is generous enough --- no
-        # reason to make a fighter switch one at a time.
-        _sets: list[tuple[str, ...]] = []
-        if reserve and sum(_points.values()) <= reserve:
-            _sets.append(tuple(_points))
-        else:
-            # Otherwise one offer per slot he can actually switch TO.
-            # Changing which power is up is what a Multipower IS, and a
-            # slot bigger than the whole reserve can never be turned on.
-            _sets = [(sid,) for sid, cost in _points.items()
-                     if reserve and cost <= reserve]
-            # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
-            # something that fights. No tactic in the catalogue emits
-            # `reallocate`, so this offer is only ever taken by the
-            # FALLBACK chooser, which takes the first thing on the menu.
-            # At the O.K. Corral that left Power Lad --- whose claws are a
-            # Multipower slot that was not switched on, so he had no
-            # attack offers and no tactic matched --- shuffling his own
-            # powers for two hundred and eighty-nine Phases while one
-            # cowboy aimed at him. `SlotView` already knows which slots
-            # are attacks; putting them first is the difference between a
-            # monster and a man rummaging in a bag.
-            # The signal is "nothing on this MENU can attack", not "the
-            # build has no attacks". Power Lad's claws are on his build the
-            # whole fight; they are gated OFF the menu while their slot is
-            # not drawing from the reserve, which is exactly the state he
-            # needs to fix and exactly the state `actor.attacks` cannot
-            # see.
-            if not any(a.kind in _ATTACKING_KINDS for a in actions):
-                _attackish = {sl.slot_id for sl in fv.slots
-                              if (getattr(sl, "kind", "") or "") == "attack"}
-                _sets.sort(key=lambda st: 0 if _attackish.intersection(st) else 1)
-
-        # AND IT MUST CHANGE SOMETHING. Once the offers fitted the reserve
-        # they stopped being refused and started succeeding --- and Power
-        # Lad reallocated to the slot he already had, 152 times, for 289
-        # Phases. An action that succeeds and changes nothing, chosen for
-        # ever, is the cover trap one more time: don't offer a man cover
-        # he is already behind.
-        _live = set()
-        if slot_allocation:
-            _entry = slot_allocation.get(fv.framework_id)
-            if _entry:
-                _live = set(_entry[2] or ())
-
-        # AND IT MUST NOT DISARM HIM. This is the mechanism behind the
-        # O.K. Corral livelock. With his claws slot ON, Power Lad has
-        # attacks and fights; the no-op filter then removes CLAWS from his
-        # offers --- correctly, he has it --- leaving only switches that
-        # take his weapon away. On a Phase where no tactic matched, the
-        # fallback took the first thing on the menu and disarmed him, and
-        # next Phase he switched back. 289 Phases, 152 reallocations,
-        # never decided.
-        #
-        # No tactic emits `reallocate`, so this offer is only ever taken by
-        # the FALLBACK --- the chooser least able to judge whether putting
-        # your only weapon down mid-fight is a good idea. So the menu
-        # judges instead: a man with enemies in front of him is not shown
-        # that option. Withheld rather than reordered, because last on the
-        # menu is still reachable and a fallback reaches everything.
-        _attack_slots = {sl.slot_id for sl in fv.slots
-                         if (getattr(sl, "kind", "") or "") == "attack"}
-        # ARMED MEANS "CAN HIT SOMEBODY ON THIS MENU", not "owns a
-        # weapon". PeterB: "powerlad can also superleap" --- his claws and
-        # his 69-point Leaping are BOTH Brick Tricks slots against a
-        # 45-point reserve, so he can have the weapon or the legs and
-        # never both. Crossing a gap MEANS disarming, and that is not a
-        # mistake; it is what a Multipower is for.
-        #
-        # This guard first asked whether he OWNED an attack, which was
-        # true the whole time his claws sat switched on and unusable
-        # against a man 7.8m away --- so it forbade the one switch that
-        # could have closed the distance, and the benchmark stalled.
-        #
-        # Now: if he can hit somebody, putting the weapon down is a bad
-        # idea and is not offered. If he cannot, every switch is on the
-        # table, including trading claws for legs.
-        _armed_now = any(a.kind in _ATTACKING_KINDS for a in actions)
-
-        # WHAT EACH SLOT IS, BY NAME, and what keeps going on it. An offer that
-        # read "make active: 4417(30pts)" asked the chooser to look an id up in
-        # its brief; and 6E1 p.402 takes down a Constant power whose slot
-        # loses the reserve --- so a switch that ends a Darkness field or an
-        # Image he is keeping up says so.
-        _slot_name = {sl.slot_id: sl.name for sl in fv.slots}
-        _slot_kind = {sl.slot_id: ("variable" if sl.variable else "fixed")
-                      for sl in fv.slots}
-        from kirby_combat.kept_up import KeptKind
-        from kirby_combat.upkeep import framework_slot
-
-        _kept_on: dict[str, list[str]] = {}
-        for _item in kept_up_items or ():
-            _src = (darkness_power if _item.kind is KeptKind.DARKNESS
-                    else images_power)(build_in_play(actor))
-            _where = framework_slot(actor, _src) if _src is not None else None
-            if _where is not None and _where[0] == fv.framework_id:
-                _kept_on.setdefault(_where[1], []).append(
-                    "a Darkness field" if _item.kind is KeptKind.DARKNESS
-                    else "an Image")
-
-        for _set in _sets:
-            if set(_set) == _live:
-                continue
-            if (alive_enemies and _armed_now and _attack_slots
-                    and not (set(_set) & _attack_slots)):
-                continue
-            drawn = sum(_points[sid] for sid in _set)
-            actions.append(LegalAction(
-                action_id=f"reallocate_slots:{fv.framework_id}:{','.join(_set)}",
-                kind="reallocate",
-                target_id=None,
-                power_xmlid=fv.xmlid,
-                power_name=fv.name,
-                summary=_reallocate_summary(
-                    fv.name, reserve, drawn, _set, sorted(_live - set(_set)),
-                    names=_slot_name, kinds=_slot_kind, points=_points,
-                    kept_on=_kept_on,
-                ),
-            ))
+    actions.extend(_multipower_offers(
+        actor, fw_views, actions=actions, alive_enemies=alive_enemies,
+        kept_up_items=kept_up_items))
 
     # Task 5: Variable Power Pool reconfigure offer. For each VPP framework,
     # offer one ``reconfigure_vpp:{framework_id}`` action: the actor builds

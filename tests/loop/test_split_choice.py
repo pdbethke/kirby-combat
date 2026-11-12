@@ -18,13 +18,29 @@ from kirby_combat.framework import (
 )
 from kirby_combat.loop.chooser import InvalidChoice, validate_choice
 from kirby_combat.loop.registry import UnresolvableAction, resolve_chosen
-from kirby_combat.models import FrameworkView, SlotView
+from kirby_combat.hero_view import SlotEffect, SlotStep
+from kirby_combat.models import FrameworkView, PricedSlotView, SlotView
 from kirby_combat.side import Side
 
 OFFER = "reallocate_slots:kmp:split"
 
 
+def _rungs(top, every):
+    return tuple(SlotStep(p, f"{p} pts", SlotEffect.nothing())
+                 for p in (*range(0, top, every), top))
+
+
 def _view():
+    """PRICED, as every split is checked (R10); the rungs are stand-ins."""
+    return FrameworkView(
+        framework_id="kmp", xmlid="MULTIPOWER", name="Kerendor's Magic",
+        kind="multipower", reserve_or_pool=60,
+        slots=[PricedSlotView("wind", "Wind", 60, True, "other", steps=_rungs(60, 1)),
+               PricedSlotView("bolt", "Bolt", 60, True, "attack", steps=_rungs(60, 5)),
+               PricedSlotView("wall", "Wall", 45, False, "other", steps=_rungs(45, 45))])
+
+
+def _plain_view():
     return FrameworkView(
         framework_id="kmp", xmlid="MULTIPOWER", name="Kerendor's Magic",
         kind="multipower", reserve_or_pool=60,
@@ -34,7 +50,13 @@ def _view():
 
 
 def _choice(current=None):
-    return split_choice_of(_view(), current or {})
+    return split_choice_of(_view(), current or {}, presets=())
+
+
+def _priced(c, view=None):
+    c.framework_view = lambda: [_plain_view()]          # type: ignore[method-assign]
+    c.priced_framework_view = lambda: [view or _view()]  # type: ignore[method-assign]
+    return c
 
 
 def _offer(current=None):
@@ -43,11 +65,9 @@ def _offer(current=None):
 
 
 def _world():
-    actor = fighter("kerendor", side=Side.named("x"))
-    actor.framework_view = lambda: [_view()]            # type: ignore[method-assign]
+    actor = _priced(fighter("kerendor", side=Side.named("x")))
     s = session_of(actor, fighter("foe", side=Side.named("y")))
-    s.combatants["kerendor"].framework_view = lambda: [_view()]  # type: ignore[method-assign]
-    return s, s.combatants["kerendor"]
+    return s, _priced(s.combatants["kerendor"])
 
 
 def _resolve(s, actor, action_id, kind="reallocate"):
@@ -165,7 +185,32 @@ def test_an_empty_whole_tail_means_every_slot_off():
 
 def test_an_actor_not_in_the_session_is_refused():
     s, actor = _world()
-    stranger = fighter("stranger", side=Side.named("x"))
-    stranger.framework_view = lambda: [_view()]         # type: ignore[method-assign]
+    stranger = _priced(fighter("stranger", side=Side.named("x")))
     with pytest.raises(UnresolvableAction):
         _resolve(s, stranger, "opening_split:kmp:split=wall@45", "opening_split")
+
+
+# ── R10: a split is checked against the priced ladders or not at all ──────
+
+def test_an_unpriced_view_cannot_check_a_variable_share():
+    """Loud, not lenient: a plain view has no ladder, so the R9 rule could
+    not be applied, and checking the rest would pass a split it forbids."""
+    with pytest.raises(TypeError, match="priced"):
+        validate_split(_plain_view(), {"bolt": 40})
+    with pytest.raises(TypeError, match="priced"):
+        split_choice_of(_plain_view(), {}, presets=()).parse("bolt@40")
+
+
+def test_a_fixed_only_split_needs_no_ladder():
+    view = FrameworkView(
+        framework_id="f", xmlid="MULTIPOWER", name="F", kind="multipower",
+        reserve_or_pool=45, slots=[SlotView("a", "A", 45, False, "other")])
+    assert validate_split(view, {"a": 45}) == 45
+
+
+def test_the_resolver_refuses_a_framework_it_cannot_price():
+    s, actor = _world()
+    s = _open(s, actor)
+    actor.priced_framework_view = lambda: []           # type: ignore[method-assign]
+    with pytest.raises(UnresolvableAction):
+        _resolve(s, actor, f"{OFFER}=bolt@40")

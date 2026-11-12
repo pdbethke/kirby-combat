@@ -34,6 +34,22 @@ def _view() -> FrameworkView:
                          kind="multipower", reserve_or_pool=60, slots=slots)
 
 
+def _priced_view() -> FrameworkView:
+    """`_view` with stand-in ladders: the menu's re-split offer reads the
+    priced view (R10)."""
+    from kirby_combat.hero_view import SlotEffect, SlotStep
+    from kirby_combat.models import PricedSlotView
+
+    return FrameworkView(
+        framework_id="kmp", xmlid="MULTIPOWER", name="MP", kind="multipower",
+        reserve_or_pool=60, slots=[PricedSlotView(
+            slot_id=sl.slot_id, name=sl.name, active_points=sl.active_points,
+            variable=True, kind="attack", attack=None,
+            steps=tuple(SlotStep(p, f"{p} pts", SlotEffect.nothing())
+                        for p in range(0, sl.active_points + 1, 10)))
+            for sl in _view().slots])
+
+
 def _session():
     def man(i, side):
         return synthetic_combatant(
@@ -123,6 +139,7 @@ def test_a_zero_point_slot_is_not_usable_in_enumeration():
     alice = cls(id=alice.id, hero=alice.hero, state=alice.state,
                 knockback_resistance=alice.knockback_resistance)
     object.__setattr__(alice, "framework_view", lambda: [_view()])
+    object.__setattr__(alice, "priced_framework_view", lambda: [_priced_view()])
     offers = enumerate_actions(alice, [bob],
                                slot_allocation=allocation_for(s, alice))
     used = {a.action_id for a in offers if a.kind == "attack"}

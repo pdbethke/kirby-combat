@@ -44,26 +44,6 @@ def framework_id_of(action_id: str) -> str:
     return parts[1]
 
 
-def parse_reallocation(action_id: str) -> tuple[str, tuple[str, ...]]:
-    """Read a framework id and the slot ids an OLD-STYLE offer lists.
-
-    ``reallocate_slots:<framework_id>:<slot_id,slot_id,...>`` is the shape
-    enumeration still writes until the split offers replace it; the
-    resolver no longer accepts it (a split is stated in points, not as a
-    set of slots: 6E1 p.404-406). Kept so enumeration's own tests can read
-    what it offers; the resolver uses `framework_id_of` and `SplitChoice`.
-
-    Returns ``("", ())`` for anything else.
-    """
-    framework_id = framework_id_of(action_id)
-    if not framework_id:
-        return "", ()
-    parts = action_id.split(":")
-    if len(parts) < 3 or not parts[2]:
-        return framework_id, ()
-    return framework_id, tuple(x for x in parts[2].split(",") if x)
-
-
 def slot_points_for(actor, framework_id: str) -> dict[str, int] | None:
     """The points ``actor`` has put in each slot of ``framework_id``, as the
     latest `SlotsAllocated` left them on his state (6E1 p.404-406), or None
@@ -174,9 +154,11 @@ class SlotTerms:
 
     ``max_points`` is the slot's Active Points; ``steps`` the points of
     each rung of its priced ladder (the points themselves need not sit on a
-    rung: p.406), or None for a slot nobody priced (a hand-made view). A
+    rung: p.406), or None for a slot read from a plain, unpriced view. A
     variable slot whose ladder is just ``(0, max_points)`` has nothing
-    between off and as bought, so a share in between is refused (R9).
+    between off and as bought, so a share in between is refused (R9); a
+    variable slot with no ladder at all cannot be checked, and
+    `_check_split` raises ``TypeError`` rather than check half the rule.
     """
 
     slot_id: str
@@ -196,7 +178,9 @@ def _check_split(
     VARIABLE slot takes any share of the reserve from 0 to its Active
     Points (p.405). p.404: the shares together may not exceed the reserve.
     Raises ``KeyError`` for a slot the framework lacks, ``ValueError`` for
-    a share the slot's kind forbids, ``ReserveExceeded`` for an overdraw.
+    a share the slot's kind forbids, ``ReserveExceeded`` for an overdraw,
+    and ``TypeError`` for a variable slot with no priced ladder (an unpriced
+    view, which is the caller's mistake, not the seat's).
     """
     unknown = sorted(sid for sid in points if sid not in terms)
     if unknown:
@@ -204,6 +188,13 @@ def _check_split(
     for sid, pts in points.items():
         t = terms[sid]
         if t.variable:
+            if t.steps is None:
+                # Not a rule break but a caller's mistake: an unpriced view
+                # cannot say whether a share is legal (R9), so nothing is
+                # checked against it rather than half of it.
+                raise TypeError(
+                    f"{t.name!r} is a variable slot with no priced ladder; "
+                    f"check a split against `priced_framework_view()`")
             if not 0 <= pts <= t.max_points:
                 raise ValueError(
                     f"{t.name!r} is a variable slot of {t.max_points} Active "
@@ -249,6 +240,43 @@ def validate_split(view: "FrameworkView", points: dict[str, int]) -> int:
 
 
 @dataclass(frozen=True)
+class Preset:
+    """A named split the menu suggests (spec §5.3): the full split, every
+    slot named (0 = off), and what it buys in words.
+
+    ``standing`` marks the player's own (`StandingSplit`, spec §5.5a), which
+    come first; ``standard`` marks the one he fights with by default, which
+    only the opening reads. The neutral ones ("All in <slot>", "Even",
+    "<fixed slot> + remainder") read nothing but the framework: no board,
+    no threat, no enemy.
+    """
+
+    name: str
+    points: dict[str, int]
+    effect_text: str
+    standing: bool
+    standard: bool
+
+
+@dataclass(frozen=True)
+class StandingSplit:
+    """A split the player has named and saved for a Multipower (spec §5.5a):
+    "Patrol", "Combat". kirby-api stores and validates them on save and
+    hands them over at seating as plain data; the engine re-checks each
+    against the build in play (`validate_split`) and leaves one that no
+    longer fits off the menu, with its reason in the brief.
+
+    ``points`` need not name every slot (an unnamed slot is off);
+    ``position`` orders them; ``standard`` marks his usual combat set.
+    """
+
+    name: str
+    points: dict[str, int]
+    standard: bool
+    position: int
+
+
+@dataclass(frozen=True)
 class SplitChoice:
     """What a Multipower's user states per split: points per slot.
 
@@ -261,13 +289,16 @@ class SplitChoice:
     the rule. Same shape as `adjustments.CharacteristicChoice`.
 
     ``current`` is the split in force ({} before the opening); answering
-    with it changes nothing and is refused.
+    with it changes nothing and is refused. ``presets`` are the menu's
+    suggestions (`split_menu.presets_for`), each one an answer; any other
+    legal split is one too.
     """
 
     framework_id: str
     reserve: int
     slots: tuple[SlotTerms, ...]
     current: dict[str, int]
+    presets: tuple[Preset, ...]
 
     def instructions(self) -> str:
         """How to answer, for the refusal a bare id earns."""
@@ -329,26 +360,29 @@ def reallocated_this_phase(session: "CombatSession", combatant_id: str) -> bool:
     )
 
 
-def split_choice_of(view: "FrameworkView", current: dict[str, int]) -> SplitChoice:
+def split_choice_of(view: "FrameworkView", current: dict[str, int],
+                    presets: tuple[Preset, ...]) -> SplitChoice:
     """The `SplitChoice` for ``view`` given the split in force.
 
-    Pass the PRICED view (`HeroCombatant.priced_framework_view`) and each
+    Pass the PRICED view (`HeroCombatant.priced_framework_view`): each
     slot's ladder rides in its `SlotTerms.steps`, so `parse` can refuse a
-    share of a slot that has no step between off and as bought. A plain view
-    carries no ladders and that rule is then not checked.
+    share of a slot that has no step between off and as bought. A plain
+    view carries no ladders, and `parse` raises ``TypeError`` on its
+    variable slots rather than skip that rule.
     """
     return SplitChoice(
         framework_id=view.framework_id,
         reserve=int(view.reserve_or_pool or 0),
         slots=tuple(_terms_of(s) for s in view.slots),
         current=dict(current),
+        presets=tuple(presets),
     )
 
 
 def split_of_action(action_id: str, kind_prefix: str) -> tuple[str, str]:
     """``(framework_id, tail)`` of a completed split id
     ``<kind_prefix>:<framework_id>:split=<tail>``; ``("", "")`` for anything
-    else (the legacy ``reallocate_slots:<fw>:<a,b>`` among it)."""
+    else."""
     base, sep, tail = (action_id or "").rpartition("=")
     parts = base.split(":")
     if (not sep or len(parts) != 3 or parts[0] != kind_prefix

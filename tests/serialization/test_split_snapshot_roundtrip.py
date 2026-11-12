@@ -213,7 +213,7 @@ def _offer(live):
     from kirby_combat.enumeration import LegalAction
     from kirby_combat.framework import split_choice_of
     [view] = [f for f in live.priced_framework_view() if f.framework_id == FRAMEWORK]
-    choice = split_choice_of(view, {})
+    choice = split_choice_of(view, {}, presets=())
     return LegalAction(
         action_id=f"reallocate_slots:{FRAMEWORK}:split", kind="reallocate",
         target_id=None, power_xmlid=None, power_name=None, summary="split",

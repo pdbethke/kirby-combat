@@ -3172,8 +3172,8 @@ def _resolve_split(
     (`framework.SPLIT_SUFFIX`) carries the points; they are re-held to the
     rule HERE rather than trusted from the menu, because an offer is not a
     permission slip --- a hand-built id would otherwise switch on a split
-    the build cannot pay for. The legacy ``reallocate_slots:<fw>:<a,b>``
-    names slots, not points, and is refused (`split_of_action`).
+    the build cannot pay for. An id that does not state a split (the
+    retired slot-list shape among them) is refused (`split_of_action`).
 
     Two events: the ActionDeclared/ActionResolved pair every resolver
     records, and `SlotsAllocated`, which `apply_event` folds onto
@@ -3193,16 +3193,13 @@ def _resolve_split(
     framework_id, tail = split_of_action(action.action_id, kind_prefix)
     if not framework_id:
         raise UnresolvableAction(action.kind, action.action_id)
-    view = next((v for v in (getattr(actor, "framework_view", lambda: [])() or [])
+    # The framework WITH ITS LADDERS, so the split is held to every rule
+    # (`SlotTerms.steps`, R9/R10). One the actor cannot price is refused,
+    # never checked against half the rule.
+    view = next((v for v in actor.priced_framework_view()
                  if v.framework_id == framework_id), None)
     if view is None:
         raise UnresolvableAction(action.kind, action.action_id)
-    # The same framework with its ladders, so the split is held to them
-    # (`SlotTerms.steps`); an actor that cannot price one (a hand-made view)
-    # is held to the rest of the rule only.
-    view = next((v for v in (getattr(actor, "priced_framework_view",
-                                     lambda: [])() or [])
-                 if v.framework_id == framework_id), view)
 
     in_session = session.combatants.get(actor.id)
     if in_session is None:
@@ -3214,7 +3211,9 @@ def _resolve_split(
         raise UnresolvableAction(action.kind, action.action_id)
     current = in_session.state.slot_points[framework_id] if opened else {}
     try:
-        slot_points = split_choice_of(view, current).parse(tail)
+        # The presets are the menu's; the resolver holds the answer to the
+        # rule alone, so it builds the choice without them.
+        slot_points = split_choice_of(view, current, presets=()).parse(tail)
     except ValueError as exc:
         raise UnresolvableAction(action.kind, action.action_id) from exc
 

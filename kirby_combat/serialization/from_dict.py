@@ -312,6 +312,15 @@ def _hero_combatant_from_dict(data: dict) -> Any:
                "the key is required")
         raise ValueError(
             f"combatant {data.get('id')!r} has no `slot_points`: {old}")
+    if "standing_splits" not in data:
+        # Required, like `slot_points`: a snapshot written before standing
+        # splits (spec §5.5a) cannot say which presets the player had.
+        raise ValueError(
+            f"combatant {data.get('id')!r} has no `standing_splits`: the key "
+            f"is required (written before Multipower splits; re-create the "
+            f"fight)")
+    from kirby_combat.framework import StandingSplit
+
     state = HeroCombatState(
         current_stun=int(data["current_stun"]),
         current_body=int(data["current_body"]),
@@ -324,6 +333,12 @@ def _hero_combatant_from_dict(data: dict) -> Any:
         adjusted_dice=dict(data.get("adjusted_dice") or {}),
         used_charges=dict(data.get("used_charges") or {}),
         slot_points={fw: dict(slots) for fw, slots in data["slot_points"].items()},
+        standing_splits={
+            fw: tuple(StandingSplit(name=sp["name"], points=dict(sp["points"]),
+                                    standard=bool(sp["standard"]),
+                                    position=int(sp["position"]))
+                      for sp in splits)
+            for fw, splits in data["standing_splits"].items()},
         last_acted_segment=data.get("last_acted_segment"),
         aborted=bool(data.get("aborted", False)),
         in_hero_id=bool(data.get("in_hero_id", True)),

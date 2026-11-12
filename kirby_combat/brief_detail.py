@@ -880,37 +880,44 @@ _FRAMEWORK_KINDS = {
 
 def framework_lines(situation: "PhaseSituation") -> list[str]:
     """The actor's frameworks: reserve or pool, each slot with its cost and
-    whether it is fixed or variable, which are switched on in this fight,
-    and the attack a slot fires --- its dice and, for an NND, the defense
-    that stops it (6E1 p.328).
+    whether it is fixed or variable, and the attack a slot fires --- its
+    dice and, for an NND, the defense that stops it (6E1 p.328).
 
-    The old page said "~Nd6" for every slot by dividing Active Points by
-    five, which is the damage of a Blast and the damage of nothing else; a
-    slot that is an attack now reports the attack's own dice from the view
-    resolution uses, and a slot that is not reports its Active Points.
+    For an opened Multipower (6E1 p.404-406): one line on what fixed and
+    variable mean, the reserve in use and free, what each slot does at the
+    points it holds now, the presets the re-split offer carries with what
+    each buys, and any standing split of the player's that no longer fits
+    the build (spec §5.5a), with the rule it breaks.
 
     Switching slots and rebuilding a pool are named only when the menu
     offers them, because an offer that is not on the menu is not a fact
     about this Phase.
     """
-    from kirby_combat.framework import allocation_for
+    from kirby_combat.framework import slot_points_for
+    from kirby_combat.split_menu import slot_display, standing_refusals
 
     actor = situation.actor
     views = list(getattr(actor, "framework_view", lambda: [])() or [])
     if not views:
         return []
-    session = situation.session
-    allocation = (allocation_for(session, actor) or {}) if session is not None else {}
+    offers = {a.choice.framework_id: a.choice for a in situation.menu
+              if a.kind == "reallocate" and a.choice is not None}
+    priced = None
     out: list[str] = []
     for fw in views:
         label, unit = _FRAMEWORK_KINDS.get(fw.kind, (fw.kind.replace("_", " ").title(), "pool"))
-        entry = allocation.get(fw.framework_id)
-        active = set(entry.active) if entry is not None else set()
+        points = slot_points_for(actor, fw.framework_id) if fw.kind == "multipower" else None
         out.append(f"{fw.name} ({label}, {fw.reserve_or_pool}-point {unit}):")
-        if fw.kind == "multipower" and active:
-            used = int(entry.used)
+        if points is not None:
+            if priced is None:
+                priced = {v.framework_id: v for v in actor.priced_framework_view()}
+            pfw = priced[fw.framework_id]
+            used = sum(points.values())
             free = max(0, int(fw.reserve_or_pool or 0) - used)
             out.append(f"  {used} of {fw.reserve_or_pool} points in use, {free} free")
+            out.append("  A fixed slot draws its full Active Points or nothing; a "
+                       "variable slot takes any share from 0 to its Active "
+                       "Points and does as much as that buys (6E1 p.404-405).")
         if not fw.slots:
             out.append("  nothing in it yet")
         for slot in fw.slots:
@@ -921,21 +928,33 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
                 if atk.plus_one:
                     dice += "+1"
                 kind = "killing" if atk.damage_type == "killing" else "normal"
-                bits.append(f"{dice} {kind}")
+                bits.append(f"{dice} {kind} as bought")
                 if atk.avad:
                     bits.append(f"NND, stopped only by {atk.avad_defense or 'its named defense'}")
-            if slot.slot_id in active:
-                bits.append("switched on")
+            if points is not None:
+                held = points.get(slot.slot_id, 0)
+                [pslot] = [s for s in pfw.slots if s.slot_id == slot.slot_id]
+                bits.append(f"now {slot_display(pslot, held)} ({held} pts)"
+                            if held > 0 else "off")
             out.append(f"  {slot.name}: {', '.join(bits)}")
+        choice = offers.get(fw.framework_id)
+        if choice is not None and choice.presets:
+            out.append("  Presets for the re-split:")
+            for preset in choice.presets:
+                own = ((" (his own, his usual set)" if preset.standard
+                        else " (his own)") if preset.standing else "")
+                out.append(f"    {preset.name}{own}: {preset.effect_text}")
+        if points is not None:
+            standing = actor.state.standing_splits.get(fw.framework_id, ())
+            for sp, reason in standing_refusals(pfw, standing):
+                out.append(f"  standing split '{sp.name}' no longer fits: {reason}")
     if any(fw.kind == "multipower" for fw in views):
-        # 6E1 p.405-406, so the numbers above can be reasoned with.
-        out.append("A fixed slot draws its full Active Points from the reserve "
-                   "or nothing; variable slots share whatever the fixed ones "
-                   "leave (6E1 p.405-406). A Constant power (Darkness, Images) "
-                   "stops when its slot is switched off (6E1 p.402).")
+        out.append("A Constant power (Darkness, Images) stops when its slot is "
+                   "switched off (6E1 p.402).")
     kinds = {a.kind for a in situation.menu}
     if "reallocate" in kinds:
-        out.append("Switching slots is on the menu (reallocate).")
+        out.append("Re-splitting a Multipower is on the menu (reallocate): a "
+                   "Zero Phase Action, once a Phase (6E1 p.410).")
     if "reconfigure_vpp" in kinds:
         out.append("Rebuilding a pool is on the menu (reconfigure_vpp).")
     return out

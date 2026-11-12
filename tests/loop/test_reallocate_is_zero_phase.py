@@ -12,10 +12,7 @@ to the cap, so the fight never ended.
 """
 from __future__ import annotations
 
-import pytest
-
 from conftest import encounter_of, fighter      # tests/loop/conftest.py
-from kirby_combat.loop.registry import UnresolvableAction
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
@@ -54,17 +51,20 @@ class Reallocates:
 
 
 def _fight():
+    from dataclasses import replace
+
     lad = fighter("lad", side=Side.named("heroes"), dex=30)
+    # Opened with s1 up: a re-split is offered once the fight has a split.
+    lad = replace(lad, state=replace(lad.state, slot_points={
+        "fw1": {"s1": 40, "s2": 0}}))
     lad.framework_view = lambda: [_framework()]       # type: ignore[method-assign]
+    # Both slots fixed: on at full or off, so no ladder is needed to check
+    # the split the resolver is handed (R10 reads the priced view).
+    lad.priced_framework_view = lambda: [_framework()]  # type: ignore[method-assign]
     foe = fighter("foe", side=Side.named("villains"), dex=10)
     return encounter_of(lad, foe)
 
 
-@pytest.mark.xfail(
-    strict=True, raises=UnresolvableAction,
-    reason="enumeration still offers the legacy slot-list id, which the resolver "
-           "now refuses (a split is stated in points: 6E1 p.404-406); the split "
-           "offers arrive with the enumeration rewrite (MP-splits Task 10)")
 def test_a_reallocation_leaves_the_phase_his():
     chooser = Reallocates()
     first = run_phase(_fight(), chooser, roller=RandomRoller(seed=1),
@@ -75,11 +75,6 @@ def test_a_reallocation_leaves_the_phase_his():
     assert first.actor_id == "lad"
 
 
-@pytest.mark.xfail(
-    strict=True, raises=UnresolvableAction,
-    reason="enumeration still offers the legacy slot-list id, which the resolver "
-           "now refuses (a split is stated in points: 6E1 p.404-406); the split "
-           "offers arrive with the enumeration rewrite (MP-splits Task 10)")
 def test_the_same_phase_comes_back_without_the_offer_and_he_acts():
     chooser = Reallocates()
     first = run_phase(_fight(), chooser, roller=RandomRoller(seed=1),

@@ -126,6 +126,13 @@ def to_dict(obj: Any) -> Any:
             "adjusted_dice": dict(obj.state.adjusted_dice),
             "used_charges": dict(obj.state.used_charges),
             "slot_points": {fw: dict(slots) for fw, slots in obj.state.slot_points.items()},
+            # The player's named splits as he was seated with them (spec
+            # §5.5a), so a replay offers the same presets.
+            "standing_splits": {
+                fw: [{"name": sp.name, "points": dict(sp.points),
+                      "standard": sp.standard, "position": sp.position}
+                     for sp in splits]
+                for fw, splits in obj.state.standing_splits.items()},
             "last_acted_segment": obj.state.last_acted_segment,
             "aborted": obj.state.aborted,
             "in_hero_id": obj.state.in_hero_id,
