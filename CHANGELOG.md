@@ -6,6 +6,7 @@
 
 ### Added
 - **`SlotTerms.displays`** (new, required): kirby-cost's words for each rung of `steps` ("" at 0), one apiece; None exactly when `steps` is None (an unpriced view).
+- **`split_menu.rung_at(slot, points)`** (was the private `_rung`): the rung a slot holding `points` stands on, the highest at or under them (6E1 p.406), so a seat reads what a preset enables (`.effect`) without restating the rule.
 - **`SlotsAllocated.effect_text`**: what the split does, from `split_menu.effect_text` ("nothing switched on" when all are off), set by the resolver for openings and re-splits alike, for the combat log.
 
 ### Fixed

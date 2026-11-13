@@ -34,7 +34,7 @@ enemy. Which split suits the fight is the seat's call; the menu only lists
 splits worth naming.
 
 "Best fitting step": the highest rung of a slot's priced ladder at or under
-the points left. A share that falls between rungs is legal (6E1 p.406:
+the points left (`rung_at`). A share that falls between rungs is legal (6E1 p.406:
 Kerendor's 9-point Resistant Protection) but buys no more than the rung
 below it, so a remainder may leave a few points unspent.
 
@@ -51,29 +51,32 @@ from kirby_combat.framework import (
 )
 
 if TYPE_CHECKING:
+    from kirby_combat.hero_view import SlotStep
     from kirby_combat.models import FrameworkView, PricedSlotView
 
 #: What an effect reads as when no slot holds a point.
 NOTHING_ON = "nothing switched on"
 
 
-def _rung(slot: "PricedSlotView", points: int):
+def rung_at(slot: "PricedSlotView", points: int) -> "SlotStep":
     """The rung a slot holding ``points`` stands on: the highest at or under
-    them (6E1 p.406)."""
+    them (6E1 p.406). Public so a seat judging a preset reads what it
+    enables (`rung_at(slot, pts).effect`) from here rather than restating
+    the rule."""
     return [st for st in slot.steps if st.points <= points][-1]
 
 
 def slot_display(slot: "PricedSlotView", points: int) -> str:
     """What a slot holding ``points`` does, in kirby-cost's words ("" at
     0): the display of the rung it stands on."""
-    return _rung(slot, points).display
+    return rung_at(slot, points).display
 
 
 def _best_fit(slot: "PricedSlotView", points: int) -> int:
     """The most a variable slot can usefully take out of ``points``, up to
     its top rung (`framework.slot_max_points`: a slot costing nothing still
     holds a point to be on)."""
-    return _rung(slot, min(points, slot_max_points(slot))).points
+    return rung_at(slot, min(points, slot_max_points(slot))).points
 
 
 def effect_text(view: "FrameworkView", points: dict[str, int], *,
