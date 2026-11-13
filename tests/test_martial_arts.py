@@ -120,7 +120,7 @@ from kirby_combat.actions.martial_arts import (  # noqa: E402
     MartialArtsModifiers,
     modifiers_for_maneuver_view,
 )
-from kirby_combat.hero_view import MartialManeuverView  # noqa: E402
+from kirby_combat.hero_view import MartialManeuverView, WeaponUse  # noqa: E402
 
 
 def _mv(**kw) -> MartialManeuverView:
@@ -129,7 +129,7 @@ def _mv(**kw) -> MartialManeuverView:
         ocv=0, dcv=2, dc_bonus=4, add_str=True, damage_type="normal",
         phase="1/2", category_is_ranged=False, reach_m=1.0, is_attack=True,
         is_block=False, is_dodge=False, target_falls=False, effect="",
-        hd_defense="NORMAL", sense_input="",
+        hd_defense="NORMAL", sense_input="", weapon_use=WeaponUse.BAREHANDED,
     )
     base.update(kw)
     return MartialManeuverView(**base)

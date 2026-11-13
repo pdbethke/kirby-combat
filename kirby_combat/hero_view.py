@@ -59,6 +59,7 @@ import contextlib
 import re
 import weakref
 from dataclasses import dataclass, field, fields, replace
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -272,6 +273,27 @@ class HeroCombatStats:
     int_: int = 10
 
 
+class WeaponUse(str, Enum):
+    """Whether a bought maneuver is used barehanded, with a weapon, or both.
+
+    6E2 p.94: a style that teaches its maneuvers with a weapon (Fencing) is
+    used with one and "he can't use them barehanded"; any other style needs a
+    Weapon Element to be used with a weapon, and is still usable barehanded.
+    HD records the first half per maneuver (``USEWEAPON``) and the second as a
+    WEAPON_ELEMENT purchase in the same Martial Arts section. PeterB's ruling
+    (2026-11-13): HD's flag is trusted as stated --- the engine does not
+    second-guess which weapon a Weapon Element was bought for, because a
+    build's weapons carry no Weapon Familiarity category to check it against.
+    """
+
+    #: HD: not used with a weapon.
+    BAREHANDED = "barehanded"
+    #: HD: used with a weapon, and the character bought a Weapon Element.
+    EITHER = "either"
+    #: HD: used with a weapon, and no Weapon Element: a weapon style.
+    WEAPON_ONLY = "weapon_only"
+
+
 @dataclass(frozen=True)
 class MartialManeuverView:
     """A combat-ready martial maneuver built from a character's OWN bought
@@ -313,6 +335,12 @@ class MartialManeuverView:
     #: HD's INPUT --- the Sense Group a Martial Flash is bought against
     #: ("Sight", "Hearing"); "" when the maneuver takes none.
     sense_input: str
+    #: Barehanded, with a weapon, or either (6E2 p.94; see ``WeaponUse``).
+    weapon_use: WeaponUse
+
+    def __post_init__(self) -> None:
+        # A rebuilt snapshot hands the value back as its string.
+        object.__setattr__(self, "weapon_use", WeaponUse(self.weapon_use))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1973,6 +2001,13 @@ class HeroCombatant(Stunnable, CombatParticipant):
             int(getattr(m, "levels", 0) or 0) for m in section
             if (getattr(m, "xmlid", "") or "").upper() == "EXTRADC"
         )
+        # 6E2 p.94: a Weapon Element lets a barehanded style be used with a
+        # weapon; without one, a maneuver HD marks "used with a weapon" is a
+        # weapon style's, and is not used barehanded.
+        has_weapon_element = any(
+            (getattr(m, "xmlid", "") or "").upper() == "WEAPON_ELEMENT"
+            for m in section
+        )
         for m in section:
             # Only declarable maneuvers; skip List wrappers / EXTRADC elements.
             if (getattr(m, "xmlid", "") or "").upper() != "MANEUVER":
@@ -2020,6 +2055,10 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 effect=effect,
                 hd_defense=str(getattr(m, "defense", "") or ""),
                 sense_input=str(getattr(m, "input", "") or ""),
+                weapon_use=(
+                    WeaponUse.BAREHANDED if not getattr(m, "use_weapon", False)
+                    else WeaponUse.EITHER if has_weapon_element
+                    else WeaponUse.WEAPON_ONLY),
             ))
         return out
 

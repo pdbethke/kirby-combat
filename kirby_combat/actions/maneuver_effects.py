@@ -447,6 +447,63 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int, velocity_mps: fl
     )
 
 
+#: The Advantages that make an attack's Damage Classes cost more than the
+#: table's 5 Active Points (6E2 p.99-100: those that "directly affect how the
+#: victim takes damage"). A weapon carrying one has a different DC rate,
+#: which this engine does not price yet, so a maneuver is not offered with it.
+def _advantaged(weapon) -> bool:
+    return bool(weapon.armor_piercing or weapon.penetrating
+                or weapon.increased_stun_mult or getattr(weapon, "avad", False))
+
+
+def weapon_maneuver_power(weapon, mv, effect: MartialEffect, *, velocity_mps: float):
+    """The ``AttackPower`` for a maneuver made WITH a weapon (6E2 p.101).
+
+    "Maneuvers add damage at the standard rate, +1 DC for each +1 DC from the
+    Maneuver, regardless of the type of damage done": a Martial Strike (+2 DC)
+    takes a 3d6 club to 5d6 and a 1d6 HKA sword to 1 1/2d6. Velocity DCs add
+    the same way. The weapon is everything else: its damage type, its
+    defence, its STR (already in its dice), its END.
+
+    Only a maneuver that adds dice can do this: "Martial Maneuvers that don't
+    add dice of damage - such as Killing Damage strikes, NND Strikes ... can't
+    be used to add damage to weapons". Raises ``UnbuildableManeuver`` for
+    those, for a weapon that isn't Normal or Killing damage, and for an
+    Advantaged weapon (its DC rate, 6E2 p.99, is not priced here yet).
+    """
+    from dataclasses import replace as _replace
+
+    from kirby_cost.engine.damage import Dice, add_damage_classes
+
+    if effect.damage is not ManeuverDamage.NORMAL:
+        raise UnbuildableManeuver(
+            f"{mv.name}: only a maneuver that adds dice adds to a weapon (6E2 p.101)")
+    if weapon.damage_type not in ("normal", "killing"):
+        raise UnbuildableManeuver(
+            f"{weapon.name}: {weapon.damage_type!r} damage has no DC column to add to")
+    if _advantaged(weapon):
+        raise UnbuildableManeuver(
+            f"{weapon.name}: an Advantaged attack's Damage Classes (6E2 p.99) are not priced yet")
+    dice = add_damage_classes(
+        Dice(full=int(weapon.damage_dice), half=bool(weapon.half_die),
+             plus_one=bool(weapon.plus_one), minus_one=bool(weapon.minus_one)),
+        weapon.damage_type,
+        effect.damage_classes + velocity_dcs(effect, velocity_mps),
+    )
+    return _replace(
+        weapon, damage_dice=dice.full, half_die=dice.half,
+        plus_one=dice.plus_one, minus_one=dice.minus_one,
+        name=f"{mv.name} with {weapon.name}", reach_m=max(weapon.reach_m, mv.reach_m),
+    )
+
+
+def describe_weapon_form(weapon_power) -> str:
+    """The dice a weapon form rolls, as the menu states them."""
+    kind = "HKA " if weapon_power.damage_type == "killing" else ""
+    return (f"{kind}{weapon_power.damage_dice}{'½' if weapon_power.half_die else ''}d6"
+            f"{'+1' if weapon_power.plus_one else ''}{'-1' if weapon_power.minus_one else ''}")
+
+
 def describe_effect(effect: MartialEffect, *, strength: int) -> str:
     """The menu's one-line statement of what the maneuver will do."""
     from kirby_cost.engine.damage import KILLING, dice_for, str_damage_classes, strike_dice

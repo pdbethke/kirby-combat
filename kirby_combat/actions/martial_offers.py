@@ -14,7 +14,13 @@ offers, each gated on the fact its rule turns on:
       out of the target's hand" (6E2 p.62), so a man holding nothing is not
       offered one;
     - FMove: a charge that can END in contact on his full Running (6E2 p.72),
-      the gate `move_by` takes; everything else: within reach now.
+      the gate `move_by` takes; everything else: within reach now;
+    - WITH A WEAPON (6E2 p.94, p.101): a maneuver HD marks "used with a
+      weapon" is offered once per hand-to-hand weapon of his own in his hand,
+      its DCs added to the weapon's (`weapon_maneuver_power`). Without a
+      Weapon Element it is a weapon style's and is not offered barehanded;
+      one that adds no dice (a Killing Strike, an NND Strike, a Grab) is
+      offered as it stands, with any weapon in hand.
 * DISARM (``disarm``), the plain maneuver (6E2 p.62), per weapon in reach.
 * PICK UP (``pick_up_weapon``), per weapon on the ground within reach, or
   within a Half Move (6E2 p.62: "a Half Phase Action to move to the weapon
@@ -25,7 +31,8 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from kirby_combat.actions.maneuver_effects import (
-    MustFollow, UnbuildableManeuver, decode_maneuver, describe_effect,
+    ManeuverDamage, MustFollow, UnbuildableManeuver, decode_maneuver,
+    describe_effect, describe_weapon_form, weapon_maneuver_power,
 )
 
 
@@ -56,14 +63,30 @@ def charge_connects(actor, enemy_id: str, *, scene, budget_m: float, reach_m: fl
     return bool(out.reachable) and within_reach(_xyz_dist(out.landing, there), reach_m).in_reach
 
 
+def _wielded_by(actor, *, own_attacks: list, weapons) -> list:
+    """His own hand-to-hand weapon attacks that are in his hand now."""
+    if weapons is None:
+        return []
+    in_hand: set[str] = set()
+    for w in weapons.held_by(actor.id):
+        if w.owner_id == actor.id:      # anybody else's is no use to him
+            in_hand |= set(w.power_ids)
+    return [ap for ap in own_attacks
+            if not getattr(ap, "is_ranged", False)
+            and str(getattr(ap, "source_id", "") or "") in in_hand]
+
+
 def maneuver_offers(
     actor, *, maneuvers: list, enemies: list, melee_gate: Callable[[str], str],
     friendly: Callable[[Any], str], strength: int, scene, held_target_ids: frozenset[str],
-    block_follow_ups: frozenset[str], weapons,
+    block_follow_ups: frozenset[str], weapons, own_attacks: list,
 ) -> list:
     """Every ``maneuver`` offer (see the module docstring)."""
+    from kirby_combat.hero_view import WeaponUse
+
     out: list = []
     running_m = float(actor.hero.characteristic_value("RUNNING") or 0)
+    wielded = _wielded_by(actor, own_attacks=own_attacks, weapons=weapons)
     for mv in maneuvers:
         if not getattr(mv, "is_attack", False) or getattr(mv, "category_is_ranged", False):
             continue
@@ -76,6 +99,23 @@ def maneuver_offers(
             continue
         name = getattr(mv, "name", None) or "Maneuver"
         does = describe_effect(effect, strength=int(strength))
+        # The forms he can make it in: None is barehanded, an AttackPower is
+        # with that weapon, its DCs on the weapon's (6E2 p.101).
+        use = WeaponUse(mv.weapon_use)
+        adds_dice = (effect.damage is ManeuverDamage.NORMAL
+                     and effect.must_follow is not MustFollow.GRAB)
+        forms: list = []
+        if use is not WeaponUse.WEAPON_ONLY or (wielded and not adds_dice):
+            forms.append((None, does))
+        if use is not WeaponUse.BAREHANDED and adds_dice:
+            for ap in wielded:
+                try:
+                    form = weapon_maneuver_power(ap, mv, effect, velocity_mps=0.0)
+                except UnbuildableManeuver:
+                    continue
+                vel = (f" +1 DC per {effect.velocity_divisor}m of velocity"
+                       if effect.velocity_divisor else "")
+                forms.append((ap, f"{describe_weapon_form(form)}{vel} with his {ap.name}"))
         for enemy in enemies:
             if effect.must_follow is MustFollow.GRAB and enemy.id not in held_target_ids:
                 continue
@@ -95,17 +135,20 @@ def maneuver_offers(
                     continue
                 targets = list(weapons.held_by(enemy.id))
             for weapon in targets:
-                suffix = f":{weapon.owner_id}:{weapon.weapon_id}" if weapon else ""
-                what = f" — his {weapon.name}" if weapon else ""
-                out.append(_legal_action(
-                    action_id=f"maneuver:{enemy.id}:{mv.maneuver_id}{suffix}",
-                    kind="maneuver", target_id=enemy.id,
-                    power_xmlid="MANEUVER", power_name=name,
-                    summary=(f"{name} vs {friendly(enemy)}{what} "
-                             f"(OCV {mv.ocv:+d}/DCV {mv.dcv:+d} until your next "
-                             f"phase; {does})"),
-                    _maneuver_view=mv, _weapon=weapon,
-                ))
+                for with_ap, form_does in forms:
+                    suffix = f":{weapon.owner_id}:{weapon.weapon_id}" if weapon else ""
+                    if with_ap is not None:
+                        suffix += f":with:{with_ap.source_id}"
+                    what = f" — his {weapon.name}" if weapon else ""
+                    out.append(_legal_action(
+                        action_id=f"maneuver:{enemy.id}:{mv.maneuver_id}{suffix}",
+                        kind="maneuver", target_id=enemy.id,
+                        power_xmlid="MANEUVER", power_name=name,
+                        summary=(f"{name} vs {friendly(enemy)}{what} "
+                                 f"(OCV {mv.ocv:+d}/DCV {mv.dcv:+d} until your next "
+                                 f"phase; {form_does})"),
+                        _maneuver_view=mv, _weapon=weapon, _wielded=with_ap,
+                    ))
     return out
 
 

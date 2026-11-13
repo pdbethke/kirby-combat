@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 from kirby_combat.actions.maneuver_effects import (
     ManeuverDamage, MartialEffect, MustFollow, maneuver_power,
+    weapon_maneuver_power,
 )
 
 if TYPE_CHECKING:
@@ -159,7 +160,12 @@ def blow(session, actor, target, action, mv, effect: MartialEffect, *,
     from kirby_combat import weapons as W
 
     strength = int(actor.combat_stats().str_)
-    power = maneuver_power(mv, effect, strength=strength, velocity_mps=velocity_mps)
+    wielded = getattr(action, "_wielded", None)
+    if wielded is not None:
+        # 6E2 p.101: the maneuver's DCs on the weapon's own dice.
+        power = weapon_maneuver_power(wielded, mv, effect, velocity_mps=velocity_mps)
+    else:
+        power = maneuver_power(mv, effect, strength=strength, velocity_mps=velocity_mps)
     weapon = None
     if effect.disarm or effect.grab_weapon:
         weapon = getattr(action, "_weapon", None)
@@ -172,6 +178,9 @@ def blow(session, actor, target, action, mv, effect: MartialEffect, *,
         p = base_payload(actor, target, mv, effect, result)
         if velocity_mps:
             p["velocity_mps"] = float(velocity_mps)
+        if wielded is not None:
+            p.update({"wielded_power_id": wielded.source_id,
+                      "wielded_name": wielded.name})
         if weapon is not None:
             p.update({"weapon_owner_id": weapon.owner_id,
                       "weapon_id": weapon.weapon_id, "weapon_name": weapon.name})

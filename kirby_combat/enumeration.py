@@ -376,6 +376,10 @@ class LegalAction:
     # ``pick_up_weapon`` offer names: which object in which hand (or on which
     # spot of ground). None for every other kind.
     _weapon: Any = None
+    # The actor's OWN weapon a ``maneuver`` offer is made with (6E2 p.94,
+    # p.101): the ``AttackPower`` of a hand-to-hand weapon in his hand. None
+    # for a barehanded maneuver and every other kind.
+    _wielded: Any = None
     # Movement spec §3: the movement mode for move / move_strike kinds
     # (running | leaping | flight | teleportation | swimming | tunneling).
     # None for non-movement actions. Defaults to "running" for the bare
@@ -1532,6 +1536,7 @@ def enumerate_actions(
         melee_gate=_melee_gate, friendly=_friendly, strength=int(s.str_),
         scene=scene, held_target_ids=held_target_ids or frozenset(),
         block_follow_ups=block_follow_ups or frozenset(), weapons=weapons,
+        own_attacks=attack_powers,
     ))
 
     # MULTIPOWER RE-SPLITS (6E1 p.404-406; once a Phase, p.410, which the
