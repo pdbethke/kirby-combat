@@ -37,11 +37,11 @@ _EPS_M = 1e-6
 
 
 def _powers(actor, xmlid: str) -> list:
-    # What he owns in the identity he is in (6E1 p.388; `identity.py`).
-    from kirby_combat.identity import build_in_play
-
-    return [p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() == xmlid]
+    """What he owns in the identity he is in (6E1 p.388; `identity.py`), each
+    framework slot at its split (6E1 p.404-406, "Drain STR 6d6 ... assigns
+    40 ... can only use 4d6", p.405): a slot holding nothing is not offered
+    (`HeroCombatant.powers_at_split`)."""
+    return actor.powers_at_split({xmlid})
 
 
 #: The Time Chart's steps, in Segments (6E2 p.18: a Segment is a second),

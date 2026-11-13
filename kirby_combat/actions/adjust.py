@@ -384,8 +384,10 @@ def _damage_over_time(power):
 
 
 def adjustment_power_by_id(combatant, source_id: str):
-    """The Adjustment Power on his build with this id, or None: what a
-    Damage Over Time Drain's later increments are rolled from."""
+    """The Adjustment Power on his build with this id, at his split (6E1
+    p.404-406: a slot's dice are what its points buy), or None when he has
+    none or its slot holds nothing: what a Damage Over Time Drain's later
+    increments are rolled from."""
     from kirby_combat.identity import build_in_play
     from kirby_combat.parts import parts_of
 
@@ -393,7 +395,7 @@ def adjustment_power_by_id(combatant, source_id: str):
     while stack:
         p = stack.pop()
         if str(getattr(p, "id", "") or "") == str(source_id):
-            return p
+            return combatant.at_split(p)
         stack.extend(parts_of(p))
     return None
 

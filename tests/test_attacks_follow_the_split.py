@@ -51,7 +51,7 @@ def _armaments(hero: HeroCombatant):
 
 def _expected(hero: HeroCombatant, points: int):
     """The attack view built from the priced copy, the way the engine must."""
-    fit = levels_within(_power(hero, ARMAMENTS), points)
+    fit = levels_within(_power(hero, ARMAMENTS), points, hero=None)
     return _build_attack_power(
         fit.power, str_for_augmentation=hero.combat_stats().str_)
 
@@ -151,19 +151,15 @@ def test_the_original_power_is_never_touched():
     assert (p.levels, p.active_cost) == before
 
 
-def test_a_power_with_no_steps_raises_rather_than_fighting_at_full():
+def test_a_power_with_no_steps_raises_rather_than_fighting_at_full(monkeypatch):
     import kirby_cost.engine.allocation as alloc
 
-    def boom(power, points):
+    def boom(power, points, *, hero):
         raise NotLadderable("flat cost")
     hero = _split(_ravel(), s1648351359965=30)
-    orig = alloc.levels_within
-    alloc.levels_within = boom
-    try:
-        with pytest.raises(NotLadderable):
-            hero.attacks
-    finally:
-        alloc.levels_within = orig
+    monkeypatch.setattr(alloc, "levels_within", boom)
+    with pytest.raises(NotLadderable):
+        hero.attacks
 
 
 def test_seam_the_damage_roll_uses_the_allocated_dice():
@@ -203,3 +199,14 @@ def test_seam_the_damage_roll_uses_the_allocated_dice():
     # drawn up front (`_attack_dice`), so the count is there either way.
     assert want in spy.counts
     assert _expected(hero, 45).damage_dice not in spy.counts
+
+
+def test_attack_view_reads_the_slot_at_its_split():
+    """`attack_view` (the by-name door for callers outside the menu) fights
+    with the slot as the split has it, and refuses one that is off."""
+    hero = _split(_ravel(), s1648351359965=40)
+    power = _power(hero, ARMAMENTS)
+    got = hero.attack_view(power.xmlid, name=power.name)
+    assert got.damage_dice == _expected(hero, 40).damage_dice
+    with pytest.raises(ValueError, match="holding no points"):
+        _split(_ravel()).attack_view(power.xmlid, name=power.name)

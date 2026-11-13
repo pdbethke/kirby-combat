@@ -1035,9 +1035,8 @@ def enumerate_actions(
 
     ``slot_allocation``: per-framework allocation. Maps
     ``framework_id -> framework.Allocation`` (``reserve, used,
-    active_slot_ids, slot_costs, points``; a plain 4-tuple of the first
-    four still reads). When provided:
-      * a slot with no points (not in ``active_slot_ids``) is skipped
+    active, slot_costs, points``). When provided:
+      * a slot with no points (not in ``active``) is skipped
         (6E1 p.402, p.404-406): the split was checked against the reserve
         when it was made, so no remainder is computed here.
       * None / missing → no gate (all slots offered; existing
@@ -1216,11 +1215,8 @@ def enumerate_actions(
                     _attack_view=ap,
                 ))
         from kirby_combat import armor_piercing_levels
-        _tp = next(
-            (pw for pw in (getattr(build_in_play(actor), "powers", None) or [])
-             if (getattr(pw, "xmlid", "") or "").upper() == "TELEPORTATION"),
-            None,
-        )
+        # A Teleport slot holding nothing cannot carry him out (6E1 p.404).
+        _tp = next(iter(actor.powers_at_split({"TELEPORTATION"})), None)
         if _tp is not None and armor_piercing_levels(_tp) >= pe.no_teleport:
             ladder.append(LegalAction(
                 action_id="escape:teleport", kind="escape_teleport",
@@ -1463,7 +1459,7 @@ def enumerate_actions(
             ap_sid = getattr(ap, "slot_id", "") or ""
             if slot_allocation is not None and ap_fw:
                 alloc = slot_allocation.get(ap_fw)
-                if alloc is not None and ap_sid not in alloc[2]:
+                if alloc is not None and ap_sid not in alloc.active:
                     continue  # no points in this slot: it is off
 
             aid = _power_action_id("attack", enemy.id, ap)
@@ -1705,7 +1701,9 @@ def enumerate_actions(
         scene, actor.id, [e.id for e in enemies if not is_down(e)])
     _build = build_in_play(actor)
     if _placeable:
-        fw_power = forcewall_power(_build)
+        # AT THE SPLIT (6E1 p.404-406): None for a slot holding nothing, the
+        # priced copy for a part share (`HeroCombatant.at_split`).
+        fw_power = actor.at_split(forcewall_power(_build))
         if _can_use_now(fw_power, extra_unbuilt=barrier_not_built(fw_power)):
             actions.append(LegalAction(
                 action_id=f"force_wall:{_src_id(fw_power)}",
@@ -1722,7 +1720,7 @@ def enumerate_actions(
                 ),
                 _attack_view=fw_power,
             ))
-        dk_power = darkness_power(_build)
+        dk_power = actor.at_split(darkness_power(_build))
         if _can_use_now(dk_power):
             actions.append(LegalAction(
                 action_id=f"darkness_zone:{_src_id(dk_power)}",
@@ -1738,7 +1736,7 @@ def enumerate_actions(
                     "or a Charge at the start of each of your Phases"
                 ),
             ))
-        img_power = images_power(_build)
+        img_power = actor.at_split(images_power(_build))
         if _can_use_now(img_power):
             actions.append(LegalAction(
                 action_id=f"image_decoy:{_src_id(img_power)}",
@@ -2546,10 +2544,11 @@ def enumerate_actions(
     if block_mental_powers:
         mind_control_powers: list = []
     else:
-        mind_control_powers = [
-            p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() in {"MINDCONTROL", "MIND_CONTROL"}
-        ]
+        # AT THE SPLIT (6E1 p.404-406): a slot holding nothing is not
+        # offered, one holding part of its cost is offered at the dice its
+        # points buy (`HeroCombatant.powers_at_split`). The same door for
+        # every source-power scan below.
+        mind_control_powers = actor.powers_at_split({"MINDCONTROL", "MIND_CONTROL"})
     from kirby_combat.mental.mind_control import ORDERS as _MC_ORDERS
     from kirby_combat.side import Side as _Side
 
@@ -2605,10 +2604,7 @@ def enumerate_actions(
     if block_mental_powers:
         mind_scan_powers: list = []
     else:
-        mind_scan_powers = [
-            p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() in {"MINDSCAN", "MIND_SCAN"}
-        ]
+        mind_scan_powers = actor.powers_at_split({"MINDSCAN", "MIND_SCAN"})
     for ms_power in mind_scan_powers:
         ms_dice = getattr(ms_power, "levels", 0) or 0
         for enemy in alive_enemies:
@@ -2639,10 +2635,7 @@ def enumerate_actions(
     # ``targetable_physical`` (the actor must perceive the target to blind
     # it), and the dedicated resolver (_resolve_flash) rolls Flash BODY vs
     # the target's Flash Defense and persists per-Sense-Group flashed rows.
-    flash_powers = [
-        p for p in (build_in_play(actor).powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "FLASH"
-    ]
+    flash_powers = actor.powers_at_split({"FLASH"})
     for fl_power in flash_powers:
         fl_dice = getattr(fl_power, "levels", 0) or 0
         groups = sorted(flash_groups(fl_power)) or ["sight"]
@@ -2677,17 +2670,11 @@ def enumerate_actions(
         mental_entangle_powers: list = []
     else:
         mental_entangle_powers = [
-            p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() == "ENTANGLE"
-            and _has_versus_ego(p)
-        ]
+            p for p in actor.powers_at_split({"ENTANGLE"}) if _has_versus_ego(p)]
     # PR-63: physical Entangle (6E1 p102). ENTANGLE without VERSUSEGO.
     # Persisted separately on the row; escape via STR contest.
     physical_entangle_powers = [
-        p for p in (build_in_play(actor).powers or [])
-        if (getattr(p, "xmlid", "") or "").upper() == "ENTANGLE"
-        and not _has_versus_ego(p)
-    ]
+        p for p in actor.powers_at_split({"ENTANGLE"}) if not _has_versus_ego(p)]
     for pe_power in physical_entangle_powers:
         body_dice = getattr(pe_power, "levels", 0) or 0
         for enemy in alive_enemies:
@@ -2727,10 +2714,8 @@ def enumerate_actions(
     if block_mental_powers:
         mental_illusion_powers: list = []
     else:
-        mental_illusion_powers = [
-            p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() in {"MENTALILLUSION", "MENTAL_ILLUSION"}
-        ]
+        mental_illusion_powers = actor.powers_at_split(
+            {"MENTALILLUSION", "MENTAL_ILLUSION"})
     # PR-44: Telepathy — read thoughts. Effect roll vs target EGO →
     # degree (surface_thoughts → specific_memories → deep_thoughts →
     # subconscious). Doesn't damage. Intel arrives via the resolver's
@@ -2739,10 +2724,7 @@ def enumerate_actions(
     if block_mental_powers:
         telepathy_powers: list = []
     else:
-        telepathy_powers = [
-            p for p in (build_in_play(actor).powers or [])
-            if (getattr(p, "xmlid", "") or "").upper() == "TELEPATHY"
-        ]
+        telepathy_powers = actor.powers_at_split({"TELEPATHY"})
     for tp_power in telepathy_powers:
         tp_dice = getattr(tp_power, "levels", 0) or 0
         for enemy in alive_enemies:

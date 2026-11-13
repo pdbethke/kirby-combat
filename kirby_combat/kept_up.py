@@ -128,7 +128,10 @@ def maintain_kept_up(session, actor_id: str, *, template, roller):
         if not sees(session, actor_id, item.location):
             session = end_kept(session, item, UpkeepEnd.LOST_LINE_OF_SIGHT)
             continue
-        session, unpaid = pay_for_the_phase(session, actor_id, power,
+        # END on the Active Points the split leaves it (6E1 p.129-130,
+        # p.404-406): the slot is on, so `at_split` is the priced copy.
+        held = session.combatants[actor_id].at_split(power)
+        session, unpaid = pay_for_the_phase(session, actor_id, held,
                                             template=template)
         if unpaid is not None:
             session = end_kept(session, item, unpaid)

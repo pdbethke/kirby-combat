@@ -63,9 +63,27 @@ def slot_points_for(actor, framework_id: str) -> dict[str, int] | None:
     return None if split is None else dict(split)
 
 
+def share_of(split: dict[str, int], slot_id: str, framework_id: str) -> int:
+    """The points ``split`` gives ``slot_id`` of an OPENED framework.
+
+    A `SlotsAllocated` names every slot of its framework (off at 0), so a
+    slot missing from a split is not "off": the split and the build
+    disagree (a slot added to the build after the opening, or an id that
+    is not the one the split was keyed on). Raises `KeyError` naming the
+    slot rather than reading it as 0.
+    """
+    try:
+        return int(split[slot_id])
+    except KeyError:
+        raise KeyError(
+            f"slot {slot_id!r} of framework {framework_id!r} is not in its "
+            f"split {sorted(split)!r}: a split names every slot (6E1 "
+            "p.404-406), so the split and the build disagree") from None
+
+
 class Allocation(NamedTuple):
     """One framework's allocation, as `enumerate_actions` and the upkeep
-    readers see it. Indexes 0-3 keep the order the old 4-tuple had."""
+    readers see it. Read by field name (``.active``), never by index."""
 
     reserve: int
     #: Points drawn: the sum of the split.

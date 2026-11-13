@@ -88,10 +88,12 @@ def _scan_switched_off(session: "CombatSession", effect: ContinuingEffect) -> bo
     in an unconscious man) or his Multipower's latest split leaving the
     Mind Scan slot with no points --- "if it's in a Multipower, he cannot
     switch the slots". A framework not yet opened
-    (`framework.slot_points_for` is None) leaves the slot as the build has it.
+    (`framework.slot_points_for` is None) leaves the slot as the build has it;
+    an opened one whose split does not name the slot raises `KeyError`
+    (`framework.share_of`).
     """
     from kirby_combat.enumeration import is_down
-    from kirby_combat.framework import slot_points_for
+    from kirby_combat.framework import share_of, slot_points_for
 
     scanner = session.combatants.get(effect.attacker_id)
     if scanner is None or is_down(scanner):
@@ -101,7 +103,8 @@ def _scan_switched_off(session: "CombatSession", effect: ContinuingEffect) -> bo
         if effect.source_id not in slot_ids:
             continue
         points = slot_points_for(scanner, view.framework_id)
-        if points is not None and points.get(effect.source_id, 0) <= 0:
+        if (points is not None
+                and share_of(points, effect.source_id, view.framework_id) <= 0):
             return True
     return False
 

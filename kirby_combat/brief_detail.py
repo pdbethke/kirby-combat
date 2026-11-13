@@ -893,7 +893,7 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
     offers them, because an offer that is not on the menu is not a fact
     about this Phase.
     """
-    from kirby_combat.framework import slot_points_for
+    from kirby_combat.framework import share_of, slot_points_for
     from kirby_combat.split_menu import slot_display, standing_refusals
 
     actor = situation.actor
@@ -931,7 +931,7 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
                 if atk.avad:
                     bits.append(f"NND, stopped only by {atk.avad_defense or 'its named defense'}")
             if points is not None:
-                held = points.get(slot.slot_id, 0)
+                held = share_of(points, slot.slot_id, fw.framework_id)
                 [pslot] = [s for s in pfw.slots if s.slot_id == slot.slot_id]
                 bits.append(f"now {slot_display(pslot, held)} ({held} pts)"
                             if held > 0 else "off")

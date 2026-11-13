@@ -346,7 +346,7 @@ def test_compute_stats_coerces_engine_floats_to_int():
         def temporal_characteristic(self, xmlid: str, ctx=None) -> float:
             return self.characteristic_value(xmlid)
 
-    stats = _compute_stats_from_hero(_FloatHero())
+    stats = _compute_stats_from_hero(_FloatHero(), slots={})
     for field_name in (
         "ocv", "dcv", "omcv", "dmcv", "spd", "dex", "ego", "int_", "str_",
         "con", "pre", "rec", "pd", "ed", "rpd", "red", "md",

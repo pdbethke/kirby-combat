@@ -180,19 +180,20 @@ def test_the_plain_framework_view_prices_no_ladder(monkeypatch):
                              for f in views for sl in f.slots)
 
 
-def test_a_ladder_is_priced_once_per_build():
+def test_a_ladder_is_priced_once_per_build(monkeypatch):
     import kirby_cost.engine.allocation as allocation
     live = _kerendor()
     real, calls = allocation.ladder, []
-    allocation.ladder = lambda p: (calls.append(1), real(p))[1]
-    try:
-        live.priced_framework_view()
-        first = len(calls)
-        live.priced_framework_view()
-        again = replace(live, state=replace(live.state, current_stun=1))
-        again.priced_framework_view()
-    finally:
-        allocation.ladder = real
+
+    def counted(p, *, hero):
+        calls.append(1)
+        return real(p, hero=hero)
+    monkeypatch.setattr(allocation, "ladder", counted)
+    live.priced_framework_view()
+    first = len(calls)
+    live.priced_framework_view()
+    again = replace(live, state=replace(live.state, current_stun=1))
+    again.priced_framework_view()
     assert first and len(calls) == first
 
 

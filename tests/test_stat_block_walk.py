@@ -32,7 +32,7 @@ def hero():
 
 def test_one_walk_answers_exactly_as_many_walks(hero):
     many = {x: hero.characteristic_state(x) for x in _STAT_XMLIDS}
-    once = hero.characteristic_states(_STAT_XMLIDS)
+    once = hero.characteristic_states(_STAT_XMLIDS, slots={})
     assert set(once) == set(many)
     for xmlid, state in many.items():
         assert once[xmlid].base == state.base
@@ -45,12 +45,12 @@ def test_one_walk_answers_exactly_as_many_walks(hero):
 def test_asking_for_one_is_the_same_call(hero):
     """``characteristic_state`` is the batch form with a single xmlid, so
     there is one walk to keep correct rather than two to keep in step."""
-    assert hero.characteristic_states(["DEX"])["DEX"].contributions == \
+    assert hero.characteristic_states(["DEX"], slots={})["DEX"].contributions == \
         hero.characteristic_state("DEX").contributions
 
 
 def test_a_characteristic_nobody_bought_still_gets_a_state(hero):
-    state = hero.characteristic_states(["BODY"])["BODY"]
+    state = hero.characteristic_states(["BODY"], slots={})["BODY"]
     assert state.xmlid == "BODY"
     assert state.base == hero.characteristic_value("BODY")
 

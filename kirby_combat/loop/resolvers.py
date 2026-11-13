@@ -688,7 +688,8 @@ def _resolve_image_decoy(
     from kirby_combat.enumeration import images_power
     from kirby_combat.perception import images_groups
 
-    power = images_power(build_in_play(actor))
+    # At the split (6E1 p.404-406): a slot holding nothing has no Image.
+    power = actor.at_split(images_power(build_in_play(actor)))
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
@@ -1860,7 +1861,7 @@ def _resolve_darkness_zone(
     from kirby_combat.enumeration import darkness_power
     from kirby_combat.perception import darkness_groups, darkness_personal_immunity
 
-    power = action._attack_view or darkness_power(build_in_play(actor))
+    power = action._attack_view or actor.at_split(darkness_power(build_in_play(actor)))
     if power is None:
         raise UnresolvableAction(action.kind, action.action_id)
 
@@ -3199,6 +3200,16 @@ def _resolve_split(
     view = actor.priced_framework(framework_id)
     if view is None:
         raise UnresolvableAction(action.kind, action.action_id)
+    # A split is keyed on slot ids and outlives this process (the log, a
+    # snapshot); a slot with no id of its own has only a process-local one
+    # (`hero_view.slot_id_is_stable`), so its framework cannot be split.
+    from kirby_combat.hero_view import slot_id_is_stable
+
+    unstable = [s.name for s in view.slots if not slot_id_is_stable(s.slot_id)]
+    if unstable:
+        raise UnresolvableAction(action.kind, action.action_id) from ValueError(
+            f"{view.name}: slot(s) {unstable!r} carry no id of their own, so "
+            "a split of it could not be read back (6E1 p.404-406)")
 
     in_session = session.combatants.get(actor.id)
     if in_session is None:

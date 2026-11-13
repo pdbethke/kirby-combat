@@ -374,6 +374,7 @@ _REQUIRED_SNAPSHOT_KEYS = (
     "attacks", "defenses", "csls", "senses", "movement", "reserves",
     "maneuvers", "frameworks", "is_npc", "is_mentalist", "has_combat_sense",
     "has_self_contained_breathing", "skill_rolls", "defence_terms",
+    "slot_characteristics",
 )
 
 
@@ -454,6 +455,9 @@ def _views_from_dict(data: dict, CombatantSnapshot, *, in_hero_id: bool,
             data["has_self_contained_breathing"]),
         skill_rolls={str(k): int(v) for k, v in data["skill_rolls"].items()},
         defence_terms=from_dict(data["defence_terms"]),
+        slot_characteristics={
+            str(sid): {str(x): int(v) for x, v in c.items()}
+            for sid, c in data["slot_characteristics"].items()},
         in_hero_id=in_hero_id,
         other_identity=other_identity,
     )

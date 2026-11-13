@@ -116,7 +116,7 @@ def test_a_characteristic_bought_in_the_slot_follows_the_split():
     off = _split(_kerendor(), **{f"s{PD_SLOT}": 0}).combat_stats().pd
     for points in (20, 8):
         got = _split(_kerendor(), **{f"s{PD_SLOT}": points}).combat_stats().pd
-        want = int(levels_within(_power(_kerendor(), PD_SLOT), points).power.levels)
+        want = int(levels_within(_power(_kerendor(), PD_SLOT), points, hero=None).power.levels)
         assert got - off == want
     assert (_split(_kerendor(), **{f"s{PD_SLOT}": 8}).combat_stats().pd
             < _split(_kerendor(), **{f"s{PD_SLOT}": 20}).combat_stats().pd)
@@ -143,7 +143,7 @@ def test_flight_as_bought_before_the_opening():
 def test_teleportation_slot_follows_the_split_the_same_way():
     hero = _split(_kerendor(), **{f"s{TELE}": 12})
     [m] = _move(hero, "teleportation")
-    assert m.combat_m == float(levels_within(_power(hero, TELE), 12).power.levels)
+    assert m.combat_m == float(levels_within(_power(hero, TELE), 12, hero=None).power.levels)
     assert not _move(_split(_kerendor(), **{f"s{TELE}": 0}), "teleportation")
 
 
@@ -165,24 +165,24 @@ def test_running_leaping_and_climbing_are_untouched_by_a_split():
 # ── _slot_contribution: a pure function of (power, points) ──────────────────
 def test_slot_contribution_is_the_priced_copys_effect():
     hero = _kerendor()
-    eff = _slot_contribution(_power(hero, RP), 9, str_for_augmentation=0)
+    eff = _slot_contribution(_power(hero, RP), 9, str_for_augmentation=0, hero=None)
     assert isinstance(eff, SlotEffect)
     assert eff.attack is None and eff.movement == []
     [d] = eff.defenses
     assert (d.rpd, d.red) == (3, 3)
-    [m] = _slot_contribution(_power(hero, FLIGHT), 20, str_for_augmentation=0).movement
+    [m] = _slot_contribution(_power(hero, FLIGHT), 20, str_for_augmentation=0, hero=None).movement
     assert m.combat_m == 20.0
 
 
 def test_slot_contribution_at_nothing_is_empty():
-    eff = _slot_contribution(_power(_kerendor(), RP), 0, str_for_augmentation=0)
+    eff = _slot_contribution(_power(_kerendor(), RP), 0, str_for_augmentation=0, hero=None)
     assert (eff.attack, eff.defenses, eff.movement) == (None, [], [])
 
 
 def test_slot_contribution_agrees_with_the_views():
     hero = _split(_kerendor(), **{f"s{FLIGHT}": 20, f"s{RP}": 9})
-    want_d = _slot_contribution(_power(hero, RP), 9, str_for_augmentation=0).defenses
-    want_m = _slot_contribution(_power(hero, FLIGHT), 20, str_for_augmentation=0).movement
+    want_d = _slot_contribution(_power(hero, RP), 9, str_for_augmentation=0, hero=None).defenses
+    want_m = _slot_contribution(_power(hero, FLIGHT), 20, str_for_augmentation=0, hero=None).movement
     assert _defence(hero, "Kerendor RP") == want_d
     assert [m for m in hero.movement_view() if m.combat_m == 20.0 and m.mode == "flight"] == want_m
 
@@ -219,7 +219,7 @@ def test_unladderable_defence_slot_given_a_part_of_its_cost_raises(slot):
 def test_a_laddered_defence_kind_follows_the_split():
     hero = _split(_kerendor(), **{f"s{POWD}": 8})
     [d] = _defence(hero, "Kerendor POWD")
-    assert d.power_defense == int(levels_within(_power(hero, POWD), 8).power.levels)
+    assert d.power_defense == int(levels_within(_power(hero, POWD), 8, hero=None).power.levels)
     assert d.power_defense < 20
 
 
@@ -229,6 +229,6 @@ def test_slot_contribution_attack_keeps_an_idless_slots_own_id():
     power, _a, _r = build_power_from_spec({"xmlid": "ENERGYBLAST", "levels": 10})
     power._id = ""                         # no id: the slot id derives from id()
     power.parent = next(p for p in hero._build().powers if str(p.id) == FRAMEWORK)
-    eff = _slot_contribution(power, 25, str_for_augmentation=0)
+    eff = _slot_contribution(power, 25, str_for_augmentation=0, hero=None)
     assert eff.attack is not None
     assert eff.attack.slot_id == _slot_id_of(power)

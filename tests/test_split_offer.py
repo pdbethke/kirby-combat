@@ -53,6 +53,7 @@ def _kerendor(split=None, standing=()) -> HeroCombatant:
     framework = next(p for p in build.powers if str(p.id) == FRAMEWORK)
     build.powers = [p for p in build.powers
                     if getattr(p, "parent", None) is not framework]
+    framework.objects = []   # the pool's own list of its slots, emptied too
     framework.name = "Magical Powers"
     framework.base_cost = 60
     for power in (
@@ -63,6 +64,7 @@ def _kerendor(split=None, standing=()) -> HeroCombatant:
     ):
         power.parent = framework
         build.powers.append(power)
+        framework.objects.append(power)
     hero = HeroCombatant.from_build(build, id="kerendor")
     return replace(hero, side=Side.named("heroes"), state=replace(
         hero.state,

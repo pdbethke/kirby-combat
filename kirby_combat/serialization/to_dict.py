@@ -65,6 +65,7 @@ def _identity_record(record) -> dict[str, Any]:
         "has_self_contained_breathing": v.has_self_contained_breathing,
         "skill_rolls": dict(v.skill_rolls),
         "defence_terms": to_dict(v.defence_terms),
+        "slot_characteristics": {k: dict(c) for k, c in v.slot_characteristics.items()},
     }
 
 
@@ -166,6 +167,8 @@ def to_dict(obj: Any) -> Any:
             "has_self_contained_breathing": view.has_self_contained_breathing,
             "skill_rolls": dict(view.skill_rolls),
             "defence_terms": to_dict(view.defence_terms),
+            "slot_characteristics": {
+                k: dict(c) for k, c in view.slot_characteristics.items()},
             # HIS OTHER IDENTITY (6E1 p.388), so a rebuilt man who changes
             # costume owns what the live one did. Always written: null for a
             # man with one identity.
@@ -191,7 +194,8 @@ def to_dict(obj: Any) -> Any:
 
             from kirby_combat.hero_view import _compute_stats_from_hero
             base = _compute_stats_from_hero(
-                obj.hero, ActivationContext(in_hero_id=obj.state.in_hero_id))
+                obj.hero, ActivationContext(in_hero_id=obj.state.in_hero_id),
+                slots={})
             snapshot["undrained"] = {
                 "ocv": base.ocv, "dcv": base.dcv, "omcv": base.omcv,
                 "dmcv": base.dmcv, "spd": base.spd, "dex": base.dex,

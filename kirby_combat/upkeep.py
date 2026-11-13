@@ -104,7 +104,7 @@ def slot_on(combatant: Any, power: Any, slot_allocation) -> bool:
     if entry is None:
         # not opened: the build as written
         return True
-    return where[1] in entry[2]
+    return where[1] in entry.active
 
 
 def slot_still_allocated(session, owner_id: str, power: Any) -> bool:
@@ -114,8 +114,10 @@ def slot_still_allocated(session, owner_id: str, power: Any) -> bool:
     The slot is allocated while it holds points (6E1 p.404-406): a slot cut
     to 0 is off. A framework not yet opened is as the build has it
     (`framework.slot_points_for` is None); that exists only during setup.
+    A slot an opened framework's split does not name raises `KeyError`
+    (`framework.share_of`): a split names every slot.
     """
-    from kirby_combat.framework import slot_points_for
+    from kirby_combat.framework import share_of, slot_points_for
 
     owner = session.combatants.get(owner_id)
     where = framework_slot(owner, power)
@@ -123,7 +125,7 @@ def slot_still_allocated(session, owner_id: str, power: Any) -> bool:
         return True
     framework_id, slot_id = where
     points = slot_points_for(owner, framework_id)
-    return points is None or points.get(slot_id, 0) > 0
+    return points is None or share_of(points, slot_id, framework_id) > 0
 
 
 # ------------------------------------------------------------ not built

@@ -406,6 +406,12 @@ class CombatantSnapshot:
     #: A rebuilt combatant swaps each slot's terms for the rung its split
     #: picks and composes the stat block again (`compose_defences`).
     defence_terms: "DefenceTerms"
+    #: Each framework slot's contribution to the characteristics AS WRITTEN
+    #: (slot id -> {xmlid: amount}; a slot HD marks AFFECTS_TOTAL="No" adds
+    #: nothing as written, and is absent). The recorded characteristics hold
+    #: these; a rebuilt combatant swaps them for what his split's rung holds
+    #: (`HeroCombatant._recorded_slot_shifts`, 6E1 p.404-406).
+    slot_characteristics: dict
     #: The identity these views were recorded in (6E1 p.388). Read off the
     #: combatant's own state at record time, never assumed.
     in_hero_id: bool
@@ -485,6 +491,7 @@ class CombatantSnapshot:
                 combatant.has_self_contained_breathing()),
             skill_rolls=combatant.skill_rolls(),
             defence_terms=combatant._defence_terms_as_written(),
+            slot_characteristics=combatant._slot_characteristics_as_written(),
             in_hero_id=combatant.state.in_hero_id,
             other_identity=other_identity,
         )
@@ -522,7 +529,9 @@ def characteristic_values(combatant: "HeroCombatant") -> dict[str, int]:
     stats = _compute_stats_from_hero(
         combatant._build(),
         ActivationContext(in_hero_id=combatant.state.in_hero_id),
-        powers=combatant._powers_fitted(_STAT_POWER_XMLIDS))
+        combatant._recorded_slot_shifts(),
+        powers=combatant._powers_fitted(_STAT_POWER_XMLIDS),
+        slots=combatant._held_slots())
     return {k: int(getattr(stats, f)) for k, f in _SNAPSHOT_CHARACTERISTICS.items()}
 
 
@@ -543,21 +552,36 @@ _STAT_POWER_XMLIDS = frozenset({
 })
 
 
+#: What marks a slot id `_slot_id_of` made up for a purchase with no id of
+#: its own (`slot_id_is_stable`).
+_PROCESS_LOCAL = "#"
+
+
 def _slot_id_of(power) -> str:
     """A purchase's slot id: its object id, or --- for one with none --- its
     xmlid and the process id of the object. The one formula every reader of
     framework slots shares; the id-less form is stable only within a process
-    call, so it must never be stored."""
+    call, so it must never be stored (`slot_id_is_stable`)."""
     raw_id = str(getattr(power, "id", "") or "")
-    return raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}#{id(power)}'
+    return raw_id or f'{(getattr(power, "xmlid", "") or "").upper()}{_PROCESS_LOCAL}{id(power)}'
 
 
-def _priced_at(power, points: int):
+def slot_id_is_stable(slot_id: str) -> bool:
+    """Whether a slot id names the purchase in any process, i.e. is its own
+    HD id and not the process-local stand-in `_slot_id_of` gives a purchase
+    with none. A split is keyed on slot ids and outlives the process (the
+    log, a snapshot), so a framework with an unstable one cannot be split."""
+    return _PROCESS_LOCAL not in str(slot_id)
+
+
+def _priced_at(power, points: int, *, hero):
     """The power as it stands holding ``points`` Active Points of its slot
     (6E1 p.404-406), or None when it holds none or not even its first step
     fits. The priced COPY is kirby-cost's (`levels_within`); this does no
     cost arithmetic. A slot holding its full cost is the power itself.
-    `NotLadderable` (a power with no steps) is raised, not swallowed."""
+    `NotLadderable` (a power with no steps) is raised, not swallowed.
+    ``hero`` is the build the power is bought on (kirby-cost words a rung
+    with him as its active hero)."""
     from kirby_cost.engine.allocation import NotLadderable, levels_within
 
     if points <= 0:
@@ -565,7 +589,7 @@ def _priced_at(power, points: int):
     if points >= int(power.active_cost):
         return power
     try:
-        fit = levels_within(power, points)
+        fit = levels_within(power, points, hero=hero)
     except NotLadderable:
         raise
     except ValueError:
@@ -594,11 +618,16 @@ class SlotEffect:
     #: Flash Defense, PD/ED bought as Powers), as terms, so they are composed
     #: with the natural PD/ED as live and not added to a total.
     defence: "DefenceTerms"
+    #: What it adds to the characteristics (a +30 STR slot: ``{"STR": 30}``),
+    #: as the slot HOLDS it (kirby-cost's `contribution_from_held_slot`), by
+    #: characteristic xmlid. A rebuilt combatant shifts his recorded
+    #: characteristics by it (`HeroCombatant._recorded_slot_shifts`).
+    characteristics: dict
 
     @classmethod
     def nothing(cls) -> "SlotEffect":
         return cls(attack=None, defenses=[], movement=[],
-                   defence=DefenceTerms.none())
+                   defence=DefenceTerms.none(), characteristics={})
 
 
 @dataclass
@@ -614,15 +643,28 @@ class SlotStep:
     effect: SlotEffect
 
 
-def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> SlotEffect:
+def _held_characteristics(held) -> dict:
+    """``{characteristic xmlid: amount}`` a slot adds holding ``held`` (the
+    purchase at its share), read by kirby-cost (`contribution_from_held_slot`);
+    empty for anything that is not a characteristic the stat block reads."""
+    from kirby_cost.model.activation import contribution_from_held_slot
+
+    c = contribution_from_held_slot(held)
+    if c is None or c.xmlid not in _CHARACTERISTIC_SLOT_XMLIDS:
+        return {}
+    return {c.xmlid: int(c.delta)}
+
+
+def _slot_contribution(power, points: int, *, str_for_augmentation: int,
+                       hero) -> SlotEffect:
     """What ``power`` gives when its slot holds ``points`` Active Points.
 
     A pure function of the power and the points, plus the one piece of the
     fighter an attack is built against (his STR, which augments a Hand-To-Hand
     attack): nothing read from a session or a log, so a step of a ladder can
-    be recorded as one. Nothing at 0 points.
+    be recorded as one. Nothing at 0 points. ``hero`` as for `_priced_at`.
     """
-    priced = _priced_at(power, points)
+    priced = _priced_at(power, points, hero=hero)
     if priced is None:
         return SlotEffect.nothing()
     xmlid = (getattr(priced, "xmlid", None) or "").upper()
@@ -638,6 +680,7 @@ def _slot_contribution(power, points: int, *, str_for_augmentation: int) -> Slot
                   if xmlid in _DEFENSE_XMLIDS else []),
         movement=[] if movement is None else [movement],
         defence=defence_terms(priced),
+        characteristics=_held_characteristics(priced),
     )
 
 
@@ -818,6 +861,29 @@ class HeroCombatant(Stunnable, CombatParticipant):
                     self._as_bought()._powers_fitted(_STAT_POWER_XMLIDS)),
                    DefenceTerms.none())
 
+    def _slot_characteristics_as_written(self) -> dict:
+        """What each framework slot adds to the characteristics with no
+        framework opened, as kirby-cost counts it as written
+        (`contribution_from_purchase`: HD's AFFECTS_TOTAL decides), in his
+        current identity: slot id -> {xmlid: amount}. What a snapshot
+        records beside his characteristics (`slot_characteristics`)."""
+        from kirby_cost.io.framework_access import framework_kind, framework_slots
+        from kirby_cost.model.activation import contribution_from_purchase
+
+        ctx = ActivationContext(in_hero_id=self.state.in_hero_id)
+        build = self._build()
+        out: dict = {}
+        for fw in build.powers or []:
+            if framework_kind(fw) is None:
+                continue
+            for slot in framework_slots(build, fw):
+                c = contribution_from_purchase(slot)
+                if (c is None or c.xmlid not in _CHARACTERISTIC_SLOT_XMLIDS
+                        or not c.applies(ctx) or not self._in_play(slot)):
+                    continue
+                out[_slot_id_of(slot)] = {c.xmlid: int(c.delta)}
+        return out
+
     def _as_bought(self) -> "HeroCombatant":
         """Himself with no framework opened: every view reads the build as
         written (6E1 p.404-406 before any split). What a snapshot records,
@@ -825,16 +891,23 @@ class HeroCombatant(Stunnable, CombatParticipant):
         return replace(self, state=replace(self.state, slot_points={}))
 
     def _slot_swaps(self) -> "list[tuple[SlotEffect, SlotEffect]]":
+        """`_slot_choices` without the slot ids."""
+        return [(full, chosen) for _, full, chosen in self._slot_choices()]
+
+    def _slot_choices(self) -> "list[tuple[str, SlotEffect, SlotEffect]]":
         """For each recorded slot of an OPENED framework: what the recording
         holds for it (its full rung, the build as written) and what the
         split he holds now gives it instead (6E1 p.404-406): the highest
         recorded step with ``points <= allocated``, which is the answer
         `levels_within` gives live. A fixed slot holding anything is as
         bought; one holding nothing is off. Frameworks not opened swap
-        nothing."""
-        from kirby_combat.framework import slot_points_for
+        nothing. Each with its slot id.
 
-        out: list[tuple[SlotEffect, SlotEffect]] = []
+        A slot the split does not name raises `KeyError`
+        (`framework.share_of`): a split names every slot."""
+        from kirby_combat.framework import share_of, slot_points_for
+
+        out: list[tuple[str, SlotEffect, SlotEffect]] = []
         for fw in self._recorded().frameworks:
             split = slot_points_for(self, fw.framework_id)
             if split is None:
@@ -846,7 +919,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                         "no `steps`: it was recorded before snapshots held each "
                         "slot's priced ladder, so a split cannot be read from "
                         "it; re-record the combatant")
-                given = split.get(slot.slot_id, 0)
+                given = share_of(split, slot.slot_id, fw.framework_id)
                 if given <= 0:
                     chosen = slot.steps[0]
                 elif not slot.variable:
@@ -864,7 +937,30 @@ class HeroCombatant(Stunnable, CombatParticipant):
                         "(6E1 p.404-406)")
                 else:
                     chosen = [st for st in slot.steps if st.points <= given][-1]
-                out.append((slot.steps[-1].effect, chosen.effect))
+                out.append((slot.slot_id, slot.steps[-1].effect, chosen.effect))
+        return out
+
+    def _recorded_slot_shifts(self) -> "list[Contribution]":
+        """A rebuilt combatant's characteristic slots at his split, as
+        contributions to the recorded (as-written) characteristics: each
+        opened slot's rung gives way to the one his split picks (6E1
+        p.404-406), so the shift is what the picked rung holds less what
+        the build as written counted for it (`slot_characteristics`;
+        nothing for a slot HD marks AFFECTS_TOTAL="No"). The live
+        combatant reads the same through kirby-cost
+        (`characteristic_states(slots=...)`)."""
+        if self.snapshot is None:
+            return []
+        written = self._recorded().slot_characteristics
+        out: list[Contribution] = []
+        for slot_id, _full, chosen in self._slot_choices():
+            was = written.get(slot_id, {})
+            for xmlid in sorted(set(was) | set(chosen.characteristics)):
+                delta = chosen.characteristics.get(xmlid, 0) - was.get(xmlid, 0)
+                if delta:
+                    out.append(Contribution(
+                        xmlid=xmlid, delta=float(delta),
+                        source_label=f"slot {slot_id} at its split"))
         return out
 
     def _recorded_split(self, items: list, part) -> list:
@@ -1119,7 +1215,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
             return None
         if not slot_is_variable(parent, power):
             return power, slot_id
-        priced = _priced_at(power, given)
+        priced = _priced_at(power, given, hero=self.hero)
         return None if priced is None else (priced, slot_id)
 
     def _slot_standing(self, power):
@@ -1128,9 +1224,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
         framework not yet opened --- the build as written).
 
         The off-check (``points given <= 0``, 6E1 p.404-405) is the caller's
-        to make on this, and applies to a slot of ANY kind.
+        to make on this, and applies to a slot of ANY kind. A slot of an
+        opened framework that its split does not name raises `KeyError`
+        (`framework.share_of`): a split names every slot.
         """
-        from kirby_combat.framework import slot_points_for
+        from kirby_combat.framework import share_of, slot_points_for
         from kirby_cost.io.framework_access import framework_kind
 
         parent = getattr(power, "parent", None)
@@ -1140,11 +1238,12 @@ class HeroCombatant(Stunnable, CombatParticipant):
             kind = None
         if not kind:
             return None
-        points = slot_points_for(self, str(getattr(parent, "id", "") or ""))
+        framework_id = str(getattr(parent, "id", "") or "")
+        points = slot_points_for(self, framework_id)
         if points is None:
             return None
         slot_id = _slot_id_of(power)
-        return parent, slot_id, points.get(slot_id, 0)
+        return parent, slot_id, share_of(points, slot_id, framework_id)
 
     def _fitted(self, power, xmlids: frozenset):
         """The power a READER of ``xmlids`` should read, or None when its
@@ -1172,6 +1271,56 @@ class HeroCombatant(Stunnable, CombatParticipant):
             fitted = self._fitted(p, xmlids)
             if fitted is not None:
                 out.append(fitted)
+        return out
+
+    def powers_at_split(self, xmlids) -> list:
+        """THE DOOR for every reader that walks his powers for a kind and
+        builds an offer, or resolves, from what it finds (Mind Control, Mind
+        Scan, Flash, Entangle, Mental Illusions, Telepathy, Aid, Drain,
+        Healing, Dispel, Force Wall, Darkness, Images).
+
+        His in-play powers (``build_in_play(self).powers``, in build order)
+        whose xmlid is in ``xmlids``, each a framework slot at the points its
+        split gave it (6E1 p.404-406: "Drain STR 6d6 ... assigns 40 ... can
+        only use 4d6", p.405): a slot holding none is LEFT OUT, so it is not
+        offered; a variable slot holding part of its cost is kirby-cost's
+        priced COPY (same id, fewer levels, Active Points and END on the
+        points used); a fixed slot holding its cost, anything outside a
+        framework, and a framework not yet opened read as bought. Reading
+        ``levels`` off what this returns is reading the split.
+
+        A rebuilt combatant (a snapshot) has a stub build with no powers,
+        so it answers ``[]``, as walking its build always did.
+        """
+        want = frozenset((x or "").upper() for x in xmlids)
+        return [p for p in self._powers_fitted(want)
+                if (getattr(p, "xmlid", None) or "").upper() in want]
+
+    def at_split(self, power):
+        """``power`` (one of his own, from `build_in_play`) as his split has
+        it: the priced copy, itself, or None when its slot holds nothing
+        (`powers_at_split` for a single power a reader already found)."""
+        if power is None:
+            return None
+        return self._fitted(power, frozenset({(getattr(power, "xmlid", None) or "").upper()}))
+
+    def _held_slots(self) -> dict:
+        """The characteristic slots of his OPENED frameworks as their split
+        holds them, for kirby-cost's `characteristic_states(slots=...)`:
+        slot id -> the purchase at its share (itself, or the priced copy),
+        or None for a slot holding nothing (6E1 p.404-406). Empty for a
+        framework not yet opened (the build as written) and for a rebuilt
+        combatant (his stub has no powers; `_recorded_slot_shifts`)."""
+        out: dict = {}
+        for p in self._build().powers or []:
+            if ((getattr(p, "xmlid", None) or "").upper()
+                    not in _CHARACTERISTIC_SLOT_XMLIDS):
+                continue
+            standing = self._slot_standing(p)
+            if standing is None:
+                continue
+            fitted = self._power_at_split(p)
+            out[standing[1]] = None if fitted is None else fitted[0]
         return out
 
     def unadjusted_attacks(self) -> list[AttackPower]:
@@ -1357,7 +1506,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         state yet to apply drains/aids from). The full instance method
         layers state deltas on top.
         """
-        return _compute_stats_from_hero(hero)
+        return _compute_stats_from_hero(hero, slots={})
 
     # ─────────────────────────────────────────────────────────────────────
     # Views (consumed by the resolution layer)
@@ -1401,11 +1550,16 @@ class HeroCombatant(Stunnable, CombatParticipant):
         # only _compute_stats_from_hero knows how to total. So when there
         # are drains, price the stat block once without them to read the
         # floor off, then once more with every adjustment in place.
+        # The characteristic slots at his split (6E1 p.404-406): live, the
+        # slots as held go to kirby-cost's walk; rebuilt, his recorded
+        # characteristics are shifted by them.
+        slots = self._held_slots()
+        shifts = self._recorded_slot_shifts()
         adjustments: list[Contribution] = []
         if self.state.drains:
             undrained = _compute_stats_from_hero(
-                self._build(), ctx,
-                powers=self._powers_fitted(_STAT_POWER_XMLIDS))
+                self._build(), ctx, shifts,
+                powers=self._powers_fitted(_STAT_POWER_XMLIDS), slots=slots)
             for stat, delta in self.state.drains.items():
                 xmlid = _CHARACTERISTIC_FOR_STAT.get(stat)
                 if xmlid is None:
@@ -1424,8 +1578,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 xmlid=xmlid, delta=float(delta), source_label="Aided"))
 
         stats = _compute_stats_from_hero(
-            self._build(), ctx, adjustments,
-            powers=self._powers_fitted(_STAT_POWER_XMLIDS))
+            self._build(), ctx, shifts + adjustments,
+            powers=self._powers_fitted(_STAT_POWER_XMLIDS), slots=slots)
 
         self._adjust_power_stats(stats)
 
@@ -1552,7 +1706,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                         return found
                 return None
 
-            power = _walk_named(self._build().powers)
+            power = self._at_split_or_refuse(_walk_named(self._build().powers))
             if power is None:
                 raise ValueError(
                     f"power xmlid={power_xmlid!r} name={name!r} not found "
@@ -1563,7 +1717,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 hero=self._build(),
             )
 
-        power = _find_power(self._build(), power_xmlid, slot_xmlid=slot_xmlid)
+        power = self._at_split_or_refuse(
+            _find_power(self._build(), power_xmlid, slot_xmlid=slot_xmlid))
         if power is None:
             raise ValueError(
                 f"power xmlid={power_xmlid!r} not found on {self.id!r}"
@@ -1572,6 +1727,20 @@ class HeroCombatant(Stunnable, CombatParticipant):
             power, str_for_augmentation=self.combat_stats().str_,
             hero=self._build(),
         )
+
+    def _at_split_or_refuse(self, power):
+        """``power`` at his split (`at_split`; 6E1 p.404-406), None when he
+        has no such power; a slot holding nothing is refused by name, since
+        an attack view of a power that is off is not one he can use."""
+        if power is None:
+            return None
+        held = self.at_split(power)
+        if held is None:
+            raise ValueError(
+                f"{getattr(power, 'name', None) or power.xmlid!r} on {self.id!r} "
+                "is a Multipower slot holding no points: it is off "
+                "(6E1 p.404-405)")
+        return held
 
     def str_strike_view(self) -> AttackPower:
         """Build the ``AttackPower`` for this combatant's implicit Strike.
@@ -1866,11 +2035,11 @@ class HeroCombatant(Stunnable, CombatParticipant):
         AttackPower. Pure read over the build model. Empty for combatants
         with no framework.
 
-        The slot_id formula mirrors ``_build_attack_power`` exactly:
-          raw_id = str(getattr(power, "id", "") or "")
-          slot_id = raw_id or f'{xmlid.upper()}#{id(power)}'
-        Both paths run in the same process call, so id(power) is stable
-        across self.attacks and this loop (same object in hero.powers).
+        Each slot's id is `_slot_id_of`'s, the one formula every reader of
+        framework slots shares (the attacks, the split, the ladders), so a
+        slot here links to its attack. A slot with no HD id of its own gets a
+        process-local stand-in that must never be stored; a framework holding
+        one cannot be split (`slot_id_is_stable`).
         """
         if self.snapshot is not None:
             return [_unpriced(fw) for fw in self._recorded().frameworks]
@@ -2001,22 +2170,22 @@ class HeroCombatant(Stunnable, CombatParticipant):
 
         def rung(points: int, display: str) -> SlotStep:
             return SlotStep(points, display, _slot_contribution(
-                power, points, str_for_augmentation=str_) if in_play
-                else SlotEffect.nothing())
+                power, points, str_for_augmentation=str_, hero=self.hero)
+                if in_play else SlotEffect.nothing())
 
         rungs = [SlotStep(0, "", SlotEffect.nothing())]
         if variable:
             try:
-                fits = ladder(power)
+                fits = ladder(power, hero=self.hero)
             except NotLadderable:
                 fits = []
-            rungs += [rung(f.active_points, step_display(f.power))
+            rungs += [rung(f.active_points, step_display(f.power, hero=self.hero))
                       for f in fits if 0 < f.active_points < full]
         # The top rung is the slot as bought. A purchase costing nothing (a
         # Naked Advantage) still has to hold a point to be on: a slot holding
         # none is off (6E1 p.404-405), so its rung is 1. Each rung's words
         # are kirby-cost's (`step_display`: "Blast 6d6", "Flight 30m").
-        rungs.append(rung(max(full, 1), step_display(power)))
+        rungs.append(rung(max(full, 1), step_display(power, hero=self.hero)))
         return tuple(rungs)
 
     def has_self_contained_breathing(self) -> bool:
@@ -2649,6 +2818,14 @@ _STAT_XMLIDS = (
 )
 
 
+#: The characteristics a framework slot adds to through the split
+#: (`HeroCombatant._held_slots`, `SlotEffect.characteristics`). PD and ED
+#: are left out: bought as Powers they are already totalled at the split as
+#: defence terms (`defence_terms`, `_STAT_POWER_XMLIDS`), and kirby-cost
+#: reads them as written, as it did before splits existed.
+_CHARACTERISTIC_SLOT_XMLIDS = frozenset(_STAT_XMLIDS) - {"PD", "ED"}
+
+
 def _characteristic_value(
     hero: "LoadedHero",
     xmlid: str,
@@ -2854,6 +3031,7 @@ def _compute_stats_from_hero(
     adjustments: "list[Contribution] | None" = None,
     *,
     powers: "list | None" = None,
+    slots: dict,
 ) -> HeroCombatStats:
     """Read the temporal characteristic values + sum defense powers.
 
@@ -2901,8 +3079,12 @@ def _compute_stats_from_hero(
     # because Drains, Aids and identity flips must compose live — it is paid
     # once instead of ~18 times. Stubs (the replay snapshot hero, test heroes)
     # do not offer it and fall through to the per-xmlid path below.
+    # ``slots`` is how his Multipowers are split, characteristic slot by
+    # slot (`HeroCombatant._held_slots`; ``{}`` is the build as written), so
+    # a +30 STR slot adds what it holds (6E1 p.404-406).
     read_states = getattr(hero, "characteristic_states", None)
-    states = read_states(_STAT_XMLIDS) if read_states is not None else None
+    states = (read_states(_STAT_XMLIDS, slots=slots)
+              if read_states is not None else None)
 
     def cv(xmlid: str) -> int:
         extra = [c for c in all_adjustments if c.xmlid == xmlid]
@@ -3221,8 +3403,9 @@ def _find_power(hero: "LoadedHero", power_xmlid: str, *,
          This means a top-level Energy Blast wins over a Multipower
          slot Energy Blast — top-level is examined first.
 
-    Step 3 will wire proper slot-allocation lookup driven by the
-    session's ``slot_points`` state.
+    Returns the purchase AS BOUGHT: it knows nothing of a split. A caller
+    that fights with it prices it at the split itself
+    (`HeroCombatant.at_split`, `_power_at_split`; 6E1 p.404-406).
     """
     target = power_xmlid.upper()
 

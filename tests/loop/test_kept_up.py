@@ -338,21 +338,26 @@ def test_switching_the_slot_off_takes_it_down():
 
 def test_a_slot_without_the_reserve_is_not_offered():
     """p.402: allocating the reserve comes before turning the power on."""
+    from kirby_combat.framework import Allocation
     from kirby_combat.upkeep import slot_on
 
     power = _Power("DARKNESS", 4, id="src-DARKNESS")
     power.framework_id, power.slot_id = "mp", "src-DARKNESS"
     caster = _fight(power).sessions[0].combatants["caster"]
-    on_blast = {"mp": (60, 60, {"blast"}, {"blast": 60, "src-DARKNESS": 40})}
-    on_dark = {"mp": (60, 40, {"src-DARKNESS"}, {"blast": 60, "src-DARKNESS": 40})}
+    costs = {"blast": 60, "src-DARKNESS": 40}
+    on_blast = {"mp": Allocation(60, 60, {"blast"}, costs,
+                                 {"blast": 60, "src-DARKNESS": 0})}
+    on_dark = {"mp": Allocation(60, 40, {"src-DARKNESS"}, costs,
+                                {"blast": 0, "src-DARKNESS": 40})}
     # Not opened: a NON-empty allocation that simply omits this framework
     # (an empty one exits `slot_on` early, before the branch under test).
-    never = {"other": (60, 0, set(), {})}
+    never = {"other": Allocation(60, 0, set(), {}, {})}
     assert not slot_on(caster, power, on_blast)
     assert slot_on(caster, power, on_dark)
     assert slot_on(caster, power, never), "not opened: as he brought it in"
     # Opened with every slot at 0: all off (6E1 p.402, p.404-406).
-    all_off = {"mp": (60, 0, set(), {"blast": 60, "src-DARKNESS": 40})}
+    all_off = {"mp": Allocation(60, 0, set(), costs,
+                                {"blast": 0, "src-DARKNESS": 0})}
     assert not slot_on(caster, power, all_off)
 
 
