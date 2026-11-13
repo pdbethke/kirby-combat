@@ -53,18 +53,19 @@ def _framework(
     )
 
 
-def _slot(slot_id: str, points: int, *, variable: bool = False) -> SlotView:
-    """A fixed slot plain; a variable one PRICED (R10: a share is checked
-    against its ladder), with a rung at every point as stand-ins."""
+def _slot(slot_id: str, points: int, *, variable: bool = False):
+    """A slot PRICED, as `priced_framework` always hands it (R10: a share is
+    checked against its ladder, and the split's words are read off it): a
+    variable one with a rung at every point as stand-ins, a fixed one with
+    just off and on."""
     plain = dict(slot_id=slot_id, name=slot_id.title(), active_points=points,
                  variable=variable, kind="attack", attack=None)
-    if not variable:
-        return SlotView(**plain)
     from kirby_combat.hero_view import SlotEffect, SlotStep
     from kirby_combat.models import PricedSlotView
 
+    rungs = range(points + 1) if variable else (0, points)
     return PricedSlotView(**plain, steps=tuple(
-        SlotStep(p, f"{p} pts", SlotEffect.nothing()) for p in range(points + 1)))
+        SlotStep(p, f"{p} pts", SlotEffect.nothing()) for p in rungs))
 
 
 def _with_frameworks(combatant, *frameworks):

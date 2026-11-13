@@ -3194,6 +3194,7 @@ def _resolve_split(
     )
     from kirby_combat.session.apply import apply_event
     from kirby_combat.session.events import SlotsAllocated, make_author_combatant
+    from kirby_combat.split_menu import effect_text
 
     framework_id, tail = split_of_action(action.action_id, kind_prefix)
     if not framework_id:
@@ -3246,6 +3247,7 @@ def _resolve_split(
         author=make_author_combatant(actor.id),
         combatant_id=actor.id, framework_id=framework_id,
         slot_points=slot_points, opening=opening,
+        effect_text=effect_text(view, slot_points, lead=None),
     ))
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,

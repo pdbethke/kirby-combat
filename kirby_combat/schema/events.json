@@ -4205,6 +4205,9 @@
         "combatant_id": {
           "type": "string"
         },
+        "effect_text": {
+          "type": "string"
+        },
         "framework_id": {
           "type": "string"
         },
@@ -4249,7 +4252,8 @@
         "combatant_id",
         "framework_id",
         "slot_points",
-        "opening"
+        "opening",
+        "effect_text"
       ],
       "title": "SlotsAllocated",
       "type": "object"
@@ -5016,7 +5020,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.36.0",
+  "$id": "urn:kirby-combat:schema:events:0.37.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -5192,5 +5196,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.36.0"
+  "x-kirby-combat-version": "0.37.0"
 }

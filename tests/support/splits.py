@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from kirby_combat.framework import validate_split
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.combat_session import CombatSession
+from kirby_combat.split_menu import effect_text
 from kirby_combat.session.events import SlotsAllocated, make_author_combatant
 
 
@@ -41,6 +42,7 @@ def open_with(session: CombatSession, combatant_id: str, framework_id: str,
         author=make_author_combatant(combatant_id),
         combatant_id=combatant_id, framework_id=framework_id,
         slot_points=full, opening=True,
+        effect_text=effect_text(view, full, lead=None),
     ))
 
 

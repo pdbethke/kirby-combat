@@ -174,7 +174,9 @@ class SlotTerms:
     each rung of its priced ladder (the points themselves need not sit on a
     rung: p.406), or None for a slot read from a plain, unpriced view. A
     variable slot whose ladder is just ``(0, max_points)`` has nothing
-    between off and as bought, so a share in between is refused (R9); a
+    between off and as bought, so a share in between is refused (R9);
+    ``displays`` holds kirby-cost's words for each rung of ``steps`` ("" at
+    0), one apiece, and is None exactly when ``steps`` is; a
     variable slot with no ladder at all cannot be checked, and
     `_check_split` raises ``TypeError`` rather than check half the rule.
     """
@@ -184,6 +186,7 @@ class SlotTerms:
     variable: bool
     max_points: int
     steps: tuple[int, ...] | None
+    displays: tuple[str, ...] | None
 
 
 def _check_split(
@@ -256,6 +259,8 @@ def _terms_of(slot) -> SlotTerms:
         slot.slot_id, slot.name, bool(slot.variable),
         slot_max_points(slot),
         tuple(st.points for st in slot.steps)
+        if isinstance(slot, PricedSlotView) else None,
+        tuple(st.display for st in slot.steps)
         if isinstance(slot, PricedSlotView) else None)
 
 

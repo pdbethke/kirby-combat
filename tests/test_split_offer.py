@@ -102,6 +102,15 @@ def test_the_offer_carries_each_slots_ladder():
     assert not terms["wall"].variable
 
 
+def test_the_offer_carries_each_rungs_words():
+    [offer] = _splits(_kerendor())
+    for t in offer.choice.slots:
+        assert len(t.displays) == len(t.steps)
+    blast = next(t for t in offer.choice.slots if t.slot_id == "bolt")
+    assert blast.displays[blast.steps.index(40)] == "Blast 8d6"
+    assert blast.displays[0] == ""
+
+
 def test_the_presets_are_neutral_and_in_order():
     [offer] = _splits(_kerendor())
     got = [(p.name, p.effect_text, p.standing) for p in offer.choice.presets]

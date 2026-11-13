@@ -21,13 +21,17 @@ from kirby_dice import RandomRoller
 
 
 def _framework():
-    from kirby_combat.models import FrameworkView, SlotView
+    from kirby_combat.hero_view import SlotEffect, SlotStep
+    from kirby_combat.models import FrameworkView, PricedSlotView
 
     return FrameworkView(
         framework_id="fw1", xmlid="MULTIPOWER", name="Tricks",
         kind="multipower", reserve_or_pool=45,
-        slots=[SlotView(slot_id=f"s{i}", name=f"s{i}", active_points=40,
-                        variable=False, kind="attack") for i in (1, 2)],
+        slots=[PricedSlotView(
+            slot_id=f"s{i}", name=f"s{i}", active_points=40, variable=False,
+            kind="attack",
+            steps=tuple(SlotStep(p, f"{p} pts", SlotEffect.nothing())
+                        for p in (0, 40))) for i in (1, 2)],
     )
 
 
@@ -58,8 +62,8 @@ def _fight():
     lad = replace(lad, state=replace(lad.state, slot_points={
         "fw1": {"s1": 40, "s2": 0}}))
     lad.framework_view = lambda: [_framework()]       # type: ignore[method-assign]
-    # Both slots fixed: on at full or off, so no ladder is needed to check
-    # the split the resolver is handed (R10 reads the priced view).
+    # Both slots fixed: on at full or off, so the ladder is just off and on
+    # (R10 reads the priced view, and the split's words come off it).
     lad.priced_framework = lambda fid: _framework()  # type: ignore[method-assign]
     foe = fighter("foe", side=Side.named("villains"), dex=10)
     return encounter_of(lad, foe)
