@@ -109,11 +109,13 @@ def test_the_presets_are_neutral_and_in_order():
         # All in Lightning Bolt is the split in force: dropped.
         ("All in Wind Riding", "Flight 60m", False),
         ("Even", "Blast 6d6, Flight 30m", False),
-        # 15 left after the Wall goes to the Bolt first, in slot order.
+        # The 15 the Wall leaves is shared evenly (spec §5.3), as Even
+        # shares the reserve: 7 each, Blast's 5-point step takes 5 and
+        # Flight then takes the rest, 10m (kirby-cost's rungs).
         ("Wall of Wind + remainder",
-         "Resistant Protection 15 PD/15 ED, Blast 3d6", False),
+         "Resistant Protection 15 PD/15 ED, Blast 1d6, Flight 10m", False),
     ]
-    assert offer.choice.presets[2].points == {"bolt": 15, "wind": 0, "wall": 45}
+    assert offer.choice.presets[2].points == {"bolt": 5, "wind": 10, "wall": 45}
 
 
 def test_every_preset_is_an_answer_the_offer_accepts():
@@ -208,7 +210,7 @@ def test_the_brief_explains_the_framework_and_lists_the_presets():
     assert "Wall of Wind: 45 AP, fixed" in text and "off" in text
     assert "All in Wind Riding: Flight 60m" in text
     assert ("Wall of Wind + remainder: Resistant Protection 15 PD/15 ED, "
-            "Blast 3d6") in text
+            "Blast 1d6, Flight 10m") in text
 
 
 # ── once a Phase (6E1 p.410) ───────────────────────────────────────────────
@@ -359,3 +361,76 @@ def test_a_ladder_error_in_the_offered_framework_is_loud(monkeypatch):
     _ladder_breaks_on(monkeypatch, "wind")
     with pytest.raises(RuntimeError, match="cannot price wind"):
         _splits(hero)
+
+
+def _resolve_on_its_own_session(actor, offer):
+    from kirby_combat.loop.registry import resolve_chosen
+    from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.template import CombatTemplate
+
+    foe = fighter("foe", side=Side.named("villains"))
+    session = CombatSession.create(
+        id="s", scene=None, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=1), combatants=[actor, foe]).start()
+    me = session.combatants[actor.id]
+    me.framework_view = actor.framework_view            # type: ignore[method-assign]
+    me.priced_framework = actor.priced_framework        # type: ignore[method-assign]
+    return resolve_chosen(session, me, offer,
+                          template=CombatTemplate.default_6e_superheroic(),
+                          roller=RandomRoller(seed=1))
+
+
+def test_a_one_slot_fixed_multipower_opened_off_can_be_switched_on():
+    """R13 lets the opening leave everything off; a Multipower of ONE fixed
+    slot then has exactly one other split, on, and is offered it."""
+    [offer] = _splits(_fixed_only(45, [45], on=set()))
+    assert offer.action_id == "reallocate_slots:fw1:split=s1@45"
+    assert "Trick 1 (fixed, 45 pts)" in offer.summary
+    _, slot_points = _resolve_on_its_own_session(
+        _fixed_only(45, [45], on=set()), offer).result
+    assert slot_points == {"s1": 45}
+
+
+def test_a_one_slot_fixed_multipower_switched_on_can_be_switched_off():
+    [offer] = _splits(_fixed_only(45, [45], on={"s1"}))
+    assert offer.action_id == "reallocate_slots:fw1:split="
+    assert "to: nothing on" in offer.summary
+    _, slot_points = _resolve_on_its_own_session(
+        _fixed_only(45, [45], on={"s1"}), offer).result
+    assert slot_points == {"s1": 0}
+
+
+# ── a slot that costs nothing still holds a point to be on ─────────────────
+
+def _with_a_free_slot():
+    """60 reserve: `bolt` variable 60 (5-point rungs) and `naked` a variable
+    Naked Advantage costing 0, whose top rung is 1 (`_slot_steps`)."""
+    from kirby_combat.hero_view import SlotEffect, SlotStep
+    from kirby_combat.models import FrameworkView, PricedSlotView
+
+    return FrameworkView(
+        framework_id="fw", xmlid="MULTIPOWER", name="Odds", kind="multipower",
+        reserve_or_pool=60,
+        slots=[PricedSlotView("bolt", "Bolt", 60, True, "attack", steps=tuple(
+                   SlotStep(p, f"Bolt {p}", SlotEffect.nothing())
+                   for p in range(0, 61, 5))),
+               PricedSlotView("naked", "Naked", 0, True, "other", steps=(
+                   SlotStep(0, "", SlotEffect.nothing()),
+                   SlotStep(1, "Naked Resistant", SlotEffect.nothing())))])
+
+
+def test_a_free_slot_may_hold_its_one_point():
+    from kirby_combat.framework import split_choice_of, validate_split
+
+    view = _with_a_free_slot()
+    assert validate_split(view, {"bolt": 55, "naked": 1}) == 56
+    [naked] = [t for t in split_choice_of(view, {}, presets=()).slots
+               if t.slot_id == "naked"]
+    assert naked.max_points == 1 == naked.steps[-1]
+
+
+def test_all_in_a_free_slot_switches_it_on():
+    from kirby_combat.split_menu import presets_for
+
+    by_name = {p.name: p.points for p in presets_for(_with_a_free_slot(), {}, ())}
+    assert by_name["All in Naked"]["naked"] == 1

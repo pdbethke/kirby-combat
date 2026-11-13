@@ -369,3 +369,49 @@ def test_a_stat_block_has_no_multipower_and_a_stranger_is_refused():
         combatants={"wall": wall, "kerendor": kerendor})) == [("kerendor", "kmp")]
     with pytest.raises(TypeError):
         pending_openings(SimpleNamespace(combatants={"x": SimpleNamespace(id="x")}))
+
+
+# ── a standing split that no longer fits, at the opening (spec §5.5a, I4) ──
+
+TOO_BIG = StandingSplit(name="Old Habit", points={"wall": 45, "bolt": 30},
+                        standard=False, position=2)
+
+
+def _opening_situation(*standing):
+    man = _carrying("kerendor", "heroes", _magic(), standing={"kmp": standing})
+    enc = _encounter(man, fighter("foe", side=Side.named("villains")))
+
+    class Looks:
+        def choose(self, situation):
+            self.situation = situation
+            raise LookupError
+
+    seat = Looks()
+    with pytest.raises(LookupError):
+        run_phase(enc, seat, roller=_roller())
+    return seat.situation
+
+
+def test_a_standing_split_that_no_longer_fits_is_named_at_the_opening():
+    """Left off the chips with its reason, never trimmed (6E1 p.404: 45 + 30
+    draws 75 from a 60-point reserve), and said where the player opens."""
+    situation = _opening_situation(PATROL, TOO_BIG)
+    (offer,) = situation.menu
+    assert "Old Habit" not in [p.name for p in offer.choice.presets]
+    assert ("standing split 'Old Habit' no longer fits: it draws 75 Active "
+            "Points from a 60-point reserve (6E1 p.404)") in offer.summary
+
+
+def test_the_opening_brief_says_why_a_standing_split_is_missing():
+    from kirby_combat.brief_detail import framework_lines
+
+    lines = framework_lines(_opening_situation(PATROL, TOO_BIG))
+    assert ("  standing split 'Old Habit' no longer fits: it draws 75 Active "
+            "Points from a 60-point reserve (6E1 p.404)") in lines
+
+
+def test_an_opening_with_every_standing_split_fitting_names_no_refusal():
+    situation = _opening_situation(PATROL)
+    assert "no longer fits" not in situation.menu[0].summary
+    from kirby_combat.brief_detail import framework_lines
+    assert not any("no longer fits" in ln for ln in framework_lines(situation))

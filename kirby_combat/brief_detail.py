@@ -943,8 +943,13 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
                 own = ((" (his own, his usual set)" if preset.standard
                         else " (his own)") if preset.standing else "")
                 out.append(f"    {preset.name}{own}: {preset.effect_text}")
-        if points is not None:
-            standing = actor.state.standing_splits.get(fw.framework_id, ())
+        # A standing split that no longer fits, with the rule it breaks
+        # (spec §5.5a): at the opening too, where it would have been a chip.
+        standing = (actor.state.standing_splits.get(fw.framework_id, ())
+                    if fw.kind == "multipower" else ())
+        if standing:
+            if points is None:
+                pfw = actor.priced_framework(fw.framework_id)
             for sp, reason in standing_refusals(pfw, standing):
                 out.append(f"  standing split '{sp.name}' no longer fits: {reason}")
     if any(fw.kind == "multipower" for fw in views):

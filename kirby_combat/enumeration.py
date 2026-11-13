@@ -580,8 +580,9 @@ def _reallocate_summary(framework: str, reserve: float, drawn: float,
         return names.get(sid) or sid
 
     text = (f"Switch {framework} ({reserve:.0f}-point reserve) to: "
-            + ", ".join(f"{_named(sid)} ({kinds.get(sid, 'fixed')}, "
-                        f"{points[sid]:.0f} pts)" for sid in on)
+            + (", ".join(f"{_named(sid)} ({kinds.get(sid, 'fixed')}, "
+                         f"{points[sid]:.0f} pts)" for sid in on)
+               or "nothing on")
             + f"; draws {drawn:.0f} of {reserve:.0f}")
     if off:
         text += "; switches off " + ", ".join(_named(sid) for sid in off)
@@ -637,7 +638,7 @@ def _multipower_offers(actor: Any, fw_views: list, *, actions: list,
                 power_xmlid=fv.xmlid, power_name=fv.name,
                 summary=summary, choice=choice,
             ))
-        elif len(fv.slots) > 1:
+        elif fv.slots:
             out.extend(_fixed_set_offers(
                 actor, fv, current, actions=actions,
                 alive_enemies=alive_enemies, kept_up_items=kept_up_items))
@@ -664,12 +665,18 @@ def _fixed_set_offers(actor: Any, fv: Any, current: dict, *, actions: list,
     from kirby_combat.split_menu import whole_sets
 
     reserve = int(fv.reserve_or_pool)
-    _points = {sl.slot_id: int(sl.active_points) for sl in fv.slots}
+    from kirby_combat.framework import slot_max_points
+
+    _points = {sl.slot_id: slot_max_points(sl) for sl in fv.slots}
 
     # Everything at once when the reserve is generous enough, else one offer
     # per slot he can actually switch TO (`split_menu.whole_sets`, shared
-    # with the opening's presets).
+    # with the opening's presets). A Multipower of ONE fixed slot has one
+    # whole set, so it also gets the empty one: on and off are its only two
+    # splits, and an opening may leave it off (R13, 6E1 p.404-405).
     _sets = whole_sets(fv)
+    if len(fv.slots) == 1:
+        _sets.append(())
     # A FIGHTER HOLDING NOTHING HAS ONE THING WORTH DOING: pick up
     # something that fights. At the O.K. Corral Power Lad --- whose
     # claws are a slot that was not switched on, so he had no attack

@@ -124,7 +124,7 @@ def allocation_for(session: "CombatSession", actor) -> dict[str, Allocation] | N
             reserve=int(view.reserve_or_pool or 0),
             used=sum(points.values()),
             active={sid for sid, pts in points.items() if pts > 0},
-            slot_costs={s.slot_id: int(s.active_points or 0) for s in view.slots},
+            slot_costs={s.slot_id: slot_max_points(s) for s in view.slots},
             points=points,
         )
     return allocation
@@ -233,6 +233,20 @@ def _check_split(
     return drawn
 
 
+def slot_max_points(slot) -> int:
+    """The most a split can give ``slot``: its Active Points, and for a
+    purchase costing nothing (a Naked Advantage) 1, because a slot holding
+    none is off (6E1 p.404-405) and it must hold something to be on. On a
+    priced view that is its ladder's top rung, which
+    `HeroCombatant._slot_steps` writes the same way; the two never differ.
+    """
+    from kirby_combat.models import PricedSlotView
+
+    if isinstance(slot, PricedSlotView) and slot.steps:
+        return int(slot.steps[-1].points)
+    return max(int(slot.active_points or 0), 1)
+
+
 def _terms_of(slot) -> SlotTerms:
     """A slot's `SlotTerms`: its ladder when the view is priced
     (`PricedSlotView`), None for a plain `SlotView`."""
@@ -240,7 +254,7 @@ def _terms_of(slot) -> SlotTerms:
 
     return SlotTerms(
         slot.slot_id, slot.name, bool(slot.variable),
-        int(slot.active_points or 0),
+        slot_max_points(slot),
         tuple(st.points for st in slot.steps)
         if isinstance(slot, PricedSlotView) else None)
 

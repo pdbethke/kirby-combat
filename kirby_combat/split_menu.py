@@ -13,8 +13,9 @@ a short list of PRESETS a person at the table can read and pick (spec §5.3):
    the other variable slots in slot order;
 3. **Even**: the reserve shared among the variable slots as evenly as their
    steps allow;
-4. **<fixed slot> + remainder**: one per fixed slot that fits, the rest to
-   the variable slots in slot order.
+4. **<fixed slot> + remainder**: one per fixed slot that fits, the rest
+   shared among the variable slots as evenly as their steps allow (the
+   same sharing as Even).
 
 A Multipower with ONLY fixed slots has no share to suggest: its neutral
 presets are the whole sets its reserve can carry (`whole_sets`), the same
@@ -45,8 +46,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kirby_combat.framework import (
-    Preset, ReserveExceeded, SplitChoice, StandingSplit, split_choice_of,
-    validate_split,
+    Preset, ReserveExceeded, SplitChoice, StandingSplit, slot_max_points,
+    split_choice_of, validate_split,
 )
 
 if TYPE_CHECKING:
@@ -69,8 +70,10 @@ def slot_display(slot: "PricedSlotView", points: int) -> str:
 
 
 def _best_fit(slot: "PricedSlotView", points: int) -> int:
-    """The most a variable slot can usefully take out of ``points``."""
-    return _rung(slot, min(points, slot.active_points)).points
+    """The most a variable slot can usefully take out of ``points``, up to
+    its top rung (`framework.slot_max_points`: a slot costing nothing still
+    holds a point to be on)."""
+    return _rung(slot, min(points, slot_max_points(slot))).points
 
 
 def effect_text(view: "FrameworkView", points: dict[str, int], *,
@@ -95,16 +98,20 @@ def _fill(view: "FrameworkView", split: dict[str, int], left: int) -> dict[str, 
     return out
 
 
-def _even(view: "FrameworkView", reserve: int) -> dict[str, int]:
-    """The reserve shared among the variable slots as evenly as their steps
-    allow: an equal share each, then what the steps left over, in slot
-    order."""
-    split = {s.slot_id: 0 for s in view.slots}
-    variables = [s for s in view.slots if s.variable]
-    share = reserve // len(variables)
+def _even(view: "FrameworkView", split: dict[str, int], left: int) -> dict[str, int]:
+    """``split`` with ``left`` points shared among its variable slots still
+    at 0 as evenly as their steps allow: an equal share each, then what the
+    steps left over, in slot order. "Even" shares the whole reserve; a
+    "<fixed slot> + remainder" shares what the fixed slot leaves (spec
+    §5.3: "the rest shared evenly")."""
+    split = dict(split)
+    variables = [s for s in view.slots if s.variable and split[s.slot_id] == 0]
+    if not variables:
+        return split
+    share = left // len(variables)
     for slot in variables:
         split[slot.slot_id] = _best_fit(slot, share)
-    left = reserve - sum(split.values())
+    left -= sum(split[s.slot_id] for s in variables)
     for slot in variables:
         if left <= 0:
             break
@@ -125,12 +132,12 @@ def _neutral(view: "FrameworkView") -> list[tuple[str, dict[str, int], str]]:
             out.append((f"All in {slot.name}",
                         _fill(view, {**off, slot.slot_id: top}, reserve - top),
                         slot.slot_id))
-    out.append(("Even", _even(view, reserve), None))
+    out.append(("Even", _even(view, off, reserve), None))
     for slot in view.slots:
-        if not slot.variable and slot.active_points <= reserve:
+        cost = slot_max_points(slot)
+        if not slot.variable and cost <= reserve:
             out.append((f"{slot.name} + remainder",
-                        _fill(view, {**off, slot.slot_id: slot.active_points},
-                              reserve - slot.active_points),
+                        _even(view, {**off, slot.slot_id: cost}, reserve - cost),
                         slot.slot_id))
     return out
 
@@ -147,7 +154,7 @@ def whole_sets(view: "FrameworkView") -> list[tuple[str, ...]]:
     refuses, which he chose 152 times in one fight.
     """
     reserve = int(view.reserve_or_pool or 0)
-    points = {s.slot_id: int(s.active_points) for s in view.slots}
+    points = {s.slot_id: slot_max_points(s) for s in view.slots}
     if reserve and sum(points.values()) <= reserve:
         return [tuple(points)]
     return [(sid,) for sid, cost in points.items() if reserve and cost <= reserve]
@@ -158,7 +165,7 @@ def _whole_set_presets(view: "FrameworkView") -> list[tuple[str, dict[str, int],
     by its own name, everything as "Everything on"."""
     names = {s.slot_id: s.name for s in view.slots}
     off = {s.slot_id: 0 for s in view.slots}
-    full = {s.slot_id: int(s.active_points) for s in view.slots}
+    full = {s.slot_id: slot_max_points(s) for s in view.slots}
     out = []
     for slots in whole_sets(view):
         points = {**off, **{sid: full[sid] for sid in slots}}
@@ -245,4 +252,9 @@ def opening_offer(view: "FrameworkView",
     choice = split_choice_of(view, {}, presets_for(view, {}, standing))
     summary = (f"Open {view.name} ({int(view.reserve_or_pool)} reserve): state "
                f"the split it starts the fight with")
+    # A standing split the build no longer carries is left off the chips
+    # with its reason, where the player opens (spec §5.5a), not dropped
+    # without a word.
+    for sp, reason in standing_refusals(view, standing):
+        summary += f"; standing split '{sp.name}' no longer fits: {reason}"
     return choice, summary
