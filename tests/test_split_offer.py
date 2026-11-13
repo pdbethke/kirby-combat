@@ -222,6 +222,43 @@ def test_the_brief_explains_the_framework_and_lists_the_presets():
             "Blast 1d6, Flight 10m") in text
 
 
+def test_the_rendered_page_lists_each_re_split_preset_by_its_whole_answer():
+    """The page a seat reads names each preset by the id that takes it
+    (`complete_choice`), in the ``[id] name: effect`` form of the menu, so
+    a model copies a whole answer rather than the bare split id."""
+    from kirby_combat.loop import validate_choice
+    from kirby_combat.loop.chooser import PhaseSituation, complete_choice
+
+    hero = _kerendor()
+    [offer] = _splits(hero)
+    situation = PhaseSituation(actor=hero, menu=[offer], session=None)
+    page = situation.brief().render()
+    assert "Presets for the re-split:" in page
+    for preset in offer.choice.presets:
+        answer = complete_choice(offer, preset.points)
+        assert f"[{answer}] {preset.name}: {preset.effect_text}" in page
+        validate_choice(answer, situation.menu)
+
+
+def test_answer_of_reads_back_what_complete_choice_wrote():
+    """`answer_of` is `complete_choice`'s inverse: the split an answer
+    states, over every slot; an id that does not complete THIS offer is
+    refused, so no seat spells the grammar to read an answer either."""
+    from kirby_combat.loop.chooser import answer_of, complete_choice
+
+    [offer] = _splits(_kerendor())
+    for preset in offer.choice.presets:
+        stated = answer_of(offer, complete_choice(offer, preset.points))
+        assert stated == {s: preset.points.get(s, 0) for s in stated}
+        assert set(stated) == {"bolt", "wind", "wall"}
+    for wrong in (offer.action_id, "reallocate_slots:other:split=bolt@60",
+                  "dodge"):
+        with pytest.raises(ValueError):
+            answer_of(offer, wrong)
+    with pytest.raises(ValueError):
+        answer_of(offer, offer.action_id + "=bolt@999")
+
+
 # ── once a Phase (6E1 p.410) ───────────────────────────────────────────────
 
 class _ResplitsFirst:

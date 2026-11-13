@@ -453,3 +453,21 @@ def test_the_opening_situation_carries_the_distances_and_reach_of_a_phase():
     assert opening.distances_m == phase.distances_m
     assert opening.reach_m == phase.reach_m
     assert opening.reach_m == 3.0
+
+
+def test_the_opening_page_lists_each_preset_by_the_id_that_takes_it():
+    """A model copies an id off the page; the bare split id is not an
+    answer, so each preset is printed with its whole answer
+    (`complete_choice`), in the page's ``[id] name: effect`` form."""
+    from kirby_combat.loop import validate_choice
+    from kirby_combat.loop.chooser import complete_choice
+
+    situation = _opening_situation(PATROL)
+    (offer,) = situation.menu
+    page = situation.brief().render()
+    assert "Presets for the opening split:" in page
+    for preset in offer.choice.presets:
+        answer = complete_choice(offer, preset.points)
+        line = next(ln for ln in page.splitlines() if f"[{answer}] {preset.name}" in ln)
+        assert line.endswith(f": {preset.effect_text}")
+        validate_choice(answer, situation.menu)

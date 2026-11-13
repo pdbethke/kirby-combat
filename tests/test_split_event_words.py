@@ -15,8 +15,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
-from tests.loop.conftest import fighter
-from tests.test_split_offer import FRAMEWORK, _kerendor
+from tests.test_split_offer import _kerendor, fighter
 
 
 class _Answers:

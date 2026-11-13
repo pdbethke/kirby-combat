@@ -739,9 +739,10 @@ def reach_lines(situation: "PhaseSituation", seen: dict[str, Sighting]) -> list[
 
     Reach is the engine's (`combat_stats().reach_m`, 6E2 p.56 plus
     Stretching) and the band is `within_reach`, the question the melee
-    gate itself asks. The movement modes are asked through `movement_reach`
-    with the full combat move, the same call the menu's movement block
-    makes, so the page never names a mode the menu would refuse.
+    gate itself asks. A movement mode is named when `reach.closes_on` says
+    a full combat move by it ENDS within his reach (the landing held to the
+    reach, not just "the place lets him go there"), so the page never names
+    a mode that arrives out of reach.
     """
     session = situation.session
     scene = getattr(session, "scene", None) if session is not None else None
@@ -749,7 +750,7 @@ def reach_lines(situation: "PhaseSituation", seen: dict[str, Sighting]) -> list[
         return []
     from kirby_combat.actions.reach import within_reach
     from kirby_combat.enumeration import is_down
-    from kirby_combat.reach import movement_reach
+    from kirby_combat.reach import closes_on
     from kirby_world.geometry import distance_3d
     from kirby_world.occupancy import position_of
 
@@ -788,9 +789,8 @@ def reach_lines(situation: "PhaseSituation", seen: dict[str, Sighting]) -> list[
         for mode, metres in sorted(modes.items(), key=lambda kv: kv[1]):
             if mode == "running":
                 continue
-            outcome = movement_reach(mode, here, there, metres, scene,
-                                     combatant_id=actor.id, session=session)
-            if outcome.reachable:
+            if closes_on(scene, actor.id, enemy.id, mode=mode, budget_m=metres,
+                         reach_m=reach, session=session):
                 reaching.append(f"{mode.title()} ({metres:.0f}m)")
         if reaching:
             out.append(f"{name}: {d:.1f}m{elev}; Running does not close, "
@@ -885,8 +885,11 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
 
     For an opened Multipower (6E1 p.404-406): one line on what fixed and
     variable mean, the reserve in use and free, what each slot does at the
-    points it holds now, the presets the re-split offer carries with what
-    each buys, and any standing split of the player's that no longer fits
+    points it holds now, the presets the re-split (or opening) offer carries
+    with what each buys --- each named by the WHOLE id that takes it
+    (`loop.chooser.complete_choice`), in the menu's ``[id] name: effect``
+    form, because the offer's bare id is not an answer and a model copies
+    the id it is shown --- and any standing split of the player's that no longer fits
     the build (spec §5.5a), with the rule it breaks.
 
     Switching slots and rebuilding a pool are named only when the menu
@@ -894,14 +897,16 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
     about this Phase.
     """
     from kirby_combat.framework import share_of, slot_points_for
+    from kirby_combat.loop.chooser import complete_choice
+    from kirby_combat.loop.run import OPENING_KIND
     from kirby_combat.split_menu import slot_display, standing_refusals
 
     actor = situation.actor
     views = list(getattr(actor, "framework_view", lambda: [])() or [])
     if not views:
         return []
-    offers = {a.choice.framework_id: a.choice for a in situation.menu
-              if a.kind == "reallocate" and a.choice is not None}
+    offers = {a.choice.framework_id: a for a in situation.menu
+              if a.kind in ("reallocate", OPENING_KIND) and a.choice is not None}
     out: list[str] = []
     for fw in views:
         label, unit = _FRAMEWORK_KINDS.get(fw.kind, (fw.kind.replace("_", " ").title(), "pool"))
@@ -936,13 +941,15 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
                 bits.append(f"now {slot_display(pslot, held)} ({held} pts)"
                             if held > 0 else "off")
             out.append(f"  {slot.name}: {', '.join(bits)}")
-        choice = offers.get(fw.framework_id)
-        if choice is not None and choice.presets:
-            out.append("  Presets for the re-split:")
-            for preset in choice.presets:
+        offer = offers.get(fw.framework_id)
+        if offer is not None and offer.choice.presets:
+            out.append("  Presets for the opening split:" if offer.kind == OPENING_KIND
+                       else "  Presets for the re-split:")
+            for preset in offer.choice.presets:
                 own = ((" (his own, his usual set)" if preset.standard
                         else " (his own)") if preset.standing else "")
-                out.append(f"    {preset.name}{own}: {preset.effect_text}")
+                out.append(f"    [{complete_choice(offer, preset.points)}] "
+                           f"{preset.name}{own}: {preset.effect_text}")
         # A standing split that no longer fits, with the rule it breaks
         # (spec §5.5a): at the opening too, where it would have been a chip.
         standing = (actor.state.standing_splits.get(fw.framework_id, ())

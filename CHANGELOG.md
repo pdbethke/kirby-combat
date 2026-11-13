@@ -2,15 +2,20 @@
 
 ## 0.37.0 — 2026-11-13
 
-**The words a panel and a seat need for a Multipower split.** Two additions, no behaviour change.
+**What a panel and a seat need for a Multipower split: its words, the board at the opening, and whether a move gets him there.**
+
+### Behaviour changes
+- **The opening split's seat sees the real board.** `_pose_opening` built its `PhaseSituation` without `distances_m` or `reach_m`, so a seat choosing the split saw `{}` and 1.0 m; both now come from `board_facts`, the one helper `_situation_for` uses too. A seat that weighed distance at the opening now gets a different (the real) answer.
+- **`SlotTerms.displays` is a new REQUIRED field**: kirby-cost's words for each rung of `steps` ("" at 0), one apiece; None exactly when `steps` is None (an unpriced view). Anything constructing `SlotTerms` must pass it.
+- **`SlotsAllocated.effect_text` is a new REQUIRED property in the event schema** (`schema/events.json`): what the split does, from `split_menu.effect_text` ("nothing switched on" when all are off), set by the resolver for openings and re-splits alike, for the combat log.
+- **The page's "reaches him this Phase" now checks the landing.** `brief_detail.reach_lines` named a movement mode whenever the place called the move reachable; it now asks `reach.closes_on`, so a mode that arrives out of reach is not named (6E2 p.56).
+- **The page lists each preset by the id that takes it.** The frameworks block printed a re-split's presets by name only, while the offer's bare id is not an answer, so a model seat that copied an id off the page was always refused. Each preset (re-split and, now also, opening: "Presets for the opening split:") is printed as `[<whole answer id>] name: effect`, the id built by `loop.chooser.complete_choice`.
 
 ### Added
-- **`SlotTerms.displays`** (new, required): kirby-cost's words for each rung of `steps` ("" at 0), one apiece; None exactly when `steps` is None (an unpriced view).
+- **`reach.closes_on(scene, mover_id, target_id, *, mode, budget_m, reach_m, session) -> bool`**: can he, moving `budget_m` by `mode`, END within `reach_m` of that enemy this Phase — `movement_reach`, then `within_reach` on the landing (6E2 p.56). The one copy of the question: **`martial_offers.charge_connects`** (the Move By / Move Through gate, 6E2 p.72) is its Running case, and enumeration's own copy of that gate now calls `charge_connects`. **No geometry is not an answer**: no Scene, or the mover or enemy off it, raises **`reach.NoGeometry`** (a `ValueError`); the menu's gates keep their own "nothing to judge, no gate" contract by checking positions before asking.
+- **`HeroCombatant.movement_outside(framework_id)`**: his movement with every slot of that framework left out, opened or not, live or rebuilt from a snapshot (6E1 p.404-406). Before the opening `movement_view` reads the framework's slots as bought, so it cannot say what he has without the split's help. A framework he does not have raises `KeyError`.
+- **`loop.chooser.answer_of(offer, action_id)`**: `complete_choice`'s inverse, what an answer names on that offer (for a split, the points over every slot), or ValueError when it does not complete that offer or breaks the rule; a seat reading an answer back does not spell the grammar either.
 - **`split_menu.rung_at(slot, points)`** (was the private `_rung`): the rung a slot holding `points` stands on, the highest at or under them (6E1 p.406), so a seat reads what a preset enables (`.effect`) without restating the rule.
-- **`SlotsAllocated.effect_text`**: what the split does, from `split_menu.effect_text` ("nothing switched on" when all are off), set by the resolver for openings and re-splits alike, for the combat log.
-
-### Fixed
-- **The opening split's situation reads the board.** `_pose_opening` built its `PhaseSituation` without `distances_m` or `reach_m`, so a seat choosing the split saw `{}` and 1.0 m; both now come from `board_facts`, the one helper `_situation_for` uses too.
 
 ## 0.36.0 — 2026-11-13
 

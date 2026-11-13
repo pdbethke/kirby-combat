@@ -45,22 +45,19 @@ def _legal_action(**kw):
 def charge_connects(actor, enemy_id: str, *, scene, budget_m: float, reach_m: float) -> bool:
     """Can a charge on ``budget_m`` of Running END within ``reach_m`` of him?
 
-    The `move_by` offer's own gate (`enumeration.py`, 6E2 p.56 + p.72), asked
-    of the same engine predicate. No geometry to judge means no gate, the
-    contract every scene gate in enumeration follows.
+    The `move_by` offer's own gate (`enumeration.py`, 6E2 p.56 + p.72): the
+    Running case of `reach.closes_on`, the one copy of the question. No
+    geometry to judge means no gate, the contract every scene gate in
+    enumeration follows --- checked here, because `closes_on` itself never
+    answers without geometry.
     """
-    from kirby_combat.enumeration import _xyz_dist
-    from kirby_combat import within_reach
-    from kirby_combat.reach import movement_reach
+    from kirby_combat import reach
 
     positions = (getattr(scene, "combatant_positions", None) or {}) if scene is not None else {}
-    here, there = positions.get(actor.id), positions.get(enemy_id)
-    if here is None or there is None:
+    if positions.get(actor.id) is None or positions.get(enemy_id) is None:
         return True
-    if budget_m <= 0.0:
-        return False
-    out = movement_reach("running", here, there, budget_m, scene, combatant_id=actor.id)
-    return bool(out.reachable) and within_reach(_xyz_dist(out.landing, there), reach_m).in_reach
+    return reach.closes_on(scene, actor.id, enemy_id, mode="running",
+                           budget_m=budget_m, reach_m=reach_m, session=None)
 
 
 def _wielded_by(actor, *, own_attacks: list, weapons) -> list:

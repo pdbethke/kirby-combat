@@ -991,17 +991,19 @@ class HeroCombatant(Stunnable, CombatParticipant):
                         source_label=f"slot {slot_id} at its split"))
         return out
 
-    def _recorded_split(self, items: list, part) -> list:
+    def _recorded_split(self, items: list, part, swaps=None) -> list:
         """A recorded list with each opened slot's full contribution
         replaced, in place, by the one its split gives (``part`` picks the
         list off a `SlotEffect`). In place so the order is the live order.
+        ``swaps`` replaces `_slot_swaps` when a reader wants other
+        replacements (`movement_outside`: one framework's slots all off).
 
         A slot's items are found by equality (an attack carries its slot id,
         so two like slots differ); a replacement is locked so it is not
         mistaken for the next slot's. A recording that does not contain a
         slot's own full contribution is inconsistent and raises."""
         out = [(x, False) for x in items]
-        for full_eff, chosen_eff in self._slot_swaps():
+        for full_eff, chosen_eff in (self._slot_swaps() if swaps is None else swaps):
             full, chosen = part(full_eff), part(chosen_eff)
             if full == chosen:
                 continue
@@ -1889,6 +1891,38 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 self._recorded().movement, lambda e: e.movement)
         return _movement_from(
             self._build(), self._powers_fitted(_MOVE_POWER_XMLIDS))
+
+    def movement_outside(self, framework_id: str) -> list[MovementCapability]:
+        """`movement_view` with every slot of ``framework_id`` left out,
+        whatever its split, opened or not: the movement he has WITHOUT that
+        framework's help (6E1 p.404-406). Every other framework's slots are
+        read at their split, as `movement_view` reads them.
+
+        A seat weighing a Multipower split asks this ("can he close on him
+        without the split?"); before the opening `movement_view` counts the
+        framework's slots as bought, so it cannot answer that. A framework
+        he does not have raises `KeyError`.
+        """
+        frameworks = {f.framework_id: f for f in self.framework_view()}
+        if framework_id not in frameworks:
+            raise KeyError(
+                f"{self.id!r} has no framework {framework_id!r}; he has "
+                f"{sorted(frameworks)}")
+        if self.snapshot is not None:
+            (fw,) = [f for f in self._recorded().frameworks
+                     if f.framework_id == framework_id]
+            off = {s.slot_id for s in fw.slots}
+            swaps = [(full, chosen) for sid, full, chosen in self._slot_choices()
+                     if sid not in off]
+            swaps += [(s.steps[-1].effect, SlotEffect.nothing()) for s in fw.slots]
+            return self._recorded_split(
+                self._recorded().movement, lambda e: e.movement, swaps=swaps)
+        outside = [p for p in self._build().powers or []
+                   if str(getattr(getattr(p, "parent", None), "id", "") or "")
+                   != framework_id]
+        fitted = [f for f in (self._fitted(p, _MOVE_POWER_XMLIDS) for p in outside)
+                  if f is not None]
+        return _movement_from(self._build(), fitted)
 
     def senses(self) -> list["SenseCapability"]:
         """The character's Targeting Senses (spec §1a). Normal Sight always

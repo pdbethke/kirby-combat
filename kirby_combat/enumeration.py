@@ -2874,25 +2874,14 @@ def enumerate_actions(
             # running allowance; Move-By is half-phase and spends half.
             # No scene geometry (legacy ``has_scene`` without positions) ⇒
             # nothing to judge ⇒ ungated, as everywhere else.
-            _vel_positions = (
-                (getattr(scene, "combatant_positions", None) or {})
-                if scene is not None else {}
-            )
-            _vel_actor_pos = _vel_positions.get(actor.id)
-
             def _charge_connects(enemy_id: str, budget_m: float) -> bool:
-                if _vel_actor_pos is None:
-                    return True          # no geometry to judge
-                _epos = _vel_positions.get(enemy_id)
-                if _epos is None:
-                    return True
-                from kirby_combat.reach import movement_reach as _mr
+                # `martial_offers.charge_connects`: the Running case of
+                # `reach.closes_on`, with the menu's no-geometry contract.
+                from kirby_combat.actions.martial_offers import charge_connects
 
                 try:
-                    out = _mr(
-                        "running", _vel_actor_pos, _epos, budget_m, scene,
-                        combatant_id=actor.id,
-                    )
+                    return charge_connects(actor, enemy_id, scene=scene,
+                                           budget_m=budget_m, reach_m=reach_m)
                 except Exception:  # noqa: BLE001
                     # A scene this enumerator cannot walk is a scene it cannot
                     # judge, so it does not gate — the same fail-open contract
@@ -2900,9 +2889,6 @@ def enumerate_actions(
                     # check still fires. (Several suites pass a stub scene
                     # object that carries only the fields THEY need.)
                     return True
-                return bool(out.reachable) and within_reach(
-                    _xyz_dist(out.landing, _epos), reach_m,
-                ).in_reach
 
             for enemy in alive_enemies:
                 # A FULL MOVE for both. 6E2 p.72: a Move By is "a Full

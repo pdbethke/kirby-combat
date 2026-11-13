@@ -584,3 +584,21 @@ def complete_choice(offer: LegalAction, picked) -> str:
     if offer.choice is None:
         raise ValueError(f"{offer.action_id!r} carries no choice to complete")
     return offer.action_id + offer.choice.answer(picked)
+
+
+def answer_of(offer: LegalAction, action_id: str):
+    """What ``action_id`` names on ``offer``: `complete_choice`'s inverse,
+    parsed by the offer's own choice (for a split, `SplitChoice.parse`: the
+    points over EVERY slot, 0 = off). So a seat reading an answer back does
+    not spell the grammar either.
+
+    Raises ValueError when ``action_id`` does not complete ``offer`` (another
+    offer's id, the bare offer id, anything else), or completes it and breaks
+    the rule (the choice's own refusal).
+    """
+    if offer.choice is None:
+        raise ValueError(f"{offer.action_id!r} carries no choice to read")
+    base, sep, tail = (action_id or "").rpartition("=")
+    if not sep or base != offer.action_id:
+        raise ValueError(f"{action_id!r} does not complete {offer.action_id!r}")
+    return offer.choice.parse(tail)

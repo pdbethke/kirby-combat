@@ -415,6 +415,28 @@ def test_each_enemy_says_how_far_how_high_and_what_movement_reaches_him():
     assert "Running does not close, Flight (20m) reaches him this Phase" in line
 
 
+def test_a_mode_that_arrives_out_of_reach_is_not_said_to_reach_him(monkeypatch):
+    """The page asks `reach.closes_on`, so a move the place calls reachable
+    but that lands out of his reach is not named (6E2 p.56)."""
+    from kirby_combat import reach
+    from kirby_world.movement_legality import MovementOutcome
+
+    real = reach._place_reach
+
+    def flight_lands_short(mode, here, there, budget_m, scene, **kw):
+        if mode != "flight":
+            return real(mode, here, there, budget_m, scene, **kw)
+        return MovementOutcome(reachable=True, landing=here, fall=None)
+
+    monkeypatch.setattr(reach, "_place_reach", flight_lands_short)
+    hero, goon = _two()
+    hero.hero.powers.append(_Flight())
+    page = _page(_fight(hero, goon, scene=_floor(hero=(0, 0, 0), goon=(15, 0, 8))), "hero").page
+    section = page.split("Reaching them:\n", 1)[1]
+    line = next(l for l in section.splitlines() if l.strip().startswith("goon: 17.0m"))
+    assert "none of your movement brings you within reach" in line
+
+
 def test_an_enemy_within_reach_is_said_to_be():
     page = _page(_fight(*_two(), scene=_floor(hero=(0, 0, 0), goon=(1, 0, 0))), "hero").page
     assert "goon: 1.0m, within your 1m reach" in page
