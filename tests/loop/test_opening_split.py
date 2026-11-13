@@ -415,3 +415,41 @@ def test_an_opening_with_every_standing_split_fitting_names_no_refusal():
     assert "no longer fits" not in situation.menu[0].summary
     from kirby_combat.brief_detail import framework_lines
     assert not any("no longer fits" in ln for ln in framework_lines(situation))
+
+
+# ── the opening reads the board (Task 1b) ──────────────────────────────────
+
+def test_the_opening_situation_carries_the_distances_and_reach_of_a_phase():
+    """A seat weighing reach and distance at the opening (spec §5.2) must see
+    what it would see in his own Phase: `_situation_for`'s `distances_m` and
+    `reach_m`, not PhaseSituation's field defaults ({} and 1.0)."""
+    from shaped import scene_with
+    from kirby_combat.loop.run import _situation_for
+
+    scene = scene_with({"kerendor": (0.0, 0.0, 0.0), "foe": (30.0, 0.0, 0.0)})
+    @dataclasses.dataclass
+    class _Reaching(_Multipowered):
+        def combat_stats(self):
+            stats = super().combat_stats()
+            stats.reach_m = 3.0       # not PhaseSituation's 1.0 stand-in
+            return stats
+
+    base = _carrying("kerendor", "heroes", _magic())
+    kerendor = _Reaching(**{f.name: getattr(base, f.name)
+                            for f in dataclasses.fields(base)})
+    session = CombatSession.create(
+        id="s", combatants=[kerendor, fighter("foe", side=Side.named("villains"))],
+        scene=scene, template=CombatTemplate.default_6e_superheroic(),
+        dice_roller=RandomRoller(seed=7)).start()
+    enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
+    seat = _States({("kerendor", "kmp"): "wall@45+wind@15"})
+
+    run_phase(enc, seat, roller=_roller())
+
+    (opening,) = seat.seen
+    assert opening.opening is True
+    phase = _situation_for(session, "kerendor")
+    assert opening.distances_m == {"foe": 30.0}
+    assert opening.distances_m == phase.distances_m
+    assert opening.reach_m == phase.reach_m
+    assert opening.reach_m == 3.0

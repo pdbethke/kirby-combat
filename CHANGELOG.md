@@ -8,6 +8,9 @@
 - **`SlotTerms.displays`** (new, required): kirby-cost's words for each rung of `steps` ("" at 0), one apiece; None exactly when `steps` is None (an unpriced view).
 - **`SlotsAllocated.effect_text`**: what the split does, from `split_menu.effect_text` ("nothing switched on" when all are off), set by the resolver for openings and re-splits alike, for the combat log.
 
+### Fixed
+- **The opening split's situation reads the board.** `_pose_opening` built its `PhaseSituation` without `distances_m` or `reach_m`, so a seat choosing the split saw `{}` and 1.0 m; both now come from `board_facts`, the one helper `_situation_for` uses too.
+
 ## 0.36.0 — 2026-11-13
 
 **Adding damage, by the book (6E2 p.99-101), and a Haymaker that does something.** **Needs kirby-cost 0.8.0** (`Dice`, `damage_classes`, `dice_for`, `add_damage_classes`, and `augment_with_str` taking and returning a `Dice`).

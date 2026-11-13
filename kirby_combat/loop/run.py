@@ -228,6 +228,20 @@ def distances_from(scene, actor, others) -> dict[str, float] | None:
     return out
 
 
+def board_facts(scene, actor, enemies) -> tuple[dict[str, float] | None, float]:
+    """What the board says about ``actor``: metres to each of ``enemies``
+    (`distances_from`; None when the Scene is silent) and his melee reach
+    from `combat_stats()`.
+
+    The one place these are computed: `_situation_for` (his own Phase, or a
+    Held Action) and `_pose_opening` (the split before Segment 12) both hand
+    them to the seat, so a seat weighing reach and distance sees the same
+    board at the opening as in a Phase.
+    """
+    return (distances_from(scene, actor, enemies),
+            float(getattr(actor.combat_stats(), "reach_m", 1.0)))
+
+
 def _reserve_end_left(session: "CombatSession", actor) -> int | None:
     """END in the Endurance Reserve his reserve-powered powers would draw
     on, or None: no Reserve, or a campaign that does not count END."""
@@ -571,7 +585,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # Bound once rather than computed inline: the PhaseSituation below
     # hands the SAME measurements to the tactic layer, and measuring
     # twice is how a tactic and the offer it names come to disagree.
-    distances = distances_from(scene, actor, enemies)
+    distances, reach_m = board_facts(scene, actor, enemies)
     # WHO THIS ACTOR IS HOLDING. `held_target_ids` gates the `throw`
     # offer and its own comment says the driver should pre-compute it:
     # "lets the driver pre-compute who's eligible without this function
@@ -721,7 +735,6 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         observer_flashed_groups=frozenset(
             Flash.is_flashed(session, actor_id)[1]),
     )
-    reach_m = float(getattr(actor.combat_stats(), "reach_m", 1.0))
     if physical_hold is None and paralysis_hold is None:
         # WHAT A PHASE IN HALVES ADDS: a Half Move (6E2 p.26), calling a
         # raging friend back (6E1 p.424), and breaking a friend's Entangle
@@ -1291,12 +1304,15 @@ def _pose_opening(
         summary=summary, choice=choice,
     )
     roster = Roster(session)
+    enemies = roster.enemies_of(actor)
+    distances, reach_m = board_facts(session.scene, actor, enemies)
     situation = PhaseSituation(
         actor=actor, menu=[offer],
-        enemies=roster.enemies_of(actor), allies=roster.allies_of(actor),
+        enemies=enemies, allies=roster.allies_of(actor),
         fallen_allies=roster.fallen_allies_of(actor),
         session=session, segment=session.timeline.segment,
         turn=session.timeline.turn, opening=True,
+        distances_m=dict(distances or {}), reach_m=reach_m,
     )
     action = validate_choice(chooser.choose(situation), [offer])
     # Never skipped (``on_unresolvable``): a split not recorded would be a
