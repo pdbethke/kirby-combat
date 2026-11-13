@@ -845,14 +845,18 @@ def _resolve_haymaker(
     session: "CombatSession", actor, action: LegalAction, *,
     template: "CombatTemplate", roller,
 ) -> ResolvedAction:
-    """Haymaker (6E2 p.61): declare a heavier blow that lands later.
+    """Haymaker (6E2 p.70): begin the named attack; it lands a Segment late.
 
-    The declaration is the whole of this Phase. The +4 DC belongs to the
-    attack it modifies, which is why nothing is rolled here.
+    The declaration is the whole of this Phase. The blow itself is rolled at
+    the very end of the next Segment (`actions/haymaker.land_due`, called by
+    the loop), off his menu as it stands then, with +4 DC.
     """
-    from kirby_combat.actions.haymaker import Haymaker
+    from kirby_combat.actions import haymaker
 
-    new_session, _event = Haymaker.declare(session, actor.id)
+    new_session, _event = haymaker.declare(
+        session, actor.id,
+        attack_action_id=action.action_id.removeprefix(haymaker.PREFIX),
+        target_id=action.target_id)
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
         result=None, events=_events_since(session, new_session),

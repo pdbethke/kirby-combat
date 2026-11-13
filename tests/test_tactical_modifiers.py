@@ -6,7 +6,7 @@ from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.template import CombatTemplate
 from kirby_dice import FakeRoller
 from kirby_combat.session import CombatSession
-from kirby_combat.actions.haymaker import Haymaker
+from kirby_combat.actions import haymaker
 from kirby_combat.actions.set_action import Set
 from kirby_combat.actions.brace import Brace, apply_brace_to_range_modifier
 from kirby_combat.actions.dive_for_cover import DiveForCover, DiveForCoverResult
@@ -32,32 +32,29 @@ def _session() -> CombatSession:
     ).start()
 
 
-# ---- Haymaker -----
+# ---- Haymaker ----- (the loop's half: tests/loop/test_haymaker_lands_late.py)
 
-def test_haymaker_declare_emits_actiondeclared_with_haymaker_type():
+def test_haymaker_declare_names_the_attack_and_the_segment_it_lands():
     s = _session()
-    s2, evt = Haymaker.declare(s, "alice")
-    assert evt.combatant_id == "alice"
-    assert evt.action_type == "haymaker"
+    s2, evt = haymaker.declare(s, "alice", attack_action_id="strike:bob", target_id="bob")
+    assert evt.combatant_id == "alice" and evt.action_type == "haymaker"
+    assert evt.targets == ["bob"]
+    assert evt.parameters["attack_action_id"] == "strike:bob"
+    # 6E2 p.70: the end of the NEXT Segment.
+    nxt = (s.timeline.turn, s.timeline.segment + 1) if s.timeline.segment < 12 \
+        else (s.timeline.turn + 1, 1)
+    assert (evt.parameters["lands_turn"], evt.parameters["lands_segment"]) == nxt
     assert evt in s2.event_log
 
 
-def test_haymaker_modifiers_present_after_declaration():
+def test_a_pending_haymaker_costs_five_dcv_until_it_is_closed():
     s = _session()
-    s2, _ = Haymaker.declare(s, "alice")
-    mods = Haymaker.modifiers_for_pending_attack(s2, "alice")
-    assert mods == {"dc_bonus": 4, "dcv_delta": -5}
-
-
-def test_haymaker_modifiers_empty_without_declaration():
-    s = _session()
-    assert Haymaker.modifiers_for_pending_attack(s, "alice") == {}
-
-
-def test_haymaker_declare_records_planned_attack_type():
-    s = _session()
-    s2, evt = Haymaker.declare(s, "alice", planned_attack_action_type="killing_strike")
-    assert evt.parameters["planned_attack_action_type"] == "killing_strike"
+    assert haymaker.dcv_delta(s, "alice") == 0
+    s2, evt = haymaker.declare(s, "alice", attack_action_id="strike:bob", target_id="bob")
+    assert haymaker.dcv_delta(s2, "alice") == -5
+    s3 = haymaker.close(s2, evt, landed=False, reason="test")
+    assert haymaker.dcv_delta(s3, "alice") == 0
+    assert haymaker.pending(s3, "alice") is None
 
 
 # ---- Set -----

@@ -24,6 +24,8 @@ outside this engine.
 """
 from __future__ import annotations
 
+from kirby_combat.actions import haymaker as _haymaker
+
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -459,6 +461,10 @@ def _advance_to_an_actor(
         encounter = _with(encounter, session)
         if actor_id is not None:
             return encounter, actor_id
+        # THE VERY END OF THE SEGMENT, after everyone in it has acted: a
+        # Haymaker begun last Segment goes off now, or is ruined (6E2 p.70).
+        encounter = _with(encounter, _haymaker.land_due(
+            encounter.sessions[0], template=template, roller=roller))
         if encounter.segment >= SEGMENTS_PER_TURN:
             # 6E1 p.424: a raging man "gets a free attempt to recover ... in
             # Post-Segment 12 if he hasn't attempted to recover in that
@@ -705,6 +711,8 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # WHOSE BLOW HE BLOCKED since he last acted: what a Must Follow Block
         # maneuver may answer (`reactive.blocking.block_follow_ups`).
         block_follow_ups=block_follow_ups(session, actor_id),
+        # A HAYMAKER IN THE AIR (6E2 p.70): no second one until it lands.
+        haymaker_pending=_haymaker.pending(session, actor_id) is not None,
         # WHAT HE CANNOT SENSE. `enumerate_actions` has taken his Flashed
         # Sense Groups since Flash was built and this caller never passed
         # them, so a man blinded by a Sight Flash was offered every shot

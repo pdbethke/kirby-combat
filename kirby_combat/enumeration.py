@@ -1023,6 +1023,7 @@ def enumerate_actions(
     prone: bool = False,
     weapons: Any = None,
     block_follow_ups: frozenset[str] | None = None,
+    haymaker_pending: bool = False,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -2258,38 +2259,32 @@ def enumerate_actions(
                     f"trigger has fired; resolve the held intent now"
                 ),
             ))
-    # PR-21: Haymaker — declare this phase, +4 DC on the FOLLOWING
-    # phase's attack, -5 DCV in the meantime (6E2 p73). High-risk
-    # high-reward; the picker should choose it when the actor has a clear
-    # opening but knows they can survive the DCV penalty (cover, ally
-    # screening, etc.).
-    # Reach spec §2 (extended): Haymaker is a +DC declaration applied to a
-    # FOLLOWING attack. Offer it only when the actor has an attack it could
-    # actually land: ANY ranged attack (range gated elsewhere), OR a MELEE
-    # attack / bare STR strike against an in-reach enemy (direct band). A
-    # melee-only actor at 30 m has nothing to haymaker — suppress it.
-    _has_ranged_attack = any(not _is_melee(ap) for ap in attack_powers)
-    _has_landable_melee = (
-        any(
-            _is_melee(ap) and _melee_gate(enemy.id) == "direct"
-            for enemy in alive_enemies
-            for ap in attack_powers
-        )
-        or (
-            s.str_ >= 5
-            and any(_melee_gate(enemy.id) == "direct" for enemy in alive_enemies)
-        )
-    )
-    if alive_enemies and (_has_ranged_attack or _has_landable_melee):
-        actions.append(LegalAction(
-            action_id="haymaker",
-            kind="haymaker",
-            target_id=None, power_xmlid=None, power_name=None,
-            summary=(
-                "Haymaker — declare this phase for +4 DC on next "
-                "attack (-5 DCV until resolved)"
-            ),
-        ))
+    # HAYMAKER (6E2 p.70, p.73): one per attack or Strike already on the
+    # menu that +4 DC is a number for (`actions/haymaker.can_haymaker`). It
+    # names THAT attack and lands at the end of the next Segment; -5 DCV
+    # until then. Not while one is already in the air.
+    if not haymaker_pending:
+        from kirby_combat.actions import haymaker as _hay
+
+        for wound in [a for a in actions if a.kind in ("attack", "strike")
+                      and a.target_id and _hay.can_haymaker(a._attack_view)]:
+            heavier = _hay.with_bonus(wound._attack_view)
+            dice = (f"{heavier.damage_dice}{'½' if heavier.half_die else ''}d6"
+                    f"{'+1' if heavier.plus_one else ''}"
+                    f"{'K' if heavier.damage_type == 'killing' else 'N'}")
+            tail = (f" --- +4 DC ({dice}), lands at the end of the next "
+                    f"Segment; -5 DCV until then")
+            actions.append(LegalAction(
+                action_id=f"{_hay.PREFIX}{wound.action_id}",
+                kind="haymaker", target_id=wound.target_id,
+                power_xmlid=wound.power_xmlid, power_name=wound.power_name,
+                summary=f"Haymaker: {wound.summary}{tail}",
+                # A judged page hides his DCV in the attack's own summary;
+                # the Haymaker of it must not give it back.
+                judged_summary=(f"Haymaker: {wound.judged_summary}{tail}"
+                                if wound.judged_summary is not None else None),
+                _attack_view=wound._attack_view,
+            ))
     # PR-24: PRE attack vs the entire group of witnessing enemies
     # (6E2 p139). One roll, applied against each enemy's PRE. Useful
     # when the actor's PRE/5 is high enough to plausibly cow several

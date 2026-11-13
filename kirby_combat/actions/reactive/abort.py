@@ -47,6 +47,18 @@ def abort_windows(
     return aborted, bonus_until
 
 
+def _ruin_a_haymaker(session: CombatSession, combatant_id: str) -> CombatSession:
+    """6E2 p.70: he "may Abort to a defensive Action ... but doing so ruins
+    the Haymaker"."""
+    from kirby_combat.actions import haymaker
+
+    winding_up = haymaker.pending(session, combatant_id)
+    if winding_up is None:
+        return session
+    return haymaker.close(session, winding_up, landed=False,
+                          reason="he Aborted to a defensive Action")
+
+
 def mark_aborting(
     session: CombatSession,
     combatant_id: str,
@@ -101,6 +113,7 @@ def mark_aborting(
             "(6E2 p.106)"
         )
 
+    session = _ruin_a_haymaker(session, combatant_id)
     (aborted_turn, aborted_segment), (bonus_turn, bonus_segment) = (
         abort_windows(session, combatant_id))
     evt = AbortDeclared(
@@ -153,6 +166,7 @@ def mark_aborting_with_held(
             "being Stunned) and cannot Abort to a defensive Action "
             "(6E2 p.106)"
         )
+    session = _ruin_a_haymaker(session, combatant_id)
     timeline = session.timeline
     phases = segments_for_spd(
         session.combatants[combatant_id].combat_stats().spd)

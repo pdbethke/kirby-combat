@@ -573,6 +573,10 @@ def _fold_session_cvs(
     from kirby_combat.actions.martial_arts import maneuver_dcv_delta
 
     dcv_delta += maneuver_dcv_delta(session, target_id)
+    # 6E2 p.73: -5 DCV while he winds up a Haymaker.
+    from kirby_combat.actions.haymaker import dcv_delta as haymaker_dcv_delta
+
+    dcv_delta += haymaker_dcv_delta(session, target_id)
 
     # 6E2 p.49: from a difficult face he "subtract[s] 2 DCs from all
     # attacks". A condition of the ATTACKER's, on the DC channel the pure
