@@ -3440,21 +3440,18 @@ _STR_USING_XMLIDS = frozenset({
 })
 
 
-def _str_augment_dice(
-    full_dice: int, half_die: bool, damage_type: str, str_: int,
-) -> tuple[int, bool]:
+def _str_augment_dice(dice, damage_type: str, str_: int):
     """Add STR to an attack's dice -- delegated to kirby-cost.
 
-    The arithmetic lived here and is now
-    ``kirby_cost.engine.damage.augment_with_str``, unchanged: deriving dice
-    is the build engine's province, and a second copy of it here is a
-    divergence waiting to be found by someone who does not know it exists.
+    ``kirby_cost.engine.damage.augment_with_str`` owns it: deriving dice is
+    the build engine's province, and a second copy here is a divergence
+    waiting to be found. It takes and returns a ``Dice``, so the +1 and
+    -1 pips travel with the dice (a Killing DC is a pip, 6E2 p.99).
 
-    Kept as a thin wrapper rather than inlined at the call sites so the
-    module's own tests keep a name to reach for.
+    Kept as a thin wrapper so the module's own tests keep a name to reach for.
     """
     from kirby_cost.engine.damage import augment_with_str
-    return augment_with_str(full_dice, half_die, damage_type, str_)
+    return augment_with_str(dice, damage_type, str_)
 
 
 def _build_attack_power(
@@ -3519,8 +3516,11 @@ def _build_attack_power(
 
     uses_str = xmlid in _STR_USING_XMLIDS
     if uses_str and str_for_augmentation > 0:
-        full_dice, half_die = _str_augment_dice(
-            full_dice, half_die, damage_type, str_for_augmentation,
+        from kirby_cost.engine.damage import Dice
+        full_dice, half_die, plus_one, minus_one = _str_augment_dice(
+            Dice(full=full_dice, half=half_die, plus_one=plus_one,
+                 minus_one=minus_one),
+            damage_type, str_for_augmentation,
         )
 
     # Modifiers

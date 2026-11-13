@@ -12,7 +12,7 @@ answers would have looked plausible.
 """
 import pytest
 
-from kirby_cost.engine.damage import augment_with_str, strike_dice
+from kirby_cost.engine.damage import Dice, augment_with_str, strike_dice
 from kirby_combat.hero_view import _str_augment_dice
 
 
@@ -35,9 +35,12 @@ def test_str_augmentation_is_the_engine_s(damage_type):
     """Every combination, not a sample: the wrapper must add nothing."""
     for full_dice in range(0, 9):
         for half_die in (False, True):
-            for strength in range(0, 61):
-                assert _str_augment_dice(full_dice, half_die, damage_type, strength) == \
-                    augment_with_str(full_dice, half_die, damage_type, strength)
+            for plus_one in (False, True):
+                dice = Dice(full=full_dice, half=half_die, plus_one=plus_one,
+                            minus_one=False)
+                for strength in range(0, 61):
+                    assert _str_augment_dice(dice, damage_type, strength) == \
+                        augment_with_str(dice, damage_type, strength)
 
 
 def test_kirby_cost_is_a_hard_dependency():

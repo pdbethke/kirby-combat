@@ -372,18 +372,6 @@ def velocity_dcs(effect: MartialEffect, velocity_mps: float) -> int:
     return int(max(0.0, float(velocity_mps)) // effect.velocity_divisor)
 
 
-def killing_dice(damage_classes: int) -> tuple[int, bool, bool]:
-    """Killing Damage for a DC count, as (full d6, half d6, +1).
-
-    6E2 p.99's Damage Class Table, Killing Damage column: 15 Active Points per
-    1d6, so 3 DC per die --- 1 DC is +1, 2 DC is 1/2d6, 4 DC is 1d6+1, 5 DC is
-    1 1/2d6. kirby-cost's ``Maneuver.killing_dc`` writes the same ladder.
-    """
-    dc = max(0, int(damage_classes))
-    full, rem = divmod(dc, 3)
-    return full, rem == 2, rem == 1
-
-
 def nnd_dice(damage_classes: int) -> tuple[int, bool]:
     """NND dice for a DC count, as (full d6, half d6): 1/2d6 per DC (6E2 p.99)."""
     dc = max(0, int(damage_classes))
@@ -425,7 +413,7 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int, velocity_mps: fl
     for any STR used with them" (6E2 p.93). So the power's Active Points are
     the STR it uses, and a maneuver that uses none costs nothing.
     """
-    from kirby_cost.engine.damage import str_damage_classes, strike_dice
+    from kirby_cost.engine.damage import KILLING, dice_for, str_damage_classes, strike_dice
 
     from kirby_combat.models import AttackPower
 
@@ -438,8 +426,8 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int, velocity_mps: fl
         full, half = str_full + dc + velocity_dcs(effect, velocity_mps), str_half
     elif effect.damage is ManeuverDamage.KILLING:
         damage_type = "killing"
-        full, half, plus_one = killing_dice(
-            dc + (str_damage_classes(strength) if uses_str else 0))
+        full, half, plus_one, _ = dice_for(
+            dc + (str_damage_classes(strength) if uses_str else 0), KILLING)
     elif effect.damage is ManeuverDamage.NND:
         full, half = nnd_dice(dc)
     nnd = effect.damage is ManeuverDamage.NND
@@ -461,7 +449,7 @@ def maneuver_power(mv, effect: MartialEffect, *, strength: int, velocity_mps: fl
 
 def describe_effect(effect: MartialEffect, *, strength: int) -> str:
     """The menu's one-line statement of what the maneuver will do."""
-    from kirby_cost.engine.damage import str_damage_classes, strike_dice
+    from kirby_cost.engine.damage import KILLING, dice_for, str_damage_classes, strike_dice
 
     parts: list[str] = []
     if effect.must_follow is MustFollow.BLOCK:
@@ -477,8 +465,8 @@ def describe_effect(effect: MartialEffect, *, strength: int) -> str:
         parts.append(f"{full + effect.damage_classes}{'½' if half else ''}d6"
                      f"{vel}{' Squeeze' if effect.crush else ''}")
     elif effect.damage is ManeuverDamage.KILLING:
-        f, h, p = killing_dice(effect.damage_classes + (
-            str_damage_classes(strength) if effect.adds_str else 0))
+        f, h, p, _ = dice_for(effect.damage_classes + (
+            str_damage_classes(strength) if effect.adds_str else 0), KILLING)
         parts.append(f"HKA {f}{'½' if h else ''}d6{'+1' if p else ''}")
     elif effect.damage is ManeuverDamage.NND:
         f, h = nnd_dice(effect.damage_classes)
