@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.36.0 — 2026-11-13
+
+**Adding damage, by the book (6E2 p.99-101), and a Haymaker that does something.** **Needs kirby-cost 0.8.0** (`Dice`, `damage_classes`, `dice_for`, `add_damage_classes`, and `augment_with_str` taking and returning a `Dice`).
+
+### Fixed — STR on a Killing attack is counted in Damage Classes (6E2 p.99, 6E1 p.137)
+kirby-cost counted Killing damage a half die per DC, so a 1d6 HKA with STR 5 was built at 1 1/2d6 (book: 1d6+1) and at STR 10 at 2d6 (book: 1 1/2d6), the Doubling Rule capped a 1d6 HKA at 2 DC of STR instead of 3, and a 1d6+1 knife lost its pip. `_build_attack_power` now hands kirby-cost the whole `Dice` and takes it back. **Every HKA wielder whose STR isn't a multiple of 15 above his dice hits for less than before**, which is what the book says.
+- **Deleted:** `maneuver_effects.killing_dice`, a second copy of p.99's Killing column; its callers use `kirby_cost.engine.damage.dice_for`.
+
+### Added — a martial maneuver made with a weapon (6E2 p.94, p.101)
+A maneuver HD marks "used with a weapon" was offered and resolved barehanded (56 corpus maneuvers on 16 characters).
+- **`MartialManeuverView.weapon_use`** (new, required): `WeaponUse.BAREHANDED`, `EITHER` (HD's flag plus a WEAPON_ELEMENT purchase) or `WEAPON_ONLY` (HD's flag and no Element: a weapon style, "he can't use them barehanded", p.94). PeterB's ruling: HD's flag is trusted as stated; a build's weapons carry no Weapon Familiarity category to check an Element against.
+- **Offers:** one form per hand-to-hand weapon of his own in his hand (`LegalAction._wielded`, id suffix `:with:<power id>`, summary "... 5d6 with his Club"). `WEAPON_ONLY` isn't offered barehanded.
+- **`weapon_maneuver_power(weapon, mv, effect, *, velocity_mps)`**: the weapon's dice (its STR already in) plus the maneuver's DCs and velocity DCs, through `add_damage_classes`; the weapon's type, defence and END. p.101's example holds: a Martial Strike takes a 3d6 club to 5d6 and a 1d6 HKA sword to 1 1/2d6. Not built (so not offered) for a maneuver that adds no dice (Killing and NND Strikes, p.101: "its function isn't to add, but to differentiate"), a must-follow-Grab maneuver, a weapon that isn't Normal or Killing, or an Advantaged weapon (its DC rate, p.99, isn't priced yet).
+- The row records `wielded_power_id` / `wielded_name`.
+
+### Fixed — Haymaker (6E2 p.70, p.73)
+Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers_for_pending_attack`, which nothing called, and it put the bonus on "the next attack" where p.70 lands the wound-up blow itself at the very end of the next Segment.
+- **Offered per attack or Strike** on the menu that +4 DC is a number for (Normal or Killing, no Advantage that reprices its DCs): id `haymaker:<attack id>`, with the judged page's wording carried through. Not while one is pending.
+- **`haymaker.declare(session, id, *, attack_action_id, target_id)`** records the attack and the (turn, segment) it lands; **`pending`**, **`dcv_delta`** (-5 while pending, applied beside Dodge in `recording.py`), **`due`**, **`close`**, **`land_due`**, **`can_haymaker`**, **`with_bonus`**.
+- **The loop lands it** when nobody is left to act in the Segment, before the clock advances: the same attack off his menu as it stands then, +4 DC. If it's gone from his menu (target out of reach or sight) or he can't act, it's ruined and the row says why.
+- **An Abort ruins it** (p.70), in `abort.py`'s one door.
+- **Deleted:** the `Haymaker` class's `modifiers_for_pending_attack` and `declare`'s `planned_attack_action_type`.
+
+### Examples
+- **`examples/raw_lazer.py`** — 6E2 p.24's Abort examples through `run_phase`: Lazer's Segment 6 Dodge, the Abort before his DEX, the Abort from a Held Action, the SPD 4 Block a Segment early, and no Abort after acting.
+- **`examples/raw_adding_damage.py`** — 6E2 p.101 (club and sword), p.99 (STR on a 1d6 HKA), p.70 (the Haymaker and the Block that ruins it).
+
 ## 0.35.0 — 2026-11-12
 
 **A Multipower's reserve is divided by the man who owns it, in points.** Until now a variable slot "took what the fixed slots left, in build order" (0.34.0's "still open"), a slot's attack ran at full power wherever the points went, and the engine never asked how the reserve was split. Now (6E1 p.404-406) he states the split, and every reader (attacks, movement, defences, characteristics, and every offer read off a source power) reads a slot at the points it holds: as many LEVELS as fit them, none if it holds none. Pricing is kirby-cost's, not this engine's: `kirby_cost.engine.allocation.levels_within`, reached through `HeroCombatant` (`_priced_at`, `_power_at_split`, `_slot_contribution`, `powers_at_split`). **Needs kirby-cost 0.7.0** (`levels_within`, `ladder`, `step_display` with their required `hero`, `NotLadderable`, `characteristic_states(..., slots=...)`, `contribution_from_held_slot`).
