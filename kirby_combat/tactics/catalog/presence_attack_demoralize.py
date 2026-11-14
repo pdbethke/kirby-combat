@@ -7,7 +7,7 @@ a Full Phase, ½ DCV). PRE +30: cowed (0 DCV; he may surrender or run).
 Each repeat at the same man is 1d6 less (6E2 p.140).
 
 0.32 told the reader "OCV/DCV drops by 1-3", which is no tier of the book's,
-and stayed on the page after his Presence Attacks had done nothing. Plague
+and stayed on the page after his Presence Attacks had done nothing. Blight
 made three group Presence Attacks at the same agents; the last two did
 nothing at all (2026-11-10).
 
@@ -16,7 +16,7 @@ Preconditions:
   * his last Presence Attack this fight did something to someone. One
     that did nothing is evidence, and the next is 1d6 weaker (Peter,
     2026-11-10: "if he sees a PRE attack doesnt work he's less likely to
-    redo"; it waited for two duds, and Plague shouted a third time).
+    redo"; it waited for two duds, and Blight shouted a third time).
 """
 from __future__ import annotations
 

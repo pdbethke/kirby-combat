@@ -52,7 +52,7 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
 - **Deleted:** the `Haymaker` class's `modifiers_for_pending_attack` and `declare`'s `planned_attack_action_type`.
 
 ### Examples
-- **`examples/raw_lazer.py`** — 6E2 p.24's Abort examples through `run_phase`: Lazer's Segment 6 Dodge, the Abort before his DEX, the Abort from a Held Action, the SPD 4 Block a Segment early, and no Abort after acting.
+- **`examples/raw_abort_to_dodge.py`** — 6E2 p.24's Abort examples through `run_phase`: Larkin's Segment 6 Dodge, the Abort before his DEX, the Abort from a Held Action, the SPD 4 Block a Segment early, and no Abort after acting.
 - **`examples/raw_adding_damage.py`** — 6E2 p.101 (club and sword), p.99 (STR on a 1d6 HKA), p.70 (the Haymaker and the Block that ruins it).
 
 ## 0.35.0 — 2026-11-12
@@ -74,11 +74,11 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
 - **Characteristics bought in a slot follow the split** (also fixed before shipping: they were laddered and offered but bought nothing). Ravel's variable "Reinforced String" (+30 STR, 30 AP) is STR 10 at 0, 25 at 15 and 40 at 30; Power Lad's fixed +45 STR slot is STR 40 off and 85 on. kirby-cost composes it (`characteristic_states(..., slots=...)`, fed by `HeroCombatant._held_slots`); a rebuilt combatant shifts his recorded characteristics by the rung his split picks (`SlotEffect.characteristics`, new snapshot field `slot_characteristics`). Before a framework is opened the build reads as written, and HD marks both of these slots `AFFECTS_TOTAL="No"`, so **before this release no characteristic slot in the corpus ever counted**, at any split. PD and ED bought in a slot stay with the defence terms (`defence_terms`), as before.
 - **A split names every slot.** For an opened framework, a slot its split does not name raises `KeyError` naming it (`framework.share_of`) in every reader (`_slot_standing`, a rebuilt combatant's `_slot_swaps`, `upkeep.slot_still_allocated`, the Mind Scan lock, the brief), where it was silently read as off. The resolver refuses to open or re-split a framework with a slot that has no HD id of its own (`hero_view.slot_id_is_stable`): its id would be process-local and the split could not be read back.
 - **A standing split that no longer fits is named at the opening** too, in the opening offer's words and in the brief, not only once the framework is opened.
-- **"<fixed slot> + remainder" shares the rest evenly** (spec §5.3), the same sharing as "Even"; it filled the variable slots in slot order. Kerendor's "Wall of Wind + remainder" is now Resistant Protection 15 PD/15 ED, Blast 1d6, Flight 10m (was Blast 3d6).
+- **"<fixed slot> + remainder" shares the rest evenly** (spec §5.3), the same sharing as "Even"; it filled the variable slots in slot order. Merrick's "Wall of Wind + remainder" is now Resistant Protection 15 PD/15 ED, Blast 1d6, Flight 10m (was Blast 3d6).
 - **A slot costing nothing can be switched on:** its most is 1 point, its ladder's top rung (`framework.slot_max_points`), in validation and presets alike; it was refused above 0.
 - **A Multipower of one fixed slot** is offered its on and off splits (an opening may leave it off, R13); it was offered nothing.
 - `Allocation` is read by field name (`.active`), not index; `enumerate_actions` no longer accepts a plain 4-tuple.
-- **New RAW alignment page `examples/raw_kerendor_multipower.py`** (6E1 p.406, Kerendor): 30/30, 40/20, Protection on with 15 left, 10/40/9, and 30 into Flight 50m with +1/4 Reduced Endurance (24m), each asserted through the real views.
+- **New RAW alignment page `examples/raw_multipower_split.py`** (6E1 p.406, Merrick): 30/30, 40/20, Protection on with 15 left, 10/40/9, and 30 into Flight 50m with +1/4 Reduced Endurance (24m), each asserted through the real views.
 - **Breaking for consumers:**
   - **Old fights and snapshots are not replayable.** A snapshot lacking `standing_splits` is refused by name, and one carrying `active_slot_per_framework` is refused as retired; an event log from before this release has no openings, so a fight cannot be re-run from it.
   - A menu consumer must expect `opening_split` and the new `reallocate_slots` id shape, and a seat must answer both (`complete_choice(offer, points)`).
@@ -97,7 +97,7 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
   - Line Of Sight (p.129), and Stunned or Knocked Out as the Segment ends (p.347, 6E2 p.107).
   - `lingering` (Constant attacks) and `standing_areas` (Constant zones, Damage Shields) now pay through it, so they too run on Charges; their two copies of the slot check are gone.
 - **New module `kept_up`: Darkness fields and Images share one Constant lifetime.** It replaces `darkness_fields`' upkeep; `darkness_fields` keeps only the field record.
-  - At the top of his Phase each thing he keeps pays for itself. p.129's Sapphire keeps two uses going at "20 END per Phase", and p.188: "A character may maintain more than one Darkness field at once, provided he pays the END cost for all fields".
+  - At the top of his Phase each thing he keeps pays for itself. p.129's Sorrel keeps two uses going at "20 END per Phase", and p.188: "A character may maintain more than one Darkness field at once, provided he pays the END cost for all fields".
   - Off at the end of a Segment he is Stunned in; off on a Recovery (6E2 p.131).
   - **Images now do all of this.** Until now an Image cost nothing, was kept up by nothing, and never came down.
 - **No count limits.** The one-wall, one-field and one-Image guards are gone. They had no page behind them, and the wall guard looked among the constructs, where a raised wall never is. END, Charges and the reserve limit him.
@@ -120,7 +120,7 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
 
 ## 0.33.4 — 2026-11-11
 
-**A Darkness field is kept up, or it comes down.** 0.33.3 made a field outlive the Phase it was cast in and so made it last the whole fight: nothing ever took one down. Found in a local Talisman vs D-Soldier fight where both were blinded for good and neither was offered an attack again.
+**A Darkness field is kept up, or it comes down.** 0.33.3 made a field outlive the Phase it was cast in and so made it last the whole fight: nothing ever took one down. Found in a local Tessaly vs D-Soldier fight where both were blinded for good and neither was offered an attack again.
 
 - **New module `darkness_fields`.** 6E1 p.188: Darkness is Constant and "remains in existence as long as the character pays the END for it". At the top of the caster's Phase (6E1 p.130) the field is kept only if the power is still his, he has Line Of Sight to it (6E1 p.129), and he can pay its END; then he pays.
 - **Stunned or Knocked Out: off at the end of the Segment** (6E1 p.347, 6E2 p.107), checked against the `stunned` status as the Segment ends, NOT `stunned_or_recovering_for`: a man who has recovered "won't still be Stunned at the end of the Segment", so his field stays.
@@ -132,7 +132,7 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
 
 ## 0.33.3 — 2026-11-11
 
-**A Darkness field stays up after the Phase it is cast in.** Found in a local fight (Talisman vs 12 D-Soldiers, session 35de6a41): she cast Darkness at 14/30 STUN, and three Segments later the soldiers knocked her out through it.
+**A Darkness field stays up after the Phase it is cast in.** Found in a local fight (Tessaly vs 12 henchmen, session 35de6a41): she cast Darkness at 14/30 STUN, and three Segments later the soldiers knocked her out through it.
 
 - `Darkness.place` wrote the zone straight onto `scene.constructs` and logged a `ConstructSpawned`, which `apply_event` keeps as audit only. kirby-api rebuilds the fight from its rows every Phase, so the zone was gone by the next Phase; `rewind_to_sequence` and a Krackle replay never had it at all. The Force Wall's defect (fixed by `BarrierRaised` in 0.22.0), with the same cure.
 - **New event `DarknessPlaced`** (one per Sense Group): `construct_id`, `polygon_xy`, `elevation_range_m`, `sense_group`, `creator_immune`, `source_combatant`. `apply_event` folds it onto a new construct list, and is now the only thing that puts a Darkness field on the board. `ConstructSpawned` is still emitted beside it, as before, for Krackle and the narrator.
@@ -149,9 +149,9 @@ Haymaker cost a Phase and did nothing: its +4 DC and -5 DCV came from `modifiers
 
 ## 0.33.1 — 2026-11-10
 
-**The menu stops overselling: a move says what it buys a shooter, and a Presence Attack the dice it rolls.** Found in a local Plague-vs-UNTIL fight: 0 hits in 7 shots at -4 OCV, never once closing, and three group Presence Attacks.
+**The menu stops overselling: a move says what it buys a shooter, and a Presence Attack the dice it rolls.** Found in a local Blight-vs-UNTIL fight: 0 hits in 7 shots at -4 OCV, never once closing, and three group Presence Attacks.
 
-- **A Half Move states where it ends and the Range Modifier there against now** ("ends 8m from him, Range Modifier 0 there, -4 now (6E2 p.40)"), from `closing_move` + `placement.landing_of` (the resolver's calls) and `tables.range_penalty` (the to-hit roll's). `half_move_offers` now takes the actor. Rerun: Plague Half Moved to close three times, citing the modifier, and won.
+- **A Half Move states where it ends and the Range Modifier there against now** ("ends 8m from him, Range Modifier 0 there, -4 now (6E2 p.40)"), from `closing_move` + `placement.landing_of` (the resolver's calls) and `tables.range_penalty` (the to-hit roll's). `half_move_offers` now takes the actor. Rerun: Blight Half Moved to close three times, citing the modifier, and won.
 - **A Full Move is called one.** The `move` offer said "Half-move ... cuts range penalty next phase"; it is a Full Move, the whole Phase, no attack (6E2 p.26).
 - **The brief's "Reaching them" says reach to strike**, so a shooter does not read "none of your movement reaches him" as "you cannot close".
 - **A Presence Attack offer states the dice the resolver rolls** (`pre_attacks.landing.stating_the_dice`): PRE/5 less 1d6 in combat (6E2 p.138), less 1d6 for each earlier one at the same man (p.140); the group offer lists each man's dice. It said PRE/5, a die more than any Presence Attack in a fight rolls.
@@ -161,16 +161,16 @@ No event shape changes.
 
 ## 0.33.0 — 2026-11-10
 
-**A disease can be caught: Variable Effect and Damage Over Time Drains reach the menu.** Found when Plague (CV3) never once used his Acute Disease (Drain "any two characteristics at once", Variable Effect, Expanded Effect x2, Damage Over Time 6 increments every 2 Segments, defenses once, Lock Out). Two separate refusals kept it off every menu.
+**A disease can be caught: Variable Effect and Damage Over Time Drains reach the menu.** Found when Blight (CV3) never once used his Acute Disease (Drain "any two characteristics at once", Variable Effect, Expanded Effect x2, Damage Over Time 6 increments every 2 Segments, defenses once, Lock Out). Two separate refusals kept it off every menu.
 
 - **Variable Effect (6E1 p.144-145).** An Aid or Drain with Variable Effect bought against "Characteristics" lets its user choose which characteristics each use affects, Expanded Effect's levels saying how many at once. It is offered ONCE per target carrying the choice: new field `LegalAction.choice` (`adjustments.CharacteristicChoice`, `characteristic_choice(power)`, `ADJUSTABLE_CHARACTERISTICS`). "Any two" of 17 is 136 pairs; offering each would be a 1,000-line page. The seat answers `<offer id>=A+B`; `loop.chooser.completion_of` and `validate_choice` hold the answer to the rule (count, distinct, in the domain) and `complete_choice(offer, picked)` writes one. **The bare offer id is not an answer** and raises `InvalidChoice` (which now carries a `note`). `FirstLegalChooser` completes with the first names in sheet order. A special-effect category ("Fire Powers", "Magic") stays unbuilt: no build records a power's special effect.
 - **Damage Over Time on a Drain (6E1 p.330-332).** A one-target Damage Over Time Drain is offered (`attack_shapes.offer_is_buildable` refused every one). The use is the Attack Roll; each increment is its own Drain roll, one interval apart, less Power Defense per increment or out of one application of it with "defenses only apply once" (`actions.adjust.drain_dose`). Lock Out bars a second use on the same victim until the first has run. Increments ride the existing Damage Over Time clock (`lingering.fire_due_doses`); `LingeringAttackApplied` gains `adjusts` (the stats each increment drains), so the schema changes. A Constant or Area Damage Over Time Drain stays unoffered.
-- **The offer says what it does.** Aid, Drain and Healing offer lines now open with the power's name and, for a Damage Over Time power, state its increments, interval, defense and Lock Out (`adjustment_offers.over_time_text`). The page showed Plague's disease as "1d6 Character Points" beside a 4d6 Killing Attack, and his week-apart Chronic Disease read the same.
+- **The offer says what it does.** Aid, Drain and Healing offer lines now open with the power's name and, for a Damage Over Time power, state its increments, interval, defense and Lock Out (`adjustment_offers.over_time_text`). The page showed Blight's disease as "1d6 Character Points" beside a 4d6 Killing Attack, and his week-apart Chronic Disease read the same.
 
 - **Penetrating follows 6E1 p.344.** The minimum is one point per Normal Damage BODY on the dice rolled (0 for a 1, 2 for a 6), on a Normal attack's STUN and a Killing attack's BODY, never with an AVAD, and applied after Damage Reduction, which cannot reduce it (p.186, p.188). It was one BODY per die on every attack, before Damage Reduction. `resolution.penetrating.penetrating_minimum` (`PenetratingMinimum`, `normal_body_on`) replaces `penetrating_floor`.
 
 - **`kirby_combat.odds`: what an attack is worth before it is rolled.** `chance_to_hit`, `expected_burst_hits`, `average_through` (`Through`: mean STUN and BODY through his defences), `expected` (`Expected`: chance, hits, STUN, BODY; Autofire per hit), `expected_area`, `block_chance`, and the dice (`sum_pmf`, `chance_of_rolling`, `damage_rolls`). Lifted from kirby-ai's EV seat, which assembled its own damage step and missed the Penetrating minimum. Every damage roll is a real roll through the attack door's own step, proven equal to brute force over all 6^n rolls.
-- **His page says what his own last actions did** (`own_record.own_record_lines`, section "What your last actions did:"): his last four actions and what they visibly did, a run of misses on one man ("you have missed Agent 1 4 times running"), and a Presence Attack's effect on each man. Facts, never advice. On a judged page a miss is in words ("missed badly"), since the margin would give away the enemy's DCV; on a man he cannot now perceive, only that the blow connected. Found when Plague missed a dodging agent nine times and repeated Presence Attacks that did nothing (combat-decisions spec, Phase 7's feedback).
+- **His page says what his own last actions did** (`own_record.own_record_lines`, section "What your last actions did:"): his last four actions and what they visibly did, a run of misses on one man ("you have missed Agent 1 4 times running"), and a Presence Attack's effect on each man. Facts, never advice. On a judged page a miss is in words ("missed badly"), since the margin would give away the enemy's DCV; on a man he cannot now perceive, only that the blow connected. Found when Blight missed a dodging agent nine times and repeated Presence Attacks that did nothing (combat-decisions spec, Phase 7's feedback).
 - **Two doctrine lines read the fight.** `sustained_fire` applies only when an enemy is behind cover from where he stands, and names that man (`tactics.catalog._filters._enemies_in_cover`, the attack door's own per-pair cover reading); it was advised against men in the open, where "every blocked shot chips the wall" is false. `presence_attack_demoralize` states 6E2 p.138-139's tiers (it said "OCV/DCV drops by 1-3") and the repeat penalty (p.140), and is not advised once his last two Presence Attacks did nothing to anyone (`own_record.own_actions`).
 - **`odds.chance_to_stun`** and `odds.stun_through_pmf`: the chance an attack leaves him Stunned (6E2 p.106), one hit at a time or, Coordinated (6E2 p.46), every hit added to what the window already pooled on him this Segment (`coordination.pooled_stun`). Several Penetrating or Armor Piercing attacks that each fall short of CON Stun a man together.
 - **`resolution.damage_taken`**: the attack door's damage step (defense, Damage Negation, damage, defences, cover, AVAD, Damage Reduction, Penetrating, halving, STUN for BODY), lifted verbatim out of `actions/base.py` so the resolver and `odds` run one function.
@@ -182,7 +182,7 @@ No event shape changes.
 
 **Anything bought inside a Compound Power reaches combat.** Requires **kirby-cost >= 0.6.5** (Compound parts keep their ids through the build doc).
 
-- kirby-cost keeps a purchase's parts in three lists: a framework's slots in `sub_powers`, a List's contents in `objects`, a Compound Power's parts in `powers`. Nine walks read one list, so a Compound Power's attacks, defences, senses and mental powers were invisible, and `_find` could not resolve a chosen part. The corpus Agent of UNTIL and Agent of VIPER carry their blasters that way and fought unarmed; 353 local characters carry a Compound Power. `kirby_combat.parts.parts_of` (and `PART_LISTS`) is now the one place that knows the three lists, and a ratchet test fails on any new single-list walk.
+- kirby-cost keeps a purchase's parts in three lists: a framework's slots in `sub_powers`, a List's contents in `objects`, a Compound Power's parts in `powers`. Nine walks read one list, so a Compound Power's attacks, defences, senses and mental powers were invisible, and `_find` could not resolve a chosen part. The corpus a government agent and a cult agent carry their blasters that way and fought unarmed; 353 local characters carry a Compound Power. `kirby_combat.parts.parts_of` (and `PART_LISTS`) is now the one place that knows the three lists, and a ratchet test fails on any new single-list walk.
 - `actions.autofire.burst_hits_on(to_hit, shots)`: 6E2 p.44's Autofire count read off a `ToHitResult`, including 6E2 p.37's natural 3. The burst resolver delegates to it; kirby-ai's EV seat reads it to price a burst.
 
 **Behaviour change:** characters with Compound Power attacks now attack with them, and their Compound Power defences now defend. A replay of a fight recorded before 0.32.1 rebuilds those characters with the extra powers.
@@ -220,9 +220,9 @@ No event shape changes.
 
 ## 0.31.0 — 2026-11-02
 
-Three findings from a local Talisman fight. Requires **kirby-cost >= 0.6.4** (the build doc keeps a custom modifier's name).
+Three findings from a local Tessaly fight. Requires **kirby-cost >= 0.6.4** (the build doc keeps a custom modifier's name).
 
-- **A Self Only power is never fired at anyone else.** HD's custom advantage or limitation is XMLID="MODIFIER", and its name is its meaning. The Destroid's Self Destruct System is "RKA 8d6; 1 Charge which Never Recovers, Self Only, No Range": the engine read no custom limitation, offered it as an attack, and the Destroid put 57 STUN into Talisman with it and kept fighting. New `power_modifiers.CustomLimitation` (the names the engine reads, matched whole, case aside; RULING in its docstring) and `custom_limitations_of(power)`; `AttackPower.self_only`. A Self Only attack is unbuilt (`unbuilt_reasons`), so not offered: when a Destroid sets it off (to avoid capture, or when it judges the squad is lost; Peter, 2026-11-02) is not built yet. Tests: `tests/test_self_only_is_not_an_attack.py`, `tests/loop/test_offered_means_resolves.py`.
+- **A Self Only power is never fired at anyone else.** HD's custom advantage or limitation is XMLID="MODIFIER", and its name is its meaning. The Destroid's Self Destruct System is "RKA 8d6; 1 Charge which Never Recovers, Self Only, No Range": the engine read no custom limitation, offered it as an attack, and the Destroid put 57 STUN into Tessaly with it and kept fighting. New `power_modifiers.CustomLimitation` (the names the engine reads, matched whole, case aside; RULING in its docstring) and `custom_limitations_of(power)`; `AttackPower.self_only`. A Self Only attack is unbuilt (`unbuilt_reasons`), so not offered: when a Destroid sets it off (to avoid capture, or when it judges the squad is lost; Peter, 2026-11-02) is not built yet. Tests: `tests/test_self_only_is_not_an_attack.py`, `tests/loop/test_offered_means_resolves.py`.
 - **Every STUN/BODY/END change names who caused it.** New field `VitalsChanged.caused_by` (schema regenerated): the attacker for a hit and for the knockback, fall or collapse it brings; the man himself for a cost he paid (END, STUN for END, a Side Effect, recoil); None for a hazard or a fading adjustment. **Breaking:** `record_vitals_change`, `impact.impact_damage`, `impact.fall`, `impact.keep_footing`, `collapse.bring_it_down` and `actions.recording._apply_damage` require `caused_by=`. Tests: `tests/loop/test_the_record_says_who_did_it.py`.
 - **`events_involving(session, combatant_id)`** (import surface): the rows of the record that concern one fighter, as actor, target or cause; the acting order and other rows that merely list everyone are left out. Raises KeyError for a combatant the fight does not have. Module `session/involvement.py`; tests `tests/loop/test_events_involving.py`.
 
@@ -375,7 +375,7 @@ Movement and END. **Behaviour changes** for every consumer: superheroic fights n
 - **A target may Abort against Autofire, Flash and Entangle** (6E2 p.24). Since #22 a burst and a spray roll at the attack door, and a one-target Flash or Entangle rolls to hit (6E1 p.228, p.217) through the same CV fold a Dodge is read at, so `autofire`, `autofire_spray`, `flash` and `entangle` join `REACTABLE_KINDS`. **Every man an attack is announced against is asked** (`defenders_of`): a spray carries no single `target_id`, and a Sweep or Multiple Attack asked only its first man. `react_to_attack` now returns `(session, [(defender, reaction), ...])`. Seam test: `tests/loop/test_abort_against_autofire_flash_entangle.py`.
 - **The facts a player's Held Action order needs** (Peter, 2026-10-27: an order names its action by power or maneuver plus a target rule). `threat.last_attacker_of(session, target_id)`: the last combatant whose attack roll was made against him, attributed as `harm_witnessed` attributes harm; and `threat.last_attacker_perceived(session, target_id, observer_id=, roller=)`, the same IF the observer perceives him now at the menu's own gate (`concealment.perceives` plus the Mind Scan locks), else None, never an earlier attacker he did see (perception governs combat). `loop.reactions.nameable_powers(combatant)`: the sheet's names an order may name, a superset of every `LegalAction.power_name` the menu carries; the standard maneuver names and the Interaction Skill table are lifted to `enumeration` constants (same values, same sites) so both read one list. Tests: `tests/loop/test_who_attacked_him.py`, `tests/loop/test_nameable_powers.py` (Ravel, Bokor, PowerLad at melee and range).
 - **The Abort question says what is coming** (`OutOfTurn.attack`, a new `IncomingAttack`). A seat answering "he is attacking you, do you Abort?" from a player's standing order ("Dodge any Killing attack", "Block his punches") has to test two rules about the attack: is it hand-to-hand (6E2 p.59, the test that puts Block on the menu) and does it do Killing Damage (6E1 p.98). `IncomingAttack` carries `attacker_id`, `action_id`, `kind`, `power_name`, `summary`, `hand_to_hand` (the same `_is_hth` `reaction_menu` uses, so it can never disagree with the menu) and `killing` (the damage family of the offer's power or maneuver; an offer with neither, such as Trip, Disarm, Push or a thrown object, is not killing). `OutOfTurn.attack` is required, with no default, and is None exactly when `incoming` is (the Held Action question). No new event kind, no change to the menu or to any outcome. Seam test: `tests/loop/test_the_incoming_attack_is_described.py`.
-- **The Abort offers name the attacker** ("Don't Abort: take Drago's attack...", "Abort to Block: roll OCV+0 against Drago's OCV"). They printed his combatant id, which in a kirby-api fight is a uuid, beside a Brief that names him. A player now reads these offers as his question. Same seam test file.
+- **The Abort offers name the attacker** ("Don't Abort: take Dravik's attack...", "Abort to Block: roll OCV+0 against Dravik's OCV"). They printed his combatant id, which in a kirby-api fight is a uuid, beside a Brief that names him. A player now reads these offers as his question. Same seam test file.
 - **Offered means resolvable, and Autofire is built** (follow-up K1). No new event kinds; two new action kinds, `autofire` and `autofire_spray`. Seam tests: `tests/loop/test_offered_means_resolves.py`, `tests/loop/test_autofire_bursts.py`.
   - `force_wall` was offered with no power on the offer and with nowhere to put it, so every one raised (99 of 99 in a 20-fight sweep). It is now offered with its power, and only when the caster and an enemy are both on the map (`placing.has_a_place_near_an_enemy`, the resolver's own question). `darkness_zone` and `image_decoy` place the same way and now ask the same.
   - `rapid_fire` / `attack_construct` held at a wall that came down before the Held Action went off (6E2 p.22) raised. Ruling: the shots go into the rubble and nothing is damaged (`constructs.already_destroyed`). An id the fight never hit still raises.
@@ -398,7 +398,7 @@ Movement and END. **Behaviour changes** for every consumer: superheroic fights n
   - Corrected: a second use of a Constant power is a second maintained effect (6E1 p.129), not a replacement. Recovery: none while holding breath (6E2 p.132), and STUN lost to a running Damage Over Time is held back (6E1 p.333). Status hazard zones apply Prone; any other status is recorded as changing nothing.
   - Still not offered: Uncontrolled (6E1 p.354), Autofire Areas, Any Area, Mobile, Hole In The Middle, Constant plus DoT, DoT Surfaces, Mental Surfaces and mental Areas, recipient-only Side Effects, Constant/DoT Flash or Entangle, shaped Drain/Aid/Transform, shaped powers at constructs.
 - **Reallocating a Multipower is a Zero Phase Action, once a Phase** (6E1 p.410). Until now it spent the whole Phase, so a man who switched slots never fired the slot he switched to. In kirby-api's benchmark fight a first-offer seat had Bullet reallocate every Phase from Turn 4 until the cap, and the fight never ended. The Phase now stays his (as after a No-Time Presence Attack or an Instant Change), and the reallocate offer leaves the menu for the rest of it (`framework.reallocated_this_phase`). No new event kind. Seam test: `tests/loop/test_reallocate_is_zero_phase.py`.
-- **Weapons are tracked, and a Disarm takes one.** An Accessible Focus (OAF/IAF, 6E1 p.379) is a thing in a hand (`kirby_combat.weapons`): Bokor's Mojo Hand, Brainchild's OAF Multipower pistol. A Disarm is offered per weapon in the target's hand, rolls 6E2 p.62's STR contest (the attacker wins ties), and knocks the weapon 1d6+1m along the line of the blow. Takeaway wrenches it into the attacker's hand (6E2 p.69; 6E1 p.379, "more BODY" to win). Anyone within reach or a Half Move can pick it up (`pick_up_weapon`, 6E2 p.25 and p.62). A weapon out of its owner's hand is off his sheet for every reader, through the fold a Dispel uses, which now also reaches a slot inside a framework. Ruling: in somebody else's hand it is no use to him (6E1 p.382; HD records no Personal/Universal choice). **New event kind: `WeaponMoved`** (where it ended up, absolute); `schema/events.json` regenerated. A Disarm against a man holding nothing is no longer offered.
+- **Weapons are tracked, and a Disarm takes one.** An Accessible Focus (OAF/IAF, 6E1 p.379) is a thing in a hand (`kirby_combat.weapons`): Bokor's Mojo Hand, Mindwright's OAF Multipower pistol. A Disarm is offered per weapon in the target's hand, rolls 6E2 p.62's STR contest (the attacker wins ties), and knocks the weapon 1d6+1m along the line of the blow. Takeaway wrenches it into the attacker's hand (6E2 p.69; 6E1 p.379, "more BODY" to win). Anyone within reach or a Half Move can pick it up (`pick_up_weapon`, 6E2 p.25 and p.62). A weapon out of its owner's hand is off his sheet for every reader, through the fold a Dispel uses, which now also reaches a slot inside a framework. Ruling: in somebody else's hand it is no use to him (6E1 p.382; HD records no Personal/Universal choice). **New event kind: `WeaponMoved`** (where it ended up, absolute); `schema/events.json` regenerated. A Disarm against a man holding nothing is no longer offered.
 - **The martial maneuvers PR #5 stopped offering are built** (`actions/martial_resolution.py`, `martial_fmove.py`, `martial_offers.py`):
   - FMove (Flying Tackle, Passing Strike/Throw/Disarm, Charge, Flying Grab, Sacrifice Lunge): the Move By / Move Through charge (6E2 p.72) around the maneuver's own blow, +1 DC per full 10m of velocity (6E2 p.101). Rulings: the maneuver's CVs replace Move By's, there is no recoil, and a Grab or "You Fall" stops where it hit.
   - Must Follow Block (Counterstrike): offered only in his next Phase after a successful Block of that attacker (6E2 p.59-60, `reactive.blocking.block_follow_ups`).
@@ -413,12 +413,12 @@ Movement and END. **Behaviour changes** for every consumer: superheroic fights n
 
 ## 0.22.1 — 2026-10-27
 
-**Four findings from kirby-app's 0.22.0 demo recording (Drago vs GORGON), two of them defects.**
+**Four findings from kirby-app's 0.22.0 demo recording (Dravik vs HARLOW), two of them defects.**
 Each one is pinned by a seam test through `run_phase`.
 
 - **BODY that gets through costs STUN** (6E2 p.105: "1 STUN for every 1 point of BODY damage
   that gets through his defenses"). Nothing applied this floor. A killing attack against a man
-  with no resistant defense took his BODY and left his STUN alone: in the demo, GORGON (ED 35,
+  with no resistant defense took his BODY and left his STUN alone: in the demo, HARLOW (ED 35,
   rED 0) went to -1 BODY having lost 1 STUN. `resolution.damage.stun_for_body_taken` is now
   applied last at every door that subtracts defenses: the attack pipeline (`actions/base.py`),
   lingering doses, impact/fall damage, and collapse. The payload's `stun_dealt` and
@@ -429,11 +429,11 @@ Each one is pinned by a seam test through `run_phase`.
   attack, -2d6 on the third attack, and so forth"), counted per target from the fight's log
   (`pre_attacks.landing.repeats_against`), so a group roll is judged on each target's own dice.
   A shout down to 0d6 is no longer offered (`without_spent_shouts`), since it can affect nobody.
-  GORGON rolled 4d6 in all eight Phases; the repeats now fall 4, 3, 2, 1 and then the offer is
-  gone. His eight "no effect" results were correct (every total was under Drago's PRE 20; 6E2
+  HARLOW rolled 4d6 in all eight Phases; the repeats now fall 4, 3, 2, 1 and then the offer is
+  gone. His eight "no effect" results were correct (every total was under Dravik's PRE 20; 6E2
   p.139). The one-free-Presence-Attack-a-Phase ruling already stopped a chooser from spending a
   Phase on shouts alone; that is now pinned too.
-- **Not defects, now pinned:** GORGON's "Abort to Dodge" right after his own action was a Dodge
+- **Not defects, now pinned:** HARLOW's "Abort to Dodge" right after his own action was a Dodge
   taken in his own Phase, after a No-Time Presence Attack (6E2 p.20, p.25, p.56). The engine
   records every Dodge through the Abort door, so the row is `AbortDeclared`, but the Phase it
   gives up is that Phase (T1 S12). So acting again at T2 S3 was right, and the +3 DCV ran until
@@ -643,7 +643,7 @@ p.147), `AttackInput.damage_taken_factor`, `AttackResult.knockback_owed`,
   instead of BODY x 2m on every hit.
 - **`compute_impact_damage_dice` had 6E2 p.118 inverted** (a small
   Knockback passed through a wall, a large one stopped). Corrected; the
-  book's Mechanon example is the test.
+  book's Wardrake example is the test.
 - **Falls** (`impact.fall`): 1d6 per full 2m (6E2 p.142) with Breakfall
   halving, or nothing when made by half (6E1 p.68).
 - **Footing**: a man hit on a precarious surface rolls DEX or Acrobatics or
@@ -1251,7 +1251,7 @@ view on `HeroCombatant` is derived from exactly those. `attacks` walks
 `defense_view`, `senses`, `movement_view`, `maneuver_view`, `framework_view`,
 `is_mentalist`, `has_combat_sense`, `has_self_contained_breathing` and
 `skill_roll_value` each walk one of them. So a rebuilt combatant reported
-NOTHING through any of them: measured on the kirby-api harness, Drago's three
+NOTHING through any of them: measured on the kirby-api harness, Dravik's three
 RKAs went in and none came back, and a rebuilt fight did no damage. It also
 came back on no side — `side` was never written to the wire at all, so a
 rebuilt roster was a free-for-all in which the two men who had been allies now
@@ -1792,9 +1792,9 @@ corpus, main vs this release:
 | unexplained | **0** |
 
 Of the 325: **319** buy a characteristic as a power that HD counts toward the
-total (`AFFECTS_TOTAL="Yes"`) — Gorgon fought at PD 15 where his sheet says 35
+total (`AFFECTS_TOTAL="Yes"`) — Harlow fought at PD 15 where his sheet says 35
 — and **6** carry purchases limited to their Hero identity (6E1 p.386), which
-combat had been ignoring entirely. White Wolf fought as a civilian: DEX 10
+combat had been ignoring entirely. A CV1 hero fought as a civilian: DEX 10
 instead of 25, SPD 2 instead of 6. Ravel goes from SPD 2 to SPD 5.
 
 Every mover was classified; none is unaccounted for. A character with no
@@ -1931,7 +1931,7 @@ The sense-affecting family, Presence Attack consequences, and a front door.
 - **A public API.** `__all__` went from 3 names to 80, covering the whole
   measured consumer surface, pinned by `tests/test_public_api.py`. Purely
   additive: every deep import path still works.
-- **`examples/raw_orion.py`** — 6E2 p.9's worked example, asserted.
+- **`examples/raw_blinded_per_opponent.py`** — 6E2 p.9's worked example, asserted.
 - Attribution for **Bill Bame**, whose work the dice roller is based on in
   part. It was missing entirely.
 

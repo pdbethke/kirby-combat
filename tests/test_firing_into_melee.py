@@ -30,7 +30,7 @@ THREE THINGS THE PAGE INSISTS ON, and each is a test here:
 -2 OCV IS A JUDGEMENT, and a grounded one. The page leaves the figure to
 the GM ("based on the number of combatants, how quickly they're moving
 around, their relative sizes"), and its own Behind Cover example on the
-same page prices a rock that "protects roughly half of Andarra" at -2
+same page prices a rock that "protects roughly half of Ardwin" at -2
 OCV. One man held in front of another is the same shape of obstruction,
 so -2 is the default and the template can change it.
 """

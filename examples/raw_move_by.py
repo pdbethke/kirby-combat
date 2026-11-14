@@ -1,6 +1,6 @@
-"""Starburst does a Move By — 6E2 p.72, where the book contradicts itself.
+"""Starling does a Move By — 6E2 p.72, where the book contradicts itself.
 
-A conformance script, like `raw_andarra.py`, but for the harder case: this
+A conformance script, like `raw_recover_from_stunned.py`, but for the harder case: this
 page of the rulebook states a rule and then works an example that does not
 follow it. The engine follows the RULE. This script asserts the rule's
 numbers and prints the divergence, so anyone checking Kirby against the
@@ -47,7 +47,7 @@ velocity_dc = FLIGHT_M // 10
 rule_total_dc = rule_str_dc + velocity_dc
 
 print("=" * 70)
-print("  Starburst (STR 15, Flight 30m) Move Bys Ogre from 10m - 6E2 p.72")
+print("  Starling (STR 15, Flight 30m) Move Bys Brannoch from 10m - 6E2 p.72")
 print("=" * 70)
 print(f"  velocity                 : {FLIGHT_M}m per Phase -> {velocity_dc} DC")
 print(f"  STR, halved FIRST (rule) : {STR_} -> {STR_ // 2} STR -> {rule_str_dc} DC")

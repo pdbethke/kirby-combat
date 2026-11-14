@@ -5,8 +5,8 @@ logged a `ConstructSpawned` beside it, which `apply_event` treats as
 audit-only. Anything that rebuilds the fight from its rows --- kirby-api
 does it at EVERY Phase, and `rewind_to_sequence` and a Krackle replay do it
 too --- started from the authored Scene and had no field. Found live
-2026-11-11 (local fight 35de6a41): Talisman cast Darkness at 14/30 STUN,
-the zone was gone by the next Phase, and the D-Soldiers she meant to blind
+2026-11-11 (local fight 35de6a41): Tessaly cast Darkness at 14/30 STUN,
+the zone was gone by the next Phase, and the henchmen she meant to blind
 shot her unconscious through it.
 
 The same defect, and the same cure, as the Force Wall

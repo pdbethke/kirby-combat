@@ -326,7 +326,7 @@ def test_no_template_is_no_answer():
         effect_for("Head")  # type: ignore[call-arg]
 
 def test_the_rock_takes_the_low_shots():
-    """6E2 p.45, quoted: "Only Andarra's head, arms, shoulders, and chest
+    """6E2 p.45, quoted: "Only Ardwin's head, arms, shoulders, and chest
     are exposed, so any Hit Location roll of 12 or more hits the rock,
     doing no damage to her."
 
@@ -338,7 +338,7 @@ def test_the_rock_takes_the_low_shots():
     """
     from kirby_combat.resolution.hit_location import exposed_through_cover
 
-    # Andarra's rock is cover 2 by this engine's scale -- see the module.
+    # Ardwin's rock is cover 2 by this engine's scale -- see the module.
     assert exposed_through_cover(11, cover_level=2) is True
     assert exposed_through_cover(12, cover_level=2) is False
     assert exposed_through_cover(18, cover_level=2) is False

@@ -82,7 +82,7 @@ def test_an_always_side_effect_lands_on_every_use_sized_to_the_power():
 
 
 def test_increased_endurance_cost_multiplies_the_rounded_end():
-    """6E1 p.368's Pulsar: 4d6 (20 Active Points, 2 END) at x3 END costs 6."""
+    """6E1 p.368's Pellam: 4d6 (20 Active Points, 2 END) at x3 END costs 6."""
     base = shaped_blast("a-bolt", 4, active_points=20)
     tripled = shaped_blast("a-bolt", 4, active_points=20,
                            increased_end=IncreasedEnd(multiplier=3, unbuilt=()))

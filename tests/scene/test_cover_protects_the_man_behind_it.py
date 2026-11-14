@@ -19,9 +19,9 @@ standing in the open. Nobody shooting AT Doc paid anything.
 
 So taking cover was strictly harmful --- it cost you two OCV and bought
 you nothing --- and every tactic that valued cover valued it backwards.
-The book's own example is the other way round: Andarra "ducks behind a
+The book's own example is the other way round: Ardwin "ducks behind a
 rock before firing. The well-trained Marines return fire. Because the
-rock protects roughly half of Andarra, the Marines suffer a -2 OCV."
+rock protects roughly half of Ardwin, the Marines suffer a -2 OCV."
 
 Example paraphrased; this project ships no rules text.
 """
@@ -64,7 +64,7 @@ def test_a_wall_at_the_targets_end_is_the_targets_cover():
 def test_a_wall_at_the_shooters_end_is_not():
     """The shooter is behind it. It hides HIM, and hides nothing of the
     man he is aiming at -- he simply fires over it, which is what the
-    book's Andarra does."""
+    book's Ardwin does."""
     assert compute_cover_level(
         shooter_pos=SHOOTER, target_pos=TARGET,
         target_is_prone_or_diving=False, scene=_lot(wall_x=1.0),

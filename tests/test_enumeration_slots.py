@@ -113,7 +113,7 @@ def _actor_with_mp_slots(slots: list[AttackPower]) -> HeroCombatant:
     avad — without needing to replicate the engine's _build_attack_power
     logic for framework powers.
     """
-    actor = _bare_combatant(id="helios", name="Helios")
+    actor = _bare_combatant(id="lumen", name="Lumen")
     with patch.object(
         type(actor), "attacks", new_callable=PropertyMock, return_value=slots
     ):
@@ -152,7 +152,7 @@ SLOT_AVAD = _mp_energy_blast(
 
 def _make_scene() -> tuple[HeroCombatant, HeroCombatant]:
     actor = _actor_with_mp_slots([SLOT_NORMAL, SLOT_AVAD])
-    enemy = _bare_combatant(id="gorgon", name="Gorgon")
+    enemy = _bare_combatant(id="harlow", name="Harlow")
     return actor, enemy
 
 

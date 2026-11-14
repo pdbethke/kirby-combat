@@ -653,20 +653,20 @@ def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bo
     > being Stunned is all he can do that Phase. However, after
     > recovering from being Stunned, a character may, if he wishes,
     > Abort to a defensive Action (even in the same Segment in which he
-    > recovers from being Stunned). Example: Andarra (DEX 20, SPD 3) is
+    > recovers from being Stunned). Example: Ardwin (DEX 20, SPD 3) is
     > Stunned by an attack on Segment 6. She must use her Phase on
     > Segment 8 to recover; she recovers on DEX 20 (so an enemy attacking
     > her in Segment 8 with, say, DEX 15 would have to hit her at her
-    > full DCV). Andarra cannot take any other Action until her next
+    > full DCV). Ardwin cannot take any other Action until her next
     > Phase on Segment 12, but may Abort her Phase in Segment 12 in
     > Segments 8 (after her DEX occurs), 9, 10, or 11 if she so desires."
 
     So the book's own example runs DCV and Abort back to normal for
-    Andarra in Segments 9, 10, and 11 -- the whole stretch between her
+    Ardwin in Segments 9, 10, and 11 -- the whole stretch between her
     recovery Phase (Segment 8) and her NEXT full Phase (Segment 12). The
     earlier version of this function stopped the window at that NEXT
     full Phase instead of at the recovery Phase's own Segment, which
-    denied Andarra's Abort and halved her DCV for three Segments (9, 10,
+    denied Ardwin's Abort and halved her DCV for three Segments (9, 10,
     11) the book explicitly restores her in -- one full Phase too long.
 
     **The fix: the window runs from the Stunning hit through the END of
@@ -678,7 +678,7 @@ def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bo
     the VERY NEXT ``SegmentAdvanced`` after that -- regardless of whether
     it is one of the combatant's own Phase segments -- clears back to
     "none". That is exactly one Segment of "recovering", matching
-    Andarra's Segment 8 alone, not Segments 8-11.
+    Ardwin's Segment 8 alone, not Segments 8-11.
 
     **Residual approximation, documented rather than hidden (matching
     ``_is_stunned``'s own honesty about its early-clear bias):** the book
@@ -688,10 +688,10 @@ def stunned_or_recovering_for(session: "CombatSession", combatant_id: str) -> bo
     DEX-order information (``statuses_for`` folds a Segment-granularity
     log, not a DEX-ordered action queue), so it cannot represent that
     precise edge. Ending the window at the CLOSE of the recovery Segment
-    (rather than at Andarra's DEX within it) over-penalises by at most
+    (rather than at Ardwin's DEX within it) over-penalises by at most
     the post-DEX portion of that ONE Segment -- versus the prior bug's
     over-penalisation by up to a full Phase (three Segments, in
-    Andarra's case). The direction of the residual error is
+    Ardwin's case). The direction of the residual error is
     "conservative": a combatant who should already be free to Abort or
     act at full DCV, for the sliver of the recovery Segment before their
     own DEX comes up, is still shown as recovering. No engine layer this

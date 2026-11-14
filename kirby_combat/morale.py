@@ -3,7 +3,7 @@
 Spec: `kirby/docs/superpowers/specs/2026-09-08-side-morale-design.md`.
 
 A SIDE, NOT A MAN. HERO gives an individual no morale stat, deliberately:
-PRE is the stat, and 6E2 p.140 says so in a worked example --- Howler's
+PRE is the stat, and 6E2 p.140 says so in a worked example --- Hollis's
 "demoralized henchmen are about to run" and she fixes it with a Presence
 Attack, not a morale roll. A per-character morale number would be a
 second system competing with PRE.

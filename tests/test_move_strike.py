@@ -1,7 +1,7 @@
 """The close-and-strike composite: close, then may the strike happen?
 
-The defect this closes, observed in a live fight on 2026-08-31: Cheshire Cat
-attempted a martial throw on GORGON while standing on a rooftop six metres
+The defect this closes, observed in a live fight on 2026-08-31: a rooftop villain
+attempted a martial throw on a hero while standing on a rooftop six metres
 above him. The close was resolved scene-aware (and legally went nowhere, since
 running is same-elevation only), and the strike resolved anyway.
 """
@@ -70,13 +70,13 @@ def _combatant(cid: str) -> HeroCombatant:
 
 def _observer() -> HeroCombatant:
     """Sees by Normal Sight and nothing else."""
-    return _combatant("cheshire")
+    return _combatant("tamsin")
 
 
 def _unseeable_target() -> HeroCombatant:
     """Also sighted; the tests make it unperceivable with `target_invisible`
     rather than by giving it a build, so no character fixture is needed."""
-    return _combatant("gorgon")
+    return _combatant("harlow")
 
 
 class _BlindRoller:
@@ -149,7 +149,7 @@ def test_an_attacker_on_a_roof_cannot_reach_the_street_below():
         mode="running",
         half_move_m=6.0,                    # plenty, as the crow flies
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "out_of_reach"
@@ -169,7 +169,7 @@ def test_a_legal_close_on_the_same_level_produces_a_strike():
         mode="running",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert isinstance(out.strike, StrikePlan)
     assert out.strike.blind is False
@@ -187,7 +187,7 @@ def test_a_close_that_runs_out_of_movement_lands_short_and_does_not_strike():
         mode="running",
         half_move_m=6.0,                    # not enough
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "out_of_reach"
@@ -287,7 +287,7 @@ def test_an_already_adjacent_actor_does_not_move_onto_the_target():
         mode="running",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.travelled_m == pytest.approx(0.0)
     assert out.landing == Position(5, 10, 0)
@@ -307,7 +307,7 @@ def test_a_refused_mode_gives_an_adjacent_actor_no_free_strike():
         mode="not_a_mode",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "move_refused"
@@ -323,7 +323,7 @@ def test_swimming_on_dry_land_gives_an_adjacent_actor_no_free_strike():
         mode="swimming",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "move_refused"
@@ -377,7 +377,7 @@ def test_a_teleporter_closes_onto_the_rooftop_the_runner_cannot_reach():
         mode="teleportation",
         half_move_m=20.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike == StrikePlan(blind=False)
     assert out.reach.in_reach is True
@@ -401,7 +401,7 @@ def test_the_scene_less_path_ignores_movement_mode_by_design():
         mode="running",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     sceneless = resolve_move_strike(scene=None, **args)
     assert sceneless.strike == StrikePlan(blind=False)
@@ -421,7 +421,7 @@ def test_a_sceneless_close_still_applies_the_reach_rule():
         mode="running",
         half_move_m=6.0,
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "out_of_reach"
@@ -513,7 +513,7 @@ def test_a_leaper_closes_onto_the_rooftop_instead_of_falling_short_of_it():
         mode="leaping",
         half_move_m=12.0,                   # 12m across, 6m up: enough for both
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.reason == ""
     assert out.strike == StrikePlan(blind=False)
@@ -539,7 +539,7 @@ def test_a_leap_that_cannot_be_rescued_still_reports_the_fall():
         mode="leaping",
         half_move_m=11.0,   # 5.5m of lift: clears the mid-air point, not the roof
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "fell"
@@ -562,7 +562,7 @@ def test_a_retry_that_also_falls_leaves_the_original_landing_alone():
         mode="leaping",
         half_move_m=8.0,                    # 8m across, 4m up: both reachable
         reach_m=1.0,
-        actor_id="cheshire",
+        actor_id="tamsin",
     )
     assert out.strike is None
     assert out.reason == "fell"

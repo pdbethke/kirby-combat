@@ -96,7 +96,7 @@ def test_parse_input_for_defenses_blank() -> None:
 
 # ── Naked-mod-resistant promotion ─────────────────────────────────────────
 def test_naked_resistant_promotes_pd_to_rpd() -> None:
-    """GRANITEMAN-shape: 45 PD characteristic + NAKEDMODIFIER L90 RESISTANT
+    """STONEWARD-shape: 45 PD characteristic + NAKEDMODIFIER L90 RESISTANT
     INPUT='for 45 PD/45 ED' → rPD = 45, rED = 45.
     """
     powers = [
@@ -133,7 +133,7 @@ def test_naked_resistant_capped_at_pd_total() -> None:
 
 def test_naked_resistant_without_resistant_modifier_does_nothing() -> None:
     """A NAKEDMODIFIER without a RESISTANT child is ignored for rPD —
-    e.g. GRANITEMAN's first 'Tough As Granite' carries HARDENED only."""
+    e.g. STONEWARD's first 'Tough As Granite' carries HARDENED only."""
     powers = [
         StubPower(
             xmlid="NAKEDMODIFIER", name="Just Hardened", levels=90,

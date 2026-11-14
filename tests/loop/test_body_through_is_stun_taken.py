@@ -2,15 +2,15 @@
 
 6E2 p.105: "Regardless of whether an attack does Normal Damage or Killing
 Damage, a character automatically takes 1 STUN for every 1 point of BODY
-damage that gets through his defenses." The book's own example is Ogre, PD
+damage that gets through his defenses." The book's own example is Brannoch, PD
 40 with 5 of it Resistant, shot for 10 BODY / 30 STUN: "he would normally
 take 5 BODY, 0 STUN. Because he took BODY damage, he takes a minimum of 1
 STUN per point of BODY taken, so he takes 5 STUN regardless of his
 defenses."
 
-Found in kirby-app's 0.22.0 demo recording: Drago's Armor Piercing RKA put
-8, 6, 6 and 6 BODY into GORGON (ED 35, no resistant ED) and every hit
-reported `stun_dealt: 0` until the last, so GORGON went to -1 BODY having
+Found in kirby-app's 0.22.0 demo recording: Dravik's Armor Piercing RKA put
+8, 6, 6 and 6 BODY into HARLOW (ED 35, no resistant ED) and every hit
+reported `stun_dealt: 0` until the last, so HARLOW went to -1 BODY having
 lost one point of STUN. The payload and `VitalsChanged` agreed with each
 other; both were short of the rule.
 """
@@ -72,16 +72,16 @@ class Shoots:
 
 def _shot(*, pd: int, rpd: int):
     session = CombatSession.create(
-        id="s", combatants=[_man("drago", "a", dex=30, pd=4, rpd=0),
-                            _man("gorgon", "b", dex=10, pd=pd, rpd=rpd)],
+        id="s", combatants=[_man("dravik", "a", dex=30, pd=4, rpd=0),
+                            _man("harlow", "b", dex=10, pd=pd, rpd=rpd)],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
     ).start()
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     result = run_phase(enc, Shoots(), roller=Ones(), on_unresolvable="raise")
-    assert result.actor_id == "drago" and result.kind == "attack"
+    assert result.actor_id == "dravik" and result.kind == "attack"
     vitals = [e for e in result.events if e.kind == "VitalsChanged"
-              and e.combatant_id == "gorgon"]
+              and e.combatant_id == "harlow"]
     resolved = [e for e in result.events if e.kind == "ActionResolved"]
     return result, vitals, resolved[-1].result_payload
 
@@ -93,7 +93,7 @@ def test_body_through_no_resistant_defense_costs_that_much_stun():
     assert payload["body_dealt"] == 4
     assert payload["stun_dealt"] == 4, "6E2 p.105: 1 STUN per BODY taken"
     assert [(e.stun, e.body) for e in vitals] == [(-4, -4)]
-    assert result.session.combatants["gorgon"].current_stun == 56
+    assert result.session.combatants["harlow"].current_stun == 56
 
 
 def test_the_floor_never_lowers_stun_that_got_through_anyway():

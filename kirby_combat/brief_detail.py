@@ -232,7 +232,7 @@ def _stat(stats, name: str) -> int:
 
 
 #: Powers shown by their authored names, at most this many per combatant.
-#: The old page's cap, for its reason: Slug carries 27 named powers, and a
+#: The old page's cap, for its reason: one corpus villain carried 27 named powers, and a
 #: page shared by ten combatants is not improved by one of them owning it.
 MAX_POWER_NAMES = 8
 

@@ -18,7 +18,7 @@ target slams into (the page's own three-line table):
 
 CORRECTED 2026-10-26. This module had the comparison inverted: it compared
 HALF the meters against the threshold and let a SMALL knockback pass through
-a wall while a large one stopped dead. The book's Mechanon example (22m into
+a wall while a large one stopped dead. The book's Wardrake example (22m into
 a 6 PD / 2 BODY wall -> 8d6 and through; into 6 PD / 6 BODY -> 11d6 and
 stops) is the regression test.
 """

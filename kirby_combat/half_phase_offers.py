@@ -39,7 +39,7 @@ def half_move_offers(session: "CombatSession", actor,
     landing is `closing_move` + `placement.landing_of`, the calls the
     resolver moves him by, and the modifier is `tables.range_penalty`, the
     one the to-hit roll applies, so the page cannot promise a shot the
-    engine will not give. (Found 2026-11-10: Plague went 0 for 7 at -4 OCV
+    engine will not give. (Found 2026-11-10: Blight went 0 for 7 at -4 OCV
     and never closed; his Half Move offer said nothing of range.)
     """
     out: list[LegalAction] = []

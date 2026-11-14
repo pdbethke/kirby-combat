@@ -104,7 +104,7 @@ def per_roll_target(observer) -> int:
     against the 6E defaults (`roll_constants(None)`). Until this branch
     existed, calling it with a stat block raised AttributeError — which
     nothing noticed only because nothing had yet asked a stat block for a
-    PER roll. `examples/raw_orion.py` is the first caller that does.
+    PER roll. `examples/raw_blinded_per_opponent.py` is the first caller that does.
     """
     from kirby_cost.engine.rolls import characteristic_roll, roll_constants
 
@@ -596,7 +596,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
 def _has_talent(hero, xmlid: str) -> bool:
     """True if the hero has the named Talent. Danger Sense / Combat Sense load
     via the HDCLoader as ``hero.talents`` entries (verified against
-    ``Black Paladin.hdc``: ``<TALENT XMLID="DANGER_SENSE">`` → an entry on
+    a corpus hero's build: ``<TALENT XMLID="DANGER_SENSE">`` → an entry on
     ``hero.talents`` with ``.xmlid == "DANGER_SENSE"`` and nothing in
     ``hero.powers``). We scan BOTH ``talents`` and ``powers`` so the check is
     robust to alternate load shapes / synthetic stubs."""

@@ -1698,7 +1698,7 @@ def enumerate_actions(
     # this replaced were menu rulings with no page behind them: p.172's
     # Barrier "remains in existence until destroyed", p.188 lets a man
     # "maintain more than one Darkness field at once, provided he pays the
-    # END cost for all fields", and p.129's Sapphire keeps two uses of one
+    # END cost for all fields", and p.129's Sorrel keeps two uses of one
     # Constant power going at once. What limits him is END, Charges and the
     # reserve.
     from kirby_combat.charges import has_charges_left
@@ -2892,7 +2892,7 @@ def enumerate_actions(
 
             for enemy in alive_enemies:
                 # A FULL MOVE for both. 6E2 p.72: a Move By is "a Full
-                # Move past his target" (Starburst covers his whole 30m);
+                # Move past his target" (Starling covers his whole 30m);
                 # it is a Half Phase of TIME, not a Half Move of distance.
                 if _charge_connects(enemy.id, running_m):
                     actions.append(LegalAction(

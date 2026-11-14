@@ -119,7 +119,7 @@ def test_his_reserve_and_which_powers_draw_on_it():
 
 
 def test_extra_time_on_the_rec_slows_it():
-    """Blowtorch's fuel tank: REC with Extra Time (1 Day). A Day is 7,200
+    """A fuel tank: REC with Extra Time (1 Day). A Day is 7,200
     Turns of 12 seconds: never in a fight."""
     suit = _man("suit", [_reserve(rec_modifiers=[
         {"xmlid": "EXTRATIME", "option_id": "1DAY"}])], "a")

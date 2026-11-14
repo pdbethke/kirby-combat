@@ -287,7 +287,7 @@ def test_the_zone_survives_a_replay():
 
 def test_two_uses_are_two_zones_both_paid():
     """6E1 p.129: a Constant power used again affects its target twice, and
-    "Sapphire has to pay END to maintain each use"."""
+    "Sorrel has to pay END to maintain each use"."""
     power = shaped_blast("a-storm", 4, area=area(), constant=True)
     enc = _fight(power)
     chooser = _chooser(a_fires=2)
@@ -367,7 +367,7 @@ def test_a_no_range_zone_moves_with_him_and_catches_what_it_sweeps():
 
 def test_a_persistent_aura_is_on_from_the_start_and_never_offered():
     """6E1 p.130: a Persistent power is "assumed to be on at all times".
-    Basilisk's Deadly Smell is a Persistent No Range Radius: it is no attack
+    A monster's Deadly Smell is a Persistent No Range Radius: it is no attack
     on the menu, has no establishing event, and b, standing in it, takes it
     on a's Phase."""
     aura = replace(shaped_blast("a-smell", 4, area=area(size=10, personal_immunity=True),

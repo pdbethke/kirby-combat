@@ -7,7 +7,7 @@ combatant as the engine's own serialized form -- ``to_dict`` out,
 hero with no powers, no skills, no martial arts and no equipment, and EVERY
 view on that class is derived from exactly those. So a round-tripped
 combatant reported nothing through any of them. Measured on the harness:
-Drago's three RKAs went in and none came back, and the rebuilt fight did no
+Dravik's three RKAs went in and none came back, and the rebuilt fight did no
 damage.
 
 The code that was supposed to prevent that assigned two instance

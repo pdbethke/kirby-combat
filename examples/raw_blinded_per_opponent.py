@@ -1,4 +1,4 @@
-"""Orion fights blind — 6E2 p.9, reproduced.
+"""Corvin fights blind — 6E2 p.9, reproduced.
 
 This is not an illustration. It is a conformance check that happens to be
 readable: the rulebook's own worked example is restated below, the engine is
@@ -9,13 +9,13 @@ script exits non-zero and `tests/test_examples.py` fails with it.
 THE BOOK'S SCENARIO (6E2 p.9), PARAPHRASED — this project ships no rules
 text; open your own copy:
 
-    Orion is blinded by a Flash. Unable to perceive anyone with a Targeting
+    Corvin is blinded by a Flash. Unable to perceive anyone with a Targeting
     Sense, he is halved on both OCV and DCV hand-to-hand, and at Range his
     OCV drops to zero while his DCV is halved. The book calls him a sitting
     duck.
 
     He then spends a Half Phase Action on a Hearing PER Roll against ONE of
-    his attackers, Durak, and makes it. Against Durak ONLY he is now at -1
+    his attackers, Dunmar, and makes it. Against Dunmar ONLY he is now at -1
     DCV and half OCV hand-to-hand, and at FULL DCV and half OCV at Range.
     Against every other opponent the unmitigated numbers still stand.
 
@@ -23,21 +23,21 @@ WHY THIS EXAMPLE IS WORTH A SCRIPT. Three things in it break any design that
 treats "blind" as a single global CV factor, and each is asserted below:
 
   1. The same combatant has DIFFERENT CVs against DIFFERENT opponents in the
-     same Segment. Orion is 4 DCV against Fiacho and 7 DCV against Durak.
+     same Segment. Corvin is 4 DCV against Finnach and 7 DCV against Dunmar.
   2. The mitigated hand-to-hand DCV is a FLAT -1, not a second halving. A
      design that halves again gets 2 where the book says 7.
-  3. Mitigation is asymmetric. Hearing Durak restores Orion's FULL DCV at
+  3. Mitigation is asymmetric. Hearing Dunmar restores Corvin's FULL DCV at
      Range but only lifts his hand-to-hand DCV to -1 — and it lifts his
      Ranged OCV off zero while leaving his hand-to-hand OCV halved.
 
-Orion's own CVs are not stated on the page, so this script gives him 8 OCV /
+Corvin's own CVs are not stated on the page, so this script gives him 8 OCV /
 8 DCV. The book states RATIOS and a flat modifier; 8 is chosen because it is
 even (so "half" needs no rounding argument to be checked by eye) and because
 the halved and mitigated values are then plainly different numbers — 4 versus
 7 — rather than two roundings of the same one.
 
 Run with:
-    .venv/bin/python examples/raw_orion.py
+    .venv/bin/python examples/raw_blinded_per_opponent.py
 """
 from __future__ import annotations
 
@@ -69,58 +69,58 @@ def _combatant(id_: str, name: str) -> StatBlockCombatant:
     )
 
 
-ORION = _combatant("orion", "Orion")
-DURAK = _combatant("durak", "Durak")          # the one he hears
-FIACHO = _combatant("fiacho", "Fiacho")       # everyone else
+CORVIN = _combatant("corvin", "Corvin")
+DUNMAR = _combatant("dunmar", "Dunmar")          # the one he hears
+FINNACH = _combatant("finnach", "Finnach")       # everyone else
 
 
 def _report(session: CombatSession, opponent: str) -> tuple[int, int, int, int]:
-    hth_ocv = effective_ocv_for(session, "orion", against=opponent, combat_type="hth")
-    hth_dcv = effective_dcv_for(session, "orion", against=opponent, combat_type="hth")
-    rng_ocv = effective_ocv_for(session, "orion", against=opponent, combat_type="ranged")
-    rng_dcv = effective_dcv_for(session, "orion", against=opponent, combat_type="ranged")
+    hth_ocv = effective_ocv_for(session, "corvin", against=opponent, combat_type="hth")
+    hth_dcv = effective_dcv_for(session, "corvin", against=opponent, combat_type="hth")
+    rng_ocv = effective_ocv_for(session, "corvin", against=opponent, combat_type="ranged")
+    rng_dcv = effective_dcv_for(session, "corvin", against=opponent, combat_type="ranged")
     print(f"    vs {opponent:<7}  HTH: OCV {hth_ocv}  DCV {hth_dcv}"
           f"   │   Range: OCV {rng_ocv}  DCV {rng_dcv}")
     return hth_ocv, hth_dcv, rng_ocv, rng_dcv
 
 
 def main() -> None:
-    rule("ORION FIGHTS BLIND — 6E2 p.9")
+    rule("CORVIN FIGHTS BLIND — 6E2 p.9")
 
     session = CombatSession.create(
         id="s1",
-        combatants=[ORION, DURAK, FIACHO],
+        combatants=[CORVIN, DUNMAR, FINNACH],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
     ).start()
 
-    print("\n  Orion, unblinded — 8 OCV / 8 DCV against anyone:")
-    assert _report(session, "durak") == (8, 8, 8, 8)
-    assert _report(session, "fiacho") == (8, 8, 8, 8)
+    print("\n  Corvin, unblinded — 8 OCV / 8 DCV against anyone:")
+    assert _report(session, "dunmar") == (8, 8, 8, 8)
+    assert _report(session, "finnach") == (8, 8, 8, 8)
 
     # ── The Flash ───────────────────────────────────────────────────────
-    rule("Eurostar Flashes Orion's Sight Group")
+    rule("Eurostar Flashes Corvin's Sight Group")
 
     session, _ = Flash.apply(
-        session, attacker_id="fiacho", target_id="orion",
+        session, attacker_id="finnach", target_id="corvin",
         sense_group="sight", body_dealt=8, flash_defense=0,
     )
-    flashed, groups = Flash.is_flashed(session, "orion")
+    flashed, groups = Flash.is_flashed(session, "corvin")
     print(f"\n  Flashed: {flashed}  groups: {groups}")
-    print("  Sight is a normal human's only Targeting Sense, so Orion can now")
+    print("  Sight is a normal human's only Targeting Sense, so Corvin can now")
     print("  perceive NOBODY with one.\n")
 
     # The book: half OCV and half DCV in HTH; 0 OCV and half DCV at Range.
     print("  A sitting duck — the unmitigated penalties:")
-    assert _report(session, "durak") == (4, 4, 0, 4)
-    assert _report(session, "fiacho") == (4, 4, 0, 4)
+    assert _report(session, "dunmar") == (4, 4, 0, 4)
+    assert _report(session, "finnach") == (4, 4, 0, 4)
 
     # ── The Hearing PER Roll ────────────────────────────────────────────
-    rule("Orion spends a Half Phase on a Hearing PER Roll against Durak")
+    rule("Corvin spends a Half Phase on a Hearing PER Roll against Dunmar")
 
     session, per = NontargetingPerception.acquire(
-        session, observer_id="orion", target_id="durak",
+        session, observer_id="corvin", target_id="dunmar",
         sense_group="hearing",
         roller=FakeRoller([[2, 2, 2]]),        # 3d6 = 6, a comfortable make
     )
@@ -137,33 +137,33 @@ def main() -> None:
           f"Phase Action, so a driver can charge for it.\n")
 
     print("  THE CONTRAST — the same combatant, the same Segment:")
-    # Against Durak: -1 DCV (a FLAT modifier: 8 -> 7, NOT 8 -> 4 -> 2) and
+    # Against Dunmar: -1 DCV (a FLAT modifier: 8 -> 7, NOT 8 -> 4 -> 2) and
     # half OCV in HTH; FULL DCV and half OCV at Range.
-    assert _report(session, "durak") == (4, 7, 4, 8)
+    assert _report(session, "dunmar") == (4, 7, 4, 8)
     # Against everyone else: nothing has changed.
-    assert _report(session, "fiacho") == (4, 4, 0, 4)
+    assert _report(session, "finnach") == (4, 4, 0, 4)
 
     print("\n  Read the two rows together — that contrast IS the rule:")
-    print("    · DCV 7 vs Durak, DCV 4 vs Fiacho, in the same Segment.")
+    print("    · DCV 7 vs Dunmar, DCV 4 vs Finnach, in the same Segment.")
     print("    · 7, not 2: the mitigation is a flat -1, not a second halving.")
-    print("    · FULL DCV 8 at Range vs Durak, but only -1 in HTH — the")
+    print("    · FULL DCV 8 at Range vs Dunmar, but only -1 in HTH — the")
     print("      mitigation is asymmetric, and a single factor cannot say so.")
-    print("    · Ranged OCV 4 vs Durak against 0 vs Fiacho.")
+    print("    · Ranged OCV 4 vs Dunmar against 0 vs Finnach.")
 
     # ── Expiry ──────────────────────────────────────────────────────────
-    rule("The benefit lapses at the start of Orion's next Phase")
+    rule("The benefit lapses at the start of Corvin's next Phase")
 
     session, lapsed = NontargetingPerception.expire_for_combatant_next_phase(
-        session, "orion")
+        session, "corvin")
     print(f"\n  Lapsed against: {lapsed}")
-    assert lapsed == ["durak"]
-    print("  Orion is a sitting duck against everyone again until he spends")
+    assert lapsed == ["dunmar"]
+    print("  Corvin is a sitting duck against everyone again until he spends")
     print("  another Half Phase Action and makes another roll:\n")
-    assert _report(session, "durak") == (4, 4, 0, 4)
-    assert _report(session, "fiacho") == (4, 4, 0, 4)
+    assert _report(session, "dunmar") == (4, 4, 0, 4)
+    assert _report(session, "finnach") == (4, 4, 0, 4)
 
-    rule("END — every number 6E2 p.9 states for Orion confirmed, "
-         "against Durak and against everyone else.")
+    rule("END — every number 6E2 p.9 states for Corvin confirmed, "
+         "against Dunmar and against everyone else.")
 
 
 if __name__ == "__main__":

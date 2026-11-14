@@ -124,7 +124,7 @@ def test_the_target_is_asked_and_his_dodge_meets_the_shot():
 
 
 def test_the_abort_costs_him_the_phase_he_had_not_yet_used():
-    """6E2 p.24: attacked in Segment 5 before his DEX came up, Lazer "would
+    """6E2 p.24: attacked in Segment 5 before his DEX came up, Larkin "would
     instead have lost his Action in Segment 5"."""
     chooser = Script(own={"a": ("attack", "d")}, react={"d": "dodge"})
     first = run_phase(_duel(), chooser, roller=RandomRoller(seed=3),

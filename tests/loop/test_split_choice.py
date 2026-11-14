@@ -1,6 +1,6 @@
 """A split is stated in points and checked against the book (6E1 p.404-406).
 
-Kerendor's Multipower: reserve 60, `wind` variable 60, `bolt` variable 60,
+Merrick's Multipower: reserve 60, `wind` variable 60, `bolt` variable 60,
 `wall` fixed 45. The seat answers an offer's id plus
 ``=<slot>@<points>+...``; every rule break is refused both where the answer
 is validated (`validate_choice`) and where it is resolved, because an offer
@@ -33,7 +33,7 @@ def _rungs(top, every):
 def _view():
     """PRICED, as every split is checked (R10); the rungs are stand-ins."""
     return FrameworkView(
-        framework_id="kmp", xmlid="MULTIPOWER", name="Kerendor's Magic",
+        framework_id="kmp", xmlid="MULTIPOWER", name="Merrick's Magic",
         kind="multipower", reserve_or_pool=60,
         slots=[PricedSlotView("wind", "Wind", 60, True, "other", steps=_rungs(60, 1)),
                PricedSlotView("bolt", "Bolt", 60, True, "attack", steps=_rungs(60, 5)),
@@ -42,7 +42,7 @@ def _view():
 
 def _plain_view():
     return FrameworkView(
-        framework_id="kmp", xmlid="MULTIPOWER", name="Kerendor's Magic",
+        framework_id="kmp", xmlid="MULTIPOWER", name="Merrick's Magic",
         kind="multipower", reserve_or_pool=60,
         slots=[SlotView("wind", "Wind", 60, True, "other"),
                SlotView("bolt", "Bolt", 60, True, "attack"),
@@ -65,9 +65,9 @@ def _offer(current=None):
 
 
 def _world():
-    actor = _priced(fighter("kerendor", side=Side.named("x")))
+    actor = _priced(fighter("merrick", side=Side.named("x")))
     s = session_of(actor, fighter("foe", side=Side.named("y")))
-    return s, _priced(s.combatants["kerendor"])
+    return s, _priced(s.combatants["merrick"])
 
 
 def _resolve(s, actor, action_id, kind="reallocate"):
@@ -150,7 +150,7 @@ def test_resolving_emits_slots_allocated_and_folds_it():
     assert len(evt) == 1
     assert evt[0].slot_points == {"bolt": 40, "wind": 20, "wall": 0}
     assert evt[0].opening is False
-    assert r.session.combatants["kerendor"].state.slot_points["kmp"] == {
+    assert r.session.combatants["merrick"].state.slot_points["kmp"] == {
         "bolt": 40, "wind": 20, "wall": 0}
     resolved = [e for e in r.events if e.kind == "ActionResolved"][0]
     assert resolved.result_payload["active_points_drawn"] == 60
@@ -161,7 +161,7 @@ def test_an_opening_is_not_a_resplit():
     r = _resolve(s, actor, "opening_split:kmp:split=wall@45", "opening_split")
     evt = [e for e in r.events if e.kind == "SlotsAllocated"][0]
     assert evt.opening is True
-    assert not reallocated_this_phase(r.session, "kerendor")
+    assert not reallocated_this_phase(r.session, "merrick")
     # a second opening, and a re-split before any opening, are both refused
     with pytest.raises(UnresolvableAction):
         _resolve(r.session, actor, "opening_split:kmp:split=bolt@10", "opening_split")
@@ -169,7 +169,7 @@ def test_an_opening_is_not_a_resplit():
     with pytest.raises(UnresolvableAction):
         _resolve(s2, a2, f"{OFFER}=bolt@10")
     r2 = _resolve(r.session, actor, f"{OFFER}=bolt@10")
-    assert reallocated_this_phase(r2.session, "kerendor")
+    assert reallocated_this_phase(r2.session, "merrick")
 
 
 def test_the_legacy_slot_list_id_is_refused():

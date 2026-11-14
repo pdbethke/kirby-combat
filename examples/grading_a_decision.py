@@ -76,23 +76,23 @@ def verdict(situation: PhaseSituation, action_id: str) -> str:
 
 
 def main() -> None:
-    ironclad = a_man("Ironclad", pd=30, rpd=30)   # a man in plate
+    steelwright = a_man("Steelwright", pd=30, rpd=30)   # a man in plate
     mark = a_man("Mark", pd=10, rpd=2)            # a man in a shirt
     # The grader prices every shot under the fight's own rules.
-    fight = CombatSession.create(id="grading", combatants=[ironclad, mark],
+    fight = CombatSession.create(id="grading", combatants=[steelwright, mark],
                                  scene=None, template=RAW_SUPERHEROIC,
                                  dice_roller=None)
 
     print("1. A 1d6 blast at a man in plate")
-    peashooter = shot_at("ironclad", a_gun("Blast", 1, killing=False))
+    peashooter = shot_at("steelwright", a_gun("Blast", 1, killing=False))
     print(verdict(PhaseSituation(session=fight, actor=mark, menu=[peashooter],
-                                 enemies=[ironclad], segment=12), peashooter.action_id))
+                                 enemies=[steelwright], segment=12), peashooter.action_id))
 
     print("\n2. The SAME blast at a man in a shirt — still futile.")
     print("   1d6 maxes at 6 STUN and 2 BODY; 10 PD eats both. A gun")
     print("   can be useless against an ordinary man, not just a tank.")
     shirt = shot_at("mark", a_gun("Blast", 1, killing=False))
-    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[shirt], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=steelwright, menu=[shirt], enemies=[mark],
                                  segment=12), shirt.action_id))
 
     print("\n2b. 2d6 at the same man: maxes at 12 STUN against 10 PD, so")
@@ -100,25 +100,25 @@ def main() -> None:
     print("    A bad bet is NOT a finding — this indicts only what")
     print("    cannot work at all.")
     thin = shot_at("mark", a_gun("Blast", 2, killing=False))
-    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[thin], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=steelwright, menu=[thin], enemies=[mark],
                                  segment=12), thin.action_id))
 
     print("\n3. A Colt at the same shirt: killing BODY answers to")
     print("   RESISTANT defense alone, so 2 rPD is not 10 PD")
     colt = shot_at("mark", a_gun("Colt", 2, killing=True))
-    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[colt], enemies=[mark],
+    print(verdict(PhaseSituation(session=fight, actor=steelwright, menu=[colt], enemies=[mark],
                                  segment=12), colt.action_id))
 
     print("\n4. Shooting a building while a man is on the menu")
     wall = shot_at("harwood-interior", a_gun("Colt", 2, killing=True), scenery=True)
     man = shot_at("mark", a_gun("Colt", 2, killing=True))
-    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[wall, man],
+    print(verdict(PhaseSituation(session=fight, actor=steelwright, menu=[wall, man],
                                  enemies=[mark], segment=12), wall.action_id))
 
     print("\n5. The same shot when the building is all there is")
     print("   (the engine's own words: 'when a wall is all there is,")
     print("    a wall is what he hits')")
-    print(verdict(PhaseSituation(session=fight, actor=ironclad, menu=[wall], enemies=[],
+    print(verdict(PhaseSituation(session=fight, actor=steelwright, menu=[wall], enemies=[],
                                  segment=12), wall.action_id))
 
     print("\n5b. Emptying a revolver into a stone bank wall")
@@ -138,7 +138,7 @@ def main() -> None:
         template = RAW_SUPERHEROIC
 
     bank = shot_at("stone-bank", a_gun("Colt", 2, killing=True), scenery=True)
-    print(verdict(PhaseSituation(actor=ironclad, menu=[bank], enemies=[],
+    print(verdict(PhaseSituation(actor=steelwright, menu=[bank], enemies=[],
                                  session=_Session(), segment=12), bank.action_id))
     print("    (A plank fence at DEF 3 would NOT be a finding --- and the")
     print("     Harwood house at DEF 8 is not either: a Colt gets 4 BODY")

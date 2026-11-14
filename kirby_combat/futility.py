@@ -7,7 +7,7 @@ twenty-two tactics says "that is not working".
 
 It looks like a morale gap and it is not one. HERO gives an individual no
 morale stat --- PRE is the stat, and 6E2 p.140's worked example says so
-outright: Howler's "demoralized henchmen are about to run" and she fixes
+outright: Hollis's "demoralized henchmen are about to run" and she fixes
 it with a Presence Attack. But terror scales with the terrifier's PRE,
 and a quiet monster will never break anybody. What breaks them is
 arithmetic they can do themselves.

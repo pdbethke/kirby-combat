@@ -362,7 +362,7 @@ class CombatantSnapshot:
     ``maneuver_view``, ``framework_view``, ``has_combat_sense``,
     ``has_self_contained_breathing``, ``is_mentalist`` and
     ``skill_roll_value`` each walk one of them. So a round-tripped
-    combatant reported NOTHING through any of them --- Drago's three RKAs
+    combatant reported NOTHING through any of them --- Dravik's three RKAs
     went in and none came back, and a rebuilt fight did no damage, had no
     maneuvers to declare, no framework reserve to spend, no Combat Skill
     Levels on any roll and no senses to see with.
@@ -1858,7 +1858,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
         the resolution layer reads them there. DefenseItem rows here
         represent power-bought defenses on top of the base.
 
-        Recursive over sub_powers: HD's compound powers (e.g. Phoenix's
+        Recursive over sub_powers: HD's compound powers (e.g. a corpus hero's
         "Born In Fire" wrapping two nested DAMAGEREDUCTION children for
         Physical + Energy) need to surface every leaf defense, not
         just the parent.
@@ -2709,7 +2709,7 @@ def _csl_named_attacks(skill) -> str:
 
     THERE IS NO INPUT FIELD ON A REAL BUILD. This read `skill.input` for a
     day, and not one COMBAT_LEVELS in the corpus has one: HD puts the words
-    in OPTION_ALIAS ("with Power Over Light And Heat Multipower", HELIOS-CV1)
+    in OPTION_ALIAS ("with Power Over Light And Heat Multipower", LUMEN-CV1)
     or in NAME ("+1 With Punch, Haymaker, and Throw", PowerLad), and leaves
     INPUT empty. So every SINGLE / TIGHT / BROAD level in every real
     character reached nothing, silently, while the synthetic fixture -- which
@@ -2850,7 +2850,7 @@ def _activation_roll(power) -> int | None:
 # characteristic. The classic defensive use is "Tough As Granite":
 # buy a NAKEDMODIFIER carrying RESISTANT, with INPUT="for 45 PD/45 ED",
 # meaning 45 points of the character's PD and 45 of their ED become
-# resistant. Without this parse, GRANITEMAN-class bricks show rPD=0
+# resistant. Without this parse, STONEWARD-class bricks show rPD=0
 # and die to any HKA — a foundational rules error in any sim.
 _INPUT_DEFENSE_RE = re.compile(
     r"(\d+)\s*(PD|ED|MD|POWD|POWER\s*DEFENSE|FLASHD|FLASH\s*DEFENSE|MENTAL\s*DEFENSE)",
@@ -3089,7 +3089,7 @@ def compose_defences(cv_pd: int, cv_ed: int, t: "DefenceTerms") -> tuple:
     column and to the total -- resistant defense stops Normal Damage too.
 
     `naked_resistant` is natural PD PROMOTED to resistant by the Resistant
-    Advantage. That one IS capped, and by exactly this number: the Ogre on
+    Advantage. That one IS capped, and by exactly this number: the 6E2 example on
     the same page has "PD 40, but only 5 of it is Resistant". You cannot
     promote more PD than you own.
 
@@ -3412,7 +3412,7 @@ def _compute_damage_dice(power, xmlid: str) -> tuple[int, bool, bool]:
     killing attacks (575 HKA + 462 RKA) carry ``level_cost=15.0,
     level_value=1.0`` with ``base_cost=0`` — matching 6E1 p243, "15 character
     points for every 1d6 killing attack". The old formula therefore rendered
-    EVERY killing attack at roughly half its real damage: Drago's 3d6
+    EVERY killing attack at roughly half its real damage: Dravik's 3d6
     "Dragori Sniper Rifle" came through as 1d6+½, which cannot scratch a
     DEF 6 wall. The ``base_cost >= 15`` branch never fired either — base_cost
     is 0 on all of them.

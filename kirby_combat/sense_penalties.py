@@ -26,8 +26,8 @@ claim made here.
 
 **Three things that rule forces, and any design missing one is wrong:**
 
-1. **Per-opponent.** The 6E2 p.9 worked example (Orion, blinded by a
-   Flash, who makes his Hearing PER Roll against Durak) has the same
+1. **Per-opponent.** The 6E2 p.9 worked example (Corvin, blinded by a
+   Flash, who makes his Hearing PER Roll against Dunmar) has the same
    combatant at different CVs against different attackers in the same
    Segment. So the CV seam this plugs into cannot be
    ``(session, combatant_id) -> factors``; it needs the opponent.
@@ -36,7 +36,7 @@ claim made here.
    *by design* (it has no page to ground other arithmetic in), so the
    seam grew a second, additive channel — ``*_delta`` keys — rather than
    an ungrounded factor like 0.875.
-3. **Mitigation is asymmetric across HTH and Range.** Perceiving Durak by
+3. **Mitigation is asymmetric across HTH and Range.** Perceiving Dunmar by
    Hearing restores **full** DCV at Range but only improves HTH DCV to
    -1, and lifts Ranged OCV from 0 to 1/2 while leaving HTH OCV at 1/2.
    A single "blind, mitigated" boolean folded into one factor cannot
@@ -141,8 +141,8 @@ def senses_of(combatant) -> list:
     of this suite, and any driver working from one -- does not, and
     treating its absence as "nothing blocks him" makes the whole
     inability-to-sense rule a no-op for exactly those combatants. That
-    defect shipped once already (caught by ``examples/raw_orion.py``: a
-    Flashed Orion reporting a full 8 DCV), so the fallback is written down
+    defect shipped once already (caught by ``examples/raw_blinded_per_opponent.py``: a
+    Flashed Corvin reporting a full 8 DCV), so the fallback is written down
     once and shared rather than re-derived by each caller that needs it.
 
     Grounded, not invented: 6E2 p.9 names Sight as the only Targeting
@@ -211,8 +211,8 @@ def _targeting_senses_blocked(
     block uses — does not. Failing open there would have meant the rule
     applied to build-backed combatants and silently did nothing for
     everyone else, which is precisely the "a structure half the engine
-    ignores" outcome. Caught by ``examples/raw_orion.py`` on its first
-    run: Orion, Flashed, reported a full 8 DCV. The fallback is grounded
+    ignores" outcome. Caught by ``examples/raw_blinded_per_opponent.py`` on its first
+    run: Corvin, Flashed, reported a full 8 DCV. The fallback is grounded
     rather than invented — 6E2 p.9 names Sight as the only Targeting
     Sense a normal human has — so a stat block flashed in the Sight Group
     is blind and one flashed in the Hearing Group is not, matching what
@@ -266,7 +266,7 @@ class NontargetingPerceptionResult:
 
 
 class NontargetingPerception:
-    """Orion's Hearing PER Roll against Durak, as engine state.
+    """Corvin's Hearing PER Roll against Dunmar, as engine state.
 
     **Why this is its own action rather than a call into
     ``perception.perceive``:** ``perceive()`` answers "does a TARGETING

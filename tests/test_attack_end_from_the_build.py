@@ -84,12 +84,12 @@ def test_a_hand_stated_attack_still_prices_from_its_points():
 # ---------------------------------------------------------------------------
 
 def _rifle():
-    """Lazer's rifle in small: a Multipower whose reserve carries the
+    """Larkin's rifle in small: a Multipower whose reserve carries the
     Charges, two blast slots under it (6E1 p.409)."""
     from kirby_cost.io.build_json import build_from_json
 
     return build_from_json({
-        "name": "Lazer", "template": "Main6E",
+        "name": "Larkin", "template": "Main6E",
         "base_points": 400, "disad_points": 75, "experience": 0,
         "characteristics": _CHARS,
         "powers": [
@@ -138,7 +138,7 @@ def _fired(who, source_id):
     return [d, r]
 
 
-def _lazer_fight():
+def _larkin_fight():
     from dataclasses import replace
 
     from kirby_combat.hero_view import HeroCombatant
@@ -147,18 +147,18 @@ def _lazer_fight():
     from kirby_combat.synthetic import synthetic_combatant
     from kirby_combat.template import RAW_SUPERHEROIC
 
-    lazer = replace(HeroCombatant.from_build(_rifle(), id="l"), side=Side.named("a"))
+    larkin = replace(HeroCombatant.from_build(_rifle(), id="l"), side=Side.named("a"))
     other = synthetic_combatant(id="o", name="o", spd=3, side=Side.named("b"))
-    return CombatSession.create(id="s", combatants=[lazer, other], scene=None,
-                                template=RAW_SUPERHEROIC, dice_roller=None), lazer, other
+    return CombatSession.create(id="s", combatants=[larkin, other], scene=None,
+                                template=RAW_SUPERHEROIC, dice_roller=None), larkin, other
 
 
 def test_firing_either_slot_draws_on_the_one_supply():
     from kirby_combat.charges import spent_charges
 
-    session, lazer, _ = _lazer_fight()
-    s1, s2 = (a.source_id for a in lazer.attacks if a.xmlid == "ENERGYBLAST")
-    reserve = lazer.attacks[0].charge_pool
+    session, larkin, _ = _larkin_fight()
+    s1, s2 = (a.source_id for a in larkin.attacks if a.xmlid == "ENERGYBLAST")
+    reserve = larkin.attacks[0].charge_pool
     session = replace_log(session, [*_fired("l", s1), *_fired("l", s2), *_fired("l", s1)])
     assert spent_charges(session, "l") == {reserve: 3}
 
@@ -167,11 +167,11 @@ def test_when_the_supply_is_spent_neither_slot_is_offered():
     from kirby_combat.charges import spent_charges
     from kirby_combat.enumeration import enumerate_actions
 
-    session, lazer, other = _lazer_fight()
-    slots = [str(a.source_id) for a in lazer.attacks if a.xmlid == "ENERGYBLAST"]
+    session, larkin, other = _larkin_fight()
+    slots = [str(a.source_id) for a in larkin.attacks if a.xmlid == "ENERGYBLAST"]
 
     def blasts(spent):
-        return [a for a in enumerate_actions(lazer, [other], spent_charges=spent)
+        return [a for a in enumerate_actions(larkin, [other], spent_charges=spent)
                 if a.kind == "attack" and any(s in a.action_id for s in slots)]
 
     three = replace_log(session, [*_fired("l", slots[0])] * 1 + _fired("l", slots[1])

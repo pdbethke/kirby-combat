@@ -1,6 +1,6 @@
 """Which rows of the record concern one fighter.
 
-A consumer asking "what happened to Talisman" had to know which keys of
+A consumer asking "what happened to Tessaly" had to know which keys of
 which event kinds name a man --- `combatant_id` on most, `target_id` and
 `targets` on an action, `victims` and `fell` inside an attack's result,
 `caused_by` on a vital. That is the engine's knowledge of its own events,

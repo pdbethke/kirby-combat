@@ -16,7 +16,7 @@ The two windows (paraphrased; see the page):
   gave up. In the book's SPD 3 example, aborting the Segment 4 Phase in
   Segment 2 to Dodge keeps the DCV until his Phase in Segment 8.
 
-And the Phase itself is GONE: Lazer (SPD 5) aborts in Segment 6, and "when
+And the Phase itself is GONE: Larkin (SPD 5) aborts in Segment 6, and "when
 Segment 8 rolls around" he can do nothing, though the Dodge still guards
 him; he next acts in Segment 10.
 
@@ -147,39 +147,39 @@ def test_the_dodge_ends_at_the_next_segment_if_his_phase_was_never_spent():
     assert Dodge.dcv_bonus(session, "hero") == 0
 
 
-def test_lazer_loses_his_segment_8_phase_but_keeps_the_dodge():
-    """6E2 p.24, Lazer (SPD 5: Phases 3, 5, 8, 10, 12) aborts to Dodge in
+def test_larkin_loses_his_segment_8_phase_but_keeps_the_dodge():
+    """6E2 p.24, Larkin (SPD 5: Phases 3, 5, 8, 10, 12) aborts to Dodge in
     Segment 6. When Segment 8 comes he can do nothing but still has the
     Dodge's DCV; he acts again in Segment 10."""
-    session = _to(_session(_man("lazer", spd=5)), 6)
-    session, evt = Dodge.declare(session, "lazer")
+    session = _to(_session(_man("larkin", spd=5)), 6)
+    session, evt = Dodge.declare(session, "larkin")
     assert (evt.aborted_turn, evt.aborted_segment) == (2, 8)
     assert (evt.bonus_until_turn, evt.bonus_until_segment) == (2, 10)
 
     session = _to(session, 8)
-    assert _skip_reason(session, "lazer") == "aborted"
-    assert Dodge.dcv_bonus(session, "lazer") == 3
+    assert _skip_reason(session, "larkin") == "aborted"
+    assert Dodge.dcv_bonus(session, "larkin") == 3
 
     session = _to(session, 10)
-    assert _skip_reason(session, "lazer") is None
-    assert Dodge.dcv_bonus(session, "lazer") == 3   # until he takes it
+    assert _skip_reason(session, "larkin") is None
+    assert Dodge.dcv_bonus(session, "larkin") == 3   # until he takes it
 
 
 def test_aborting_before_his_dex_comes_up_spends_this_segments_phase():
-    """6E2 p.24: attacked in Segment 5 before his DEX came up, Lazer
+    """6E2 p.24: attacked in Segment 5 before his DEX came up, Larkin
     loses the Segment 5 Phase, not the next one."""
-    session = _to(_session(_man("lazer", spd=5)), 5)
-    session = _order(session, "lazer")
-    session, evt = Dodge.declare(session, "lazer")
+    session = _to(_session(_man("larkin", spd=5)), 5)
+    session = _order(session, "larkin")
+    session, evt = Dodge.declare(session, "larkin")
     assert (evt.aborted_turn, evt.aborted_segment) == (2, 5)
     assert (evt.bonus_until_turn, evt.bonus_until_segment) == (2, 8)
 
 
 def test_aborting_after_he_has_acted_this_segment_spends_the_next_phase():
-    session = _to(_session(_man("lazer", spd=5)), 5)
-    session = _order(session, "lazer")
-    session = _spend(session, "lazer")
-    session, evt = Dodge.declare(session, "lazer")
+    session = _to(_session(_man("larkin", spd=5)), 5)
+    session = _order(session, "larkin")
+    session = _spend(session, "larkin")
+    session, evt = Dodge.declare(session, "larkin")
     assert (evt.aborted_turn, evt.aborted_segment) == (2, 8)
 
 

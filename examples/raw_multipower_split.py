@@ -1,14 +1,14 @@
-"""Kerendor divides his Multipower — 6E1 p.404-406, reproduced.
+"""Merrick divides his Multipower — 6E1 p.404-406, reproduced.
 
 This is a conformance check that happens to be readable: the rulebook's own
 worked example is restated below, the engine is driven through it, and every
 number the book states is ASSERTED against what the engine produced. If the
 engine ever stops agreeing with the book, this script exits non-zero.
 
-THE BOOK'S SCENARIO (6E1 p.406, Kerendor), PARAPHRASED — this project ships
+THE BOOK'S SCENARIO (6E1 p.406, Merrick), PARAPHRASED — this project ships
 no rules text; open your own copy:
 
-    Kerendor owns a Multipower whose reserve is 60 points. Its variable
+    Merrick owns a Multipower whose reserve is 60 points. Its variable
     slots are an Energy Blast, a Flight and a Resistant Protection (15 PD /
     15 ED, which is 45 Active Points). Each turn he divides the reserve as
     he likes among the slots, and each slot then has as many LEVELS as the
@@ -39,7 +39,7 @@ Without it the script says so and exits cleanly, like the other examples
 that need licensed material.
 
 Run with:
-    .venv/bin/python examples/raw_kerendor_multipower.py
+    .venv/bin/python examples/raw_multipower_split.py
 """
 from __future__ import annotations
 
@@ -59,18 +59,18 @@ def rule(title: str) -> None:
     print("═" * 70)
 
 
-def kerendor():
+def merrick():
     from kirby_cost.io.build_json import build_from_json
     from kirby_cost.services.power_builder import build_power_from_spec
 
     from kirby_combat.hero_view import HeroCombatant
 
     build = build_from_json({
-        "name": "Kerendor", "template": "Main6E",
+        "name": "Merrick", "template": "Main6E",
         "base_points": 400, "disad_points": 75, "experience": 0,
         "characteristics": _CHARS,
         "powers": [
-            {"id": FRAMEWORK, "xmlid": "MULTIPOWER", "name": "Kerendor",
+            {"id": FRAMEWORK, "xmlid": "MULTIPOWER", "name": "Merrick",
              "base_cost": 60.0},
             {"id": BLAST, "xmlid": "ENERGYBLAST", "name": "Blast", "levels": 12,
              "input": "ED", "parent": FRAMEWORK,
@@ -95,11 +95,11 @@ def kerendor():
     rp.ultra = False                     # a VARIABLE slot
     rp._id = RP                          # the loader's id; read-only otherwise
     build.powers.append(rp)
-    return HeroCombatant.from_build(build, id="kerendor")
+    return HeroCombatant.from_build(build, id="merrick")
 
 
 def divide(hero, **points: int):
-    """Kerendor after he states a split: the named slots hold the points,
+    """Merrick after he states a split: the named slots hold the points,
     every other slot of the Multipower is off."""
     [mp] = hero.framework_view()
     ids = {s.name: s.slot_id for s in mp.slots}
@@ -125,12 +125,12 @@ def protection(hero) -> tuple[int, int]:
 
 def main() -> None:
     if not os.environ.get("KIRBY_COST_HDT"):
-        print("Kerendor's slots are costed against a HERO Designer template.")
+        print("Merrick's slots are costed against a HERO Designer template.")
         print("  KIRBY_COST_HDT -- a .hdt file")
         print("Set it to run this page. Nothing to do; exiting cleanly.")
         return
 
-    hero = kerendor()
+    hero = merrick()
 
     rule("30 into Blast, 30 into Flight (6E1 p.406)")
     h = divide(hero, **{BLAST: 30, FLIGHT: 30})

@@ -196,8 +196,8 @@ def test_knockback_overwhelming_a_structure_shatters_it(default_template: Combat
     assert result.target_passed_through is True
 
 
-def test_the_books_mechanon_example():
-    """6E2 p118, verbatim numbers: Mechanon is Knocked Back 22m.
+def test_the_books_wardrake_example():
+    """6E2 p118, verbatim numbers: Wardrake is Knocked Back 22m.
 
     Into a 6 PD / 2 BODY wall: 22 > 16, so 8d6 and he blows through.
     Into a 6 PD / 6 BODY wall: 22 <= 24, so 11d6 and he stops.

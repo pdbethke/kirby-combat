@@ -88,7 +88,7 @@ def main() -> None:
 
     base_bounds = SceneBounds(0, 0, 0, 40, 40, 10)
     base = Scene(
-        id="base", name="Arthon's forward base",
+        id="base", name="Arvane's forward base",
         bounds=base_bounds,
         surfaces=[],
         walls=[],

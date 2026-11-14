@@ -198,7 +198,7 @@ def may_abort(session: "CombatSession", defender_id: str, attacker) -> bool:
         return False
     if (_used_his_phase_this_segment(session, defender_id)
             and usable_hold(session, defender_id) is None):
-        # A Held Action is the exception: Lazer, having made a Half Move
+        # A Held Action is the exception: Larkin, having made a Half Move
         # and Held the rest, "could Abort to Dodge and sacrifice his Held
         # Half Phase" (6E2 p.24).
         return False

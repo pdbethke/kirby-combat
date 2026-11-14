@@ -5,10 +5,10 @@ are less effective. Each time a character repeats a Presence Attack, he
 gets -1d6 of effect (-1d6 on the second attack, -2d6 on the third attack,
 and so forth)."
 
-Found in kirby-app's 0.22.0 demo recording: GORGON (PRE 25) made a Presence
-Attack at Drago in all eight of his Phases, and every one rolled 4d6 (PRE/5
+Found in kirby-app's 0.22.0 demo recording: HARLOW (PRE 25) made a Presence
+Attack at Dravik in all eight of his Phases, and every one rolled 4d6 (PRE/5
 = 5, -1d6 in combat). The eighth should have rolled none. Each roll fell
-short of Drago's PRE 20, so "no effect" was right each time; the dice were
+short of Dravik's PRE 20, so "no effect" was right each time; the dice were
 what was wrong.
 
 And when the dice are gone the shout is gone from the menu: a 0d6 Presence

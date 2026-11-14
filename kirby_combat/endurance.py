@@ -345,7 +345,7 @@ def end_multiplier(power: Any) -> int:
 
     "A power with this Limitation is so strenuous to use that it costs a
     character more than the normal 1 END per 10 Active Points." The book
-    multiplies the ROUNDED cost: Pulsar's 4d6 bought at x2 END costs 4 END
+    multiplies the ROUNDED cost: Pellam's 4d6 bought at x2 END costs 4 END
     (6E1 p.368: "4+4+6+10 = 24 END" for 8d6 normal, 4d6 x2, 4d6 x3, 4d6
     x5). The deleted api driver charged x2 whatever the build said.
     """

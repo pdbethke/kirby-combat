@@ -226,7 +226,7 @@ def test_two_decoy_attacks_sharing_xmlid_and_name_get_distinct_action_ids() -> N
     enemy = _combatant(id="bob")
 
     actions = enumerate_actions(
-        actor, [enemy], has_scene=True, decoy_targets=[("decoy-1", "Gorgon")],
+        actor, [enemy], has_scene=True, decoy_targets=[("decoy-1", "Harlow")],
     )
     ids = [act.action_id for act in actions if act.target_id == "decoy-1"]
 

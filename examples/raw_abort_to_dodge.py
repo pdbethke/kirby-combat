@@ -1,4 +1,4 @@
-"""Lazer Aborts to Dodge — 6E2 p.24, reproduced.
+"""Larkin Aborts to Dodge — 6E2 p.24, reproduced.
 
 This is a conformance check that happens to be readable: the rulebook's own
 worked examples are restated below, the engine's turn loop (`run_phase`) is
@@ -9,7 +9,7 @@ script exits non-zero and `tests/test_examples.py` fails with it.
 THE BOOK'S SCENARIOS (6E2 p.24), PARAPHRASED — this project ships no rules
 text; open your own copy:
 
-  1. Lazer (SPD 5: Phases in Segments 3, 5, 8, 10 and 12) is attacked in
+  1. Larkin (SPD 5: Phases in Segments 3, 5, 8, 10 and 12) is attacked in
      Segment 6 and Aborts to Dodge. That uses up his Segment 8 Phase: in
      Segment 8 he can do nothing, though he still has the Dodge's DCV. He
      acts again in Segment 10.
@@ -24,7 +24,7 @@ text; open your own copy:
      Phase in Segment 2, to Block. He can do nothing in Segment 3, and
      attacks in Segment 6.
   5. Once a character has used his Phase in a Segment, he can't Abort
-     again until the next Segment: Lazer attacks in Segment 5 and is
+     again until the next Segment: Larkin attacks in Segment 5 and is
      attacked back the same Segment, and is not allowed to Abort.
 
 The windows are fixed when the Abort is declared and travel on the
@@ -32,7 +32,7 @@ The windows are fixed when the Abort is declared and travel on the
 same moments as the fight that ran.
 
 Run with:
-    .venv/bin/python examples/raw_lazer.py
+    .venv/bin/python examples/raw_abort_to_dodge.py
 """
 from __future__ import annotations
 
@@ -169,70 +169,70 @@ def _shots_at(events, who, segment):
 
 def main() -> None:
     # ── 1. Attacked in Segment 6 ────────────────────────────────────────
-    rule("1. Lazer (SPD 5) is attacked in Segment 6 and Aborts to Dodge")
-    lazer = _man("lazer", side=HEROES, spd=5, dex=10)
+    rule("1. Larkin (SPD 5) is attacked in Segment 6 and Aborts to Dodge")
+    larkin = _man("larkin", side=HEROES, spd=5, dex=10)
     foe = _man("foe", side=VILLAINS, spd=6, dex=30)      # Phases 2,4,6,8,10,12
     script, events = _fight(
-        lazer, foe,
+        larkin, foe,
         own={("foe", 6): "attack", ("foe", 8): "attack"},
-        react={("lazer", 6): "dodge"},
+        react={("larkin", 6): "dodge"},
         until=(2, 10),
     )
-    (abort,) = _abort(events, "lazer")
+    (abort,) = _abort(events, "larkin")
     print(f"\n  Abort declared: gives up Segment {abort.aborted_segment}, "
           f"Dodge lasts until Segment {abort.bonus_until_segment}")
     assert (abort.aborted_turn, abort.aborted_segment) == (2, 8)
 
-    (spent8,) = _spent(events, "lazer", 8)
-    print(f"  Segment 8:  Lazer's Phase is spent, reason {spent8.reason!r}")
+    (spent8,) = _spent(events, "larkin", 8)
+    print(f"  Segment 8:  Larkin's Phase is spent, reason {spent8.reason!r}")
     assert spent8.reason == "aborted"
-    assert ("lazer", 8, "own") not in script.asked
+    assert ("larkin", 8, "own") not in script.asked
 
-    (shot8,) = _shots_at(events, "lazer", 8)
-    print(f"  Segment 8:  the foe fires again; Lazer's DCV is "
+    (shot8,) = _shots_at(events, "larkin", 8)
+    print(f"  Segment 8:  the foe fires again; Larkin's DCV is "
           f"{shot8.result_payload['target_dcv']} (5, +3 for the Dodge)")
     assert shot8.result_payload["target_dcv"] == 5 + 3
-    assert ("lazer", 8, "abort") not in script.asked     # locked out
+    assert ("larkin", 8, "abort") not in script.asked     # locked out
 
-    print("  Segment 10: Lazer acts again")
-    assert ("lazer", 10, "own") in script.asked
+    print("  Segment 10: Larkin acts again")
+    assert ("larkin", 10, "own") in script.asked
 
     # ── 2. Attacked in Segment 5, before his DEX ───────────────────────
     rule("2. Attacked in Segment 5 before his DEX comes up")
-    lazer = _man("lazer", side=HEROES, spd=5, dex=10)
+    larkin = _man("larkin", side=HEROES, spd=5, dex=10)
     foe = _man("foe", side=VILLAINS, spd=5, dex=30)      # also 3,5,8,10,12
     script, events = _fight(
-        lazer, foe,
+        larkin, foe,
         own={("foe", 5): "attack"},
-        react={("lazer", 5): "dodge"},
+        react={("larkin", 5): "dodge"},
         until=(2, 8),
     )
-    (abort,) = _abort(events, "lazer")
-    (spent5,) = _spent(events, "lazer", 5)
+    (abort,) = _abort(events, "larkin")
+    (spent5,) = _spent(events, "larkin", 5)
     print(f"\n  Abort gives up Segment {abort.aborted_segment}; "
           f"his Segment 5 Phase is spent, reason {spent5.reason!r}")
     assert (abort.aborted_turn, abort.aborted_segment) == (2, 5)
     assert spent5.reason == "aborted"
-    print("  Segment 8:  Lazer acts, as the book says")
-    assert ("lazer", 8, "own") in script.asked
+    print("  Segment 8:  Larkin acts, as the book says")
+    assert ("larkin", 8, "own") in script.asked
 
     # ── 3. Holding his Phase ───────────────────────────────────────────
     rule("3. Holding his Phase, he Aborts with the Held Action")
-    lazer = _man("lazer", side=HEROES, spd=5, dex=30)
+    larkin = _man("larkin", side=HEROES, spd=5, dex=30)
     foe = _man("foe", side=VILLAINS, spd=5, dex=10)
     script, events = _fight(
-        lazer, foe,
-        own={("lazer", 5): "hold", ("foe", 5): "attack"},
-        react={("lazer", 5): "dodge"},
+        larkin, foe,
+        own={("larkin", 5): "hold", ("foe", 5): "attack"},
+        react={("larkin", 5): "dodge"},
         until=(2, 8),
     )
-    (abort,) = _abort(events, "lazer")
+    (abort,) = _abort(events, "larkin")
     print(f"\n  Abort uses the Held Phase (Segment {abort.aborted_segment}); "
           f"Dodge lasts until Segment {abort.bonus_until_segment}")
     assert (abort.aborted_turn, abort.aborted_segment) == (2, 5)
-    print("  Segment 8:  Lazer acts; no further Phase was lost")
-    assert not _spent(events, "lazer", 8) or _spent(events, "lazer", 8)[0].reason != "aborted"
-    assert ("lazer", 8, "own") in script.asked
+    print("  Segment 8:  Larkin acts; no further Phase was lost")
+    assert not _spent(events, "larkin", 8) or _spent(events, "larkin", 8)[0].reason != "aborted"
+    assert ("larkin", 8, "own") in script.asked
 
     # ── 4. Abort to Block a Segment early ──────────────────────────────
     rule("4. DEX 20, SPD 4: Aborts his Segment 3 Phase in Segment 2, to Block")
@@ -256,18 +256,18 @@ def main() -> None:
     assert ("hero", 6, "own") in script.asked and len(hero_attacks) == 1
 
     # ── 5. No Abort after acting ───────────────────────────────────────
-    rule("5. Lazer attacks in Segment 5, then is attacked back the same Segment")
-    lazer = _man("lazer", side=HEROES, spd=5, dex=30)
+    rule("5. Larkin attacks in Segment 5, then is attacked back the same Segment")
+    larkin = _man("larkin", side=HEROES, spd=5, dex=30)
     defender = _man("defender", side=VILLAINS, spd=5, dex=10)
     script, events = _fight(
-        lazer, defender,
-        own={("lazer", 5): "attack", ("defender", 5): "attack"},
-        react={("lazer", 5): "dodge"},
+        larkin, defender,
+        own={("larkin", 5): "attack", ("defender", 5): "attack"},
+        react={("larkin", 5): "dodge"},
         until=(2, 5),
     )
-    print("\n  Lazer is never asked whether he Aborts, and no Abort is recorded")
-    assert ("lazer", 5, "abort") not in script.asked
-    assert not _abort(events, "lazer")
+    print("\n  Larkin is never asked whether he Aborts, and no Abort is recorded")
+    assert ("larkin", 5, "abort") not in script.asked
+    assert not _abort(events, "larkin")
 
     rule("END — every Segment 6E2 p.24 names, confirmed through the turn loop.")
 

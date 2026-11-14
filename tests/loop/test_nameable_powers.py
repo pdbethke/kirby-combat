@@ -2,7 +2,7 @@
 
 Peter, 2026-10-27: a Held Action order names its action "by power (or
 maneuver) plus a target rule" --- "fire Energy Blast at whoever attacks
-Lady Blue" --- and is matched to the live offer when it fires. An editor
+Lady Teal" --- and is matched to the live offer when it fires. An editor
 needs the names to offer, and they must be the names the menu puts on its
 offers (`LegalAction.power_name`), or an order would name something no offer
 ever carries. `nameable_powers` is the sheet's names --- every power of the

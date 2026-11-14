@@ -414,7 +414,7 @@ def apply_knockback(session, attack: "AttackInput", result: "AttackResult", *,
     of damage, the structure (or part thereof) shatters, and he continues
     through the hole (otherwise, he stops). For every PD + BODY total worth
     of structure a character is Knocked Back through, he flies back 2m
-    less." The worked example (Mechanon, 22m, a 6/2 wall 2m behind him)
+    less." The worked example (Wardrake, 22m, a 6/2 wall 2m behind him)
     "continues 22-2-8 = 12m more" --- the metres to the wall and then the
     wall's PD + BODY in metres. The sentence and its own arithmetic do not
     agree ("2m less" against the 8m taken off); this follows the

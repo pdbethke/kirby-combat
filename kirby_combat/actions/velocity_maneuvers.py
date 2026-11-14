@@ -10,8 +10,8 @@ module corrects:
 
   * it took the fraction of the STUN and BODY that got THROUGH THE
     TARGET'S defenses and applied it to the attacker with no defenses of
-    his own. 6E2 p.73's example runs the other way: Starburst rolls "23
-    STUN, 8 BODY. Ogre takes full damage ... and Starburst takes half the
+    his own. 6E2 p.73's example runs the other way: Starling rolls "23
+    STUN, 8 BODY. Brannoch takes full damage ... and Starling takes half the
     damage - 11 STUN, 4 BODY (he can apply his PD to reduce it, of
     course)". The fraction is of the ROLL, and his defenses apply;
   * it never moved anybody. 6E2 p.72: a Move By is "a Full Move past his

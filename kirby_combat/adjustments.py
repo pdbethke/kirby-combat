@@ -229,7 +229,7 @@ class CharacteristicChoice:
 
 def _names_characteristics_generally(text: str) -> bool:
     """INPUT texts that name the category "Characteristics" rather than any
-    one: "Characteristics", "any two characteristics at once" (Plague, CV3).
+    one: "Characteristics", "any two characteristics at once" (Blight, CV3).
     A text that also names a characteristic is a fixed list, not a category."""
     upper = text.upper()
     if "CHARACTERISTIC" not in upper:

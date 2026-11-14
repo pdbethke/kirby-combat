@@ -7,7 +7,7 @@ from kirby_combat.models import StatBlockCombatant
 
 def test_vehicle_is_a_combatant():
     v = Vehicle.make(
-        id="v1", name="Wraith Mk2",
+        id="v1", name="Test Walker Mk2",
         size=6, body=12, def_=6,
         pd=8, ed=8, speed=4, dex=18, str_=40,
         max_stun=40, max_end=0,
@@ -73,7 +73,7 @@ def test_vehicle_constructs_by_keyword_without_int():
     stay defaulted (10) so this call shape keeps working across the
     package boundary; a non-defaulted field would raise TypeError here."""
     v = Vehicle(
-        id="v1", name="Wraith Mk2",
+        id="v1", name="Test Walker Mk2",
         ocv=0, dcv=3, omcv=0, dmcv=0,
         spd=4, dex=18, ego=0, str_=40, con=0, pre=0, rec=0,
         pd=8, ed=8, rpd=6, red=6, md=0,

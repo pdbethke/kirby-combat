@@ -23,7 +23,7 @@ from kirby_combat.models import StatBlockCombatant
 
 def _stat_block_kwargs() -> dict:
     return dict(
-        id="c1", name="Cheshire",
+        id="c1", name="Tamsin",
         ocv=5, dcv=5, omcv=3, dmcv=3,
         spd=4, dex=20, ego=15,
         str_=15, con=15, pre=15, rec=8,

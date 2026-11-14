@@ -1,7 +1,7 @@
 """A Dodge taken IN his own Phase uses that Phase, and only that one.
 
 Pinned from kirby-app's 0.22.0 demo recording, which read as two defects
-and is neither. GORGON, in his own Phase (Turn 1, Segment 12), made a
+and is neither. HARLOW, in his own Phase (Turn 1, Segment 12), made a
 Presence Attack and then Dodged; the log carries an `AbortDeclared`
 (`to_action: "dodge"`), and he then acted in his next Phase (Turn 2,
 Segment 3). Both are the book:
@@ -54,8 +54,8 @@ def _man(id: str, side: str, *, dex: int, pre: int = 15):
 
 
 class GorgonPlays:
-    """Gorgon shouts, then Dodges (once), then attacks; Drago only ever holds
-    (so no attack ever comes at Gorgon). Records out-of-turn questions."""
+    """Harlow shouts, then Dodges (once), then attacks; Dravik only ever holds
+    (so no attack ever comes at Harlow). Records out-of-turn questions."""
 
     def __init__(self) -> None:
         self.out_of_turn: list[tuple[str, str, str | None]] = []
@@ -72,7 +72,7 @@ class GorgonPlays:
                 getattr(oot.incoming, "target_id", None)))
             return situation.menu[0].action_id
         kinds = {a.kind: a.action_id for a in situation.menu}
-        if situation.actor.id == "drago":
+        if situation.actor.id == "dravik":
             return kinds["hold"]
         for wanted in ("presence_attack", "dodge", "attack"):
             if wanted == "dodge" and self.dodged:
@@ -85,17 +85,17 @@ class GorgonPlays:
 
 def _fight():
     session = CombatSession.create(
-        id="s", combatants=[_man("gorgon", "red", dex=30, pre=25),
-                            _man("drago", "blue", dex=10)],
+        id="s", combatants=[_man("harlow", "red", dex=30, pre=25),
+                            _man("dravik", "blue", dex=10)],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
     ).start()
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 
-def _gorgon_rows(session):
+def _harlow_rows(session):
     return [e for e in session.event_log
-            if getattr(e, "combatant_id", None) == "gorgon"
+            if getattr(e, "combatant_id", None) == "harlow"
             and e.kind in ("ActionDeclared", "AbortDeclared", "PhaseSpent")]
 
 
@@ -105,14 +105,14 @@ def test_a_shout_then_a_dodge_uses_this_phase_and_keeps_the_next():
     assert shout.kind == "presence_attack"
     dodge = run_phase(shout.encounter, chooser, roller=Ones(),
                       on_unresolvable="raise")
-    assert (dodge.actor_id, dodge.kind) == ("gorgon", "dodge")
+    assert (dodge.actor_id, dodge.kind) == ("harlow", "dodge")
     session = dodge.session
     aborts = [e for e in session.event_log if e.kind == "AbortDeclared"]
     assert [(a.aborted_turn, a.aborted_segment) for a in aborts] == [(1, 12)], (
         "the Phase a Dodge on his own Phase uses is that Phase")
     # +3 DCV until the start of his next Phase, Turn 2 Segment 3 (6E2 p.56).
     assert [(a.bonus_until_turn, a.bonus_until_segment) for a in aborts] == [(2, 3)]
-    assert Dodge.dcv_bonus(session, "gorgon") == 3
+    assert Dodge.dcv_bonus(session, "harlow") == 3
 
     enc = dodge.encounter
     for _ in range(8):
@@ -120,7 +120,7 @@ def test_a_shout_then_a_dodge_uses_this_phase_and_keeps_the_next():
     rows = [(e.kind, getattr(e, "action_type", None) or getattr(e, "reason", None),
              e.turn if hasattr(e, "turn") else None,
              e.segment if hasattr(e, "segment") else None)
-            for e in _gorgon_rows(enc.sessions[0])]
+            for e in _harlow_rows(enc.sessions[0])]
     spent = [r for r in rows if r[0] == "PhaseSpent"]
     assert spent[0] == ("PhaseSpent", "acted", 1, 12)
     assert spent[1] == ("PhaseSpent", "acted", 2, 3), (
@@ -129,12 +129,12 @@ def test_a_shout_then_a_dodge_uses_this_phase_and_keeps_the_next():
 
 
 def test_only_the_man_being_attacked_is_asked_to_abort():
-    """An Abort is to protect himself from an attack (6E2 p.23-24). Drago
-    only holds, so Gorgon is never asked the Abort question; Drago is asked
-    it only when Gorgon's attack is coming at him."""
+    """An Abort is to protect himself from an attack (6E2 p.23-24). Dravik
+    only holds, so Harlow is never asked the Abort question; Dravik is asked
+    it only when Harlow's attack is coming at him."""
     enc, chooser = _fight(), GorgonPlays()
     for _ in range(10):
         enc = run_phase(enc, chooser, roller=Ones(), on_unresolvable="raise").encounter
     asked = [q for q in chooser.out_of_turn if q[1] == "abort"]
-    assert asked, "Gorgon attacked, so Drago was asked"
-    assert all(who == "drago" and at == "drago" for who, _, at in asked), asked
+    assert asked, "Harlow attacked, so Dravik was asked"
+    assert all(who == "dravik" and at == "dravik" for who, _, at in asked), asked

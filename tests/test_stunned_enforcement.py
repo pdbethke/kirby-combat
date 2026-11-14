@@ -296,7 +296,7 @@ def test_stunned_cv_penalty_still_applies_during_recovery_phase():
 def test_stunned_cv_penalty_clears_right_after_the_recovery_segment_ends():
     """The penalty clears from the very next Segment after the recovery
     Phase's own Segment (Segment 3) -- Segment 4 here -- NOT at bob's
-    NEXT full Phase (Segment 6). 6E2 p.107's own Andarra example is what
+    NEXT full Phase (Segment 6). 6E2 p.107's own Ardwin example is what
     pins this: she is restored to full DCV in Segments 9, 10, AND 11,
     the whole stretch up to (but not including) her next Phase at
     Segment 12 -- not merely at Segment 12 itself. (An earlier version of
@@ -304,7 +304,7 @@ def test_stunned_cv_penalty_clears_right_after_the_recovery_segment_ends():
     clearing only at Segment 6 -- that was the "one Phase too long" bug
     this test now pins the fix for; see
     ``statuses.py::stunned_or_recovering_for``'s CORRECTED WINDOW section
-    and ``examples/raw_andarra.py`` for the book's example run verbatim.)
+    and ``examples/raw_recover_from_stunned.py`` for the book's example run verbatim.)
     """
     attacker, target = _attacker_for_stun(), _target_for_stun(spd=4, dcv=9, dmcv=7)
     session = _session(attacker, target)
@@ -409,15 +409,15 @@ def test_stunned_combatant_cannot_abort_to_block():
 # too long. 6E2 p.107 hands over its own worked example -- run it
 # verbatim rather than inventing a fixture that might accidentally avoid
 # the bug. See ``statuses.py::stunned_or_recovering_for``'s CORRECTED
-# WINDOW section and ``examples/raw_andarra.py`` for the same example
+# WINDOW section and ``examples/raw_recover_from_stunned.py`` for the same example
 # driven end-to-end with printed output.
 # --------------------------------------------------------------------- #
 
-def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
-    """6E2 p.107: "Example: Andarra (DEX 20, SPD 3) is Stunned by an
+def test_ardwin_recovers_from_being_stunned_verbatim_6e2_p107():
+    """6E2 p.107: "Example: Ardwin (DEX 20, SPD 3) is Stunned by an
     attack on Segment 6. She must use her Phase on Segment 8 to recover;
     she recovers on DEX 20 (so an enemy attacking her in Segment 8 with,
-    say, DEX 15 would have to hit her at her full DCV). Andarra cannot
+    say, DEX 15 would have to hit her at her full DCV). Ardwin cannot
     take any other Action until her next Phase on Segment 12, but may
     Abort her Phase in Segment 12 in Segments 8 (after her DEX occurs),
     9, 10, or 11 if she so desires."
@@ -425,7 +425,7 @@ def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
     Asserted here: full DCV and Abort ALLOWED in Segments 9, 10, and 11
     -- the book is unambiguous there (no intra-Segment DEX-order
     approximation involved, unlike Segment 8 itself; see
-    ``examples/raw_andarra.py`` for that nuance spelled out). Before the
+    ``examples/raw_recover_from_stunned.py`` for that nuance spelled out). Before the
     fix, the engine denied the Abort and halved DCV through all three of
     these Segments -- exactly the "one full Phase too long" bug this test
     pins shut.
@@ -440,10 +440,10 @@ def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
     from kirby_combat.actions.reactive.dodge import Dodge
     from kirby_combat.statuses import statuses_for
 
-    # DEX 20, SPD 3 -- Andarra's own stated stats. CON well under the hit,
+    # DEX 20, SPD 3 -- Ardwin's own stated stats. CON well under the hit,
     # current STUN generous so this stays Stunned-while-conscious.
-    andarra = synthetic_combatant(
-        id="andarra", name="andarra",
+    ardwin = synthetic_combatant(
+        id="ardwin", name="ardwin",
         ocv=8, dcv=9, omcv=5, dmcv=7,
         spd=3, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
         pd=0, ed=0, rpd=0, red=0, md=5, power_defense=0, flash_defense=0,
@@ -452,19 +452,19 @@ def test_andarra_recovers_from_being_stunned_verbatim_6e2_p107():
     )
 
     # SPD 3 -> Phases at Segments 4, 8, 12 (tables.py SPEED_TO_SEGMENTS).
-    # Segment 8 is Andarra's own recovery Phase, exactly per the book.
+    # Segment 8 is Ardwin's own recovery Phase, exactly per the book.
     for to_segment in (9, 10, 11):
         attacker = _attacker_for_stun()
-        session = _session(attacker, andarra)
-        session = _stun(session, attacker, andarra)
+        session = _session(attacker, ardwin)
+        session = _stun(session, attacker, ardwin)
         for seg in range(7, to_segment + 1):
             session = _advance(session, to_segment=seg, to_turn=1)
 
-        ids = statuses_for(session, "andarra")
+        ids = statuses_for(session, "ardwin")
         assert not ids, (to_segment, ids)  # fully clear, matching the book
-        assert effective_dcv_for(session, "andarra") == andarra.dcv, to_segment
+        assert effective_dcv_for(session, "ardwin") == ardwin.dcv, to_segment
 
-        session, evt = Dodge.declare(session, "andarra")
+        session, evt = Dodge.declare(session, "ardwin")
         assert evt.to_action == "dodge", to_segment
 
 

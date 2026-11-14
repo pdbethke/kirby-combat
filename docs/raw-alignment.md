@@ -1,7 +1,7 @@
 # RAW alignment — the book's own examples, executed
 
-The HERO System rulebooks teach through named worked examples: Andarra
-recovering from being Stunned, Starburst flying past Ogre, Orion fighting
+The HERO System rulebooks teach through named worked examples: Ardwin
+recovering from being Stunned, Starling flying past Brannoch, Corvin fighting
 blind. Each states exact numbers, which makes them the sharpest available test
 of whether an engine implements the rules or merely resembles them.
 
@@ -29,7 +29,7 @@ and calling it fidelity.
 
 ## Recovering from being Stunned — 6E2 p.107
 
-**Script:** `examples/raw_andarra.py` · **Verdict:** rule and example agree; conformance asserted
+**Script:** `examples/raw_recover_from_stunned.py` · **Verdict:** rule and example agree; conformance asserted
 
 **The book's scenario, paraphrased.** A character with DEX 20 and SPD 3 is
 Stunned by an attack in Segment 6. Her next Phase falls in Segment 8, and she
@@ -39,7 +39,7 @@ to normal — but she still cannot take any other Action until her next Phase in
 Segment 12. The book is explicit that she *may* Abort her Segment 12 Phase
 during Segments 8 (after her DEX), 9, 10 or 11.
 
-**What Kirby does with those inputs** (`python examples/raw_andarra.py`):
+**What Kirby does with those inputs** (`python examples/raw_recover_from_stunned.py`):
 
 ```
 Segment 6 — Stunned by an attack
@@ -72,25 +72,25 @@ example, rather than citing the page, is what caught it.
 
 ## Fighting an opponent you cannot perceive — 6E2 p.9
 
-**Script:** `examples/raw_orion.py` · **Verdict:** rule and example agree; conformance asserted
+**Script:** `examples/raw_blinded_per_opponent.py` · **Verdict:** rule and example agree; conformance asserted
 
-**The book's scenario, paraphrased.** Orion is blinded by a Flash and can
+**The book's scenario, paraphrased.** Corvin is blinded by a Flash and can
 perceive nobody with a Targeting Sense. He is halved on both OCV and DCV
 hand-to-hand; at Range his OCV drops to zero and his DCV is halved. He then
-spends a Half Phase Action on a Hearing PER Roll against one attacker, Durak,
-and makes it — and against Durak **only** he is at -1 DCV and half OCV
+spends a Half Phase Action on a Hearing PER Roll against one attacker, Dunmar,
+and makes it — and against Dunmar **only** he is at -1 DCV and half OCV
 hand-to-hand, and at full DCV and half OCV at Range. Against everyone else the
 unmitigated numbers still stand, until the benefit lapses at the start of his
 next Phase.
 
-**What Kirby produces**, giving Orion 8 OCV / 8 DCV (the page states ratios and
+**What Kirby produces**, giving Corvin 8 OCV / 8 DCV (the page states ratios and
 a flat modifier, not his CVs):
 
 | | HTH OCV | HTH DCV | Ranged OCV | Ranged DCV |
 |---|---|---|---|---|
 | Before the Flash | 8 | 8 | 8 | 8 |
 | Blinded, vs anyone | 4 | 4 | 0 | 4 |
-| Blinded, vs **Durak** after the Hearing PER Roll | 4 | **7** | **4** | **8** |
+| Blinded, vs **Dunmar** after the Hearing PER Roll | 4 | **7** | **4** | **8** |
 | Blinded, vs everyone else, same Segment | 4 | 4 | 0 | 4 |
 | After the benefit lapses | 4 | 4 | 0 | 4 |
 
@@ -119,7 +119,7 @@ every example and much of the suite uses, and asking one for a PER roll raised
 
 ## Move By — 6E2 p.72
 
-**Script:** `examples/raw_starburst.py` · **Verdict:** the page's example contradicts the page's own rule; the engine follows the RULE
+**Script:** `examples/raw_move_by.py` · **Verdict:** the page's example contradicts the page's own rule; the engine follows the RULE
 
 **The rule, paraphrased.** A Move By does half the attacker's STR damage plus
 one d6 per 10m of velocity. The page adds a parenthetical instruction: halve
@@ -155,5 +155,5 @@ Honest gaps, listed so the absence is visible rather than implied:
 | Aborting to Dodge | 6E2 p.24 | a driver that spends the aborted Phase |
 | Adding damage to a weapon | 6E2 p.101 | turns on a GM ruling rather than a rule; not mechanically reproducible |
 
-Orion fighting blind used to head this table. It was the acceptance criterion
+Corvin fighting blind used to head this table. It was the acceptance criterion
 for the sense-affecting-powers spec, and it now has an entry of its own above.

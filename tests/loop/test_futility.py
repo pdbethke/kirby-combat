@@ -7,7 +7,7 @@ working".
 
 It is not a morale gap, though it looks like one. HERO has no morale stat
 for an individual: PRE is the stat, and 6E2 p.140's worked example makes
-that explicit --- Howler's "demoralized henchmen are about to run" and she
+that explicit --- Hollis's "demoralized henchmen are about to run" and she
 fixes it with a Presence Attack. But terror scales with the terrifier's
 PRE, and Power Lad's is 10, so nothing he does will ever break them. What
 breaks them is arithmetic they can do themselves.

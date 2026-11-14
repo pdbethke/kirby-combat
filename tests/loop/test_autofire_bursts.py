@@ -93,7 +93,7 @@ def test_the_burst_is_cut_to_the_charges_left():
 # ── one target ───────────────────────────────────────────────────────────────
 
 def test_a_burst_hits_once_plus_once_per_two_points():
-    """Andarra's arithmetic (6E2 p.44) on OCV 9 v DCV 5: a 10 makes it by 5
+    """Ardwin's arithmetic (6E2 p.44) on OCV 9 v DCV 5: a 10 makes it by 5
     -> 3 hits of 5 shots. 8d6 of 2s is 16 STUN, 12 through ED 4, three
     times: 36 off his 40. Each shot is a separate attack for Stunned (6E2
     p.44): 12 < CON 18, so he is NOT Stunned, though 36 in one blow would

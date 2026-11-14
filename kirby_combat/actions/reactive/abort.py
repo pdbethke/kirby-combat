@@ -22,7 +22,7 @@ def abort_windows(
     6E2 p.24, "HOW TO ABORT AN ACTION". The Phase given up is THIS
     Segment's if he has one here and has not yet used it ("he still had
     his full Phase left in Segment 5 and could use it to Abort to Dodge"),
-    and otherwise his next one (Lazer, attacked in Segment 6, gives up
+    and otherwise his next one (Larkin, attacked in Segment 6, gives up
     Segment 8). The bonus lasts "until his next Phase after that".
 
     Both read his SPD as it stands NOW, and are recorded on the event, so

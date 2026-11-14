@@ -293,9 +293,9 @@ _CV_MODIFIER_SOURCES: tuple[
 # ``cv_modifiers_for``, ``CVModifiers``, or ``apply_cv_factor`` needs to
 # change for that to work". **That prediction was wrong, and the reason it
 # was wrong is the whole shape of this section**, so it is corrected here
-# rather than quietly worked around: 6E2 p.9's Orion example has one
+# rather than quietly worked around: 6E2 p.9's Corvin example has one
 # combatant at DIFFERENT CVs against DIFFERENT opponents in the same
-# Segment (-1 DCV against Durak, 1/2 DCV against everyone else), and it
+# Segment (-1 DCV against Dunmar, 1/2 DCV against everyone else), and it
 # expresses the mitigated case as a FLAT -1, which ``apply_cv_factor``
 # refuses by design. A ``(session, combatant_id) -> factors`` source can
 # express neither. So the existing seam is kept exactly as it is -- every
@@ -638,8 +638,8 @@ def apply_cv_delta(base: int, delta: int) -> int:
     """Apply a FLAT CV modifier — plain integer addition, no rounding.
 
     Separate from ``apply_cv_factor`` because it is a different kind of
-    thing, and the difference is exactly what 6E2 p.9's Orion example
-    turns on. Orion, blinded but hearing Durak, is "-1 DCV... in HTH
+    thing, and the difference is exactly what 6E2 p.9's Corvin example
+    turns on. Corvin, blinded but hearing Dunmar, is "-1 DCV... in HTH
     Combat" against him: an 8 DCV becomes 7. Routing that through
     ``apply_cv_factor`` would mean inventing a factor (0.875 for THIS
     combatant, something else for the next), which that function refuses
@@ -677,7 +677,7 @@ def _per_opponent_modifiers(
 
     Naming no opponent is the honest answer for a caller asking "what is
     this combatant's DCV" in the abstract: 6E2 p.9's penalties do not
-    HAVE an opponent-independent value (Orion is simultaneously 4 DCV and
+    HAVE an opponent-independent value (Corvin is simultaneously 4 DCV and
     7 DCV), so returning nothing is better than picking one arbitrarily.
     It is also what keeps every pre-existing call site unchanged.
     """

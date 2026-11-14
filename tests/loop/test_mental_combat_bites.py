@@ -1,6 +1,6 @@
 """Mental combat that does something (spec 2026-10-26-mental-combat-design).
 
-WHAT A PROD FIGHT SHOWED (session 33bf8bee, 2026-10-26). Brainchild, OMCV 8,
+WHAT A PROD FIGHT SHOWED (session 33bf8bee, 2026-10-26). Mindwright, OMCV 8,
 used Mental Blast nine times and Mind Control once in a five-way fight:
 
 * every mental power hit --- there was no MCV Attack Roll (6E1 p.150);
@@ -86,7 +86,7 @@ def _person(id_: str, side: str, *, dex: int, mentalist: bool = False,
     return c
 
 
-def _brainchild(*, telepathic: bool = False):
+def _mindwright(*, telepathic: bool = False):
     psi = _person("psi", "psi", dex=10, mentalist=True)
     psi.hero.powers.extend([
         _Power("MINDCONTROL", 12, mods=("TELEPATHIC",) if telepathic else ()),
@@ -139,7 +139,7 @@ def _offer(kind: str, target: str, power, *, order: str | None = None) -> LegalA
 
 def _controlled(order: str, *, extra=()):
     """psi has just Mind Controlled mark with ``order``; nobody has broken out."""
-    psi = _brainchild()
+    psi = _mindwright()
     mark = _person("mark", "gang", dex=30)
     session = _fight(psi, mark, *extra)
     mc = next(p for p in psi.hero.powers if p.xmlid == "MINDCONTROL")
@@ -201,7 +201,7 @@ def _targets(menu) -> set[str]:
 def test_a_mental_blast_that_misses_does_nothing_and_rolls_no_effect():
     """6E1 p.151: the Effect Roll follows "a successful MCV Attack Roll".
     An 18 misses 11 + 8 - 5 = 14; the target keeps every point of STUN."""
-    psi, mark = _brainchild(), _person("mark", "gang", dex=30)
+    psi, mark = _mindwright(), _person("mark", "gang", dex=30)
     session = _fight(psi, mark)
     resolved = resolve_chosen(session, session.combatants["psi"],
                               _offer("mental_blast", "mark", _mental_blast()),
@@ -213,7 +213,7 @@ def test_a_mental_blast_that_misses_does_nothing_and_rolls_no_effect():
 
 
 def test_a_mental_blast_that_hits_says_so():
-    psi, mark = _brainchild(), _person("mark", "gang", dex=30)
+    psi, mark = _mindwright(), _person("mark", "gang", dex=30)
     session = _fight(psi, mark)
     resolved = resolve_chosen(session, session.combatants["psi"],
                               _offer("mental_blast", "mark", _mental_blast()),
@@ -226,7 +226,7 @@ def test_a_stunned_mind_is_easier_to_hit():
     """6E2 p.106: "A Stunned character's DCV and DMCV instantly drop to 1/2".
     DMCV 5 halves to 3 (6E2 p.39 rounds in the character's favour), so the
     target number goes from 14 to 16."""
-    psi, mark = _brainchild(), _person("mark", "gang", dex=30)
+    psi, mark = _mindwright(), _person("mark", "gang", dex=30)
     session = _fight(psi, mark)
     assert mental_attack_roll(session, psi, mark, _Dice((3, 3, 3))).target_number == 14
     stunned = apply_event(session, ActionResolved(
@@ -298,7 +298,7 @@ def test_spare_is_not_offered_when_the_controller_is_his_only_enemy():
     """With nobody else to fight, "leave me alone" means "stop fighting",
     which 6E1 p.256 puts beyond EGO+10 --- so `spare` is not on the menu,
     and `turn` is not either: he has no friends here to turn on."""
-    psi, mark = _brainchild(), _person("mark", "gang", dex=30)
+    psi, mark = _mindwright(), _person("mark", "gang", dex=30)
     menu = enumerate_actions(psi, [mark])
     orders = {a.order for a in menu if a.kind == "mind_control"}
     assert orders == {"withdraw"}
@@ -332,7 +332,7 @@ def test_an_order_given_with_room_to_spare_is_harder_to_break():
 # ── §4 Mind Scan ────────────────────────────────────────────────────────────
 
 def _behind_the_wall(*, telepathic: bool = False):
-    psi = _brainchild(telepathic=telepathic)
+    psi = _mindwright(telepathic=telepathic)
     mark = _person("mark", "gang", dex=30)
     scene = _scene(wall=True, psi=(0.0, 5.0), mark=(20.0, 5.0))
     return psi, mark, _fight(psi, mark, scene=scene), scene
@@ -349,7 +349,7 @@ def test_a_mentalist_who_sees_nobody_is_offered_a_scan_not_an_attack():
 
 
 def test_nobody_scans_a_mind_he_can_already_see():
-    psi, mark = _brainchild(), _person("mark", "gang", dex=30)
+    psi, mark = _mindwright(), _person("mark", "gang", dex=30)
     scene = _scene(wall=False, psi=(0.0, 5.0), mark=(20.0, 5.0))
     menu = enumerate_actions(psi, [mark], has_scene=True, scene=scene)
     assert "mind_scan" not in {a.kind for a in menu}

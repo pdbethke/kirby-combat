@@ -8,7 +8,7 @@ call. The fight does not start until every one is on the log, and none is
 chosen for anybody. An opening is not a re-split, so it does not spend
 p.410's once-a-Phase allowance.
 
-Kerendor's Magic (6E1 p.406, as a stub with stand-in rungs): reserve 60;
+Merrick's Magic (6E1 p.406, as a stub with stand-in rungs): reserve 60;
 `wind` variable 60, `bolt` variable 60, `wall` fixed 45. Synthetic, so the
 loop's mechanics run everywhere without a licensed template.
 """
@@ -40,7 +40,7 @@ def _rungs(top, every):
                  for p in (*range(0, top, every), top))
 
 
-def _magic(fid="kmp", name="Kerendor's Magic"):
+def _magic(fid="kmp", name="Merrick's Magic"):
     return FrameworkView(
         framework_id=fid, xmlid="MULTIPOWER", name=name, kind="multipower",
         reserve_or_pool=60,
@@ -124,8 +124,8 @@ def _roller():
 # ── the opening ────────────────────────────────────────────────────────────
 
 def test_the_first_phase_is_kerendors_opening():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
-    seat = _States({("kerendor", "kmp"): "wall@45+wind@15"})
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    seat = _States({("merrick", "kmp"): "wall@45+wind@15"})
 
     first = run_phase(enc, seat, roller=_roller())
 
@@ -134,22 +134,22 @@ def test_the_first_phase_is_kerendors_opening():
     (offer,) = situation.menu
     assert (offer.kind, offer.action_id) == ("opening_split", "opening_split:kmp:split")
     assert offer.choice.current == {}
-    assert first.actor_id == "kerendor"
+    assert first.actor_id == "merrick"
     assert first.kind == "opening_split"
     kinds = [e.kind for e in first.events]
     assert "SlotsAllocated" in kinds
     assert "ActingOrderResolved" not in kinds, "no Segment begins at an opening"
     (alloc,) = [e for e in first.events if e.kind == "SlotsAllocated"]
     assert alloc.opening is True
-    assert first.session.combatants["kerendor"].state.slot_points["kmp"] == {
+    assert first.session.combatants["merrick"].state.slot_points["kmp"] == {
         "wind": 15, "bolt": 0, "wall": 45}
     # 6E1 p.410: the opening is not the Phase's one re-split
-    assert not reallocated_this_phase(first.session, "kerendor")
+    assert not reallocated_this_phase(first.session, "merrick")
 
 
 def test_after_the_opening_segment_12_starts():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
-    seat = _States({("kerendor", "kmp"): "wall@45+wind@15"})
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    seat = _States({("merrick", "kmp"): "wall@45+wind@15"})
 
     first = run_phase(enc, seat, roller=_roller())
     second = run_phase(first.encounter, seat, roller=_roller())
@@ -157,21 +157,21 @@ def test_after_the_opening_segment_12_starts():
     assert seat.seen[1].opening is False
     assert "ActingOrderResolved" in [e.kind for e in second.events]
     assert second.session.timeline.segment == 12
-    assert second.actor_id in ("kerendor", "foe")
+    assert second.actor_id in ("merrick", "foe")
 
 
 def test_every_multipower_opens_in_roster_then_framework_order():
     enc = _encounter(
-        _carrying("kerendor", "heroes", _magic("kmp"), _vpp(), _magic("kmp2", "Second Magic")),
+        _carrying("merrick", "heroes", _magic("kmp"), _vpp(), _magic("kmp2", "Second Magic")),
         fighter("plain", side=Side.named("heroes")),
         _carrying("foe", "villains", _fixed_only()),
     )
     assert pending_openings(enc.sessions[0]) == [
-        ("kerendor", "kmp"), ("kerendor", "kmp2"), ("foe", "fmp")]
-    seat = _States({("kerendor", "kmp"): "bolt@60", ("kerendor", "kmp2"): "wind@60",
+        ("merrick", "kmp"), ("merrick", "kmp2"), ("foe", "fmp")]
+    seat = _States({("merrick", "kmp"): "bolt@60", ("merrick", "kmp2"): "wind@60",
                     ("foe", "fmp"): "claws@30"})
 
-    for expected in [("kerendor", "kmp"), ("kerendor", "kmp2"), ("foe", "fmp")]:
+    for expected in [("merrick", "kmp"), ("merrick", "kmp2"), ("foe", "fmp")]:
         phase = run_phase(enc, seat, roller=_roller())
         enc = phase.encounter
         assert (phase.actor_id, phase.action_id.split(":")[1]) == expected
@@ -182,7 +182,7 @@ def test_every_multipower_opens_in_roster_then_framework_order():
 
 
 def test_the_bare_opening_id_is_not_an_answer():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
 
     class Bare:
         def choose(self, situation):
@@ -193,15 +193,15 @@ def test_the_bare_opening_id_is_not_an_answer():
 
 
 def test_a_rule_break_is_refused_at_the_opening():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
     with pytest.raises(InvalidChoice):
-        run_phase(enc, _States({("kerendor", "kmp"): "wall@45+bolt@20"}), roller=_roller())
+        run_phase(enc, _States({("merrick", "kmp"): "wall@45+bolt@20"}), roller=_roller())
 
 
 def test_first_legal_does_not_choose_a_split_for_him():
     """No defaults: a seat that only takes the first offer cannot state a
     split, and says so rather than picking one."""
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
     with pytest.raises(InvalidChoice, match="split"):
         run_phase(enc, FirstLegalChooser(), roller=_roller())
 
@@ -217,10 +217,10 @@ def test_a_seat_that_cannot_answer_now_stops_the_fight_where_it_is():
         def choose(self, situation):
             raise NoChoice(situation.actor.id)
 
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
     with pytest.raises(NoChoice):
         run_phase(enc, Human(), roller=_roller())
-    assert pending_openings(enc.sessions[0]) == [("kerendor", "kmp")]
+    assert pending_openings(enc.sessions[0]) == [("merrick", "kmp")]
 
 
 # ── what the offer carries ────────────────────────────────────────────────
@@ -232,7 +232,7 @@ COMBAT = StandingSplit(name="Combat", points={"wall": 45, "bolt": 15},
 
 
 def test_the_standard_combat_set_is_shown_and_not_applied():
-    man = _carrying("kerendor", "heroes", _magic(), standing={"kmp": (PATROL, COMBAT)})
+    man = _carrying("merrick", "heroes", _magic(), standing={"kmp": (PATROL, COMBAT)})
     enc = _encounter(man, fighter("foe", side=Side.named("villains")))
 
     class Looks:
@@ -248,12 +248,12 @@ def test_the_standard_combat_set_is_shown_and_not_applied():
     assert choice.standard is not None and choice.standard.name == "Combat"
     assert choice.standard.points == {"wind": 0, "bolt": 15, "wall": 45}
     # never applied by itself
-    assert enc.sessions[0].combatants["kerendor"].state.slot_points == {}
+    assert enc.sessions[0].combatants["merrick"].state.slot_points == {}
 
 
 def test_no_standard_set_means_none():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
-    seat = _States({("kerendor", "kmp"): "bolt@60"})
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    seat = _States({("merrick", "kmp"): "bolt@60"})
     run_phase(enc, seat, roller=_roller())
     assert seat.seen[0].menu[0].choice.standard is None
 
@@ -284,7 +284,7 @@ def test_nothing_on_is_a_split_he_may_state_at_the_opening():
 # ── the guard, the helper, the driver ─────────────────────────────────────
 
 def test_no_segment_begins_with_an_opening_pending():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
     template = enc._resolve_template(None)
     with pytest.raises(NoOpeningSplit):
         _advance_to_an_actor(enc, campaign=None, tie_roller=lambda: [3, 3, 3],
@@ -292,21 +292,21 @@ def test_no_segment_begins_with_an_opening_pending():
 
 
 def test_open_with_states_the_split_for_a_test():
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
-    s = open_with(enc.sessions[0], "kerendor", "kmp", {"bolt": 60})
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    s = open_with(enc.sessions[0], "merrick", "kmp", {"bolt": 60})
     assert pending_openings(s) == []
-    assert s.combatants["kerendor"].state.slot_points["kmp"] == {
+    assert s.combatants["merrick"].state.slot_points["kmp"] == {
         "wind": 0, "bolt": 60, "wall": 0}
     with pytest.raises(Exception):
-        open_with(enc.sessions[0], "kerendor", "kmp", {"bolt": 60, "wall": 45})
+        open_with(enc.sessions[0], "merrick", "kmp", {"bolt": 60, "wall": 45})
 
 
 def test_run_encounter_opens_then_fights_and_counts_no_opening_as_a_phase():
     def fight():
-        return _encounter(_carrying("kerendor", "heroes", _magic()),
+        return _encounter(_carrying("merrick", "heroes", _magic()),
                           fighter("foe", side=Side.named("villains")))
 
-    seat = _States({("kerendor", "kmp"): "bolt@60"})
+    seat = _States({("merrick", "kmp"): "bolt@60"})
     out = run_encounter(fight(), seat, roller=_roller(), max_turns=1)
     kinds = [e.kind for e in out.encounter.sessions[0].event_log]
     assert kinds.index("SlotsAllocated") < kinds.index("ActingOrderResolved")
@@ -315,7 +315,7 @@ def test_run_encounter_opens_then_fights_and_counts_no_opening_as_a_phase():
     # the same fight opened by the test: the same Phases, none for the opening
     pre = fight()
     pre = Encounter(id=pre.id, turn=pre.turn, segment=pre.segment,
-                    sessions=[open_with(pre.sessions[0], "kerendor", "kmp", {"bolt": 60})])
+                    sessions=[open_with(pre.sessions[0], "merrick", "kmp", {"bolt": 60})])
     same = run_encounter(pre, _States({}), roller=_roller(), max_turns=1)
     assert out.phases == same.phases
 
@@ -331,8 +331,8 @@ def test_a_decided_fight_poses_no_opening_and_emits_nothing():
         def decide(self, roster):
             return Verdict(over=True, winner=None)
 
-    enc = _encounter(_carrying("kerendor", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
-    seat = _States({("kerendor", "kmp"): "bolt@60"})
+    enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    seat = _States({("merrick", "kmp"): "bolt@60"})
     out = run_phase(enc, seat, roller=_roller(), until=AlreadyOver())
     assert out.actor_id is None and out.events == []
     assert seat.seen == []
@@ -351,7 +351,7 @@ def test_first_legal_passes_over_a_resplit_and_takes_the_next_offer():
         choice=split_choice_of(_magic(), {"bolt": 60, "wind": 0, "wall": 0}, presets=()))
     dodge = LegalAction(action_id="dodge", kind="dodge", summary="Dodge",
                         target_id=None, power_xmlid="", power_name="")
-    man = _carrying("kerendor", "heroes", _magic())
+    man = _carrying("merrick", "heroes", _magic())
     assert FirstLegalChooser().choose(PhaseSituation(actor=man, menu=[resplit, dodge])) == "dodge"
 
 
@@ -364,9 +364,9 @@ def test_a_stat_block_has_no_multipower_and_a_stranger_is_refused():
     from kirby_combat.breakables.object_combatant import ObjectCombatant
 
     wall = ObjectCombatant.make(id="wall", name="Wall", material="stone")
-    kerendor = _carrying("kerendor", "heroes", _magic())
+    merrick = _carrying("merrick", "heroes", _magic())
     assert pending_openings(SimpleNamespace(
-        combatants={"wall": wall, "kerendor": kerendor})) == [("kerendor", "kmp")]
+        combatants={"wall": wall, "merrick": merrick})) == [("merrick", "kmp")]
     with pytest.raises(TypeError):
         pending_openings(SimpleNamespace(combatants={"x": SimpleNamespace(id="x")}))
 
@@ -378,7 +378,7 @@ TOO_BIG = StandingSplit(name="Old Habit", points={"wall": 45, "bolt": 30},
 
 
 def _opening_situation(*standing):
-    man = _carrying("kerendor", "heroes", _magic(), standing={"kmp": standing})
+    man = _carrying("merrick", "heroes", _magic(), standing={"kmp": standing})
     enc = _encounter(man, fighter("foe", side=Side.named("villains")))
 
     class Looks:
@@ -426,7 +426,7 @@ def test_the_opening_situation_carries_the_distances_and_reach_of_a_phase():
     from shaped import scene_with
     from kirby_combat.loop.run import _situation_for
 
-    scene = scene_with({"kerendor": (0.0, 0.0, 0.0), "foe": (30.0, 0.0, 0.0)})
+    scene = scene_with({"merrick": (0.0, 0.0, 0.0), "foe": (30.0, 0.0, 0.0)})
     @dataclasses.dataclass
     class _Reaching(_Multipowered):
         def combat_stats(self):
@@ -434,21 +434,21 @@ def test_the_opening_situation_carries_the_distances_and_reach_of_a_phase():
             stats.reach_m = 3.0       # not PhaseSituation's 1.0 stand-in
             return stats
 
-    base = _carrying("kerendor", "heroes", _magic())
-    kerendor = _Reaching(**{f.name: getattr(base, f.name)
+    base = _carrying("merrick", "heroes", _magic())
+    merrick = _Reaching(**{f.name: getattr(base, f.name)
                             for f in dataclasses.fields(base)})
     session = CombatSession.create(
-        id="s", combatants=[kerendor, fighter("foe", side=Side.named("villains"))],
+        id="s", combatants=[merrick, fighter("foe", side=Side.named("villains"))],
         scene=scene, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=7)).start()
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
-    seat = _States({("kerendor", "kmp"): "wall@45+wind@15"})
+    seat = _States({("merrick", "kmp"): "wall@45+wind@15"})
 
     run_phase(enc, seat, roller=_roller())
 
     (opening,) = seat.seen
     assert opening.opening is True
-    phase = _situation_for(session, "kerendor")
+    phase = _situation_for(session, "merrick")
     assert opening.distances_m == {"foe": 30.0}
     assert opening.distances_m == phase.distances_m
     assert opening.reach_m == phase.reach_m

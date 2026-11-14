@@ -1,7 +1,7 @@
 """Every STUN, BODY and END change names who caused it.
 
 `VitalsChanged` said what happened to a man and never by whom. Asked "who
-knocked Talisman out", the only answer was to line the rows up by sequence
+knocked Tessaly out", the only answer was to line the rows up by sequence
 number and guess which `ActionResolved` each one belonged to: the Destroid's
 57 STUN and the knockback's 29 more were two anonymous rows. `caused_by` is
 the combatant whose act caused the change: the attacker for a hit and for

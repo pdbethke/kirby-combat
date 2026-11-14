@@ -129,7 +129,7 @@ class session_holds:                                  # noqa: N801
 #: 6E2 p.45 leaves the figure to the GM --- "based on the number of
 #: combatants, how quickly they're moving around, their relative sizes".
 #: Its own Behind Cover example on the same page prices a rock that
-#: "protects roughly half of Andarra" at -2 OCV, and one man held in
+#: "protects roughly half of Ardwin" at -2 OCV, and one man held in
 #: front of another is the same shape of obstruction. A judgement, and a
 #: grounded one; a campaign that disagrees changes it.
 DEFAULT_MELEE_COVER_OCV = -2

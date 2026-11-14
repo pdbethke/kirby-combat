@@ -1,4 +1,4 @@
-"""Andarra recovers from being Stunned — 6E2 p.107, reproduced.
+"""Ardwin recovers from being Stunned — 6E2 p.107, reproduced.
 
 This is not an illustration. It is a conformance check that happens to be
 readable: the rulebook's own worked example is quoted verbatim below, the
@@ -24,7 +24,7 @@ PARAPHRASED -- this project ships no rules text; open your own copy:
     Abort that Segment 12 Phase during Segments 8 (after her DEX), 9, 10
     or 11.
 
-WHERE THIS ENGINE IS APPROXIMATE, STATED PLAINLY: the book restores Andarra's
+WHERE THIS ENGINE IS APPROXIMATE, STATED PLAINLY: the book restores Ardwin's
 DCV partway through Segment 8, at her DEX. `statuses_for` folds an event log
 and has no intra-Segment DEX position, so the engine's edge is the END of
 Segment 8 rather than DEX 20 within it. The assertions below therefore cover
@@ -34,7 +34,7 @@ applies -- and the Segment 8 case is reported rather than asserted on DCV
 whole-Segment facts this engine's fold gets exactly right).
 
 Run with:
-    .venv/bin/python examples/raw_andarra.py
+    .venv/bin/python examples/raw_recover_from_stunned.py
 """
 from __future__ import annotations
 
@@ -81,12 +81,12 @@ BASHER = StatBlockCombatant(
     defenses=[],
 )
 
-# DEX 20, SPD 3 -- Andarra's own stated stats. CON 15, no defenses, a
+# DEX 20, SPD 3 -- Ardwin's own stated stats. CON 15, no defenses, a
 # generous current STUN (well above the 20 this hit deals) so this example
 # demonstrates Stunned-while-conscious cleanly, the same choice
 # `examples/stunned.py` makes for the same reason.
-ANDARRA = StatBlockCombatant(
-    id="andarra", name="Andarra",
+ARDWIN = StatBlockCombatant(
+    id="ardwin", name="Ardwin",
     ocv=8, dcv=9, omcv=5, dmcv=7,
     spd=3, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
     pd=0, ed=0, rpd=0, red=0, md=5,
@@ -116,25 +116,25 @@ def _advance(session: CombatSession, to_segment: int, to_turn: int) -> CombatSes
 
 
 def main() -> None:
-    rule("ANDARRA RECOVERS FROM BEING STUNNED — 6E2 p.107")
+    rule("ARDWIN RECOVERS FROM BEING STUNNED — 6E2 p.107")
 
     session = CombatSession.create(
         id="s1",
-        combatants=[BASHER, ANDARRA],
+        combatants=[BASHER, ARDWIN],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
     ).start()
 
     # ── Segment 6: the Stunning hit ─────────────────────────────────────
-    rule("Segment 6 — Andarra is Stunned by an attack")
+    rule("Segment 6 — Ardwin is Stunned by an attack")
 
     # Fixed dice: to-hit [3,3,3] -> roll 9, 8+11-9=10 >= DCV 9, hits.
     # Damage dice sum to 20 STUN, no defenses -- over CON 15 (Stunned),
     # well under current STUN 40 (not Knocked Out -- keeps this example
     # about Stunned recovery alone, the same isolation `stunned.py` uses).
     attack = AttackInput(
-        attacker=BASHER, target=ANDARRA, power=BASHER.attacks[0],
+        attacker=BASHER, target=ARDWIN, power=BASHER.attacks[0],
         distance_m=0, aim=None,
         dice=DiceValues(
             to_hit=[3, 3, 3],
@@ -145,14 +145,14 @@ def main() -> None:
         ),
     )
     session, result = resolve_attack_in_session(session, attack, session.template)
-    print(f"  Basher's Energy Blast hits Andarra for {result.stun_dealt} STUN "
-          f"(CON {ANDARRA.con}) -> status_changes={result.status_changes}")
+    print(f"  Basher's Energy Blast hits Ardwin for {result.stun_dealt} STUN "
+          f"(CON {ARDWIN.con}) -> status_changes={result.status_changes}")
     assert "Stunned" in result.status_changes
 
     # ── Walk Segments 7 through 12, asserting the book's own claims ────
     #
     # SPD 3 -> Phases at Segments 4, 8, 12 (tables.py SPEED_TO_SEGMENTS).
-    # Segment 8 is Andarra's own next full Phase after Segment 6 -- her
+    # Segment 8 is Ardwin's own next full Phase after Segment 6 -- her
     # recovery Phase, exactly as the book states.
     expectations = {
         # segment: (status ids expected, Abort allowed)
@@ -182,16 +182,16 @@ def main() -> None:
         session = _advance(session, to_segment=segment, to_turn=1)
 
         rule(f"Segment {segment}")
-        ids = statuses_for(session, "andarra")
-        dcv = effective_dcv_for(session, "andarra")
+        ids = statuses_for(session, "ardwin")
+        dcv = effective_dcv_for(session, "ardwin")
         try:
-            Dodge.declare(session, "andarra")
+            Dodge.declare(session, "ardwin")
             abort_allowed = True
         except ValueError:
             abort_allowed = False
 
         print(f"  statuses_for = {{{', '.join(sorted(ids)) or '— none —'}}}")
-        print(f"  effective DCV = {dcv} (base {ANDARRA.dcv})")
+        print(f"  effective DCV = {dcv} (base {ARDWIN.dcv})")
         print(f"  Abort to Dodge allowed: {abort_allowed}")
 
         expected_ids, expected_abort = expectations[segment]
@@ -200,19 +200,19 @@ def main() -> None:
 
         if segment == 8:
             # The one Segment the book itself splits in two (before/after
-            # Andarra's own DEX) -- this engine's fold has no intra-Segment
+            # Ardwin's own DEX) -- this engine's fold has no intra-Segment
             # DEX position, so it reports rather than asserts this one
             # value; see this file's module docstring.
             print("  (book restores full DCV partway through this Segment, at "
                   "her DEX -- reported, not asserted)")
         elif STUNNED in ids or RECOVERING_FROM_STUNNED in ids:
-            assert dcv < ANDARRA.dcv, (segment, dcv, ANDARRA.dcv)
+            assert dcv < ARDWIN.dcv, (segment, dcv, ARDWIN.dcv)
         else:
-            assert dcv == ANDARRA.dcv, (
-                f"Segment {segment}: expected full DCV {ANDARRA.dcv}, got {dcv}"
+            assert dcv == ARDWIN.dcv, (
+                f"Segment {segment}: expected full DCV {ARDWIN.dcv}, got {dcv}"
             )
 
-    rule("END — Andarra's book-stated Segments 9, 10, 11 confirmed: full DCV, "
+    rule("END — Ardwin's book-stated Segments 9, 10, 11 confirmed: full DCV, "
          "Abort allowed, matching 6E2 p.107 exactly.")
 
 

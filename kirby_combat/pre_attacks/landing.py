@@ -157,7 +157,7 @@ def stating_the_dice(session: "CombatSession", actor: Any,
 
     Enumeration has no fight to count repeats in, so it wrote PRE/5 --- a
     die more than any Presence Attack in a fight ever rolls. Found
-    2026-11-10: Plague was offered "4d6" on every shout and rolled 3d6, then
+    2026-11-10: Blight was offered "4d6" on every shout and rolled 3d6, then
     2d6.
     """
     from dataclasses import replace

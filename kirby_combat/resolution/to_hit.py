@@ -31,7 +31,7 @@ def _csl_reaches(csl, power) -> bool:
     a sim quietly makes everyone better than they were paid for.
 
     THE POWER'S NAME **OR** ITS FRAMEWORK'S. A BROAD level is usually
-    bought across a whole framework and says so in those words -- HELIOS-CV1
+    bought across a whole framework and says so in those words -- LUMEN-CV1
     carries "with Power Over Light And Heat Multipower" and every one of his
     five attacks sits in the Multipower of that name, none of them called
     anything like it. Matching the power name alone found nothing for him.

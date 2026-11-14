@@ -18,7 +18,7 @@ from dataclasses import replace
 
 from conftest import fighter                          # noqa: F401  (loop fixtures on path)
 from test_mental_combat_bites import (
-    TEMPLATE, _Dice, _Power, _Records, _brainchild, _fight, _offer, _person, _targets,
+    TEMPLATE, _Dice, _Power, _Records, _mindwright, _fight, _offer, _person, _targets,
 )
 
 from kirby_combat.cv_modifiers import effective_dcv_for
@@ -32,7 +32,7 @@ from kirby_dice import RandomRoller
 
 
 def _illusionist(levels: int = 12, active_cost: int = 60):
-    psi = _brainchild()
+    psi = _mindwright()
     power = _Power("MENTALILLUSION", levels)
     power.active_cost = active_cost
     psi.hero.powers.append(power)

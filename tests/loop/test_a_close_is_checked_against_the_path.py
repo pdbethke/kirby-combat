@@ -1,7 +1,7 @@
 """A close-and-strike is offered only when the path lets him close.
 
-WHAT A PROD FIGHT SHOWED (session 33bf8bee, 2026-10-26). Pulsar chose
-`move_strike` at Brainchild three Phases running, and each time ended the
+WHAT A PROD FIGHT SHOWED (session 33bf8bee, 2026-10-26). Pellam chose
+`move_strike` at Mindwright three Phases running, and each time ended the
 Phase standing where he began, `reached: false`, having struck nobody. The
 long-standing "move_strike 0-for-9" defect.
 

@@ -10,7 +10,7 @@ depending on what the container is:
 
 Every walk over a build reads its children through ``parts_of``. Before
 2026-11-09 eight walks read ``sub_powers`` alone, so anything bought inside a
-Compound Power was invisible in combat. The corpus Agent of UNTIL's Blaster
+Compound Power was invisible in combat. A corpus government agent's Blaster
 Carbine is a Compound Power (Blast plus Combat Skill Levels), and the agent
 fought with no attack at all. ``tests/test_compound_power_parts.py`` holds a
 ratchet that fails on any new single-list walk.

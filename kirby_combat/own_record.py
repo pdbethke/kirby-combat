@@ -1,6 +1,6 @@
 """What his own last actions did, as he saw them.
 
-FOUND 2026-11-10: Plague fired his Killing Attack nine times at a dodging
+FOUND 2026-11-10: Blight fired his Killing Attack nine times at a dodging
 agent and missed every time, and made three group Presence Attacks of which
 the last two did nothing --- and his page never said so. Nothing on it
 recorded what his own actions had done, so whatever the doctrine said last

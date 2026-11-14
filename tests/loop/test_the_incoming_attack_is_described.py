@@ -137,7 +137,7 @@ def test_the_abort_offers_name_the_attacker_not_his_id():
     names him. Same name the menu uses everywhere else (`_friendly`)."""
     a = fighter("a-id", side=HEROES, dex=30)
     a.attacks[:] = [blast("a-fist", dice=6, range_m=0)]
-    a.hero.name = "Grond"
+    a.hero.name = "Grumel"
     d = fighter("d", side=VILLAINS, dex=10)
     shown = []
 
@@ -154,5 +154,5 @@ def test_the_abort_offers_name_the_attacker_not_his_id():
               on_unresolvable="raise")
     abort = next(s for s in shown if s.out_of_turn.reason is OutOfTurnReason.ABORT)
     summaries = {o.kind: o.summary for o in abort.menu}
-    assert "Grond" in summaries["no_abort"] and "a-id" not in summaries["no_abort"]
-    assert "Grond" in summaries["block"] and "a-id" not in summaries["block"]
+    assert "Grumel" in summaries["no_abort"] and "a-id" not in summaries["no_abort"]
+    assert "Grumel" in summaries["block"] and "a-id" not in summaries["block"]

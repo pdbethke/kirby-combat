@@ -1,6 +1,6 @@
 """A Presence Attack offer states the dice the engine will roll.
 
-Found 2026-11-10: Plague (PRE 20) was offered "PRE 20 -> 4d6 vs target's
+Found 2026-11-10: Blight (PRE 20) was offered "PRE 20 -> 4d6 vs target's
 PRE" every time. The engine rolls PRE/5 less 1d6 in combat (6E2 p.138) and
 1d6 less again for each earlier Presence Attack at the same man (6E2
 p.140): 3d6, then 2d6. The page promised a die more than any roll he made.

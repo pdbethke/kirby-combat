@@ -8,8 +8,8 @@ around (`Squad`, `SquadOrders`, `FireTeam`, `TeamTask`, `KEEP_ORDERS`,
 `ThreatPicture`, `ThreatLine`).
 
 THE SITUATION. Two squads of four, ALPHA and BRAVO, each fighter a
-`minor_hits=1` extra, face the Warlord and his Lieutenant on a generated arena that has cover
-on it (`ArenaGenerator.WITH_COVER`). The Warlord's one attack is a 4 m
+`minor_hits=1` extra, face the Marshal and his Lieutenant on a generated arena that has cover
+on it (`ArenaGenerator.WITH_COVER`). The Marshal's one attack is a 4 m
 Explosion, so a bunched-up squad is exactly what it was bought to punish.
 The GM declares the squads (a name on each man, like `minor_hits`); the
 engine never infers them from the roster.
@@ -31,7 +31,7 @@ WHAT HAPPENS, in the order it is printed:
   3. Each man's page carries his team's order (`orders_for`), and
      `order_fit` says whether an offer on his menu carries it out. It is a
      fact for his seat, never a cut of his menu: following it is his choice.
-  4. Once the Warlord has used his Explosion, each man gets a `ThreatPicture`:
+  4. Once the Marshal has used his Explosion, each man gets a `ThreatPicture`:
      one `ThreatLine` per power an enemy has been SEEN using, whether it
      reaches him now, how big the area is, how many of his own squad one use
      would catch, and which `Defence`s answer it (`answers_to`). Powers an
@@ -80,7 +80,7 @@ def a_rifle(cid: str) -> AttackPower:
 
 
 def the_explosion() -> AttackPower:
-    """The Warlord's Explosion: 4d6 Energy Blast, a 4 m radius area."""
+    """The Marshal's Explosion: 4d6 Energy Blast, a 4 m radius area."""
     area = AreaSpec(shape=AreaShape.RADIUS, size_m=4.0,
                     targeting=AreaTargeting.STANDARD, explosion=False,
                     personal_immunity=False, width_m=2.0, height_m=2.0,
@@ -90,7 +90,7 @@ def the_explosion() -> AttackPower:
         half_die=False, plus_one=False, damage_type="normal",
         defense_type="ed", range_m=80.0, uses_str=False, str_min=0,
         armor_piercing=0, penetrating=0, increased_stun_mult=0,
-        is_ranged=True, source_id="warlord-bolt", area=area,
+        is_ranged=True, source_id="marshal-bolt", area=area,
         active_points=60,
     )
 
@@ -108,9 +108,9 @@ def a_man(cid: str, squad: str, *, tactics_dex: int):
     )
 
 
-def the_warlord():
+def the_marshal():
     return synthetic_combatant(
-        id="Warlord", name="Warlord", ocv=10, dcv=6, omcv=5, dmcv=5, spd=5,
+        id="Marshal", name="Marshal", ocv=10, dcv=6, omcv=5, dmcv=5, spd=5,
         dex=20, ego=18, int_=14, str_=30, con=30, pre=25, rec=14,
         pd=12, ed=12, rpd=6, red=6, md=0, power_defense=0, flash_defense=0,
         max_stun=120, max_body=30, max_end=80, current_stun=120,
@@ -120,7 +120,7 @@ def the_warlord():
 
 
 def the_lieutenant():
-    """A second foe, so that cover which hides a man from the Warlord can
+    """A second foe, so that cover which hides a man from the Marshal can
     still leave him a line to shoot: a spot that blinds him to EVERY enemy is
     not offered or listed (`enumeration.can_shoot_from`), because cover is
     somewhere to fire from."""
@@ -137,7 +137,7 @@ def the_lieutenant():
 def the_cast():
     men = [a_man(f"{squad[0]}{i}", squad, tactics_dex=14 - i)
            for squad in ("alpha", "bravo") for i in range(1, 5)]
-    return men + [the_warlord(), the_lieutenant()]
+    return men + [the_marshal(), the_lieutenant()]
 
 
 class SquadSeat(TacticChooser):
@@ -145,8 +145,8 @@ class SquadSeat(TacticChooser):
 
     The doctrine catalogue has no tactic for a squad's teams, so the stock
     chooser leaves the orders as they are. This seat (an `OrdersChooser`)
-    gives them: ALPHA focuses fire on the Warlord when its leader perceives
-    him (a man with a wall across his line has no attack on the Warlord
+    gives them: ALPHA focuses fire on the Marshal when its leader perceives
+    him (a man with a wall across his line has no attack on the Marshal
     to make, and his fit is 0 of N: the engine offers `reposition_vantage`
     instead), BRAVO splits into a team that takes cover and a team that spreads
     out, and either squad takes cover whole when it sees nobody to shoot.
@@ -161,9 +161,9 @@ class SquadSeat(TacticChooser):
         if page.current is not None:
             return KEEP_ORDERS
         men = page.standing
-        if page.squad.name == "alpha" and "Warlord" in page.targets:
+        if page.squad.name == "alpha" and "Marshal" in page.targets:
             teams = (FireTeam(member_ids=men, task=TeamTask.FOCUS_FIRE,
-                              target_id="Warlord", radius_m=None, position=None),)
+                              target_id="Marshal", radius_m=None, position=None),)
         elif page.squad.name == "bravo" and len(men) > 1:
             half = len(men) // 2
             teams = (
@@ -259,7 +259,7 @@ def main() -> None:
           f"in {result.phases} Phases.")
     print("What answers the Explosion: "
           + ", ".join(sorted(d.value for d in answers_to(
-              session.combatants["Warlord"].attacks[0], kind="attack"))))
+              session.combatants["Marshal"].attacks[0], kind="attack"))))
     assert given, "the leaders were never asked for orders"
 
 

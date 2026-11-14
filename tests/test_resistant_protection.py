@@ -23,7 +23,7 @@ worked example adds leather armor PD 3 on top of natural PD 4 for 7 — the
 armor is not capped at 4.
 
 The cap is right for the OTHER construction, and that is why it was
-there: the Ogre example on the same page has "PD 40, but only 5 of it is
+there: the 6E2 example on the same page has "PD 40, but only 5 of it is
 Resistant", which is natural PD promoted by the Resistant Advantage. You
 cannot promote more PD than you own. That cap got applied to both.
 """

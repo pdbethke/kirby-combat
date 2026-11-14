@@ -1,6 +1,6 @@
 """The split's words reach the combat log (`SlotsAllocated.effect_text`).
 
-Kerendor's Magical Powers (6E1 p.406) as `test_split_offer` builds it; the
+Merrick's Magical Powers (6E1 p.406) as `test_split_offer` builds it; the
 opening is driven through `run_phase`, so the event is the resolver's own.
 Needs the licensed template (skips without KIRBY_COST_HDT).
 """
@@ -15,7 +15,7 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
 
-from tests.test_split_offer import _kerendor, fighter
+from tests.test_split_offer import _merrick, fighter
 
 
 class _Answers:
@@ -29,7 +29,7 @@ class _Answers:
 
 
 def _opening(tail):
-    hero = _kerendor()
+    hero = _merrick()
     hero = replace(hero, state=replace(hero.state, slot_points={}))
     session = CombatSession.create(
         id="s", combatants=[hero, fighter("foe", side=Side.named("villains"))],

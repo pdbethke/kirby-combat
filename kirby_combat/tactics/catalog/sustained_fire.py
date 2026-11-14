@@ -10,7 +10,7 @@ Preconditions:
   * Actor has at least one ranged non-mental damaging attack, AND
   * an enemy is behind cover from where he stands. The whole premise is the
     wall; 0.32 offered it against men in the open, where "every blocked shot
-    chips the wall" is false, and Plague fired at a dodging agent in the
+    chips the wall" is false, and Blight fired at a dodging agent in the
     open nine times on its word (2026-11-10).
 
 Terrain linkage:

@@ -5,8 +5,8 @@ These tests pin the rule that governs the whole sense-affecting family
 opponent with a Targeting Sense fights at reduced CV, and a Nontargeting
 PER Roll mitigates that **against one opponent only**.
 
-The Orion example (6E2 p.9) is the case that forces the design. Its
-numbers are asserted end-to-end in ``examples/raw_orion.py``; what is
+The Corvin example (6E2 p.9) is the case that forces the design. Its
+numbers are asserted end-to-end in ``examples/raw_blinded_per_opponent.py``; what is
 pinned here is the seam those numbers come out of.
 """
 
@@ -34,17 +34,17 @@ def _c(id_: str, **kw):
 def _session(roller=None) -> CombatSession:
     return CombatSession.create(
         id="s1",
-        combatants=[_c("orion"), _c("durak"), _c("fiacho")],
+        combatants=[_c("corvin"), _c("dunmar"), _c("finnach")],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=roller or FakeRoller([]),
     ).start()
 
 
-def _blind(session, target_id="orion"):
+def _blind(session, target_id="corvin"):
     """Flash ``target_id``'s Sight Group — a normal human's only Targeting Sense."""
     s, _ = Flash.apply(
-        session, attacker_id="durak", target_id=target_id,
+        session, attacker_id="dunmar", target_id=target_id,
         sense_group="sight", body_dealt=8, flash_defense=3,
     )
     return s
@@ -56,18 +56,18 @@ def _blind(session, target_id="orion"):
 
 def test_perceiving_combatant_cv_is_unchanged():
     s = _session()
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 8
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 8
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 8
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="ranged") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="ranged") == 8
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="ranged") == 8
 
 
 def test_omitting_against_keeps_todays_behaviour():
     """The per-opponent sources are skipped when no opponent is named, so an
     existing caller of ``effective_dcv_for(session, id)`` is unaffected."""
     s = _blind(_session())
-    assert effective_dcv_for(s, "orion") == 8
-    assert effective_ocv_for(s, "orion") == 8
+    assert effective_dcv_for(s, "corvin") == 8
+    assert effective_ocv_for(s, "corvin") == 8
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +77,8 @@ def test_omitting_against_keeps_todays_behaviour():
 def test_unperceiving_combatant_is_half_ocv_half_dcv_in_hth():
     """6E2 p.9 halves both OCV and DCV in hand-to-hand combat."""
     s = _blind(_session())
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 4
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
 
 
 def test_unperceiving_combatant_is_zero_ocv_half_dcv_at_range():
@@ -88,8 +88,8 @@ def test_unperceiving_combatant_is_zero_ocv_half_dcv_at_range():
     the branch ``_fold_cv_factors`` documents as untested by construction.
     """
     s = _blind(_session())
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 0
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="ranged") == 4
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="ranged") == 0
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="ranged") == 4
 
 
 def test_zero_ocv_wins_over_a_simultaneous_halving():
@@ -114,75 +114,75 @@ def test_flash_to_a_nontargeting_sense_costs_no_cv():
     """
     s = _session()
     s, _ = Flash.apply(
-        s, attacker_id="durak", target_id="orion",
+        s, attacker_id="dunmar", target_id="corvin",
         sense_group="hearing", body_dealt=8, flash_defense=3,
     )
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 8
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
 
 
 def test_penalty_lifts_when_the_flash_recovers():
     s = _blind(_session())
-    s, _ = Flash.recover(s, target_id="orion", sense_group="sight",
+    s, _ = Flash.recover(s, target_id="corvin", sense_group="sight",
                          segments_to_recover=99)
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 8
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
 
 
 # ---------------------------------------------------------------------------
-# THE ORION CASE (6E2 p.9) — mitigation is per-opponent, and a FLAT -1 DCV
+# THE CORVIN CASE (6E2 p.9) — mitigation is per-opponent, and a FLAT -1 DCV
 # ---------------------------------------------------------------------------
 
-def _orion_hears_durak(session):
-    """Orion makes his Hearing PER Roll against Durak (3d6 = 6, a hit)."""
+def _corvin_hears_dunmar(session):
+    """Corvin makes his Hearing PER Roll against Dunmar (3d6 = 6, a hit)."""
     s = session
     s, result = NontargetingPerception.acquire(
-        s, observer_id="orion", target_id="durak",
+        s, observer_id="corvin", target_id="dunmar",
         sense_group="hearing", roller=FakeRoller([[2, 2, 2]]),
     )
     assert result.succeeded
     return s
 
 
-def test_orion_against_durak_is_minus_one_dcv_half_ocv_in_hth():
+def test_corvin_against_dunmar_is_minus_one_dcv_half_ocv_in_hth():
     """Against the one opponent he heard, 6E2 p.9 puts him at -1 DCV and
     half OCV hand-to-hand. -1 is a FLAT modifier, not a second halving:
     8 DCV becomes 7, not 4 and not 2.
     """
-    s = _orion_hears_durak(_blind(_session()))
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 7
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 4
+    s = _corvin_hears_dunmar(_blind(_session()))
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 7
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
 
 
-def test_orion_against_durak_is_full_dcv_half_ocv_at_range():
+def test_corvin_against_dunmar_is_full_dcv_half_ocv_at_range():
     """At Range against that same opponent, 6E2 p.9 gives him FULL DCV and
     half OCV. Full -- the halving is gone, not softened."""
-    s = _orion_hears_durak(_blind(_session()))
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="ranged") == 8
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 4
+    s = _corvin_hears_dunmar(_blind(_session()))
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="ranged") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="ranged") == 4
 
 
-def test_orion_against_everyone_else_is_still_a_sitting_duck():
+def test_corvin_against_everyone_else_is_still_a_sitting_duck():
     """6E2 p.9 leaves the unmitigated penalties in force against everyone
     he did not hear. The same combatant, the same Segment, different CVs
     per opponent -- the constraint that forces the seam to be
     per-opponent at all.
     """
-    s = _orion_hears_durak(_blind(_session()))
-    assert effective_ocv_for(s, "orion", against="fiacho", combat_type="hth") == 4
-    assert effective_dcv_for(s, "orion", against="fiacho", combat_type="hth") == 4
-    assert effective_ocv_for(s, "orion", against="fiacho", combat_type="ranged") == 0
-    assert effective_dcv_for(s, "orion", against="fiacho", combat_type="ranged") == 4
+    s = _corvin_hears_dunmar(_blind(_session()))
+    assert effective_ocv_for(s, "corvin", against="finnach", combat_type="hth") == 4
+    assert effective_dcv_for(s, "corvin", against="finnach", combat_type="hth") == 4
+    assert effective_ocv_for(s, "corvin", against="finnach", combat_type="ranged") == 0
+    assert effective_dcv_for(s, "corvin", against="finnach", combat_type="ranged") == 4
 
 
 def test_a_failed_per_roll_mitigates_nothing():
     s = _blind(_session())
     s, result = NontargetingPerception.acquire(
-        s, observer_id="orion", target_id="durak",
+        s, observer_id="corvin", target_id="dunmar",
         sense_group="hearing", roller=FakeRoller([[6, 6, 6]]),
     )
     assert not result.succeeded
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
 
 
 def test_mitigation_expires_at_the_start_of_the_observers_next_phase():
@@ -190,23 +190,23 @@ def test_mitigation_expires_at_the_start_of_the_observers_next_phase():
     Phase; keeping it costs another Half Phase Action and another
     successful roll.
     """
-    s = _orion_hears_durak(_blind(_session()))
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 7
-    s, expired = NontargetingPerception.expire_for_combatant_next_phase(s, "orion")
+    s = _corvin_hears_dunmar(_blind(_session()))
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 7
+    s, expired = NontargetingPerception.expire_for_combatant_next_phase(s, "corvin")
     assert len(expired) == 1
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
 
 
 def test_mitigation_does_not_leak_between_observers():
-    """Durak hearing Orion must not give Orion anything."""
+    """Dunmar hearing Corvin must not give Corvin anything."""
     s = _blind(_session())
-    s = _blind(s, target_id="durak")
+    s = _blind(s, target_id="dunmar")
     s, _ = NontargetingPerception.acquire(
-        s, observer_id="durak", target_id="orion",
+        s, observer_id="dunmar", target_id="corvin",
         sense_group="hearing", roller=FakeRoller([[2, 2, 2]]),
     )
-    assert effective_dcv_for(s, "durak", against="orion", combat_type="hth") == 7
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
+    assert effective_dcv_for(s, "dunmar", against="corvin", combat_type="hth") == 7
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
 
 
 # ---------------------------------------------------------------------------
@@ -224,17 +224,17 @@ def test_stunned_and_unperceiving_compose_sequentially():
 def test_the_half_phase_action_is_recorded_on_the_log():
     """6E2 p.9 makes the PER Roll a Half Phase Action; the log has to show
     it was spent, or a driver cannot charge for it."""
-    s = _orion_hears_durak(_blind(_session()))
+    s = _corvin_hears_dunmar(_blind(_session()))
     declared = [e for e in s.event_log
                 if e.kind == "ActionDeclared"
                 and e.action_type == "nontargeting_perception"]
     assert len(declared) == 1
-    assert declared[0].combatant_id == "orion"
+    assert declared[0].combatant_id == "corvin"
     assert declared[0].parameters["phase_cost"] == "half"
 
 
 # ---------------------------------------------------------------------------
-# The stat-block path — found by examples/raw_orion.py, not by review
+# The stat-block path — found by examples/raw_blinded_per_opponent.py, not by review
 # ---------------------------------------------------------------------------
 
 def _statblock_session():
@@ -253,7 +253,7 @@ def _statblock_session():
         )
 
     return CombatSession.create(
-        id="s1", combatants=[sb("orion"), sb("durak")], scene=None,
+        id="s1", combatants=[sb("corvin"), sb("dunmar")], scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
     ).start()
@@ -267,20 +267,20 @@ def test_a_stat_block_combatant_is_blinded_too():
     only Targeting Sense.
     """
     s = _statblock_session()
-    s, _ = Flash.apply(s, attacker_id="durak", target_id="orion",
+    s, _ = Flash.apply(s, attacker_id="dunmar", target_id="corvin",
                        sense_group="sight", body_dealt=8, flash_defense=0)
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 4
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 4
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="ranged") == 0
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 4
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="ranged") == 0
 
 
 def test_a_stat_block_flashed_in_a_nontargeting_group_still_aims():
     """The fallback has to be the whole rule, not just its punishing half."""
     s = _statblock_session()
-    s, _ = Flash.apply(s, attacker_id="durak", target_id="orion",
+    s, _ = Flash.apply(s, attacker_id="dunmar", target_id="corvin",
                        sense_group="hearing", body_dealt=8, flash_defense=0)
-    assert effective_ocv_for(s, "orion", against="durak", combat_type="hth") == 8
-    assert effective_dcv_for(s, "orion", against="durak", combat_type="hth") == 8
+    assert effective_ocv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
+    assert effective_dcv_for(s, "corvin", against="dunmar", combat_type="hth") == 8
 
 
 def test_per_roll_target_works_for_a_stat_block():
@@ -290,4 +290,4 @@ def test_per_roll_target_works_for_a_stat_block():
     from kirby_combat.perception import per_roll_target
 
     s = _statblock_session()
-    assert per_roll_target(s.combatants["orion"]) == 11
+    assert per_roll_target(s.combatants["corvin"]) == 11

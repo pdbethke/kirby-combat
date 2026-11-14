@@ -14,7 +14,7 @@ gates on this property:
     mental/telepathy.py:35         if not attacker.is_mentalist:
 
 So no character could use a Mental Power, ever. Proven live 2026-08-04: a
-corpus villain (Slug) loaded with TELEPATHY among his powers, OMCV 6 — double
+corpus villain loaded with TELEPATHY among his powers, OMCV 6 — double
 the base, so bought deliberately — and ``is_mentalist=False``. He spent the
 fight punching a wall.
 """
@@ -80,7 +80,7 @@ def test_mental_DEFENCE_alone_does_not_make_a_mentalist() -> None:
 
 
 def test_a_mental_power_inside_a_framework_still_counts() -> None:
-    """Mentalists routinely buy their powers as multipower slots — Slug's own
+    """Mentalists routinely buy their powers as multipower slots — One corpus villain's own
     movement rig is a MULTIPOWER — so a shallow scan would miss them."""
     assert _combatant(_hero("STR", nested=("MINDSCAN",))).is_mentalist is True
 

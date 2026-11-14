@@ -25,8 +25,8 @@ from kirby_combat.tactics.library import register
 # Total physical defense (pd + rpd) threshold for viable shielding.
 # combat_stats().pd is base PD + bare PD powers only — FORCEFIELD /
 # RESISTANTPROTECTION land in .rpd, so the gate sums both. Calibrated
-# against the corpus pair (2026-06-11): brick-Gorgon has pd=15/rpd=0
-# and MUST pass (he's the seeded brick archetype); Cheshire has
+# against the corpus pair (2026-06-11): brick-Harlow has pd=15/rpd=0
+# and MUST pass (he's the seeded brick archetype); Tamsin has
 # pd=14/rpd=0 and should not. A 20 threshold (even on pd+rpd)
 # excludes the corpus brick entirely.
 _MIN_PD_TO_SHIELD = 15

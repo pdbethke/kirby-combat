@@ -1,5 +1,5 @@
 """`split_menu.rung_at`: the rung a slot holding some points stands on, the
-highest at or under them (6E1 p.406: Kerendor's 9 points in Resistant
+highest at or under them (6E1 p.406: Merrick's 9 points in Resistant
 Protection buy the 3 PD / 3 ED rung, no more). Public so a seat reads what
 a preset enables without restating the rule."""
 from __future__ import annotations

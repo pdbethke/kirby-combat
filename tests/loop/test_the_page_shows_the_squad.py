@@ -33,13 +33,13 @@ def _use(session, who, name):
                         "status_changes": []}))
 
 
-_PLACES = {"Talisman": (0, 0, 0), "l": (40, 0, 0), "b": (44, 0, 0), "c": (40, 8, 0)}
+_PLACES = {"Tessaly": (0, 0, 0), "l": (40, 0, 0), "b": (44, 0, 0), "c": (40, 8, 0)}
 
 
 def _fight(*, squad="alpha", radius=18.0, walls=(), template=None):
     storm = shaped_blast("storm", 4, area=area(radius), name="Storm",
                          range_m=100, is_ranged=True)
-    people = [armed("Talisman", storm, side=VILLAINS, dex=10)]
+    people = [armed("Tessaly", storm, side=VILLAINS, dex=10)]
     bolt = shaped_blast("bolt", 4, name="Bolt", range_m=100, is_ranged=True)
     people += [armed(m, bolt, side=HEROES, dex=30 - i, squad=squad)
                for i, m in enumerate(("l", "b", "c"))]
@@ -47,7 +47,7 @@ def _fight(*, squad="alpha", radius=18.0, walls=(), template=None):
     s = name_leaders(e.sessions[0])
     if template is not None:
         s = replace(s, template=template)
-    return _use(s, "Talisman", "Storm")
+    return _use(s, "Tessaly", "Storm")
 
 
 def _page(s, who="l"):
@@ -87,26 +87,26 @@ def _orders(s, task, **kw):
 def test_an_area_is_told_in_words_with_what_answers_it():
     rows = _section(_page(_fight()), "What can hurt you:")
     assert rows[0].startswith(
-        "Talisman has shown Storm, an area with a radius of 18 m; 2 of your squad stand inside "
+        "Tessaly has shown Storm, an area with a radius of 18 m; 2 of your squad stand inside "
         "one. It reaches you now. Dodge won't help; diving clear, ")
     assert "spacing out" in rows[0] and rows[0].endswith(" will.")
-    assert rows[1] == "Talisman can reach 3 of your side."
+    assert rows[1] == "Tessaly can reach 3 of your side."
 
 
 def test_a_single_target_power_is_dodgeable_and_has_no_squad_clause():
     bolt = shaped_blast("bolt", 4, name="Bolt", range_m=100, is_ranged=True)
-    e = encounter_on(scene_with({"Talisman": (0, 0, 0), "l": (10, 0, 0)}),
-                     armed("Talisman", bolt, side=VILLAINS),
+    e = encounter_on(scene_with({"Tessaly": (0, 0, 0), "l": (10, 0, 0)}),
+                     armed("Tessaly", bolt, side=VILLAINS),
                      armed("l", None, side=HEROES, squad="alpha"))
-    s = _use(name_leaders(e.sessions[0]), "Talisman", "Bolt")
+    s = _use(name_leaders(e.sessions[0]), "Tessaly", "Bolt")
     (row, *_) = _section(_page(s), "What can hurt you:")
-    assert row.startswith("Talisman has shown Bolt. It reaches you now. Dodging")
+    assert row.startswith("Tessaly has shown Bolt. It reaches you now. Dodging")
     assert "stand inside" not in row and "won't help" not in row
 
 
 def test_nothing_shown_means_no_section():
     e = encounter_on(scene_with(_PLACES),
-                     armed("Talisman", shaped_blast("s", 4, name="Storm"), side=VILLAINS),
+                     armed("Tessaly", shaped_blast("s", 4, name="Storm"), side=VILLAINS),
                      armed("l", None, side=HEROES))
     assert "What can hurt you" not in _page(e.sessions[0])
 
@@ -117,7 +117,7 @@ def test_nothing_shown_means_no_section():
 def test_cover_names_the_spot_its_distance_reach_and_who_it_hides_from():
     rows = _section(_page(_fight(walls=[_cover_wall()])), "Cover:")
     assert len(rows) <= 3
-    assert rows[0] == "Packing crates: you can reach it this Phase, hides you from Talisman."
+    assert rows[0] == "Packing crates: you can reach it this Phase, hides you from Tessaly."
     assert "m away" not in rows[0]       # the one distance is in "What is around you"
     around = _section(_page(_fight(walls=[_cover_wall()])), "What is around you:")
     assert any(r.startswith("Packing crates: ") for r in around)
@@ -138,9 +138,9 @@ def test_no_cover_means_no_section():
 
 
 def test_a_squad_member_reads_his_task_and_teammates():
-    s = _orders(_fight(), TeamTask.FOCUS_FIRE, target_id="Talisman")
+    s = _orders(_fight(), TeamTask.FOCUS_FIRE, target_id="Tessaly")
     rows = _section(_page(s, "b"), "Your orders:")
-    assert rows == ["Squad alpha: focus fire on Talisman.", "With you: l, c."]
+    assert rows == ["Squad alpha: focus fire on Tessaly.", "With you: l, c."]
 
 
 def test_the_other_tasks_read_in_words():
@@ -170,10 +170,10 @@ def test_no_squad_no_orders_section():
 
 
 def test_an_offer_that_carries_out_the_order_says_so_through_offer_summary():
-    s = _orders(_fight(), TeamTask.FOCUS_FIRE, target_id="Talisman")
+    s = _orders(_fight(), TeamTask.FOCUS_FIRE, target_id="Tessaly")
     situation = _situation_for(s, "b")
     brief = Brief(situation)
-    at = next(a for a in brief.menu if a.kind == "attack" and a.target_id == "Talisman")
+    at = next(a for a in brief.menu if a.kind == "attack" and a.target_id == "Tessaly")
     other = next(a for a in brief.menu if a.kind == "move")
     assert brief.offer_summary(at).endswith(SUFFIX)
     assert not brief.offer_summary(other).endswith(SUFFIX)
@@ -191,9 +191,9 @@ def test_no_order_no_suffix():
 def test_the_suffix_shows_on_a_sheet_page_too():
     from tests.templates import PLAIN
     s = _orders(_fight(template=replace(PLAIN, page_knowledge=PageKnowledge.SHEET)),
-                TeamTask.FOCUS_FIRE, target_id="Talisman")
+                TeamTask.FOCUS_FIRE, target_id="Tessaly")
     brief = Brief(_situation_for(s, "b"))
-    at = next(a for a in brief.menu if a.kind == "attack" and a.target_id == "Talisman")
+    at = next(a for a in brief.menu if a.kind == "attack" and a.target_id == "Tessaly")
     assert brief.offer_summary(at).endswith(SUFFIX)
     page = brief.render()
     assert "What can hurt you:" in page and "Your orders:" in page
@@ -232,23 +232,23 @@ def test_an_area_he_has_not_used_is_not_on_the_page():
     storm = shaped_blast("storm", 4, area=area(18.0), name="Storm",
                          range_m=100, is_ranged=True)
     e = encounter_on(scene_with(_PLACES),
-                     armed("Talisman", storm, side=VILLAINS, dex=10),
+                     armed("Tessaly", storm, side=VILLAINS, dex=10),
                      armed("l", None, side=HEROES, squad="alpha"))
     for page in (_page(e.sessions[0]), _page(replace(
             e.sessions[0], template=_sheet_fight().template))):
         assert "What can hurt you" not in page
         assert "Storm, an area" not in page
-    used = _use(e.sessions[0], "Talisman", "Storm")        # positive control
+    used = _use(e.sessions[0], "Tessaly", "Storm")        # positive control
     assert "Storm, an area" in _page(used)
 
 
 def test_an_enemy_with_nothing_shown_gets_no_reach_line():
     page = _page(_fight())
-    assert page.count("Talisman can reach") == 1  # he showed Storm
+    assert page.count("Tessaly can reach") == 1  # he showed Storm
     quiet = encounter_on(scene_with(_PLACES),
-                         armed("Talisman", None, side=VILLAINS),
+                         armed("Tessaly", None, side=VILLAINS),
                          armed("l", None, side=HEROES))
-    assert "Talisman can reach" not in _page(quiet.sessions[0])
+    assert "Tessaly can reach" not in _page(quiet.sessions[0])
 
 
 def test_orders_that_did_not_name_him_say_so():

@@ -1316,7 +1316,7 @@ Three things the page insists on, and each is a test:
 
 -2 OCV is a judgement and a grounded one: the page leaves the figure to
 the GM, and its own Behind Cover example on the same page prices a rock
-that "protects roughly half of Andarra" at -2. One man held in front of
+that "protects roughly half of Ardwin" at -2. One man held in front of
 another is the same shape of obstruction.
 
 THE STRAY IS A REAL ATTACK. It goes through `resolve_attack_in_session`

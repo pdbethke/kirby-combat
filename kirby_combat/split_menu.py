@@ -35,7 +35,7 @@ splits worth naming.
 
 "Best fitting step": the highest rung of a slot's priced ladder at or under
 the points left (`rung_at`). A share that falls between rungs is legal (6E1 p.406:
-Kerendor's 9-point Resistant Protection) but buys no more than the rung
+Merrick's 9-point Resistant Protection) but buys no more than the rung
 below it, so a remainder may leave a few points unspent.
 
 Every word of an effect is kirby-cost's (`SlotStep.display`, from

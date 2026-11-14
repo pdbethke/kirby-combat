@@ -21,7 +21,7 @@ an Entangled man got his whole menu, and nothing put him at DCV 0.
 from __future__ import annotations
 
 from test_mental_combat_bites import (
-    TEMPLATE, _Dice, _Power, _Records, _brainchild, _fight, _offer, _person,
+    TEMPLATE, _Dice, _Power, _Records, _mindwright, _fight, _offer, _person,
 )
 
 from kirby_combat.actions.entangle import Entangle
@@ -35,7 +35,7 @@ from kirby_combat.actions.entangle import Transparency
 
 
 def _paralyst(levels: int = 4):
-    psi = _brainchild()
+    psi = _mindwright()
     power = _Power("ENTANGLE", levels, mods=("VERSUSEGO", "ACV", "TAKESNODAMAGE"))
     # 6E1 p.219: "Takes No Damage From Attacks (+3/4)"; HD names an option.
     power.assigned_modifiers[-1].option_id = "ALL"
@@ -170,7 +170,7 @@ def test_a_mental_blast_counts_its_body_as_normal_damage():
 # ── the physical Entangle, wired at last ────────────────────────────────────
 
 def _physically_entangled():
-    psi = _brainchild()
+    psi = _mindwright()
     mark = _person("mark", "gang", dex=30)
     session = _fight(psi, mark)
     session, _ = Entangle.apply(session, attacker_id="psi", target_id="mark",

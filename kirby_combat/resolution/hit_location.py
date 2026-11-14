@@ -72,7 +72,7 @@ def effect_for(location: str | None, *, template: Any) -> LocationEffect | None:
     uses was ignored. A location outside the list comes back None: the
     campaign has taken it out of play, so the multipliers do not apply.
 
-    NOT THE SAME THING as 6E2 p.45's cover case --- "Only Andarra's head,
+    NOT THE SAME THING as 6E2 p.45's cover case --- "Only Ardwin's head,
     arms, shoulders, and chest are exposed, so any Hit Location roll of 12
     or more hits the rock, doing no damage to her" --- which is per-TARGET
     and per-cover, needs a map from cover to exposed locations that the
@@ -164,7 +164,7 @@ def uses_hit_locations(template: Any, target: Any) -> bool:
 #: GM, exactly as `collapse.COLLAPSE_RADIUS_M` is a judgement about a
 #: footprint the book has no opinion on.
 #:
-#: THE EXAMPLE IS THE ANCHOR (6E2 p.45): "Only Andarra's head, arms,
+#: THE EXAMPLE IS THE ANCHOR (6E2 p.45): "Only Ardwin's head, arms,
 #: shoulders, and chest are exposed, so any Hit Location roll of 12 or
 #: more hits the rock, doing no damage to her." Her rock is cover 2 on
 #: this engine's 0-4 scale, and 18 - 3*2 = 12 --- the FIRST BLOCKED roll,

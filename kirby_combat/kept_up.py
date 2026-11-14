@@ -16,7 +16,7 @@ WHEN EACH ONE COMES DOWN (6E1 unless marked):
         the Power", LOST_LINE_OF_SIGHT);
       - he pays for it, a Charge or its END (p.129, p.369, p.403;
         NO_CHARGES / NO_END).
-    Each pays for itself. p.129's Sapphire keeps two uses of one Constant
+    Each pays for itself. p.129's Sorrel keeps two uses of one Constant
     power going and pays "END to maintain each use ... 20 END per Phase";
     p.188: "A character may maintain more than one Darkness field at once,
     provided he pays the END cost for all fields." Nothing limits how many

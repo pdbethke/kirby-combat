@@ -107,7 +107,7 @@ def test_construct_from_spawn_spec_threads_darkness_fields():
         polygon_xy=[(0, 0), (4, 0), (4, 4), (0, 4)],
         elevation_range_m=(0.0, 3.0),
         sense_group="mental", creator_immune=True,
-        source_combatant_id="orion",
+        source_combatant_id="corvin",
     )
     assert c.kind == "darkness_zone"
     assert c.sense_group == "mental"

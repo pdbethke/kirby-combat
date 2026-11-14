@@ -115,7 +115,7 @@ HERO = StatBlockCombatant(
 # CON 15 -> a 10d6 EB against 0 defenses deals well over CON in STUN, so the
 # hit qualifies as Stunned (resolution/status.py: stun_dealt > CON).
 VILLAIN = StatBlockCombatant(
-    id="villain", name="Silver Hand",
+    id="villain", name="Test Villain",
     ocv=7, dcv=6, omcv=4, dmcv=4,
     spd=4, dex=17, ego=13, int_=10, str_=15, con=15, pre=15, rec=6,
     pd=0, ed=0, rpd=0, red=0, md=3,

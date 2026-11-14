@@ -271,8 +271,8 @@ def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
     off the field at y=-11 and was still asked to decide two Segments
     later, running to y=-23. The scoreboard knew; the loop did not.
 
-    AND SO IS THE PHASE HE ABORTED. 6E2 p.24: Lazer aborts to Dodge in
-    Segment 6, "when Segment 8 rolls around, Lazer can do nothing". The
+    AND SO IS THE PHASE HE ABORTED. 6E2 p.24: Larkin aborts to Dodge in
+    Segment 6, "when Segment 8 rolls around, Larkin can do nothing". The
     Abort WAS that Phase, taken early; handing it to him again gave every
     Dodge away for free.
     """

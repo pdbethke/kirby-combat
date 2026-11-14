@@ -7,7 +7,7 @@ corrected (see `kirby_combat/rage.py`).
 
 The complications here are stubs shaped like kirby-cost's `Enraged`
 (``xmlid``, ``input``, ``id``, ``assigned_adders`` with ``option_id``) ---
-stated as data, so the test runs everywhere. Ogre (CV3: "Berserk in combat,
+stated as data, so the test runs everywhere. A CV3 villain ("Berserk in combat,
 go 11-, recover 14-") reads through the same function from a real build.
 """
 from __future__ import annotations
@@ -150,7 +150,7 @@ def test_berserk_in_combat_goes_and_attacks_the_nearest_friend_or_foe():
         _enraged("in combat", go="11-", recover="14-", berserk=True)])
     enc = _encounter(_man("henchman", "v"), ogre, _man("hero", "h"))
     chooser = Picks("dodge", "attack")
-    # Ogre (DEX 30) acts first. A roll of 3 (all ones) is under 11-.
+    # The ogre (DEX 30) acts first. A roll of 3 (all ones) is under 11-.
     result = run_phase(enc, chooser, roller=Dice(1), on_unresolvable="raise")
     assert result.actor_id == "ogre"
     [go] = _rolls(result.session, "ogre")

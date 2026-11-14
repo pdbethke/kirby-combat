@@ -68,7 +68,7 @@ def test_the_latest_attacker_is_named():
 #
 # Peter's standing requirement: perception GOVERNS combat, and a fighter may
 # not act on what he could not perceive (anti-metagaming). "Whoever attacks
-# Lady Blue" is therefore the last attacker of Lady Blue THAT HE CAN
+# Lady Teal" is therefore the last attacker of Lady Teal THAT HE CAN
 # PERCEIVE, judged with the engine's own door (`concealment.perceives`,
 # with the menu's Mind Scan locks) from where he stands. If the man who
 # last attacked her is imperceptible to him, the answer is None --- never
@@ -143,7 +143,7 @@ def test_an_invisible_attacker_is_named_for_nobody_who_cannot_see_him():
 
 
 def test_no_fallback_to_an_earlier_attacker_he_did_see():
-    """Viper (visible, DEX 30) shoots Lady Blue, then the Invisible Ogre
+    """Viper (visible, DEX 30) shoots Lady Teal, then the Invisible Ogre
     (DEX 20). The last attacker is Ogre, whom h cannot perceive: the answer
     is None, not Viper."""
     viper = fighter("viper", side=VILLAINS, dex=30)

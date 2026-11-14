@@ -310,7 +310,7 @@ def _geometry(session, attacker_id: str, named_id: str, power) -> "AreaGeometry 
 
     WHERE THE AREA GOES. No Range: on the attacker (6E1 p.321-322).
     Otherwise on the named target's own spot --- the offer named a man,
-    and Pulsar's example targets "the spot where Defender ... is standing".
+    and Pellam's example targets "the spot where Defender ... is standing".
     None with no map.
     """
     shooter = _position(session, attacker_id)

@@ -9,7 +9,7 @@ p.332: the standard defense still applies, "such as Power Defense against a
 Drain STUN".
 
 FOUND 2026-11-10: every Damage Over Time Drain was refused as unbuilt
-(`attack_shapes.offer_is_buildable`), so Plague's Acute Disease (Drain 1d6,
+(`attack_shapes.offer_is_buildable`), so Blight's Acute Disease (Drain 1d6,
 6 increments one every 2 Segments, defenses once, Lock Out) never reached a
 menu even after its Variable Effect was built.
 """
@@ -40,7 +40,7 @@ def _adder(xmlid, option):
 
 
 class _AcuteDisease:
-    """Plague's Acute Disease (CV3), in the shape the loader gives."""
+    """Blight's Acute Disease (CV3), in the shape the loader gives."""
 
     def __init__(self, *, input="DEX", one_defense=True, lockout=True,
                  variable=False):
@@ -71,8 +71,8 @@ class _AcuteDisease:
         self.sub_powers: list = []
 
 
-def _plague(**kw):
-    c = fighter("plague", side=VILLAINS)
+def _blight(**kw):
+    c = fighter("blight", side=VILLAINS)
     c.hero.powers.append(_AcuteDisease(**kw))
     return c
 
@@ -85,9 +85,9 @@ def _session(*cast) -> CombatSession:
 
 
 def _menu(session):
-    actor = session.combatants["plague"]
+    actor = session.combatants["blight"]
     enemies = [c for c in session.combatants.values() if c.side != actor.side]
-    return offers_the_engine_can_keep(session, "plague",
+    return offers_the_engine_can_keep(session, "blight",
                                       enumerate_actions(actor, enemies, allies=[]))
 
 
@@ -105,7 +105,7 @@ def _at(session, segment_offset: int) -> CombatSession:
 
 
 def _use(session, dice):
-    return resolve_chosen(session, session.combatants["plague"], _drain(session),
+    return resolve_chosen(session, session.combatants["blight"], _drain(session),
                           template=TEMPLATE, roller=FakeRoller(dice)).session
 
 
@@ -114,13 +114,13 @@ def _dex(session, who="agent"):
 
 
 def test_a_damage_over_time_drain_is_offered() -> None:
-    session = _session(_plague(), fighter("agent", side=HEROES))
+    session = _session(_blight(), fighter("agent", side=HEROES))
     assert _drain(session).target_id == "agent"
 
 
 def test_the_use_drains_nothing_yet() -> None:
     """p.331: the first increment lands one interval after the use."""
-    session = _use(_session(_plague(), fighter("agent", side=HEROES, dex=20)), [HIT])
+    session = _use(_session(_blight(), fighter("agent", side=HEROES, dex=20)), [HIT])
     assert _dex(session) == 20
     [effect] = active_lingering(session)
     assert effect.adjusts == ("DEX",) and effect.increments_remaining == 6
@@ -130,7 +130,7 @@ def test_each_increment_drains_on_its_clock_and_it_runs_its_course() -> None:
     """Six 1d6 increments of 4: DEX costs 2 a point (6E1 p.137), so each
     takes 2 DEX; nothing has returned inside 12 Segments (5 a Turn,
     p.141) beyond one Turn's 5 points."""
-    session = _use(_session(_plague(one_defense=False),
+    session = _use(_session(_blight(one_defense=False),
                             fighter("agent", side=HEROES, dex=20)), [HIT])
     session = fire_due_doses(_at(session, 2), template=TEMPLATE, roller=FakeRoller([[4]]))
     assert _dex(session) == 18
@@ -146,7 +146,7 @@ def test_each_increment_drains_on_its_clock_and_it_runs_its_course() -> None:
 
 def test_power_defense_applies_to_each_increment() -> None:
     """p.332: Power Defense applies against a Drain's increments."""
-    session = _session(_plague(one_defense=False), _agent_with_power_defense(3))
+    session = _session(_blight(one_defense=False), _agent_with_power_defense(3))
     session = _use(session, [HIT])
     session = fire_due_doses(_at(session, 4), template=TEMPLATE,
                              roller=FakeRoller([[5], [5]]))
@@ -158,7 +158,7 @@ def test_power_defense_applies_to_each_increment() -> None:
 def test_defenses_only_once_spends_power_defense_across_the_increments() -> None:
     """p.331, "Target's defenses only apply once": PD 3 against 2 then 5 is
     2 soaked, then the last 1, then nothing."""
-    session = _session(_plague(one_defense=True), _agent_with_power_defense(3))
+    session = _session(_blight(one_defense=True), _agent_with_power_defense(3))
     session = _use(session, [HIT])
     session = fire_due_doses(_at(session, 6), template=TEMPLATE,
                              roller=FakeRoller([[2], [5], [4]]))
@@ -168,20 +168,20 @@ def test_defenses_only_once_spends_power_defense_across_the_increments() -> None
 
 
 def test_lock_out_bars_a_second_use_on_him_until_the_first_has_run() -> None:
-    session = _use(_session(_plague(), fighter("agent", side=HEROES)), [HIT])
+    session = _use(_session(_blight(), fighter("agent", side=HEROES)), [HIT])
     assert not [a for a in _menu(session) if a.kind == "drain"]
 
 
 def test_a_variable_effect_disease_drains_what_he_named_every_increment() -> None:
-    """Plague's own power: the choice is made at the use (p.144) and every
+    """Blight's own power: the choice is made at the use (p.144) and every
     increment drains both."""
-    session = _session(_plague(input="any two characteristics at once", variable=True,
+    session = _session(_blight(input="any two characteristics at once", variable=True,
                                one_defense=False),
                        fighter("agent", side=HEROES, dex=20))
     menu = _menu(session)
     offer = next(a for a in menu if a.kind == "drain")
     action = validate_choice(complete_choice(offer, ["DEX", "STR"]), menu)
-    session = resolve_chosen(session, session.combatants["plague"], action,
+    session = resolve_chosen(session, session.combatants["blight"], action,
                              template=TEMPLATE, roller=FakeRoller([HIT])).session
     session = fire_due_doses(_at(session, 2), template=TEMPLATE, roller=FakeRoller([[4]]))
     stats = session.combatants["agent"].combat_stats()
@@ -204,10 +204,10 @@ def _agent_with_power_defense(pd: int, dex: int = 20):
 
 
 def test_the_offer_says_what_the_disease_does_over_time() -> None:
-    """The page offered "1d6 Character Points" and Plague, reading one roll
+    """The page offered "1d6 Character Points" and Blight, reading one roll
     beside a 4d6 Killing Attack, never took it. The line names the power and
     its six increments; a week-apart one says so."""
-    session = _session(_plague(), fighter("agent", side=HEROES))
+    session = _session(_blight(), fighter("agent", side=HEROES))
     summary = _drain(session).summary
     assert summary.startswith("Acute Disease: ")
     assert "6 increments of 1d6, one every 2 Segments" in summary

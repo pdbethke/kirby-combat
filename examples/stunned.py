@@ -54,8 +54,8 @@ def show_statuses(session: CombatSession, combatant_id: str, label: str) -> None
     print(f"   statuses_for({label!r}) = {{{', '.join(ids) if ids else '— none —'}}}")
 
 
-IRONCLAD = StatBlockCombatant(
-    id="ironclad", name="Ironclad",
+STEELWRIGHT = StatBlockCombatant(
+    id="steelwright", name="Steelwright",
     ocv=8, dcv=8, omcv=5, dmcv=5,
     spd=4, dex=20, ego=15, str_=15, con=15, pre=15, rec=5,
     pd=5, ed=5, rpd=0, red=0, md=5,
@@ -94,7 +94,7 @@ def main() -> None:
 
     session = CombatSession.create(
         id="s1",
-        combatants=[IRONCLAD, BOB],
+        combatants=[STEELWRIGHT, BOB],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
@@ -110,7 +110,7 @@ def main() -> None:
     # rest of this example demonstrates Stunned-while-conscious rather
     # than conflating it with unconsciousness).
     attack = AttackInput(
-        attacker=IRONCLAD, target=BOB, power=IRONCLAD.attacks[0],
+        attacker=STEELWRIGHT, target=BOB, power=STEELWRIGHT.attacks[0],
         distance_m=0, aim=None,
         dice=DiceValues(
             to_hit=[3, 3, 3],
@@ -121,7 +121,7 @@ def main() -> None:
         ),
     )
     session, result = resolve_attack_in_session(session, attack, session.template)
-    print(f"  {IRONCLAD.name}'s Energy Blast hits for {result.stun_dealt} STUN "
+    print(f"  {STEELWRIGHT.name}'s Energy Blast hits for {result.stun_dealt} STUN "
           f"(CON {BOB.con}) -> status_changes={result.status_changes}")
     assert "Stunned" in result.status_changes  # this hit is meant to qualify
 
@@ -213,8 +213,8 @@ def main() -> None:
 
     # ── 6. Fully recovered — right after the recovery Segment, not bob's
     #      NEXT Phase ──────────────────────────────────────────────────────
-    rule("6. Segment 4 — fully recovered (6E2 p.107's Andarra example)")
-    print('  6E2 p.107\'s own worked example (Andarra, DEX 20 SPD 3, Stunned')
+    rule("6. Segment 4 — fully recovered (6E2 p.107's Ardwin example)")
+    print('  6E2 p.107\'s own worked example (Ardwin, DEX 20 SPD 3, Stunned')
     print('  Segment 6) restores full DCV and allows the Abort in Segments 9,')
     print('  10, and 11 -- all THREE Segments between her recovery Phase')
     print('  (Segment 8) and her next full Phase (Segment 12), not merely at')
@@ -236,9 +236,9 @@ def main() -> None:
     session, evt = Dodge.declare(session, "bob")
     print(f"  Dodge.declare succeeded: to_action={evt.to_action!r}")
     print("\n  bob is clear here, in Segment 4 -- two Segments before his own")
-    print("  next Phase (Segment 6) -- exactly the way Andarra is clear in")
+    print("  next Phase (Segment 6) -- exactly the way Ardwin is clear in")
     print("  Segments 9-11, well before HER next Phase (Segment 12). See")
-    print("  examples/raw_andarra.py for the book's own example, driven and")
+    print("  examples/raw_recover_from_stunned.py for the book's own example, driven and")
     print("  asserted Segment by Segment.")
 
     rule("END")

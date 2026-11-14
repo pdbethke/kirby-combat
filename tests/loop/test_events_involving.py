@@ -1,6 +1,6 @@
 """Which rows of the record concern one fighter.
 
-"Who knocked Talisman out" meant reading every row of a 400-row fight and
+"Who knocked Tessaly out" meant reading every row of a 400-row fight and
 knowing which keys of which kinds name a man. That is the engine's
 knowledge of its own events, so the engine answers it: `events_involving`.
 """

@@ -15,7 +15,7 @@ import pytest
 from kirby_combat.serialization import from_dict, to_dict
 
 from tests.test_defences_and_movement_follow_the_split import (
-    FLIGHT, FRAMEWORK, TELE, _kerendor, _split,
+    FLIGHT, FRAMEWORK, TELE, _merrick, _split,
 )
 
 
@@ -28,7 +28,7 @@ def _all_off(hero):
 
 
 def test_before_the_opening_his_slots_movement_is_left_out():
-    hero = _kerendor()
+    hero = _merrick()
     assert ("flight", 60.0) in _modes(hero.movement_view())  # read as bought
     assert _modes(hero.movement_outside(FRAMEWORK)) == _modes(
         _all_off(hero).movement_view())
@@ -37,14 +37,14 @@ def test_before_the_opening_his_slots_movement_is_left_out():
 
 
 def test_after_the_opening_whatever_the_split_it_is_left_out():
-    hero = _split(_kerendor(), **{f"s{FLIGHT}": 60, f"s{TELE}": 0})
+    hero = _split(_merrick(), **{f"s{FLIGHT}": 60, f"s{TELE}": 0})
     assert ("flight", 60.0) in _modes(hero.movement_view())
     assert _modes(hero.movement_outside(FRAMEWORK)) == _modes(
         _all_off(hero).movement_view())
 
 
 def test_a_rebuilt_combatant_answers_the_same():
-    live = _kerendor()
+    live = _merrick()
     rebuilt = from_dict(json.loads(json.dumps(to_dict(live))))
     for hero in (live, _split(live, **{f"s{FLIGHT}": 60})):
         twin = rebuilt if hero is live else _split(rebuilt, **{f"s{FLIGHT}": 60})
@@ -54,4 +54,4 @@ def test_a_rebuilt_combatant_answers_the_same():
 
 def test_a_framework_he_does_not_have_is_refused():
     with pytest.raises(KeyError):
-        _kerendor().movement_outside("no-such-framework")
+        _merrick().movement_outside("no-such-framework")

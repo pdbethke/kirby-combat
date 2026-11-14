@@ -234,7 +234,7 @@ class _SingleDice(Dice):
 def test_a_second_use_is_a_second_maintained_attack():
     """6E1 p.129: "he could attack the same target a second time and affect
     him with the power twice ... Each use of the power costs END to activate
-    and to maintain" --- Sapphire keeps two going at once. Batch C ended the
+    and to maintain" --- Sorrel keeps two going at once. Batch C ended the
     first use when the power was used again; the page keeps both."""
     enc = _fight(shaped_blast("a-beam", 4, constant=True))
     fired = []

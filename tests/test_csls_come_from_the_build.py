@@ -220,7 +220,7 @@ def test_the_build_doc_cannot_name_a_framework():
     it covers in one of two places, and only one of them survives the
     product path. HD writes NAME ("+1 With Punch, Haymaker, and Throw",
     PowerLad) and OPTION_ALIAS ("with Power Over Light And Heat
-    Multipower", HELIOS-CV1). `kirby_cost.io.build_json` maps `alias` to
+    Multipower", LUMEN-CV1). `kirby_cost.io.build_json` maps `alias` to
     the skill's own ALIAS ("Combat Skill Levels") and has NO field for
     OPTION_ALIAS at all.
 
@@ -296,7 +296,7 @@ def test_a_real_builds_level_reaches_only_what_it_names():
 
 
 def test_a_broad_level_bought_across_a_framework_reaches_its_slots():
-    """The HELIOS-CV1 / ARTHON-CV1 shape, which is how BROAD levels are
+    """The LUMEN-CV1 / ARVANE-CV1 shape, which is how BROAD levels are
     actually written: HD puts the group's name in OPTION_ALIAS ("with
     Power Over Light And Heat Multipower") and every slot in that
     Multipower is called something else entirely ("Light Blast", "Laser
@@ -305,8 +305,8 @@ def test_a_broad_level_bought_across_a_framework_reaches_its_slots():
 
     Stated synthetically because kirby-combat commits no character data --
     verified against both real builds through the real loader on
-    2026-09-17, 4 levels reaching all five of HELIOS's slots and 2 reaching
-    all three of ARTHON's."""
+    2026-09-17, 4 levels reaching all five of LUMEN's slots and 2 reaching
+    all three of ARVANE's."""
     power = _blast()
     power.framework_name = "Power Over Light And Heat"
     level = CombatSkillLevel(

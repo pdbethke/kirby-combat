@@ -198,7 +198,7 @@ class VitalsChanged(BaseEvent):
     #: WHO DID IT: the combatant whose act caused the change, or None when
     #: nobody did (a hazard, a fading adjustment). His own id for a cost he
     #: paid himself (END, a Side Effect, recoil). The row said what happened
-    #: to a man and never by whom, so "who knocked Talisman out" was answered
+    #: to a man and never by whom, so "who knocked Tessaly out" was answered
     #: by lining rows up by sequence number.
     caused_by: str | None = None
 

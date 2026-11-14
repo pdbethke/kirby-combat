@@ -1,6 +1,6 @@
 """Two doctrine lines read the fight before they advise.
 
-Plague (2026-11-10) fired at a dodging agent in the open nine times on
+Blight (2026-11-10) fired at a dodging agent in the open nine times on
 `sustained_fire`'s word ("every blocked shot chips the wall" --- there was no
 wall) and made three group Presence Attacks on `presence_attack_demoralize`'s
 (the last two did nothing). Doctrine stays advice; it must at least be true.
@@ -42,7 +42,7 @@ def _shouts(*tiers_each):
 
     log = [ActionResolved(
         id=str(uuid.uuid4()), session_id="s", sequence=i + 1,
-        timestamp=datetime.now(timezone.utc), author=make_author_combatant("plague"),
+        timestamp=datetime.now(timezone.utc), author=make_author_combatant("blight"),
         declaration_event_id="",
         result_payload={"kind": "presence_attack_group", "effects": dict(tiers)})
         for i, tiers in enumerate(tiers_each)]
@@ -52,13 +52,13 @@ def _shouts(*tiers_each):
 def _presence_situation(session):
     from kirby_combat.tactics.base import Situation
 
-    return Situation(actor=_Pre("plague", 20), allies=[],
+    return Situation(actor=_Pre("blight", 20), allies=[],
                      enemies=[_Pre("a1", 10), _Pre("a2", 10)], session=session)
 
 
 def test_presence_attack_is_not_advised_once_his_last_did_nothing():
     """Peter, 2026-11-10: "if he sees a PRE attack doesnt work he's less
-    likely to redo". Plague shouted, impressed them, shouted to no effect,
+    likely to redo". Blight shouted, impressed them, shouted to no effect,
     and the doctrine went on advising a third (it waited for two duds)."""
     tactic = PresenceAttackDemoralize()
     assert tactic.applicable(_presence_situation(None))

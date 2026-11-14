@@ -1,7 +1,7 @@
 """A wall resists a punch and a blast differently (6E2 p173).
 
 Brick is 5 PD and 10 ED. Until this change the engine held ONE def_value,
-so Gorgon's fist and Cheshire's Energy Blast met the same number.
+so Harlow's fist and Tamsin's Energy Blast met the same number.
 """
 from kirby_combat.scene.scene import Position, Wall
 from kirby_combat.scene.construct import construct_from_wall

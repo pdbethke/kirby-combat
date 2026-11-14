@@ -17,8 +17,8 @@ Turn, even if several sixes are rolled." Blunt or Normal Damage counts
 "-1 level on the Bleeding table". Bleeding can stop of its own accord if
 the character rests a full Turn and rolls within the Stop Bleeding range.
 
-THE BOOK'S WORKED EXAMPLE IS THE FIRST TEST (p.115): "Andarra has lost 6
-BODY. She will lose 2d6 STUN per Turn from Bleeding. Andarra stops to
+THE BOOK'S WORKED EXAMPLE IS THE FIRST TEST (p.115): "Ardwin has lost 6
+BODY. She will lose 2d6 STUN per Turn from Bleeding. Ardwin stops to
 rest. On Segment 1, she rolls the 2d6 and gets a 2 and a 1, totaling 3
 STUN lost. Because she didn't exert herself, and rolled within the
 numbers listed under the Stop Bleeding column, she stops Bleeding."
@@ -37,17 +37,17 @@ from kirby_combat.resolution.bleeding import (
 
 # ---- The book's example --------------------------------------------------
 
-def test_andarra_loses_six_body_and_bleeds_two_dice():
+def test_ardwin_loses_six_body_and_bleeds_two_dice():
     assert bleeding_dice(6) == 2
 
 
-def test_andarra_rolls_two_and_one_for_three_stun():
+def test_ardwin_rolls_two_and_one_for_three_stun():
     out = bleeding_result([2, 1])
     assert out.stun_lost == 3
     assert out.body_lost == 0, "no six was rolled"
 
 
-def test_andarra_rolling_three_is_inside_the_stop_range_for_six_body():
+def test_ardwin_rolling_three_is_inside_the_stop_range_for_six_body():
     assert stops_bleeding(total=3, body_lost=6) is True
 
 
@@ -149,7 +149,7 @@ def test_tools_are_capped_at_the_books_three():
     assert stop_bleeding_target(paramedics_roll=11, tools=-9) == 8
 
 
-def test_andarras_wound_reopens_below_eleven():
+def test_ardwins_wound_reopens_below_eleven():
     """p.115's second example: 2 Bleeding dice, so the wound reopens on
     less than 9 + 2 = 11. She rolled 13 and it held."""
     from kirby_combat.resolution.bleeding import reopen_target

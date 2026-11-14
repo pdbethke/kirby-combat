@@ -13,7 +13,7 @@ CASUALTIES ARE THE FAST SIGNAL. Watching half your side torn apart in two
 Turns is what actually breaks a group, and nothing read it.
 
 A SIDE, NOT A MAN. HERO gives an individual no morale stat --- PRE is the
-stat, and 6E2 p.140 says so outright: Howler's "demoralized henchmen are
+stat, and 6E2 p.140 says so outright: Hollis's "demoralized henchmen are
 about to run" is fixed with a Presence Attack, not a morale roll. A side
 is the thing that routs, and the book has no opinion about it because a
 side is not a character. So this is judgement throughout, and the tiers

@@ -6,7 +6,7 @@ something in the scene. The pages:
   * p.129-130: a Constant power's END is paid "when the character's Phase
     begins, before he does anything else", and he "must maintain a Line Of
     Sight to the location of the Power".
-  * p.129 (Sapphire) and p.188: he may keep several up, each paying for
+  * p.129 (Sorrel) and p.188: he may keep several up, each paying for
     itself --- "provided he pays the END cost for all fields".
   * p.369 / p.403: a Charge on a Constant power lasts one Phase.
   * p.402: a Framework slot that loses the reserve stops working.
@@ -201,7 +201,7 @@ def test_it_goes_down_when_he_loses_sight_of_it():
 
 def test_he_keeps_two_fields_and_pays_for_each():
     """6E1 p.188: "A character may maintain more than one Darkness field at
-    once, provided he pays the END cost for all fields"; p.129's Sapphire
+    once, provided he pays the END cost for all fields"; p.129's Sorrel
     pays "END to maintain each use ... 20 END per Phase"."""
     power = _Power("DARKNESS", 4, id="src-DARKNESS")
     power.end_usage = 3

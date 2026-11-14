@@ -5,7 +5,7 @@ whole of its meaning. The Destroid's Self Destruct System is "RKA 8d6; 1
 Charge which Never Recovers (-4), Self Only (-2), No Range (-1/2)": it blows
 the Destroid up and nobody else. The engine read no custom limitation at all,
 so it offered the RKA as an ordinary attack, and in a local fight the Destroid
-put 57 STUN into Talisman with it and kept fighting.
+put 57 STUN into Tessaly with it and kept fighting.
 
 When a Destroid sets it off (to avoid capture, or when it judges the squad is
 lost) is not built, so the power is not offered: refused like any other part

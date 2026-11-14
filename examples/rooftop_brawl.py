@@ -45,8 +45,8 @@ ENERGY_BLAST = AttackPower(
     armor_piercing=0, penetrating=0, increased_stun_mult=0,
 )
 
-NIGHTHAWK = StatBlockCombatant(
-    id="nighthawk", name="Nighthawk",
+NIGHTJAR = StatBlockCombatant(
+    id="nightjar", name="Nightjar",
     ocv=9, dcv=8, omcv=4, dmcv=4,
     spd=5, dex=23, ego=15, int_=13, str_=20, con=20, pre=20, rec=8,
     pd=10, ed=10, rpd=4, red=4, md=5,
@@ -96,7 +96,7 @@ SCENE = Scene(
     ],
     hazards=[],
     ambient=AmbientConditions(light_level=2, weather="rain"),
-).place_combatant("nighthawk", Position(8, 12, 12)).place_combatant("volt", Position(20, 12, 12))
+).place_combatant("nightjar", Position(8, 12, 12)).place_combatant("volt", Position(20, 12, 12))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,14 +158,14 @@ def status(session: CombatSession) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    banner("ROOFTOP BRAWL — Nighthawk vs Volt")
+    banner("ROOFTOP BRAWL — Nightjar vs Volt")
     print("  Setting:  Industrial District warehouse roof, light rain, dusk")
     print(f"  Scene:    elevation 12m, parapet 1.2m around perimeter")
     print(f"  Template: {RAW_SUPERHEROIC.name}")
 
     session = CombatSession.create(
         id="rooftop-brawl-1",
-        combatants=[NIGHTHAWK, VOLT],
+        combatants=[NIGHTJAR, VOLT],
         scene=SCENE,
         template=RAW_SUPERHEROIC,
         dice_roller=FakeRoller([]),
@@ -180,8 +180,8 @@ def main() -> None:
         print(f"  • {session.combatants[slot.combatant_id].name} "
               f"(DEX {slot.dex_at_phase}, EGO {slot.int_tiebreak}) acts")
 
-    # ── Nighthawk's action: Energy Blast at Volt ──
-    banner("Nighthawk fires Energy Blast at Volt!")
+    # ── Nightjar's action: Energy Blast at Volt ──
+    banner("Nightjar fires Energy Blast at Volt!")
     print("  Volt sees the shot coming and aborts to Dodge (+3 DCV)…")
     session, dodge_evt = Dodge.declare(session, "volt")
     print(f"     [event seq {dodge_evt.sequence}] {dodge_evt.kind} → to_action={dodge_evt.to_action}")
@@ -195,7 +195,7 @@ def main() -> None:
         knockback=[3],
     )
     stun, body, hit, audit = resolve_attack(
-        session.combatants["nighthawk"], session.combatants["volt"], dice_n1,
+        session.combatants["nightjar"], session.combatants["volt"], dice_n1,
         dcv_mod=Dodge.dcv_bonus(session, "volt"),
     )
     for line in audit:
@@ -203,29 +203,29 @@ def main() -> None:
 
     # ── Volt's action: counter-attack ──
     banner("Volt fires back!")
-    print("  No abort — Nighthawk takes the shot at full DCV.")
-    # Volt rolls hot — most dice land 5+, punching through Nighthawk's energy defense.
+    print("  No abort — Nightjar takes the shot at full DCV.")
+    # Volt rolls hot — most dice land 5+, punching through Nightjar's energy defense.
     dice_v1 = DiceValues(
         to_hit=[2, 3, 4],   # 9, well under target → solid hit
         damage=[5, 5, 6, 6, 6, 6, 5, 6, 5, 6],   # 16 BODY raw; 14 ED stops 14, 2 BODY through
         knockback=[5, 4, 3],
     )
     stun, body, hit, audit = resolve_attack(
-        session.combatants["volt"], session.combatants["nighthawk"], dice_v1,
+        session.combatants["volt"], session.combatants["nightjar"], dice_v1,
     )
     for line in audit:
         print(line)
 
     if hit:
-        session = apply_damage(session, "nighthawk", stun, body)
+        session = apply_damage(session, "nightjar", stun, body)
 
         # ── Task 20: scene-aware knockback in ONE call ──
         kb_out = resolve_knockback_movement(
-            combatant_id="nighthawk",
+            combatant_id="nightjar",
             attacker_pos=SCENE.combatant_positions["volt"],
-            target_pos=SCENE.combatant_positions["nighthawk"],
+            target_pos=SCENE.combatant_positions["nightjar"],
             body_dealt=body,
-            kb_resistance=session.combatants["nighthawk"].knockback_resistance,
+            kb_resistance=session.combatants["nightjar"].knockback_resistance,
             dice=dice_v1,
             scene=SCENE,
             template=RAW_SUPERHEROIC,
@@ -247,22 +247,22 @@ def main() -> None:
                       f"{h.effect.damage_dice}d6 {h.effect.damage_type}")
         if kb_out.fall:
             f = kb_out.fall
-            print(f"\n  ⚠ Nighthawk knocked OFF THE ROOFTOP — falling…")
+            print(f"\n  ⚠ Nightjar knocked OFF THE ROOFTOP — falling…")
             print(f"     • Falls from z={f.from_pos.z:.1f}m to z={f.landed_at.z:.1f}m "
                   f"({f.fall_distance_m:.1f}m total)")
             print(f"     • Falling damage: {f.damage_dice}d6 normal damage vs PD")
             # Apply falling damage with stub-average rolls.
             stub_stun = sum([4] * f.damage_dice)
             stub_body = f.damage_dice                  # 1 BODY per die at value 4
-            target = session.combatants["nighthawk"]
+            target = session.combatants["nightjar"]
             fall_stun_dealt = max(0, stub_stun - target.pd)
             fall_body_dealt = max(0, stub_body - target.pd)
             print(f"     • Stub rolls: STUN={stub_stun}, BODY={stub_body}; "
                   f"PD={target.pd} → dealt STUN={fall_stun_dealt}, BODY={fall_body_dealt}")
-            session = apply_damage(session, "nighthawk", fall_stun_dealt, fall_body_dealt)
+            session = apply_damage(session, "nightjar", fall_stun_dealt, fall_body_dealt)
 
-        # Update scene position to where Nighthawk actually ended up
-        SCENE.combatant_positions["nighthawk"] = kb_out.final_position
+        # Update scene position to where Nightjar actually ended up
+        SCENE.combatant_positions["nightjar"] = kb_out.final_position
 
     print()
     status(session)
@@ -300,17 +300,17 @@ def main() -> None:
         hazards=list(SCENE.hazards),
         ambient=SCENE.ambient,
         combatant_positions={
-            "nighthawk": Position(8, 12, 12),
+            "nightjar": Position(8, 12, 12),
             "volt":      Position(20, 12, 12),
         },
     )
 
     kb_alt = resolve_knockback_movement(
-        combatant_id="nighthawk",
+        combatant_id="nightjar",
         attacker_pos=scene_with_wall.combatant_positions["volt"],
-        target_pos=scene_with_wall.combatant_positions["nighthawk"],
+        target_pos=scene_with_wall.combatant_positions["nightjar"],
         body_dealt=2,                     # same body_dealt as Volt's hit above
-        kb_resistance=NIGHTHAWK.knockback_resistance,
+        kb_resistance=NIGHTJAR.knockback_resistance,
         dice=dice_v1,
         scene=scene_with_wall,
         template=RAW_SUPERHEROIC,
@@ -342,7 +342,7 @@ def main() -> None:
 
     banner("REWIND DEMO — let's roll back to before Volt's counter-attack")
     print(f"  Current event log: {len(session.event_log)} events")
-    print(f"  Current Nighthawk STUN: {session.combatants['nighthawk'].current_stun}")
+    print(f"  Current Nightjar STUN: {session.combatants['nightjar'].current_stun}")
     print()
     from kirby_combat.session.rewind import rewind_to_sequence
     # Find the sequence right after the Dodge declaration (the Volt counter-attack mutated state directly,

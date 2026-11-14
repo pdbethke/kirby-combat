@@ -61,7 +61,7 @@ def _interval_text(segments: int) -> str:
 def over_time_text(power) -> str:
     """What a Damage Over Time does, for the offer's line (6E1 p.331-332).
 
-    Without it a page offered Plague's Acute Disease as "1d6 Character
+    Without it a page offered Blight's Acute Disease as "1d6 Character
     Points" --- one roll --- beside a 4d6 Killing Attack, and he rightly
     never took it: the six increments that make it a disease were invisible,
     and his week-apart Chronic Disease read the same. Empty for a power with

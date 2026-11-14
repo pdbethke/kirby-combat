@@ -218,8 +218,8 @@ def begin_lingering(session, *, attacker_id: str, target_id: str, power,
     A Constant power used again is a SECOND maintained effect, not a
     replacement. 6E1 p.129: "he could attack the same target a second time
     and affect him with the power twice ... Each use of the power costs END
-    to activate and to maintain", and Sapphire's example keeps Green Dragon
-    and Snowblind burning at once "(a total of 20 END per Phase)". Batch C
+    to activate and to maintain", and Sorrel's example keeps two Darkness fields
+    burning at once "(a total of 20 END per Phase)". Batch C
     ruled that a new use ended the old one; the page says otherwise, and
     the ruling is gone.
     """

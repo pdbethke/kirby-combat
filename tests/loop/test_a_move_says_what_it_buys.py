@@ -1,6 +1,6 @@
 """A move offer says what it buys a shooter (6E2 p.26, p.40).
 
-Found 2026-11-10, Plague against four UNTIL agents: 0 hits in 7 shots at
+Found 2026-11-10, Blight against four government agents: 0 hits in 7 shots at
 -4 OCV, never once closing. His menu offered a `half_move` that said only
 "a Half Phase Action, your Phase goes on", and a `move` that called itself
 a "Half-move ... cuts range penalty next phase" while being a Full Move.

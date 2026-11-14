@@ -14,8 +14,8 @@ THE RULES, page by page (6E1 unless marked):
     maintain a Line Of Sight to the location of the Power and pay the END
     for the Power on each of his Phases." p.130: that END is "paid when the
     character's Phase begins, before he does anything else".
-  * p.129 (Sapphire): two uses of one Constant power are two things to
-    keep up --- "Sapphire has to pay END to maintain each use of the
+  * p.129 (Sorrel): two uses of one Constant power are two things to
+    keep up --- "Sorrel has to pay END to maintain each use of the
     Constant Power, for a total of 20 END per Phase". So nothing here
     counts uses; each pays its own way.
   * p.369: "Each Charge normally only lasts for one Phase"; p.403:

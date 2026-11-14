@@ -234,7 +234,7 @@ class Flash:
         cannot express three things the same rule requires, so do not
         build on it:
 
-        * the penalties are **per-opponent** (6E2 p.9's blinded Orion is
+        * the penalties are **per-opponent** (6E2 p.9's blinded Corvin is
           1/2 DCV against one attacker and -1 DCV against another in the
           same Segment); this returns one global answer;
         * mitigation by a Nontargeting PER Roll is a **flat -1 DCV**, not

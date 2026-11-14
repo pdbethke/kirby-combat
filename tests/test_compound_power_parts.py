@@ -6,9 +6,9 @@ kirby-cost keeps a framework's slots in ``sub_powers``, a List's contents in
 read ``sub_powers`` only, so anything bought inside a Compound Power was
 invisible in combat.
 
-Found 2026-11-09 on the corpus: Agent of UNTIL and Agent of VIPER carry their
+Found 2026-11-09 on the corpus: a government agent and a cult agent carry their
 Blaster Carbine (Blast, Autofire, Charges, OAF) as a Compound Power with Combat
-Skill Levels, and ``attacks`` returned ``[]``. Thirty of them fought Talisman
+Skill Levels, and ``attacks`` returned ``[]``. Thirty of them fought Tessaly
 unarmed; 353 local characters carry a Compound Power.
 
 The stub mirrors kirby-cost's real shape: a COMPOUNDPOWER with ``powers`` and
