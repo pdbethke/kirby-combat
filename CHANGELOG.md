@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.2 — 2026-11-14
+
+**No licensed character names.** Comments, docstrings, tests and examples no longer name licensed Hero Games characters or rulebook example characters; tests use the maintainer's own characters (Ravel, Bokor, PowerLad) or neutral role names. The rules examples are renamed for what they show: `raw_abort_to_dodge`, `raw_blinded_per_opponent`, `raw_multipower_split`, `raw_move_by`, `raw_recover_from_stunned`. No behaviour change.
+
 ## 0.37.1 — 2026-11-14
 
 **A Multipower split's words tell its slots apart.**

@@ -5020,7 +5020,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.37.1",
+  "$id": "urn:kirby-combat:schema:events:0.37.2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -5196,5 +5196,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.37.1"
+  "x-kirby-combat-version": "0.37.2"
 }
