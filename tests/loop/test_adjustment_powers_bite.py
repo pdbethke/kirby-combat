@@ -97,14 +97,14 @@ MISS = [6, 6, 6]         # 18: always misses
 # ── Drain ────────────────────────────────────────────────────────────────────
 
 def _drainer(stat: str, levels: int = 3, **kw):
-    return _with(fighter("leech", side=VILLAINS),
+    return _with(fighter("drainer", side=VILLAINS),
                  _Power("DRAIN", levels, stat, ranged=True, **kw))
 
 
 def test_a_drain_dex_drains_dex_by_its_cost_per_point():
     """p.137's own example: 15 points of effect is 7 DEX."""
     session = _session(_drainer("DEX"), fighter("chiron", side=HEROES, dex=20))
-    after = _use(session, "leech", "drain", "chiron", [HIT, [5, 5, 5]]).session
+    after = _use(session, "drainer", "drain", "chiron", [HIT, [5, 5, 5]]).session
     assert after.combatants["chiron"].combat_stats().dex == 13
 
 
@@ -112,9 +112,9 @@ def test_a_drain_spd_costs_him_a_speed():
     """SPD is 10 points a point (6E1 p.140: "To Drain a point of SPD requires
     that 10 Character Points be Drained")."""
     session = _session(_drainer("SPD"), fighter("chiron", side=HEROES, spd=4))
-    after = _use(session, "leech", "drain", "chiron", [HIT, [6, 6, 2]]).session
+    after = _use(session, "drainer", "drain", "chiron", [HIT, [6, 6, 2]]).session
     assert after.combatants["chiron"].combat_stats().spd == 3
-    nine = _use(session, "leech", "drain", "chiron", [HIT, [3, 3, 3]]).session
+    nine = _use(session, "drainer", "drain", "chiron", [HIT, [3, 3, 3]]).session
     assert nine.combatants["chiron"].combat_stats().spd == 4, "9 points buy no SPD"
 
 
@@ -124,14 +124,14 @@ def test_a_drain_con_is_half_effect_and_makes_the_next_blow_stun():
     from conftest import blast
 
     session = _session(_drainer("CON"), fighter("chiron", side=HEROES))
-    after = _use(session, "leech", "drain", "chiron", [HIT, [6, 6, 6]]).session
+    after = _use(session, "drainer", "drain", "chiron", [HIT, [6, 6, 6]]).session
     assert after.combatants["chiron"].combat_stats().con == 18 - 9
 
-    power = blast("leech-eb", dice=3)
+    power = blast("drainer-eb", dice=3)
     shot = LegalAction(action_id="attack:chiron", kind="attack", target_id="chiron",
                        power_xmlid=power.xmlid, power_name=power.name,
                        summary="attack", _attack_view=power, )
-    hit = resolve_chosen(after, after.combatants["leech"], shot, template=TEMPLATE,
+    hit = resolve_chosen(after, after.combatants["drainer"], shot, template=TEMPLATE,
                          roller=FakeRoller([HIT, [6, 6, 6], [3, 3, 3], [1], [6, 6]]))
     # 18 STUN less ED 4 = 14 through: over a Drained CON of 9, not over 18.
     assert "Stunned" in hit.result.status_changes
@@ -139,7 +139,7 @@ def test_a_drain_con_is_half_effect_and_makes_the_next_blow_stun():
 
 def test_a_drain_that_misses_drains_nothing():
     session = _session(_drainer("DEX"), fighter("chiron", side=HEROES, dex=20))
-    after = _use(session, "leech", "drain", "chiron", [MISS]).session
+    after = _use(session, "drainer", "drain", "chiron", [MISS]).session
     assert after.combatants["chiron"].combat_stats().dex == 20
 
 
@@ -153,7 +153,7 @@ def test_power_defense_comes_off_the_drain():
         max_stun=30, max_body=10, max_end=30, side=HEROES,
     )
     session = _session(_drainer("DEX"), shielded)
-    after = _use(session, "leech", "drain", "chiron", [HIT, [5, 5, 5]]).session
+    after = _use(session, "drainer", "drain", "chiron", [HIT, [5, 5, 5]]).session
     assert after.combatants["chiron"].combat_stats().dex == 20 - 5     # (15-5)/2
 
 
@@ -162,7 +162,7 @@ def test_a_drain_stun_takes_current_stun_too_and_gives_it_back():
     of that Characteristic and the maximum", and the returning points
     "increase both"."""
     session = _session(_drainer("STUN"), fighter("chiron", side=HEROES, stun=40))
-    after = _use(session, "leech", "drain", "chiron", [HIT, [4, 4, 4]]).session
+    after = _use(session, "drainer", "drain", "chiron", [HIT, [4, 4, 4]]).session
     chiron = after.combatants["chiron"]
     # 12 points, half effect: 6 Character Points of STUN = 12 STUN.
     assert chiron.combat_stats().max_stun == 40 - 12
@@ -187,7 +187,7 @@ def test_a_drain_on_a_power_takes_its_dice():
     wolf = fighter("wolf", side=HEROES, armed=False)
     wolf.attacks.append(hka)
     session = _session(_drainer("HKA"), wolf)
-    after = _use(session, "leech", "drain", "wolf", [HIT, [6, 6, 4]]).session
+    after = _use(session, "drainer", "drain", "wolf", [HIT, [6, 6, 4]]).session
     (claws,) = [a for a in after.combatants["wolf"].attacks if a.source_id == "claws"]
     assert claws.damage_dice == 1
 
@@ -195,7 +195,7 @@ def test_a_drain_on_a_power_takes_its_dice():
 def test_a_drain_naming_a_special_effect_group_is_not_offered():
     """"Fire Powers" names no power this engine can identify."""
     session = _session(_drainer("FIRE POWERS"), fighter("chiron", side=HEROES))
-    actor = session.combatants["leech"]
+    actor = session.combatants["drainer"]
     menu = enumerate_actions(actor, [session.combatants["chiron"]])
     assert not [a for a in menu if a.kind == "drain"]
 
@@ -328,13 +328,13 @@ class _Picks:
 
 def test_run_phase_resolves_a_drain_and_the_next_phase_feels_it():
     """The whole path: offered, chosen, resolved, recorded, folded."""
-    leech = fighter("leech", side=VILLAINS, dex=30)
-    leech.hero.powers.append(_Power("DRAIN", 6, "DEX", ranged=True))
-    session = _session(leech, fighter("chiron", side=HEROES, dex=20))
+    drainer = fighter("drainer", side=VILLAINS, dex=30)
+    drainer.hero.powers.append(_Power("DRAIN", 6, "DEX", ranged=True))
+    session = _session(drainer, fighter("chiron", side=HEROES, dex=20))
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     result = run_phase(enc, _Picks("drain"), roller=RandomRoller(seed=5),
                        on_unresolvable="raise")
-    assert result.actor_id == "leech" and result.kind == "drain"
+    assert result.actor_id == "drainer" and result.kind == "drain"
     after = result.encounter.sessions[0].combatants["chiron"]
     payload = result.result
     # Signed on the payload: a Drain records what it took away.

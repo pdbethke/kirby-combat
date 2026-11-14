@@ -116,7 +116,7 @@ def last_attacker_of(session: Any, target_id: str) -> str | None:
     him and carries ``hit``), attributed exactly as `harm_witnessed`
     attributes harm: through the ``ActionDeclared`` it resolves. A man's
     attack on himself is not counted. Used by a player's Held Action order
-    whose target is "whoever attacks Lady Teal" (kirby-ai
+    whose target is "whoever attacks the hero" (kirby-ai
     `standing_orders`): the record names him, nothing guesses.
     """
     actor_of: dict[str, str] = {}

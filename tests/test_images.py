@@ -40,7 +40,7 @@ IMAGE_AT = (10.0, 0.0, 1.5)
 
 
 def _session(positions=None, walls=None, constructs=None, roller=None):
-    positions = positions or {"mirage": CASTER, "ana": NEAR, "boz": FAR}
+    positions = positions or {"illusionist": CASTER, "ana": NEAR, "boz": FAR}
     scene = Scene(
         id="s", name="Images",
         bounds=SceneBounds(0, 0, 0, 200, 200, 20),
@@ -50,7 +50,7 @@ def _session(positions=None, walls=None, constructs=None, roller=None):
         combatant_positions=positions,
     )
     return CombatSession.create(
-        id="s1", combatants=[_c("mirage"), _c("ana"), _c("boz")],
+        id="s1", combatants=[_c("illusionist"), _c("ana"), _c("boz")],
         scene=scene, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=roller or FakeRoller([]),
     ).start()
@@ -58,7 +58,7 @@ def _session(positions=None, walls=None, constructs=None, roller=None):
 
 def _place(session, *, roller=None, **kw):
     params = dict(
-        caster_id="mirage", position=IMAGE_AT, sense_groups=["sight"],
+        caster_id="illusionist", position=IMAGE_AT, sense_groups=["sight"],
         per_modifier=0,
     )
     params.update(kw)
@@ -92,7 +92,7 @@ def test_a_placed_image_is_listed_and_addressable():
     images = Images.active(s)
     assert len(images) == 1
     assert images[0].image_id == result.image_id
-    assert images[0].caster_id == "mirage"
+    assert images[0].caster_id == "illusionist"
     assert images[0].sense_groups == ("sight",)
 
 
@@ -169,7 +169,7 @@ def test_a_hearing_image_survives_a_sight_flash():
 
     s = _session()
     s, r = _place(s, sense_groups=["hearing"])
-    s, _ = Flash.apply(s, attacker_id="mirage", target_id="ana",
+    s, _ = Flash.apply(s, attacker_id="illusionist", target_id="ana",
                        sense_group="sight", body_dealt=8, flash_defense=0)
     assert Images.perceived_by(s, r.image_id, "ana") is True
 
@@ -194,7 +194,7 @@ def test_a_flashed_observer_does_not_perceive_a_sight_image():
 
     s = _session()
     s, r = _place(s)
-    s, _ = Flash.apply(s, attacker_id="mirage", target_id="ana",
+    s, _ = Flash.apply(s, attacker_id="illusionist", target_id="ana",
                        sense_group="sight", body_dealt=8, flash_defense=0)
     assert Images.perceived_by(s, r.image_id, "ana") is False
 
@@ -327,7 +327,7 @@ def test_believers_lists_who_is_still_fooled():
 def test_the_caster_is_never_fooled_by_his_own_image():
     s = _session()
     s, r = _place(s)
-    assert "mirage" not in Images.believers(s, r.image_id)
+    assert "illusionist" not in Images.believers(s, r.image_id)
 
 
 def test_a_hearing_image_is_blocked_by_a_hearing_darkness():
@@ -351,7 +351,7 @@ def test_a_hearing_image_is_blocked_by_a_hearing_flash():
 
     s = _session()
     s, r = _place(s, sense_groups=["hearing"])
-    s, _ = Flash.apply(s, attacker_id="mirage", target_id="ana",
+    s, _ = Flash.apply(s, attacker_id="illusionist", target_id="ana",
                        sense_group="hearing", body_dealt=8, flash_defense=0)
     assert Images.perceived_by(s, r.image_id, "ana") is False
 
@@ -362,7 +362,7 @@ def test_an_image_affecting_two_groups_survives_losing_one():
 
     s = _session()
     s, r = _place(s, sense_groups=["sight", "hearing"])
-    s, _ = Flash.apply(s, attacker_id="mirage", target_id="ana",
+    s, _ = Flash.apply(s, attacker_id="illusionist", target_id="ana",
                        sense_group="sight", body_dealt=8, flash_defense=0)
     assert Images.perceived_by(s, r.image_id, "ana") is True
     assert Images.perceived_by(s, r.image_id, "ana", sense_group="sight") is False

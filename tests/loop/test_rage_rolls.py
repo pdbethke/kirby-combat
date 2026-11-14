@@ -131,11 +131,11 @@ def test_a_sheet_without_its_rolls_is_not_run():
     """The driver guessed 11- for a missing roll; inventing the character."""
     rage = _enraged("in combat")
     rage.assigned_adders = [a for a in rage.assigned_adders if a.xmlid != "CHANCETOGO"]
-    assert rage_complications_of(_man("ogre", "v", complications=[rage])) == []
+    assert rage_complications_of(_man("brute", "v", complications=[rage])) == []
 
 
 def test_berserk_is_read_from_its_adder():
-    [rage] = rage_complications_of(_man("ogre", "v", complications=[
+    [rage] = rage_complications_of(_man("brute", "v", complications=[
         _enraged("in combat", go="11-", recover="14-", berserk=True)]))
     assert (rage.berserk, rage.go, rage.recover) == (True, 11, 14)
 
@@ -146,14 +146,14 @@ def test_berserk_in_combat_goes_and_attacks_the_nearest_friend_or_foe():
     """6E1 p.425: Berserk "can't tell friend from foe" and attacks whoever
     is nearest. With no map to measure, the roster's order decides (ruling):
     his own teammate stands first."""
-    ogre = _man("ogre", "v", dex=30, complications=[
+    brute = _man("brute", "v", dex=30, complications=[
         _enraged("in combat", go="11-", recover="14-", berserk=True)])
-    enc = _encounter(_man("henchman", "v"), ogre, _man("hero", "h"))
+    enc = _encounter(_man("henchman", "v"), brute, _man("hero", "h"))
     chooser = Picks("dodge", "attack")
-    # The ogre (DEX 30) acts first. A roll of 3 (all ones) is under 11-.
+    # The brute (DEX 30) acts first. A roll of 3 (all ones) is under 11-.
     result = run_phase(enc, chooser, roller=Dice(1), on_unresolvable="raise")
-    assert result.actor_id == "ogre"
-    [go] = _rolls(result.session, "ogre")
+    assert result.actor_id == "brute"
+    [go] = _rolls(result.session, "brute")
     assert (go.roll_kind, go.succeeded, go.target_id) == ("go", True, "henchman")
     menu = chooser.menus[-1][1]
     assert {a.target_id for a in menu if a.target_id} == {"henchman"}
@@ -164,24 +164,24 @@ def test_berserk_in_combat_goes_and_attacks_the_nearest_friend_or_foe():
 def test_he_rolls_every_phase_until_he_goes():
     """6E1 p.424: "Every Phase a character is in a situation where he can
     become Enraged, he should roll"; a miss leaves him in control."""
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("in combat", go="8-")])
-    enc = _encounter(ogre, _man("hero", "h"))
+    brute = _man("brute", "v", dex=30, complications=[_enraged("in combat", go="8-")])
+    enc = _encounter(brute, _man("hero", "h"))
     chooser = Picks("dodge")
     result = run_phase(enc, chooser, roller=Dice(6), on_unresolvable="raise")
-    [go] = _rolls(result.session, "ogre")
+    [go] = _rolls(result.session, "brute")
     assert not go.succeeded
-    assert not rage_state(result.session, "ogre").raging
+    assert not rage_state(result.session, "brute").raging
     assert result.kind == "dodge", "in control, he may still defend"
 
 
 def test_an_insult_rage_does_not_go_off_when_he_is_shot():
     """The driver's error: it rolled on any BODY taken, whatever the sheet."""
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("if insulted")])
-    enc = _encounter(ogre, _man("hero", "h"))
-    session = _wounded(enc.sessions[0], "ogre", by="hero")
+    brute = _man("brute", "v", dex=30, complications=[_enraged("if insulted")])
+    enc = _encounter(brute, _man("hero", "h"))
+    session = _wounded(enc.sessions[0], "brute", by="hero")
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     result = run_phase(enc, Picks("attack"), roller=Dice(1), on_unresolvable="raise")
-    assert _rolls(result.session, "ogre") == []
+    assert _rolls(result.session, "brute") == []
 
 
 def _wounded(session, who, *, by):
@@ -199,13 +199,13 @@ def _wounded(session, who, *, by):
 
 
 def test_a_wound_enrages_him_at_the_man_who_did_it():
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("if takes BODY")])
-    enc = _encounter(ogre, _man("bystander", "h"), _man("shooter", "h"))
-    session = _wounded(enc.sessions[0], "ogre", by="shooter")
+    brute = _man("brute", "v", dex=30, complications=[_enraged("if takes BODY")])
+    enc = _encounter(brute, _man("bystander", "h"), _man("shooter", "h"))
+    session = _wounded(enc.sessions[0], "brute", by="shooter")
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     chooser = Picks("attack")
     result = run_phase(enc, chooser, roller=Dice(1), on_unresolvable="raise")
-    [go] = _rolls(result.session, "ogre")
+    [go] = _rolls(result.session, "brute")
     assert (go.succeeded, go.target_id, go.reason) == (True, "shooter", "takes_body")
     assert {a.target_id for a in chooser.menus[-1][1] if a.target_id} == {"shooter"}
 
@@ -225,60 +225,60 @@ def _raging(session, who, target, *, berserk=False):
 def test_he_rolls_to_recover_when_his_target_is_down():
     """6E1 p.424: "Once an Enraged individual finishes with his target, he
     must roll his chance of recovery." A made roll ends it."""
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
-    enc = _encounter(ogre, _man("down", "h", stun=0), _man("hero", "h"))
+    brute = _man("brute", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
+    enc = _encounter(brute, _man("down", "h", stun=0), _man("hero", "h"))
     enc = Encounter(id="e", turn=1, segment=12,
-                    sessions=[_raging(enc.sessions[0], "ogre", "down")])
+                    sessions=[_raging(enc.sessions[0], "brute", "down")])
     result = run_phase(enc, Picks("dodge"), roller=Dice(1), on_unresolvable="raise")
-    recover = [e for e in _rolls(result.session, "ogre") if e.roll_kind == "recover"]
+    recover = [e for e in _rolls(result.session, "brute") if e.roll_kind == "recover"]
     assert [(e.reason, e.succeeded) for e in recover] == [("target_down", True)]
-    assert not rage_state(result.session, "ogre").raging
+    assert not rage_state(result.session, "brute").raging
     assert result.kind == "dodge", "calm again, he may defend"
 
 
 def test_failing_it_he_turns_on_the_next_of_his_targets_side():
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
-    enc = _encounter(_man("mate", "v"), ogre, _man("down", "h", stun=0),
+    brute = _man("brute", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
+    enc = _encounter(_man("mate", "v"), brute, _man("down", "h", stun=0),
                      _man("hero", "h"))
     enc = Encounter(id="e", turn=1, segment=12,
-                    sessions=[_raging(enc.sessions[0], "ogre", "down")])
+                    sessions=[_raging(enc.sessions[0], "brute", "down")])
     chooser = Picks("attack")
     result = run_phase(enc, chooser, roller=Dice(6), on_unresolvable="raise")
-    assert rage_state(result.session, "ogre").target_id == "hero"
+    assert rage_state(result.session, "brute").target_id == "hero"
     assert "RageTargeted" in [e.kind for e in result.events]
     assert {a.target_id for a in chooser.menus[-1][1] if a.target_id} == {"hero"}
 
 
 def test_out_of_end_he_rolls_to_recover():
-    ogre = _man("ogre", "v", dex=30, end=0,
+    brute = _man("brute", "v", dex=30, end=0,
                 complications=[_enraged("in combat", recover="8-")])
-    enc = _encounter(ogre, _man("hero", "h"))
+    enc = _encounter(brute, _man("hero", "h"))
     enc = Encounter(id="e", turn=1, segment=12,
-                    sessions=[_raging(enc.sessions[0], "ogre", "hero")])
+                    sessions=[_raging(enc.sessions[0], "brute", "hero")])
     result = run_phase(enc, Picks("attack"), roller=Dice(6), on_unresolvable="raise")
-    recover = [e for e in _rolls(result.session, "ogre") if e.roll_kind == "recover"]
+    recover = [e for e in _rolls(result.session, "brute") if e.roll_kind == "recover"]
     assert [(e.reason, e.succeeded) for e in recover] == [("out_of_end", False)]
 
 
 def test_he_does_not_roll_to_recover_every_phase():
     """The driver's error: a roll every Phase. Target standing, END left."""
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("in combat")])
-    enc = _encounter(ogre, _man("hero", "h"))
+    brute = _man("brute", "v", dex=30, complications=[_enraged("in combat")])
+    enc = _encounter(brute, _man("hero", "h"))
     enc = Encounter(id="e", turn=1, segment=12,
-                    sessions=[_raging(enc.sessions[0], "ogre", "hero")])
+                    sessions=[_raging(enc.sessions[0], "brute", "hero")])
     result = run_phase(enc, Picks("attack"), roller=Dice(6), on_unresolvable="raise")
-    assert [e.roll_kind for e in _rolls(result.session, "ogre")] == ["go"]
+    assert [e.roll_kind for e in _rolls(result.session, "brute")] == ["go"]
 
 
 def test_post_segment_12_gives_him_a_free_attempt():
     """6E1 p.424: "a free attempt to recover from being Enraged in
     Post-Segment 12 if he hasn't attempted to recover in that Turn"."""
-    ogre = _man("ogre", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
-    enc = _encounter(ogre, _man("hero", "h"))
+    brute = _man("brute", "v", dex=30, complications=[_enraged("in combat", recover="8-")])
+    enc = _encounter(brute, _man("hero", "h"))
     enc = Encounter(id="e", turn=1, segment=12,
-                    sessions=[_raging(enc.sessions[0], "ogre", "hero")])
+                    sessions=[_raging(enc.sessions[0], "brute", "hero")])
     chooser = Picks("attack")
-    for _ in range(3):                      # ogre, hero, then into Turn 2
+    for _ in range(3):                      # brute, hero, then into Turn 2
         result = run_phase(enc, chooser, roller=Dice(6), on_unresolvable="raise")
         enc = result.encounter
     log = enc.sessions[0].event_log

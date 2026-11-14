@@ -36,8 +36,8 @@ def test_two_drains_on_one_stat_return_separately():
     Turn each has given back 5 (20 still drained, DEX 10). Lumped together
     they would have given back 5 between them (25 drained, DEX 8)."""
     session = _session(_drainer("DEX"), fighter("chiron", side=HEROES, dex=20))
-    once = _use(session, "leech", "drain", "chiron", [HIT, [5, 5, 5]]).session
-    twice = _use(once, "leech", "drain", "chiron", [HIT, [5, 5, 5]]).session
+    once = _use(session, "drainer", "drain", "chiron", [HIT, [5, 5, 5]]).session
+    twice = _use(once, "drainer", "drain", "chiron", [HIT, [5, 5, 5]]).session
     assert twice.combatants["chiron"].combat_stats().dex == 5
     after = _wrap(twice)
     assert after.combatants["chiron"].combat_stats().dex == 10
@@ -49,7 +49,7 @@ def test_two_drains_on_one_stat_return_separately():
 def _slow_drainer(option: str):
     power = _Power("DRAIN", 3, "DEX", ranged=True)
     power.assigned_modifiers = [SimpleNamespace(xmlid="DELAYEDRETURNRATE", option_id=option)]
-    return _with(fighter("leech", side=VILLAINS), power)
+    return _with(fighter("drainer", side=VILLAINS), power)
 
 
 def test_a_delayed_return_rate_drain_comes_back_on_its_own_clock():
@@ -57,7 +57,7 @@ def test_a_delayed_return_rate_drain_comes_back_on_its_own_clock():
     12-second Turn), so nothing returns for four Turns and 5 points at the
     fifth."""
     session = _session(_slow_drainer("MINUTE"), fighter("chiron", side=HEROES, dex=20))
-    drained = _use(session, "leech", "drain", "chiron", [HIT, [5, 5, 5]])
+    drained = _use(session, "drainer", "drain", "chiron", [HIT, [5, 5, 5]])
     assert drained.result["fade_interval_turns"] == 5
     four = _wrap(drained.session, turns=4)
     assert four.combatants["chiron"].combat_stats().dex == 13
@@ -73,7 +73,7 @@ def test_healing_heals_a_drained_characteristic_and_it_stays_healed():
     and the 9 come back --- and nothing returns again at the Post-Segment 12."""
     patient = fighter("patient", side=HEROES)
     session = _session(_drainer("BODY"), _healer(), patient)
-    drained = _use(session, "leech", "drain", "patient", [HIT, [6, 6, 6]]).session
+    drained = _use(session, "drainer", "drain", "patient", [HIT, [6, 6, 6]]).session
     hurt = drained.combatants["patient"]
     assert hurt.combat_stats().max_body == 12 - 9 and hurt.state.current_body == 3
     healed = _use(drained, "doc", "heal", "patient", [[6, 6, 6, 6]])
@@ -86,7 +86,7 @@ def test_healing_heals_a_drained_characteristic_and_it_stays_healed():
 
 def test_healing_is_offered_on_a_man_whose_only_loss_is_a_drain():
     session = _session(_drainer("BODY"), _healer(), fighter("patient", side=HEROES))
-    drained = _use(session, "leech", "drain", "patient", [HIT, [6, 6, 6]]).session
+    drained = _use(session, "drainer", "drain", "patient", [HIT, [6, 6, 6]]).session
     assert _offer(drained, "doc", "heal", "patient")
 
 
