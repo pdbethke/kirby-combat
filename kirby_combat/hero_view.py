@@ -736,6 +736,18 @@ def _unpriced(framework):
                for sl in framework.slots])
 
 
+def _slot_label(slot, *, hero) -> str:
+    """What a framework slot is called: the name its owner gave it, or,
+    unnamed, kirby-cost's words for what it is (`slot_words`: the power
+    with its Advantages, "Blast 10d6, Armor Piercing (+1/4)"). Two unnamed
+    slots of the same power differ only in their Advantages, so a bare
+    alias ("Blast") names neither."""
+    from kirby_cost.engine.allocation import slot_words
+
+    own = (slot.name or "").strip()
+    return own if own else slot_words(slot, hero=hero)
+
+
 def _with_adjusted_dice(attacks, adjusted: dict[str, int]) -> list[AttackPower]:
     """Each attack with any Aid or Drain on its dice applied (6E1 p.137).
 
@@ -2176,8 +2188,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 atk = attack_by_slot.get(sid)
                 plain = dict(
                     slot_id=sid,
-                    name=(getattr(child, "name", None) or
-                          getattr(child, "alias", "") or cx),
+                    name=_slot_label(child, hero=self.hero),
                     active_points=int(getattr(child, "active_cost", 0) or 0),
                     variable=slot_is_variable(p, child),
                     kind=("attack" if atk is not None else "other"),

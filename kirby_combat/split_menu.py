@@ -79,15 +79,35 @@ def _best_fit(slot: "PricedSlotView", points: int) -> int:
     return rung_at(slot, min(points, slot_max_points(slot))).points
 
 
+def _says(label: str, rung: str) -> bool:
+    """True when a slot's label already reads as its rung: an unnamed slot
+    is labelled with kirby-cost's words for it, which begin with the rung's
+    ("Blast 10d6, Armor Piercing (+1/4)" at "Blast 10d6")."""
+    return label == rung or label.startswith((rung + ",", rung + " ("))
+
+
+def slot_words_at(slot: "PricedSlotView", points: int) -> str:
+    """A slot holding ``points``, named so it is told from its neighbours:
+    "Lightning Bolt: Blast 8d6"; an unnamed slot at a rung its label already
+    states, the label alone ("Blast 10d6, Armor Piercing (+1/4)"); a slot
+    named just what it is ("Dial" at "Dial 10"), the rung alone."""
+    rung = slot_display(slot, points)
+    if _says(slot.name, rung):
+        return slot.name
+    if rung.startswith(slot.name + " "):
+        return rung
+    return f"{slot.name}: {rung}"
+
+
 def effect_text(view: "FrameworkView", points: dict[str, int], *,
                 lead: str | None) -> str:
-    """What ``points`` buys, in words: each slot holding a point, its rung's
-    display, joined. ``lead`` (a slot id) is named first, the rest in slot
-    order; with nothing on, `NOTHING_ON`."""
+    """What ``points`` buys, in words: each slot holding a point, named and
+    at its rung (`slot_words_at`), joined. ``lead`` (a slot id) is named
+    first, the rest in slot order; with nothing on, `NOTHING_ON`."""
     order = sorted(view.slots, key=lambda s: s.slot_id != lead)
-    words = [slot_display(s, points[s.slot_id]) for s in order
+    words = [slot_words_at(s, points[s.slot_id]) for s in order
              if points.get(s.slot_id, 0) > 0]
-    return ", ".join(words) if words else NOTHING_ON
+    return "; ".join(words) if words else NOTHING_ON
 
 
 def _fill(view: "FrameworkView", split: dict[str, int], left: int) -> dict[str, int]:

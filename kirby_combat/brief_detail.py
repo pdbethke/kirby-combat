@@ -949,7 +949,7 @@ def framework_lines(situation: "PhaseSituation") -> list[str]:
                 own = ((" (his own, his usual set)" if preset.standard
                         else " (his own)") if preset.standing else "")
                 out.append(f"    [{complete_choice(offer, preset.points)}] "
-                           f"{preset.name}{own}: {preset.effect_text}")
+                           f"{preset.name}{own} → {preset.effect_text}")
         # A standing split that no longer fits, with the rule it breaks
         # (spec §5.5a): at the opening too, where it would have been a chip.
         standing = (actor.state.standing_splits.get(fw.framework_id, ())

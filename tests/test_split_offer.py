@@ -85,7 +85,7 @@ def _splits(actor):
 def test_one_offer_per_multipower_named_in_words():
     [offer] = _splits(_kerendor())
     assert offer.action_id == OFFER
-    assert offer.summary == "Re-split Magical Powers (60 reserve): now Blast 12d6"
+    assert offer.summary == "Re-split Magical Powers (60 reserve): now Lightning Bolt: Blast 12d6"
     assert offer.choice is not None and offer.choice.current == BOLT_ONLY
 
 
@@ -116,13 +116,14 @@ def test_the_presets_are_neutral_and_in_order():
     got = [(p.name, p.effect_text, p.standing) for p in offer.choice.presets]
     assert got == [
         # All in Lightning Bolt is the split in force: dropped.
-        ("All in Wind Riding", "Flight 60m", False),
-        ("Even", "Blast 6d6, Flight 30m", False),
+        ("All in Wind Riding", "Wind Riding: Flight 60m", False),
+        ("Even", "Lightning Bolt: Blast 6d6; Wind Riding: Flight 30m", False),
         # The 15 the Wall leaves is shared evenly (spec §5.3), as Even
         # shares the reserve: 7 each, Blast's 5-point step takes 5 and
         # Flight then takes the rest, 10m (kirby-cost's rungs).
         ("Wall of Wind + remainder",
-         "Resistant Protection 15 PD/15 ED, Blast 1d6, Flight 10m", False),
+         "Wall of Wind: Resistant Protection 15 PD/15 ED; Lightning Bolt: Blast 1d6; "
+         "Wind Riding: Flight 10m", False),
     ]
     assert offer.choice.presets[2].points == {"bolt": 5, "wind": 10, "wall": 45}
 
@@ -166,7 +167,7 @@ def test_a_standing_split_comes_first_and_is_marked():
     [offer] = _splits(_kerendor(standing=(OVERDRIVE, PATROL)))
     first = offer.choice.presets[0]
     assert (first.name, first.standing, first.standard) == ("Patrol", True, True)
-    assert first.effect_text == "Blast 6d6, Flight 30m"
+    assert first.effect_text == "Lightning Bolt: Blast 6d6; Wind Riding: Flight 30m"
     assert first.points == {"bolt": 30, "wind": 30, "wall": 0}
     # Even is the same split as Patrol: collapsed into the player's own.
     assert "Even" not in [p.name for p in offer.choice.presets]
@@ -217,9 +218,9 @@ def test_the_brief_explains_the_framework_and_lists_the_presets():
     assert "6E1 p.404-405" in text
     assert "Lightning Bolt: 60 AP, variable" in text and "now Blast 12d6" in text
     assert "Wall of Wind: 45 AP, fixed" in text and "off" in text
-    assert "All in Wind Riding: Flight 60m" in text
-    assert ("Wall of Wind + remainder: Resistant Protection 15 PD/15 ED, "
-            "Blast 1d6, Flight 10m") in text
+    assert "All in Wind Riding → Wind Riding: Flight 60m" in text
+    assert ("Wall of Wind + remainder → Wall of Wind: Resistant Protection 15 PD/15 ED; "
+            "Lightning Bolt: Blast 1d6; Wind Riding: Flight 10m") in text
 
 
 def test_the_rendered_page_lists_each_re_split_preset_by_its_whole_answer():
@@ -236,7 +237,7 @@ def test_the_rendered_page_lists_each_re_split_preset_by_its_whole_answer():
     assert "Presets for the re-split:" in page
     for preset in offer.choice.presets:
         answer = complete_choice(offer, preset.points)
-        assert f"[{answer}] {preset.name}: {preset.effect_text}" in page
+        assert f"[{answer}] {preset.name} → {preset.effect_text}" in page
         validate_choice(answer, situation.menu)
 
 

@@ -43,7 +43,7 @@ def _opening(tail):
 
 def test_an_opening_split_is_told_in_words():
     _phase, alloc = _opening("bolt@40+wind@20")
-    assert alloc.effect_text == "Blast 8d6, Flight 20m"
+    assert alloc.effect_text == "Lightning Bolt: Blast 8d6; Wind Riding: Flight 20m"
 
 
 def test_an_opening_with_everything_off_says_so():

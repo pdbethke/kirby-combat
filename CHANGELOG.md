@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.37.1 — 2026-11-14
+
+**A Multipower split's words tell its slots apart.**
+
+### Behaviour changes
+- **An unnamed framework slot is named by what it is.** `SlotView.name` fell back to the slot's alias ("Blast"), so two unnamed slots of the same power, differing only in their Advantages, had the same name, and their presets ("Blast + remainder") read alike. An unnamed slot is now named with kirby-cost's `slot_words` ("Blast 10d6, Armor Piercing (+1/4)"); a named slot keeps its name. The `name or alias or xmlid` fallback is gone.
+- **What a split buys names each slot at its rung.** `split_menu.effect_text` reads "Wall of Wind: Resistant Protection 15 PD/15 ED; Lightning Bolt: Blast 1d6": each slot holding points as "<name>: <rung>", or the label alone when an unnamed slot's label already states its rung, or the rung alone when a slot is named just what it is ("Dial 10"). Slots are joined with "; " (a label carries commas of its own). New `split_menu.slot_words_at(slot, points)`. This reaches preset `effect_text`, the re-split summary ("now Lightning Bolt: Blast 12d6") and `SlotsAllocated.effect_text`.
+- **The page lists a preset as `[<answer id>] name → effect`** (was `name: effect`, which read "All in Wind Riding: Wind Riding: Flight 60m").
+
+Requires kirby-cost >=0.8.2.
+
 ## 0.37.0 — 2026-11-13
 
 **What a panel and a seat need for a Multipower split: its words, the board at the opening, and whether a move gets him there.**
