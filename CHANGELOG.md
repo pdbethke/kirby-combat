@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.3 — 2026-11-15
+
+### Fixed — an attack offer states the half die and the pip it rolls
+The plain attack offer wrote only `damage_dice`, so a 2½d6 attack was offered as "2d6" and an RKA bought at 0 dice plus a pip as "0d6K", an attack that reads as doing nothing. The resolver always rolled them; only the page the chooser reads was wrong. New `enumeration.dice_label(attack)` writes `2½d6+1K` from the same four fields the roll uses, and the Haymaker offer, which already wrote them, now shares it.
+
 ## 0.37.2 — 2026-11-14
 
 **No licensed character names.** Comments, docstrings, tests and examples no longer name licensed Hero Games characters or rulebook example characters; tests use the maintainer's own characters (Ravel, Bokor, PowerLad) or neutral role names. The rules examples are renamed for what they show: `raw_abort_to_dodge`, `raw_blinded_per_opponent`, `raw_multipower_split`, `raw_move_by`, `raw_recover_from_stunned`. No behaviour change.

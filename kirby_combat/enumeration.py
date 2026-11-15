@@ -990,6 +990,20 @@ def _friendly_id(combatant_id: str) -> str:
     return (combatant_id or "").replace("_", " ").title() or "your attacker"
 
 
+
+def dice_label(attack) -> str:
+    """The dice an attack rolls, as an offer states them: ``2½d6+1K``.
+
+    Whole dice, the half die, the pip, and K(illing) or N(ormal) -- the same
+    four fields ``resolution/damage.py`` rolls, so the page and the roll
+    cannot disagree. Writing only ``damage_dice`` offered a 2½d6 attack as
+    "2d6" and a 0d6+1 one as "0d6K".
+    """
+    return (f"{attack.damage_dice or 0}{'½' if attack.half_die else ''}d6"
+            f"{'+1' if attack.plus_one else ''}"
+            f"{'K' if attack.damage_type == 'killing' else 'N'}")
+
+
 def enumerate_actions(
     actor: HeroCombatant,
     enemies: list[HeroCombatant],
@@ -1418,11 +1432,7 @@ def enumerate_actions(
     for enemy in alive_enemies:
         for ap in attack_powers:
             pname = ap.name or ap.xmlid.lower()
-            dmg_summary = (
-                f"{ap.damage_dice or 0}d6K"
-                if ap.damage_type == "killing"
-                else f"{ap.damage_dice or 0}d6N"
-            )
+            dmg_summary = dice_label(ap)
             xmlid_upper = (ap.xmlid or "").upper()
             limit_tag = _limitation_label(actor, ap)
             if xmlid_upper in _MENTAL_ATTACK_XMLIDS:
@@ -2269,9 +2279,7 @@ def enumerate_actions(
         for wound in [a for a in actions if a.kind in ("attack", "strike")
                       and a.target_id and _hay.can_haymaker(a._attack_view)]:
             heavier = _hay.with_bonus(wound._attack_view)
-            dice = (f"{heavier.damage_dice}{'½' if heavier.half_die else ''}d6"
-                    f"{'+1' if heavier.plus_one else ''}"
-                    f"{'K' if heavier.damage_type == 'killing' else 'N'}")
+            dice = dice_label(heavier)
             tail = (f" --- +4 DC ({dice}), lands at the end of the next "
                     f"Segment; -5 DCV until then")
             actions.append(LegalAction(
