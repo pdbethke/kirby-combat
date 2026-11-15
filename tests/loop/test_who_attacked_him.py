@@ -87,7 +87,10 @@ class _Invisibility:
     id = "inv"
     option_id = None
     assigned_adders: list = []
-    assigned_modifiers: list = []
+    #: Persistent (6E1 p.130: "on at all times"), so it is on without being
+    #: switched on: `switched_powers.is_on`. An unswitched, non-Persistent
+    #: Invisibility hides nobody since 2026-11-15.
+    assigned_modifiers: list = [type("_Persistent", (), {"xmlid": "PERSISTENT"})()]
     sub_powers: list = []
     levels = 0
 

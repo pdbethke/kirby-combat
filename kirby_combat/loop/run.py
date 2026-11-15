@@ -806,6 +806,15 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     # A Damage Shield is raised, never fired; an always-on aura is never
     # fired at all (6E1 p.130, p.323). See `standing_areas.standing_offers`.
     menu = standing_offers(session, actor_id, menu)
+    # DESOLID OR SOLID (6E1 p.192-193): nothing crosses that line but what
+    # the page lets through (`desolidification.across_the_line`). And the
+    # personal powers he can switch on, Desolidification and Invisibility
+    # (6E2 p.20, `switched_powers`).
+    from kirby_combat.desolidification import across_the_line
+    from kirby_combat.switched_powers import turn_on_offers
+
+    menu = across_the_line(session, actor_id, menu)
+    menu = menu + turn_on_offers(session, actor, template=session.template)
     # NO RECOVERY HOLDING HIS BREATH (6E2 p.132): not offered for nothing.
     from kirby_combat.recovery_limits import without_futile_recovery
 

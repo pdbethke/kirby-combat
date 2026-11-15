@@ -89,6 +89,8 @@ NON_THREAT_KINDS = frozenset({
     "aid", "heal", "attack_construct", "force_wall", "image_decoy",
     # Turning his own Darkness off threatens nobody (6E2 p.20).
     "drop_darkness", "drop_image",
+    # Desolidifying, or becoming solid again, acts on nobody else.
+    "desolidify", "drop_desolid", "turn_invisible", "drop_invisible",
     "block", "dodge", "charm", "persuasion", "conversation", "trading",
     "climb", "climb_fast", "coordinate", "disengage", "escape_attack",
     "escape_ego", "escape_str", "escape_teleport", "hide", "hold",

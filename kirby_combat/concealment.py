@@ -135,18 +135,23 @@ def hidden_from(session, observer_id: str) -> set[str]:
     return {hider for hider, unseen in latest.items() if observer_id in unseen}
 
 
-def is_invisible(combatant) -> bool:
-    """Whether the build carries any Invisibility at all.
+def is_invisible(session, combatant) -> bool:
+    """Whether his Invisibility is ON now (`switched_powers`): switched on and
+    kept up, or Persistent with its slot holding the reserve (6E1 p.130).
 
-    Deliberately coarse: `perceive` does the per-Sense-Group work, and
-    this only answers the yes/no the ``concealment`` map is shaped for.
+    It read the BUILD ("carries any Invisibility at all"), so a man whose
+    Invisibility sat in an empty Multipower slot, never turned on, was unseen
+    from the first Segment: Ravel's "Active Camoflage", recorded 2026-11-15,
+    left Bokor groping at arm's length all fight. Deliberately coarse:
+    `perceive` does the per-Sense-Group work, and this only answers the
+    yes/no the ``concealment`` map is shaped for.
     """
-    from kirby_combat.perception import invisibility_groups
+    from kirby_combat.switched_powers import Switched, is_on
 
-    hero = getattr(combatant, "hero", None)
-    if hero is None:
+    cid = getattr(combatant, "id", None)
+    if cid is None or getattr(combatant, "hero", None) is None:
         return False
-    return bool(invisibility_groups(hero))
+    return is_on(session, cid, Switched.INVISIBLE)
 
 
 def concealment_for(session, *, observer_id: str) -> dict[str, tuple[bool, bool]]:
@@ -160,7 +165,7 @@ def concealment_for(session, *, observer_id: str) -> dict[str, tuple[bool, bool]
     hidden = hidden_from(session, observer_id)
     out: dict[str, tuple[bool, bool]] = {}
     for combatant_id, combatant in (getattr(session, "combatants", None) or {}).items():
-        invisible = is_invisible(combatant)
+        invisible = is_invisible(session, combatant)
         concealed = combatant_id in hidden
         if invisible or concealed:
             out[combatant_id] = (invisible, concealed)

@@ -93,6 +93,10 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     "raise_damage_shield": (_T.ZERO, "\"only ... a Zero Phase Action to activate it\" (6E1 p.323)"),
     "drop_darkness": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
     "drop_image": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
+    "desolidify": (_T.ZERO, "\"activating a Power\" is a Zero Phase Action (6E2 p.20)"),
+    "drop_desolid": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
+    "turn_invisible": (_T.ZERO, "\"activating a Power\" is a Zero Phase Action (6E2 p.20)"),
+    "drop_invisible": (_T.ZERO, "\"turning off a Power\" is a Zero Phase Action (6E2 p.20)"),
     # escape_str's Casual offers are ZERO and its full ones BREAKOUT; see
     # `time_of`. The entry here is the full attempt.
     "escape_str": (_T.BREAKOUT, "6E2 p.126; Casual STR is 0 Phase (6E2 p.25)"),

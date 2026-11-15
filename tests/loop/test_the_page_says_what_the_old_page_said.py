@@ -238,6 +238,10 @@ class _Invisibility:
     name = "Invisibility"
     adders: list = []
     sub_powers: list = []
+    #: Persistent (6E1 p.130: "on at all times"), so it is on without being
+    #: switched on: `switched_powers.is_on`. An unswitched, non-Persistent
+    #: Invisibility hides nobody since 2026-11-15.
+    assigned_modifiers: list = [type("_Persistent", (), {"xmlid": "PERSISTENT"})()]
 
 
 def test_an_enemy_you_cannot_perceive_is_named_and_nothing_more():

@@ -129,7 +129,7 @@ def test_every_enumerable_kind_is_registered():
         f"registered but never offered: "
         f"{sorted(registered_kinds() - ALL_ACTION_KINDS)}"
     )
-    assert len(ALL_ACTION_KINDS) == 78     # opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, 2026-10-27; self_destruct; drop_darkness
+    assert len(ALL_ACTION_KINDS) == 82     # desolidify, drop_desolid, turn_invisible, drop_invisible (2026-11-15); opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, 2026-10-27; self_destruct; drop_darkness
 
 
 def test_the_declared_kinds_cover_every_literal_in_enumeration():

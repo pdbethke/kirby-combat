@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.38.0 — 2026-11-15
+
+### Changed — Invisibility is on only when it is switched on
+`concealment.is_invisible(session, combatant)` (now takes the session) answered from the BUILD: anyone who owned Invisibility was unseen all fight, even with it in an empty Multipower slot. Recorded against Bokor, Ravel's never-used "Active Camoflage" left Bokor offered only Grab and Trip for the whole fight. Invisibility is now on when he turns it on (`turn_invisible`, a Zero Phase Action, once a Phase, 6E2 p.20) and keeps it up (`kept_up`: END each Phase, its slot holding the reserve, down when Stunned/Knocked Out or Recovering), or when it is Persistent and its slot holds the reserve (6E1 p.130). `drop_invisible` turns it off.
+
+### Added — Desolidification
+`desolidify` / `drop_desolid`, the same switch (`switched_powers`), kept up the same way. While desolid (6E1 p.192-193; `desolidification.across_the_line`): offers at him are only Mental Powers, Flash, Presence Attacks and anything with Affects Desolidified; his offers at solid targets are only Presence Attacks (RULING) and anything with Affects Physical World; Block does not cross the line (RULING); two desolid men reach each other only as any desolid man is reached (RULING: "similar special effects" is not on a build). Not built: walking through walls, Aborting to Desolidify, shrugging off a Constant attack, Area attacks catching a desolid man by the way.
+
 ## 0.37.4 — 2026-11-15
 
 ### Fixed — a Grabbed man is not offered Hide

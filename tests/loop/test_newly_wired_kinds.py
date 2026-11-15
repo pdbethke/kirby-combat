@@ -169,7 +169,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 78   # opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
+    assert len(registered_kinds()) == 82   # desolidify, drop_desolid, turn_invisible, drop_invisible (2026-11-15); opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -212,6 +212,8 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "self_destruct",           # test_self_destruct
         "drop_darkness",           # test_kept_up
         "drop_image",              # test_kept_up
+        "desolidify", "drop_desolid",          # test_desolidification
+        "turn_invisible", "drop_invisible",    # test_invisibility_is_switched_on
     }
     assert registered_kinds() <= exercised, (
         f"registered but never exercised: {sorted(registered_kinds() - exercised)}"

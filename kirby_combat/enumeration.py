@@ -907,6 +907,10 @@ ALL_ACTION_KINDS = frozenset({
     "aid", "attack", "attack_construct", "block", "charm", "climb",
     "climb_fast", "conversation", "coordinate", "darkness_zone", "disarm",
     "drop_darkness", "drop_image",
+    # Desolidification on and off (`desolidification`, 6E1 p.192; 6E2 p.20).
+    "desolidify", "drop_desolid",
+    # Invisibility on and off (`switched_powers`, 6E1 p.243; 6E2 p.20).
+    "turn_invisible", "drop_invisible",
     "disengage",
     "dispel", "dodge", "drain", "entangle", "escape_attack", "escape_ego",
     "escape_str",
@@ -1781,6 +1785,20 @@ def enumerate_actions(
     from kirby_combat.kept_up import DROP_KIND, KeptKind
 
     for item in kept_up_items or ():
+        if item.kind in (KeptKind.DESOLID, KeptKind.INVISIBLE):
+            desolid = item.kind is KeptKind.DESOLID
+            actions.append(LegalAction(
+                action_id=f"{DROP_KIND[item.kind]}:{item.id}",
+                kind=DROP_KIND[item.kind], target_id=None,
+                power_xmlid="DESOLIDIFICATION" if desolid else "INVISIBILITY",
+                power_name="Desolidification" if desolid else "Invisibility",
+                summary=(("Become solid again (a Zero Phase Action, 6E2 p.20): "
+                          "you can hit, Grab and use your powers on solid "
+                          "targets, and they can hit you") if desolid else
+                         ("Turn your Invisibility off (a Zero Phase Action, "
+                          "6E2 p.20): it stops costing END, and you can be seen")),
+            ))
+            continue
         what = "Darkness field" if item.kind is KeptKind.DARKNESS else "Image"
         actions.append(LegalAction(
             action_id=f"{DROP_KIND[item.kind]}:{item.id}",

@@ -1,4 +1,4 @@
-"""The things a man keeps up on the board: Darkness fields and Images.
+"""The things a man keeps up: Darkness fields, Images and Desolidification.
 
 Both are Constant powers that leave something in the scene (6E1 p.188
 Darkness, "Duration: constant"; p.238 Images, "Duration: constant ... Costs
@@ -32,6 +32,8 @@ WHEN EACH ONE COMES DOWN (6E1 unless marked):
 
 A Darkness field is ONE USE's fields (one per Sense Group,
 `darkness_fields`); an Image is one projected Image (`actions/images.py`).
+Desolidification (6E1 p.192) is kept up on HIMSELF, so it has no location
+and no Line Of Sight to keep (`desolidification.py`).
 """
 from __future__ import annotations
 
@@ -51,10 +53,21 @@ from kirby_combat.upkeep import (
 class KeptKind(str, Enum):
     DARKNESS = "darkness"
     IMAGE = "image"
+    DESOLID = "desolid"
+    INVISIBLE = "invisible"
 
 
 #: The drop offer's kind, per thing kept up (6E2 p.20).
-DROP_KIND = {KeptKind.DARKNESS: "drop_darkness", KeptKind.IMAGE: "drop_image"}
+DROP_KIND = {KeptKind.DARKNESS: "drop_darkness", KeptKind.IMAGE: "drop_image",
+             KeptKind.DESOLID: "drop_desolid", KeptKind.INVISIBLE: "drop_invisible"}
+
+
+def _switch(kind: KeptKind):
+    """The `switched_powers.Switched` behind a personal kept-up kind, or None."""
+    from kirby_combat.switched_powers import Switched
+
+    return {KeptKind.DESOLID: Switched.DESOLID,
+            KeptKind.INVISIBLE: Switched.INVISIBLE}.get(kind)
 
 
 @dataclass(frozen=True)
@@ -84,6 +97,13 @@ def kept_up(session, *, owner_id: str | None = None) -> list[KeptUp]:
                    tuple(float(v) for v in i.position))
             for i in Images.active(session)
             if owner_id is None or i.caster_id == owner_id]
+    from kirby_combat.switched_powers import switched_on_ids
+
+    # Kept on himself: the id is his, and there is no place to see.
+    for kind in (KeptKind.DESOLID, KeptKind.INVISIBLE):
+        out += [KeptUp(kind, cid, cid, (0.0, 0.0, 0.0))
+                for cid in switched_on_ids(session, _switch(kind))
+                if owner_id is None or cid == owner_id]
     return out
 
 
@@ -93,9 +113,14 @@ def power_of(session, item: KeptUp) -> Any | None:
     from kirby_combat.enumeration import darkness_power, images_power
     from kirby_combat.identity import build_in_play
 
+    from kirby_combat.switched_powers import power_of as switched_power
+
     owner = session.combatants.get(item.owner_id)
     if owner is None:
         return None
+    switch = _switch(item.kind)
+    if switch is not None:
+        return switched_power(build_in_play(owner), switch)
     find = darkness_power if item.kind is KeptKind.DARKNESS else images_power
     return find(build_in_play(owner))
 
@@ -107,6 +132,10 @@ def end_kept(session, item: KeptUp, reason: UpkeepEnd):
         from kirby_combat.darkness_fields import end_field
 
         return end_field(session, item.construct_ids, item.owner_id, reason)
+    if _switch(item.kind) is not None:
+        from kirby_combat.switched_powers import turn_off
+
+        return turn_off(session, item.owner_id, _switch(item.kind), reason)
     from kirby_combat.actions.images import Images
 
     return Images.dismiss(session, image_id=item.id, reason=reason.value)
@@ -125,7 +154,7 @@ def maintain_kept_up(session, actor_id: str, *, template, roller):
         if not slot_still_allocated(session, actor_id, power):
             session = end_kept(session, item, UpkeepEnd.SLOT_SWITCHED)
             continue
-        if not sees(session, actor_id, item.location):
+        if _switch(item.kind) is None and not sees(session, actor_id, item.location):
             session = end_kept(session, item, UpkeepEnd.LOST_LINE_OF_SIGHT)
             continue
         # END on the Active Points the split leaves it (6E1 p.129-130,

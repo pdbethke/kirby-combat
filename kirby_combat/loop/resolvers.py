@@ -1838,6 +1838,59 @@ def _resolve_drop_darkness(
     return _drop_kept(session, actor, action, KeptKind.DARKNESS)
 
 
+@resolves("drop_desolid")
+def _resolve_drop_desolid(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    from kirby_combat.kept_up import KeptKind
+
+    return _drop_kept(session, actor, action, KeptKind.DESOLID)
+
+
+@resolves("drop_invisible")
+def _resolve_drop_invisible(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    from kirby_combat.kept_up import KeptKind
+
+    return _drop_kept(session, actor, action, KeptKind.INVISIBLE)
+
+
+def _turn_on(session, actor, action, switch, template) -> ResolvedAction:
+    """He switches a personal power on (6E2 p.20; `switched_powers`)."""
+    from kirby_combat.switched_powers import turn_on
+
+    new_session = turn_on(session, actor, switch, template=template)
+    return ResolvedAction(
+        session=new_session, kind=action.kind, action_id=action.action_id,
+        result=None, events=_events_since(session, new_session),
+    )
+
+
+@resolves("desolidify")
+def _resolve_desolidify(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Desolidification on (6E1 p.192)."""
+    from kirby_combat.switched_powers import Switched
+
+    return _turn_on(session, actor, action, Switched.DESOLID, template)
+
+
+@resolves("turn_invisible")
+def _resolve_turn_invisible(
+    session: "CombatSession", actor, action: LegalAction, *,
+    template: "CombatTemplate", roller,
+) -> ResolvedAction:
+    """Invisibility on (6E1 p.243)."""
+    from kirby_combat.switched_powers import Switched
+
+    return _turn_on(session, actor, action, Switched.INVISIBLE, template)
+
+
 @resolves("drop_image")
 def _resolve_drop_image(
     session: "CombatSession", actor, action: LegalAction, *,

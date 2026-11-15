@@ -157,6 +157,10 @@ class _InvisibilityPower:
     alias = "Invisibility"
     adders: list = []
     sub_powers: list = []
+    #: Persistent (6E1 p.130: "on at all times"), so it is on without being
+    #: switched on: `switched_powers.is_on`. An unswitched, non-Persistent
+    #: Invisibility hides nobody since 2026-11-15.
+    assigned_modifiers: list = [type("_Persistent", (), {"xmlid": "PERSISTENT"})()]
 
 
 def an_invisible_fighter_session(close_enough_for_the_fringe: bool = False):

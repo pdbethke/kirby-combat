@@ -184,7 +184,7 @@ def _combatant_view(
         prone=PRONE in held,
         stunned=STUNNED in held,
         ko=KNOCKED_OUT in held,
-        invisible=is_invisible(combatant),
+        invisible=is_invisible(session, combatant),
         perceives=sorted(
             str(other.id) for other in session.combatants.values()
             if str(other.id) != str(combatant.id)
