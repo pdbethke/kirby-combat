@@ -5,6 +5,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
+# RUNTIME import: `RulingsStated.rulings` is walked by the schema and
+# rehydrated by `from_dict`, both of which resolve the annotation by name.
+# `rulings` imports nothing from the session at module level, so no cycle.
+from kirby_combat.rulings import Ruling
+
 if TYPE_CHECKING:
     from kirby_combat.session.timeline import ActionIntent
 
@@ -1144,6 +1149,23 @@ class ChargeSpent(BaseEvent):
 
 
 @dataclass
+class RulingsStated(BaseEvent):
+    """The GM's rulings about one fighter, as this fight applies them.
+
+    Appended once per fighter as the fight is created, by whoever pins the
+    campaign's rulings to it (`rulings.state_rulings`), so a replay applies
+    the same rulings the live fight did and an edit mid-fight applies from
+    the next fight. ``rulings`` holds his body facts and the routes his
+    powers travel by (`rulings.Ruling`). Data only: `apply_event` refuses a
+    second for the same fighter and changes nothing on the snapshot; the
+    gate reads it from the log (`rulings.rulings_for`).
+    """
+    kind: Literal["RulingsStated"] = field(default="RulingsStated", init=False)
+    combatant_id: str = ""
+    rulings: tuple[Ruling, ...] = ()
+
+
+@dataclass
 class PowerDispelled(BaseEvent):
     """One of the target's powers stops working (6E1 p.195).
 
@@ -1268,6 +1290,7 @@ CombatEvent = (
     | DarknessEnded
     | SlotsAllocated
     | ChargeSpent
+    | RulingsStated
     | PowerDispelled
     | PowerRestarted
     | WeaponMoved

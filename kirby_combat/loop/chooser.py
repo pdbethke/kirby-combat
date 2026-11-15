@@ -43,6 +43,7 @@ from kirby_combat.tactics.library import tactics_for
 
 if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
+    from kirby_combat.rulings import Withheld
     from kirby_combat.squads import FireTeam, OrdersPage, SquadOrders, KeepOrders
 
 
@@ -150,6 +151,11 @@ class PhaseSituation:
     #: ``opening_split`` offer that he answers with a split. False on every
     #: other question; a structural marker, not a domain choice.
     opening: bool = False
+    #: The offers a gate took off this menu, each with its reason
+    #: (`rulings.Withheld`): read by the page and the app rather than
+    #: recomputed. Empty when nothing was withheld. Filled by the GM
+    #: rulings gate (`rulings.rulings_gate`).
+    withheld: list["Withheld"] = field(default_factory=list)
 
     @property
     def halves_left(self) -> int | None:

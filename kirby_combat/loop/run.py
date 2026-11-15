@@ -814,6 +814,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     from kirby_combat.switched_powers import turn_on_offers
 
     menu = across_the_line(session, actor_id, menu)
+    # WHAT THE GM HAS RULED CANNOT REACH HIM: an offer whose every delivery
+    # route is closed on its target (a body fact, or Self-Contained
+    # Breathing, 6E1 p.247) is not offered, and the page is told why
+    # (`rulings.rulings_gate`).
+    from kirby_combat.rulings import rulings_gate
+
+    menu, withheld = rulings_gate(session, actor_id, menu)
     menu = menu + turn_on_offers(session, actor, template=session.template)
     # NO RECOVERY HOLDING HIS BREATH (6E2 p.132): not offered for nothing.
     from kirby_combat.recovery_limits import without_futile_recovery
@@ -837,6 +844,7 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         reach_m=reach_m,
         session=session,
         segment=session.timeline.segment, turn=session.timeline.turn,
+        withheld=withheld,
     )
     return situation
 

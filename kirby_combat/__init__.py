@@ -219,6 +219,15 @@ from kirby_combat.squads import (  # noqa: E402
 from kirby_combat.threat_picture import (  # noqa: E402
     ThreatLine, ThreatPicture, threat_picture,
 )
+# GM rulings (0.39.0): the vocabulary, the row and the menu gate.
+# The gate itself (`rulings_gate`, `routes_of`) runs inside the loop and is
+# not on the surface: a consumer states rulings and reads what was withheld
+# off `PhaseSituation.withheld`.
+from kirby_combat.rulings import (  # noqa: E402
+    CLOSES, BodyFact, DeliveryRoute, Ruling, Withheld, closed_routes,
+    rulings_for, state_rulings,
+)
+from kirby_combat.session.events import RulingsStated  # noqa: E402
 
 __all__ = [
     # The setting hierarchy
@@ -262,6 +271,9 @@ __all__ = [
     "TeamTask", "FireTeam", "SquadOrders", "KEEP_ORDERS", "KeepOrders",
     "OrdersPage", "OrdersChooser", "InvalidOrders", "validate_orders",
     "order_fit", "orders_for",
+    # GM rulings: body facts, delivery routes, and what they withhold
+    "BodyFact", "CLOSES", "DeliveryRoute", "Ruling", "RulingsStated",
+    "Withheld", "closed_routes", "rulings_for", "state_rulings",
     "AbortDeclared", "ActingOrderResolved", "ActionDeclared", "ActionResolved",
     "BleedingSuffered", "CombatEvent", "PhaseSpent", "RecoveryTaken",
     "VitalsChanged",

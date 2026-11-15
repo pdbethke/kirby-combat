@@ -280,6 +280,23 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # the log; nothing on the snapshot holds a Charge count.
         return replace(session, event_log=new_log, updated_at=now)
 
+    if kind == "RulingsStated":
+        # Read from the log (`rulings.rulings_for`); nothing on the snapshot
+        # holds a ruling. Once per fighter, and only a fighter in the fight,
+        # enforced here so a replay refuses what the live fight would.
+        if event.combatant_id not in session.combatants:
+            raise KeyError(
+                f"RulingsStated for {event.combatant_id!r} in session "
+                f"{session.id!r}: no such combatant")
+        if any(getattr(e, "kind", None) == "RulingsStated"
+               and e.combatant_id == event.combatant_id
+               for e in session.event_log):
+            raise ValueError(
+                f"RulingsStated for {event.combatant_id!r} in session "
+                f"{session.id!r}: his rulings are already stated; they are "
+                "fixed when the fight starts")
+        return replace(session, event_log=new_log, updated_at=now)
+
     if kind == "StatusEffectsChanged":
         assert isinstance(event, StatusEffectsChanged)
         return _fold_statuses(session, new_log, now, event)

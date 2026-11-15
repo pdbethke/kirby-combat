@@ -2273,9 +2273,17 @@ class HeroCombatant(Stunnable, CombatParticipant):
         return tuple(rungs)
 
     def has_self_contained_breathing(self) -> bool:
-        """True if a Life Support power grants Self-Contained Breathing / no need
-        to breathe — immune to suffocation. Walks hero.powers (the engine reads
-        the LoadedHero; there is no flat helper)."""
+        """True if a Life Support power in the build he is in carries the
+        Self-Contained Breathing Adder (6E1 p.247): he does not breathe, so
+        nothing reaches him through his breath and he cannot suffocate.
+
+        Read off the Adder's xmlid on ``assigned_adders``, where kirby-cost
+        keeps a purchase's Adders. This used to match words in the power's
+        name and in an ``adders`` attribute the build objects do not have,
+        so a Life Support bought in Hero Designer (Ravel's, unnamed) never
+        counted: only one whose NAME said "Self-Contained Breathing" did.
+        Read off ``_build()``, so one bought Only In Hero ID counts only in
+        his Hero identity (`identity.build_in_play`)."""
         # TODO: does not recurse into sub_powers — a LIFESUPPORT inside a
         # Multipower/Framework slot is missed (matches attack_view's first-pass
         # behavior; revisit if a framework-housed Life Support character appears).
@@ -2284,13 +2292,8 @@ class HeroCombatant(Stunnable, CombatParticipant):
         for p in getattr(self._build(), "powers", []) or []:
             if (getattr(p, "xmlid", "") or "").upper() != "LIFESUPPORT":
                 continue
-            blob = " ".join([
-                (getattr(p, "alias", "") or ""),
-                (getattr(p, "name", "") or ""),
-                " ".join((getattr(a, "alias", "") or "") for a in getattr(p, "adders", []) or []),
-                " ".join((getattr(a, "option_alias", "") or "") for a in getattr(p, "adders", []) or []),
-            ]).lower()
-            if "self-contained breathing" in blob or "does not breathe" in blob or "self contained" in blob:
+            if any((getattr(a, "xmlid", "") or "").upper() == "SELFCONTAINEDBREATHING"
+                   for a in getattr(p, "assigned_adders", None) or []):
                 return True
         return False
 

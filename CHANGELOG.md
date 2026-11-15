@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.39.0 — 2026-11-15
+
+**GM rulings: what the table has ruled about a body, and what it takes off the menu.**
+
+### Added — rulings, the `RulingsStated` row, and the gate
+- **`kirby_combat.rulings`**: `BodyFact` (`no_lungs`, `no_skin`, `no_organs`), `DeliveryRoute` (`breath`, `skin`, `ingestion`) and `CLOSES` (each fact to the route it closes). `Ruling(power_id, fact, sentence)`: a fact about the fighter's body when `power_id` is None (a `BodyFact` value), else the routes one of his powers travels by (a `DeliveryRoute` value, the power named by its HD `ID`). Anything outside the vocabulary, or an empty sentence, raises `ValueError`. A ruling only takes away; it never grants points, powers or defences.
+- **`RulingsStated`** (new event, in the shipped schema): one fighter's rulings, appended once as the fight is created (`state_rulings(session, combatant_id, rulings)`). `apply_event` refuses a second for the same fighter and a fighter not in the fight; `state_rulings` also refuses a power ruling naming a power his build does not have. Nothing on the snapshot changes: `rulings_for(session, combatant_id)` reads the log, so a replay applies the same rulings (`()` when none were stated).
+- **The gate** (`rulings_gate`, run in `loop.run._situation_for` straight after `across_the_line`): an offer whose power travels by routes is not offered against a target on whom every one of them is closed, by a body fact or by Self-Contained Breathing in the build he is in (6E1 p.247; Only In Hero ID counts only in his Hero identity). One open route and it is offered and resolves as before. A ruling on a Multipower or VPP covers its slots: routes are read off the offer's source power, then up its `parent_id`s, nearest ruling first. `closed_routes(session, combatant_id)` and `routes_of(session, actor_id, action)` answer the two halves.
+- **`PhaseSituation.withheld`**: the offers a gate removed, each a `Withheld(action_id, summary, reason)`; empty when nothing was withheld, and carried onto a Held Action's question. Reason text: `Not offered against <target>: <power> needs <routes>; <target> has none of them (GM ruling: "<sentence>"; Self-Contained Breathing)`.
+- **The Brief** shows every ruling in the fight verbatim under "GM rulings:" and the withheld reasons under "Not on your menu:", each only when there is one.
+
+### Fixed — Self-Contained Breathing is read off the Adder
+`HeroCombatant.has_self_contained_breathing` matched words in the Life Support's name and in an `adders` attribute build objects do not have, so a Life Support bought in Hero Designer with the Self-Contained Breathing Adder (Ravel's) never counted; only one NAMED "Self-Contained Breathing" did. It now reads the `SELFCONTAINEDBREATHING` Adder on `assigned_adders`, in the build in play. **Behaviour change:** such a character is now immune to suffocation zones and stops Choke Hold's NND (6E2 p.86), as the book says.
+
 ## 0.38.0 — 2026-11-15
 
 ### Changed — Invisibility is on only when it is switched on

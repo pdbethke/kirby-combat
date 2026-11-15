@@ -3773,6 +3773,99 @@
       "title": "ReturnedToTheBoard",
       "type": "object"
     },
+    "Ruling": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Ruling",
+          "enum": [
+            "Ruling"
+          ],
+          "type": "string"
+        },
+        "fact": {
+          "type": "string"
+        },
+        "power_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sentence": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "power_id",
+        "fact",
+        "sentence"
+      ],
+      "title": "Ruling",
+      "type": "object"
+    },
+    "RulingsStated": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "RulingsStated",
+          "enum": [
+            "RulingsStated"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "RulingsStated",
+          "enum": [
+            "RulingsStated"
+          ],
+          "type": "string"
+        },
+        "rulings": {
+          "items": {
+            "$ref": "#/$defs/Ruling"
+          },
+          "type": "array"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "rulings"
+      ],
+      "title": "RulingsStated",
+      "type": "object"
+    },
     "Scene": {
       "additionalProperties": false,
       "properties": {
@@ -5020,7 +5113,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.38.0",
+  "$id": "urn:kirby-combat:schema:events:0.39.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -5159,6 +5252,9 @@
       "$ref": "#/$defs/ReturnedToTheBoard"
     },
     {
+      "$ref": "#/$defs/RulingsStated"
+    },
+    {
       "$ref": "#/$defs/SegmentAdvanced"
     },
     {
@@ -5196,5 +5292,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.38.0"
+  "x-kirby-combat-version": "0.39.0"
 }

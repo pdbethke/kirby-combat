@@ -214,6 +214,12 @@ UNDEMONSTRATED = {
     # is a class and therefore exempt from this check. A worked example for
     # the whole Presence ladder is OWED and would remove this entry.
     "effect_for_tier",
+    # Added 0.39.0 with GM rulings. A worked example needs a fighter whose
+    # build carries HD ids (a power ruling names one, and Self-Contained
+    # Breathing is read off the build), and examples/ run without the
+    # maintainer's corpus; the stat blocks they use have no build. OWED:
+    # an example on a build doc the package can ship.
+    "closed_routes", "rulings_for", "state_rulings",
 }
 
 

@@ -763,6 +763,17 @@ class Brief:
                     lines.append(heading)
                     lines.extend(f"  {row}" for row in rows)
 
+        # WHAT THE GM HAS RULED, verbatim, about anyone in the fight: the
+        # table's facts are everybody's (`rulings.ruling_lines`).
+        if situation.session is not None:
+            from kirby_combat.rulings import ruling_lines
+
+            rulings = ruling_lines(situation.session)
+            if rulings:
+                lines.append("")
+                lines.append("GM rulings:")
+                lines.extend(f"  {row}" for row in rulings)
+
         # WHAT THE SIDE WANTS, which is not the same as what the man
         # wants. See `Side.objective`.
         objective = getattr(getattr(self._situation.actor, "side", None),
@@ -796,6 +807,14 @@ class Brief:
             lines.append("")
             lines.append("What your doctrine says, best first:")
             lines.extend(f"  {line}" for line in lines_of_doctrine)
+
+        # WHAT A GATE TOOK OFF HIS MENU, and why, just above the menu: a
+        # reader who wonders where an attack went is told, and is not
+        # offered it (`PhaseSituation.withheld`).
+        if situation.withheld:
+            lines.append("")
+            lines.append("Not on your menu:")
+            lines.extend(f"  {w.reason}" for w in situation.withheld)
 
         lines.append("")
         lines.append(f"Legal actions this Phase ({len(self.menu)}):")

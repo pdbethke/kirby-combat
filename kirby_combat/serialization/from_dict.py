@@ -64,6 +64,9 @@ def _ensure_registry() -> None:
     from kirby_combat.session.events import EVENT_CLASSES, EventAuthor
     for cls in EVENT_CLASSES:
         _register(cls)
+    # What a `RulingsStated` row carries (`kirby_combat.rulings`).
+    from kirby_combat.rulings import Ruling
+    _register(Ruling)
     for cls in [
         Scene, SceneBounds, Position, AmbientConditions,
         Surface, Wall, Hazard, HazardEffect,

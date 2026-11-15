@@ -728,6 +728,7 @@ def ask_holders(
             allies=base.allies, fallen_allies=base.fallen_allies,
             distances_m=base.distances_m, reach_m=base.reach_m,
             session=session, segment=base.segment, turn=base.turn,
+            withheld=base.withheld,
             out_of_turn=OutOfTurn(
                 reason=OutOfTurnReason.HELD_ACTION, by_id=actor_id,
                 incoming=None, attack=None,
