@@ -2043,7 +2043,10 @@ def enumerate_actions(
     # from enemies who can't perceive them. Hide breaks on the actor's next
     # overt attack (break-on-attack, driver-side).
     _actor_already_hidden = bool((concealment or {}).get(actor.id, (False, False))[1])
-    if not _actor_already_hidden:
+    # RULING: not while Grabbed. A Grab holds him against the grabber (6E2
+    # p.67-68), and nobody breaks line of sight from the man whose hands are
+    # on him. tests/test_a_held_man_cannot_hide.py.
+    if not _actor_already_hidden and not grabbed_by:
         # NO `except Exception` here. One swallowed every Surface's
         # TypeError and turned "this code is broken" into "there is no
         # cover", so Hide was silently never offered next to a Surface.

@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.37.3 — 2026-11-15
+## 0.37.4 — 2026-11-15
+
+### Fixed — a Grabbed man is not offered Hide
+Bokor, held by Ravel beside a wall, was offered "Hide -- break line-of-sight behind cover". The gate asked only whether cover was in reach. RULING: a Grab holds him against the grabber (6E2 p.67-68), and nobody breaks line of sight from the man whose hands are on him, so Hide is not offered while Grabbed.
+
+### Release note
+0.37.3 was tagged but never published: its shipped event schema still named 0.37.2, and the release gate refused it. 0.37.4 carries 0.37.3's fix (attack offers state the half die and pip) with the schema regenerated.
+
+## 0.37.3 — 2026-11-15 (not published)
 
 ### Fixed — an attack offer states the half die and the pip it rolls
 The plain attack offer wrote only `damage_dice`, so a 2½d6 attack was offered as "2d6" and an RKA bought at 0 dice plus a pip as "0d6K", an attack that reads as doing nothing. The resolver always rolled them; only the page the chooser reads was wrong. New `enumeration.dice_label(attack)` writes `2½d6+1K` from the same four fields the roll uses, and the Haymaker offer, which already wrote them, now shares it.
