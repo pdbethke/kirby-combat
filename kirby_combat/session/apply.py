@@ -282,8 +282,24 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
 
     if kind == "RulingsStated":
         # Read from the log (`rulings.rulings_for`); nothing on the snapshot
-        # holds a ruling. Once per fighter, and only a fighter in the fight,
-        # enforced here so a replay refuses what the live fight would.
+        # holds a ruling. Once per fighter, only a fighter in the fight, and
+        # only BEFORE THE FIGHT HAS DONE ANYTHING: the window is the start
+        # of the log, `SessionStarted` and other `RulingsStated` rows only.
+        # The first row of any other kind closes it --- in practice an
+        # opening split's `ActionDeclared` or `SlotsAllocated` before
+        # Segment 12, else the first `ActingOrderResolved` /
+        # `SegmentAdvanced` --- so no menu changes mid-fight (spec §7a: an
+        # edit applies from the next fight). Enforced here so a replay
+        # refuses what the live fight would.
+        late = next((e for e in session.event_log
+                     if getattr(e, "kind", None)
+                     not in ("SessionStarted", "RulingsStated")), None)
+        if late is not None:
+            raise ValueError(
+                f"RulingsStated for {event.combatant_id!r} in session "
+                f"{session.id!r} after a {late.kind} row (sequence "
+                f"{late.sequence}): rulings are fixed when the fight starts, "
+                "stated after SessionStarted and before anything else")
         if event.combatant_id not in session.combatants:
             raise KeyError(
                 f"RulingsStated for {event.combatant_id!r} in session "

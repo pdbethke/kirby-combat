@@ -221,6 +221,40 @@ def test_rulings_are_stated_once_per_fighter():
         state_rulings(s, "ravel", _body(BodyFact.NO_LUNGS))
 
 
+def test_rulings_are_fixed_once_the_fight_has_moved():
+    """Spec §7a: an edit mid-fight applies from the next fight. Any row
+    other than SessionStarted / RulingsStated closes the window; here the
+    first Phase's own rows, from the loop."""
+    from kirby_combat.encounter import Encounter
+    from kirby_combat.loop import FirstLegalChooser, run_phase
+
+    s = _session()
+    ravel = s.combatants["ravel"]
+    # Ravel's frameworks split ahead (all off), so first-legal is not asked
+    # for an opening split it will not choose (6E1 p.404-406).
+    split = {f.framework_id: {sl.slot_id: 0 for sl in f.slots}
+             for f in ravel.framework_view()}
+    s = replace(s, combatants={**s.combatants, "ravel": replace(
+        ravel, state=replace(ravel.state, slot_points=split))})
+    s = _ruled(s, ravel=_body(BodyFact.NO_SKIN))
+    moved = run_phase(Encounter(id="e", turn=1, segment=12, sessions=[s]), FirstLegalChooser(),
+                      roller=RandomRoller(seed=1)).session
+    late = [e.kind for e in moved.event_log
+            if e.kind not in ("SessionStarted", "RulingsStated")]
+    assert late, "the Phase must have put rows on the log"
+    with pytest.raises(ValueError, match=f"after a {late[0]} row"):
+        state_rulings(moved, "bokor", _routes(DeliveryRoute.SKIN))
+
+    # A valid log, rulings first and then the fight, still replays.
+    rebuilt = CombatSession.create(
+        id=moved.id, combatants=list(moved.initial_combatants.values()),
+        scene=None, template=moved.template, dice_roller=moved.dice_roller)
+    for event in moved.event_log:
+        rebuilt = apply_event(rebuilt, from_dict(to_dict(event)))
+    assert rulings_for(rebuilt, "ravel") == rulings_for(moved, "ravel")
+    assert len(rebuilt.event_log) == len(moved.event_log)
+
+
 def test_rulings_name_a_fighter_in_the_fight():
     with pytest.raises(KeyError, match="nobody"):
         state_rulings(_session(), "nobody", _body(BodyFact.NO_SKIN))

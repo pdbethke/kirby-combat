@@ -1156,9 +1156,12 @@ class RulingsStated(BaseEvent):
     campaign's rulings to it (`rulings.state_rulings`), so a replay applies
     the same rulings the live fight did and an edit mid-fight applies from
     the next fight. ``rulings`` holds his body facts and the routes his
-    powers travel by (`rulings.Ruling`). Data only: `apply_event` refuses a
-    second for the same fighter and changes nothing on the snapshot; the
-    gate reads it from the log (`rulings.rulings_for`).
+    powers travel by (`rulings.Ruling`). Data only: `apply_event` changes
+    nothing on the snapshot (the gate reads the log, `rulings.rulings_for`)
+    and refuses a second for the same fighter, and any once the log holds a
+    row other than `SessionStarted` and `RulingsStated`: the first such row
+    (an opening split's `ActionDeclared`/`SlotsAllocated`, else the first
+    `ActingOrderResolved`/`SegmentAdvanced`) closes the window.
     """
     kind: Literal["RulingsStated"] = field(default="RulingsStated", init=False)
     combatant_id: str = ""

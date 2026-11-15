@@ -124,8 +124,10 @@ def state_rulings(session: CombatSession, combatant_id: str,
                   rulings: Sequence[Ruling]) -> CombatSession:
     """Put one fighter's rulings on the log (`RulingsStated`).
 
-    Once per fighter per fight; `apply_event` refuses a second, and a
-    fighter not in the fight. A power ruling must name a power on his build
+    Once per fighter per fight, as the fight starts: `apply_event` refuses a
+    second, a fighter not in the fight, and any after the log holds a row
+    other than `SessionStarted` and `RulingsStated` (the first opening
+    split or Phase row closes the window). A power ruling must name a power on his build
     (checked here, where the build is whole; a replay from snapshots has
     only the recorded views).
     """
