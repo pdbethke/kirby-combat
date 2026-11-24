@@ -5251,6 +5251,65 @@
       "title": "StatusEffectsChanged",
       "type": "object"
     },
+    "StructureBroughtDown": {
+      "additionalProperties": false,
+      "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
+        "__type__": {
+          "const": "StructureBroughtDown",
+          "enum": [
+            "StructureBroughtDown"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "construct_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "StructureBroughtDown",
+          "enum": [
+            "StructureBroughtDown"
+          ],
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "__format__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "construct_id",
+        "outcome"
+      ],
+      "title": "StructureBroughtDown",
+      "type": "object"
+    },
     "Surface": {
       "additionalProperties": false,
       "properties": {
@@ -5784,6 +5843,9 @@
     },
     {
       "$ref": "#/$defs/StatusEffectsChanged"
+    },
+    {
+      "$ref": "#/$defs/StructureBroughtDown"
     },
     {
       "$ref": "#/$defs/VitalsChanged"

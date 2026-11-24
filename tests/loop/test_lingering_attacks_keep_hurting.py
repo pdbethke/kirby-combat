@@ -19,6 +19,8 @@ Both fighters are SPD 4 (Phases 3, 6, 9, 12); the attacker is the faster.
 """
 from __future__ import annotations
 
+import pytest
+
 from dataclasses import replace
 
 from shaped import (                                    # tests/loop/shaped.py
@@ -118,6 +120,7 @@ def test_it_stops_when_the_attacker_is_stunned():
     assert payloads(enc.sessions[0], lingering_mode="constant") == []
 
 
+@pytest.mark.state_set_by_hand("puts a wall up mid-fight by replacing the scene")
 def test_it_stops_when_he_loses_line_of_sight():
     """6E1 p.129: "or loses LOS to the target". A wall goes up between them."""
     enc = _fight(shaped_blast("a-beam", 4, constant=True))

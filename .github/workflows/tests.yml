@@ -26,3 +26,13 @@ jobs:
         run: pip install -e .[dev]
       - name: Run tests
         run: pytest -q --tb=short
+      # REPLAY PARITY (two-databases spec §6 R1, the Danger Room): every
+      # fight the suite runs is rebuilt from its own log after every Phase
+      # and must match the fight that ran. A divergence fails the job and
+      # names the field and the test (tests/conftest.py). A test that sets
+      # state by hand carries @pytest.mark.state_set_by_hand(reason).
+      - name: Replay parity sweep
+        run: pytest -q --tb=short --replay-parity=replay-parity.jsonl
+      - name: Show replay divergences
+        if: failure()
+        run: cat replay-parity.jsonl || true

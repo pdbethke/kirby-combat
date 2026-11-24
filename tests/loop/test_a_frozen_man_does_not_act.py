@@ -39,6 +39,8 @@ where every other per-Segment clock is wound.
 """
 from __future__ import annotations
 
+import pytest
+
 from conftest import fighter, session_of            # tests/loop/conftest.py
 from kirby_combat.loop.run import run_phase
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
@@ -77,6 +79,7 @@ def test_the_rules_say_he_cannot_act():
     assert can_act(session, "virgil") is True
 
 
+@pytest.mark.state_set_by_hand("writes the acting order straight onto the timeline")
 def test_the_loop_does_not_hand_him_a_phase():
     """The defect. He was asked to decide and he shot somebody.
 

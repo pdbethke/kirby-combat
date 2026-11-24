@@ -1024,6 +1024,19 @@ class ConstructDamaged(BaseEvent):
 
 
 @dataclass
+class StructureBroughtDown(BaseEvent):
+    """A construct's BODY ran out and it came down (`collapse.bring_it_down`).
+    ``outcome`` is a `collapse.Outcome` value: ``smashed`` (gone),
+    ``breached`` (a hole: no longer blocks sight, still blocks movement) or
+    ``collapsed`` (gone; whoever it fell on is hurt on their own
+    `VitalsChanged`). `apply_event` changes the board, so a replay does."""
+    kind: Literal["StructureBroughtDown"] = field(
+        default="StructureBroughtDown", init=False)
+    construct_id: str = ""
+    outcome: str = ""
+
+
+@dataclass
 class ConstructSpawned(BaseEvent):
     kind: Literal["ConstructSpawned"] = field(default="ConstructSpawned", init=False)
     construct_id: str = ""
@@ -1342,6 +1355,7 @@ CombatEvent = (
     | GMOverride
     | SessionEnded
     | FightTermsStated
+    | StructureBroughtDown
     | EndProposed
     | EndDeclined
 )

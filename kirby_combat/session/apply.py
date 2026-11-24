@@ -34,6 +34,12 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "SessionStarted":
         return replace(session, event_log=new_log, status="active", updated_at=now)
 
+    if kind == "StructureBroughtDown":
+        # The board after a construct came down (`collapse.fold_brought_down`).
+        from kirby_combat.collapse import fold_brought_down
+        return replace(fold_brought_down(session, event),
+                       event_log=new_log, updated_at=now)
+
     if kind in ("FightTermsStated", "EndProposed", "EndDeclined", "SessionEnded"):
         _check_ending_event(session, event)
         if kind == "SessionEnded":

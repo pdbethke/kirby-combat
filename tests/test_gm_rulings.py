@@ -223,6 +223,7 @@ def test_rulings_are_stated_once_per_fighter():
         state_rulings(s, "ravel", _body(BodyFact.NO_LUNGS))
 
 
+@pytest.mark.state_set_by_hand("sets the opening Multipower split by replacing the combatant")
 def test_rulings_are_fixed_once_the_fight_has_moved():
     """Spec §7a: an edit mid-fight applies from the next fight. Any row
     other than SessionStarted / RulingsStated closes the window; here the

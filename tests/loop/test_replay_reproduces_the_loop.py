@@ -14,6 +14,8 @@ a fresh roller and an EMPTY log; the only thing it is given is the events.
 """
 from __future__ import annotations
 
+import pytest
+
 from fixtures.terms import terms_stated
 
 from conftest import fighter  # tests/loop/conftest.py
@@ -210,6 +212,7 @@ def test_the_replay_skips_the_downed_man_the_original_skipped():
     assert next_actor_id(rebuilt) == next_actor_id(original) == "c"
 
 
+@pytest.mark.state_set_by_hand("knocks a man out by assigning his STUN")
 def test_the_skip_rides_out_on_the_phase_result():
     """A consumer persists what a `PhaseResult` hands it, and no more."""
     original = _knocked_out(_ran_a_segment_and_a_phase(), "b")

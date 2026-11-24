@@ -19,6 +19,8 @@ Example paraphrased; this project ships no rules text.
 """
 from __future__ import annotations
 
+import pytest
+
 from fixtures.terms import terms_stated
 
 import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
@@ -129,6 +131,7 @@ def test_stabilizing_gives_back_no_body():
     assert after.combatants["hurt"].state.current_body == -4
 
 
+@pytest.mark.state_set_by_hand("wounds a man by assigning his BODY, not by a VitalsChanged")
 def test_the_driver_tells_enumeration_who_is_on_his_side():
     """Enumeration knowing how is worth nothing if the loop never says
     who the actor's allies are -- and `Roster.allies_of` excludes the

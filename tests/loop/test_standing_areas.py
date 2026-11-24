@@ -22,6 +22,8 @@ target; c (hero, DEX 20) 20m out along the same line. All SPD 4 (Phases 3,
 """
 from __future__ import annotations
 
+import pytest
+
 from dataclasses import replace
 
 from shaped import (                                    # tests/loop/shaped.py
@@ -228,6 +230,7 @@ def test_it_stops_when_he_cannot_pay():
     assert _doses(enc, Dose.PHASE) == []
 
 
+@pytest.mark.state_set_by_hand("puts a wall up mid-fight by replacing the scene")
 def test_it_stops_when_he_loses_sight_of_the_spot():
     """6E1 p.129: "maintain a Line Of Sight to the location of the Power"."""
     from kirby_world.scene import Position, Wall

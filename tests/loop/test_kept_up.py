@@ -18,6 +18,8 @@ Scene: the caster (villain, DEX 30) at the origin, the mark (hero) 20m out.
 """
 from __future__ import annotations
 
+import pytest
+
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -181,6 +183,7 @@ def test_it_goes_down_when_he_cannot_pay():
     assert _zones(enc) == []
 
 
+@pytest.mark.state_set_by_hand("puts a wall up mid-fight by replacing the scene")
 def test_it_goes_down_when_he_loses_sight_of_it():
     """6E1 p.129: "maintain a Line Of Sight to the location of the Power"."""
     from kirby_world.scene import Position, Wall

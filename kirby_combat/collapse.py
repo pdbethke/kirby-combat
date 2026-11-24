@@ -21,6 +21,7 @@ it off, and should.
 """
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any
 
 #: 6E2 p.142. One die per FULL 2m --- a five-metre building is two dice,
@@ -51,7 +52,7 @@ def is_structure(construct: Any) -> bool:
     return bool(getattr(construct, "polygon_xy", None))
 
 
-def _breach(session: Any, wall: Any):
+def _breach(session: Any, wall_id: str):
     """Put a hole in a wall and leave the building standing.
 
     6E2 p.172's own worked example is the authority for what a wall's
@@ -69,8 +70,7 @@ def _breach(session: Any, wall: Any):
     from dataclasses import replace
 
     scene = getattr(session, "scene", None)
-    wall_id = getattr(wall, "id", None) or getattr(wall, "obj_id", None)
-    if scene is None or wall_id is None:
+    if scene is None:
         return session
     walls = list(getattr(scene, "walls", None) or [])
     for i, existing in enumerate(walls):
@@ -187,7 +187,7 @@ def bring_it_down(session: Any, construct: Any, *, roller, template,
 
     # A FACE OF A BUILDING IS NOT THE BUILDING.
     if getattr(construct, "part_of", None) and not is_structure(construct):
-        return _breach(session, construct), []
+        return _record_down(session, construct, Outcome.BREACHED, caused_by), []
 
     dice = collapse_damage_dice(getattr(construct, "height_m", 0.0))
     if dice <= 0:
@@ -197,7 +197,7 @@ def bring_it_down(session: Any, construct: Any, *, roller, template,
         # scene and went on granting cover and turning movement back for
         # the rest of the fight -- the same defect `_off_the_board` was
         # written to fix, surviving in the one branch that skipped it.
-        return _off_the_board(session, construct), []
+        return _record_down(session, construct, Outcome.SMASHED, caused_by), []
 
     rubble = AttackPower(
         xmlid="COLLAPSE", name="falling structure", damage_dice=dice,
@@ -236,20 +236,65 @@ def bring_it_down(session: Any, construct: Any, *, roller, template,
     #
     # Taking it off the board is part of bringing it down, which is why
     # this lives here rather than in either caller.
-    return _off_the_board(session, construct), caught
+    return _record_down(session, construct, Outcome.COLLAPSED, caused_by), caught
 
 
-def _off_the_board(session: Any, construct: Any):
-    """Remove a collapsed structure from the scene it was part of."""
+class Outcome(str, Enum):
+    """What bringing a thing down did to the board (`bring_it_down`)."""
+
+    #: Gone, and nothing fell on anybody (a barrel; anything too low to hurt).
+    SMASHED = "smashed"
+    #: A hole in a wall face: stops blocking sight, still blocks movement.
+    BREACHED = "breached"
+    #: A structure came down, on whoever was under it, and is gone.
+    COLLAPSED = "collapsed"
+
+
+def _record_down(session: Any, construct: Any, outcome: Outcome,
+                 caused_by: str | None):
+    """Put ``StructureBroughtDown`` on the log; `apply_event` changes the
+    board (`fold_brought_down`). The board used to be changed here, in
+    place, with no row a replay could fold: smashed crates stood back up
+    in every replay (found by the parity sweep, 2026-11-24)."""
+    import uuid
+    from datetime import UTC, datetime
+
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import (
+        StructureBroughtDown, make_author_combatant, make_author_engine,
+    )
+
+    obj_id = (getattr(construct, "obj_id", None)
+              or getattr(construct, "id", None))
+    if getattr(session, "scene", None) is None or obj_id is None:
+        return session
+    return apply_event(session, StructureBroughtDown(
+        id=str(uuid.uuid4()), session_id=session.id,
+        sequence=len(session.event_log) + 1, timestamp=datetime.now(UTC),
+        author=(make_author_combatant(caused_by) if caused_by
+                else make_author_engine()),
+        construct_id=obj_id, outcome=Outcome(outcome).value,
+    ))
+
+
+def fold_brought_down(session: Any, event: Any):
+    """`apply_event`'s fold for ``StructureBroughtDown``: the board after."""
+    if Outcome(event.outcome) is Outcome.BREACHED:
+        return _breach(session, event.construct_id)
+    return _off_the_board(session, event.construct_id)
+
+
+def _off_the_board(session: Any, obj_id: str):
+    """Remove a collapsed structure from the scene it was part of.
+
+    By id: `_record_down` reads EITHER NAME off what it was handed
+    (resolvers hand the projected `Construct`, ``obj_id``; a caller holding
+    the authored `Wall` has ``id``), because reading only one of them once
+    silently left the other on the board."""
     from dataclasses import replace
 
     scene = getattr(session, "scene", None)
-    # EITHER NAME. Resolvers hand this the projected `Construct` (obj_id);
-    # a caller holding the authored `Wall` has `id`. Reading only one of
-    # them silently left the other on the board.
-    obj_id = (getattr(construct, "obj_id", None)
-              or getattr(construct, "id", None))
-    if scene is None or obj_id is None:
+    if scene is None:
         return session
     # A FURNISHING IS ITS FOOTPRINT AND ITS FACES. `constructs_in` lists a
     # wagon under its own id, but what blocks movement and gives cover is

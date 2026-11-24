@@ -31,6 +31,8 @@ how he travels. So:
 """
 from __future__ import annotations
 
+import pytest
+
 from kirby_combat.roster import LastSideStanding
 
 from fixtures.terms import terms_stated
@@ -315,6 +317,7 @@ def test_the_trip_back_costs_end():
     assert spent == [(-1, "end_spent"), (-1, "end_spent")]
 
 
+@pytest.mark.state_set_by_hand("moves a man by replacing the scene's positions")
 def test_somebody_standing_where_he_crossed_does_not_get_him_on_top_of_him():
     """He can see the board from off it (Peter, 2026-10-31), so he comes
     back to the nearest spot nobody stands in, inside the map, rather than

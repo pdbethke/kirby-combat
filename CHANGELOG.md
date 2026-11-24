@@ -15,6 +15,13 @@
 ### Added — every event row says its kind's format
 - **`BaseEvent.FORMAT`** (a `ClassVar[int]`, 1 for every kind today) and **`__format__`** on every serialized event: `to_dict` stamps it, the shipped schema pins it per kind (`const`), and `from_dict` walks an older row up through **`session.event_formats.UPGRADES[(kind, format)]`** before building the event. A version per KIND, not one global number: only kinds whose shape changes move. A row newer than the engine, or older with a gap in its chain, raises `UnknownEventFormat`. Rows written before this release carry no stamp and are read as their kind's first format (`UNSTAMPED_ROWS_ARE_FORMAT`), which they are. kirby-api's `payload_jsonb` carries the stamp through unchanged. Two-databases spec §6 R2: the Danger Room replays fights recorded today after event shapes move on.
 
+### Added — replay parity (the Danger Room)
+- **`kirby_combat.session.parity`**: `rebuilt(session)` folds a fight from its opening state through its whole log; `divergence(session)` names every place it differs from the fight that ran (vitals, positions, conditions, clock, constructs, walls, status). Empty is parity.
+- **`pytest --replay-parity=FILE`** checks parity after every `run_phase` the suite makes and fails the run on any divergence; CI runs it. Tests that set state by hand are marked `@pytest.mark.state_set_by_hand(reason)` (8 today).
+
+### Fixed — a structure brought down stays down in the replay
+Found by the first sweep (`the_shootout_we_can_publish`, seed 5): smashed crates left the board in the fight that ran and stood back up in the replay, because `bring_it_down` changed the board in place and no row said so. New event **`StructureBroughtDown`** (`construct_id`, `outcome`: `smashed` / `breached` / `collapsed`, `collapse.Outcome`); `apply_event` changes the board. Same class as the Darkness field and the Force Wall.
+
 ### Changed — breaking
 - **A fight with no terms refuses to step**: `run_phase` / `run_encounter` raise `FightTermsMissing`. State terms when the fight is created (next to `state_rulings`). There is no default.
 - **`until=` is gone** from `run_phase` and `run_encounter`: the stop condition is the fight's own, in its log. A caller-supplied `StopCondition` object is no longer accepted per call; ask for a new `StopKind`.
