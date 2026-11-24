@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 # RUNTIME import: `RulingsStated.rulings` is walked by the schema and
 # rehydrated by `from_dict`, both of which resolve the annotation by name.
@@ -46,6 +46,11 @@ def make_author_engine() -> EventAuthor:
 
 @dataclass
 class BaseEvent:
+    #: This kind's wire format (`kirby_combat.session.event_formats`). Raise
+    #: it, with an upgrade step, whenever the kind's shape changes; `to_dict`
+    #: stamps it on every row as ``__format__``.
+    FORMAT: ClassVar[int] = 1
+
     id: str
     session_id: str
     sequence: int

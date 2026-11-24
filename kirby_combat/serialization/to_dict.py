@@ -69,6 +69,11 @@ def _identity_record(record) -> dict[str, Any]:
     }
 
 
+def _is_event(obj: Any) -> bool:
+    from kirby_combat.session.events import BaseEvent
+    return isinstance(obj, BaseEvent)
+
+
 def to_dict(obj: Any) -> Any:
     """Recursively convert to JSON-safe shape."""
     if obj is None or isinstance(obj, (int, float, str, bool)):
@@ -210,6 +215,11 @@ def to_dict(obj: Any) -> Any:
     if is_dataclass(obj):
         type_tag = _STABLE_WIRE_TAGS.get(type(obj), type(obj).__name__)
         result: dict[str, Any] = {"__type__": type_tag}
+        # EVERY EVENT ROW SAYS WHICH FORMAT OF ITS KIND IT IS
+        # (`session.event_formats`), so a replay years on can walk it up.
+        event_format = getattr(type(obj), "FORMAT", None)
+        if event_format is not None and _is_event(obj):
+            result["__format__"] = event_format
         skipped = _NOT_ON_THE_WIRE.get(type(obj).__name__, frozenset())
         for f in fields(obj):
             if f.name not in skipped:

@@ -487,6 +487,13 @@ def from_dict(data: Any) -> Any:
             raise TypeError(f"unknown type {type_name!r}")
         if not is_dataclass(cls):
             raise TypeError(f"type {type_name!r} is not a dataclass")
+        from kirby_combat.session.events import BaseEvent
+        if isinstance(cls, type) and issubclass(cls, BaseEvent):
+            # AN OLD ROW IS WALKED UP TO TODAY'S SHAPE FIRST
+            # (`session.event_formats`): its kind's upgrade steps, in order.
+            from kirby_combat.session.event_formats import upgrade
+            kind = next(f.default for f in fields(cls) if f.name == "kind")
+            data = upgrade(kind, data, cls.FORMAT)
         kwargs: dict[str, Any] = {}
         for f in fields(cls):
             # Skip init=False fields (e.g., the `kind` Literal on each event

@@ -27,7 +27,7 @@ import datetime
 import types
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
-from kirby_combat.session.events import EVENT_CLASSES, EventAuthor
+from kirby_combat.session.events import EVENT_CLASSES, BaseEvent, EventAuthor
 # RUNTIME import, deliberately. `events.py` imports `ActionIntent` under
 # `if TYPE_CHECKING:`, so `get_type_hints(ActingOrderResolved)` raises
 # `NameError` without it in the namespace. Importing it here rather than
@@ -199,6 +199,11 @@ def _define(cls: type, defs: dict[str, dict]) -> str:
         "__type__": {"type": "string", "const": name, "enum": [name]},
     }
     required = ["__type__"]
+    if issubclass(cls, BaseEvent):
+        # `to_dict` stamps every event row with its kind's format
+        # (`session.event_formats`), so it is part of the wire shape.
+        properties["__format__"] = {"type": "integer", "const": cls.FORMAT}
+        required.append("__format__")
     for field in dataclasses.fields(cls):
         where = f"{name}.{field.name}"
         # SHORT-CIRCUITED, not walked. `where in FREE_FORM_PAYLOADS` is

@@ -3,6 +3,10 @@
     "AbortDeclared": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "AbortDeclared",
           "enum": [
@@ -54,6 +58,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -73,6 +78,10 @@
     "ActingOrderResolved": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ActingOrderResolved",
           "enum": [
@@ -124,6 +133,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -141,6 +151,10 @@
     "ActionDeclared": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ActionDeclared",
           "enum": [
@@ -187,6 +201,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -233,6 +248,10 @@
     "ActionResolved": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ActionResolved",
           "enum": [
@@ -270,6 +289,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -285,6 +305,10 @@
     "AdjustmentApplied": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "AdjustmentApplied",
           "enum": [
@@ -339,6 +363,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -359,6 +384,10 @@
     "AdjustmentFaded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "AdjustmentFaded",
           "enum": [
@@ -404,6 +433,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -457,6 +487,10 @@
     "BarrierRaised": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "BarrierRaised",
           "enum": [
@@ -523,6 +557,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -545,6 +580,10 @@
     "BleedingSuffered": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "BleedingSuffered",
           "enum": [
@@ -596,6 +635,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -614,6 +654,10 @@
     "BlockPriorityGained": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "BlockPriorityGained",
           "enum": [
@@ -653,6 +697,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -668,6 +713,10 @@
     "BreakoutRolled": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "BreakoutRolled",
           "enum": [
@@ -725,6 +774,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -746,6 +796,10 @@
     "ChargeSpent": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ChargeSpent",
           "enum": [
@@ -788,6 +842,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -914,6 +969,10 @@
     "ConcentrationBegan": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ConcentrationBegan",
           "enum": [
@@ -965,6 +1024,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1182,6 +1242,10 @@
     "ConstructDamaged": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ConstructDamaged",
           "enum": [
@@ -1236,6 +1300,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1322,6 +1387,10 @@
     "ConstructSpawned": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ConstructSpawned",
           "enum": [
@@ -1384,6 +1453,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1402,6 +1472,10 @@
     "DarknessEnded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "DarknessEnded",
           "enum": [
@@ -1447,6 +1521,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1463,6 +1538,10 @@
     "DarknessPlaced": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "DarknessPlaced",
           "enum": [
@@ -1523,6 +1602,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1542,6 +1622,10 @@
     "DivedForCover": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "DivedForCover",
           "enum": [
@@ -1616,6 +1700,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1636,6 +1721,10 @@
     "EndDeclined": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EndDeclined",
           "enum": [
@@ -1682,6 +1771,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1697,6 +1787,10 @@
     "EndProposed": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EndProposed",
           "enum": [
@@ -1743,6 +1837,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1758,6 +1853,10 @@
     "EnduranceReserveChanged": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EnduranceReserveChanged",
           "enum": [
@@ -1803,6 +1902,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1820,6 +1920,10 @@
     "EntangleApplied": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EntangleApplied",
           "enum": [
@@ -1880,6 +1984,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1902,6 +2007,10 @@
     "EntangleEscape": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EntangleEscape",
           "enum": [
@@ -1950,6 +2059,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -1968,6 +2078,10 @@
     "EnvironmentalTriggered": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "EnvironmentalTriggered",
           "enum": [
@@ -2011,6 +2125,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2057,6 +2172,10 @@
     "FightRead": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "FightRead",
           "enum": [
@@ -2114,6 +2233,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2135,6 +2255,10 @@
     "FightTermsStated": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "FightTermsStated",
           "enum": [
@@ -2174,6 +2298,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2189,6 +2314,10 @@
     "FlashApplied": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "FlashApplied",
           "enum": [
@@ -2231,6 +2360,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2247,6 +2377,10 @@
     "FlashRecovered": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "FlashRecovered",
           "enum": [
@@ -2289,6 +2423,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2305,6 +2440,10 @@
     "ForcedOffTheBoard": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ForcedOffTheBoard",
           "enum": [
@@ -2368,6 +2507,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2507,6 +2647,10 @@
     "GMOverride": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "GMOverride",
           "enum": [
@@ -2557,6 +2701,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2665,6 +2810,10 @@
     "HeldActionDeclared": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "HeldActionDeclared",
           "enum": [
@@ -2714,6 +2863,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2730,6 +2880,10 @@
     "HeldActionReleased": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "HeldActionReleased",
           "enum": [
@@ -2769,6 +2923,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2784,6 +2939,10 @@
     "IdentityChanged": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "IdentityChanged",
           "enum": [
@@ -2826,6 +2985,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2842,6 +3002,10 @@
     "LingeringAttackApplied": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "LingeringAttackApplied",
           "enum": [
@@ -2922,6 +3086,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2945,6 +3110,10 @@
     "LingeringAttackEnded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "LingeringAttackEnded",
           "enum": [
@@ -2984,6 +3153,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -2999,6 +3169,10 @@
     "MinorFoeKilled": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "MinorFoeKilled",
           "enum": [
@@ -3041,6 +3215,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3057,6 +3232,10 @@
     "MovementResolved": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "MovementResolved",
           "enum": [
@@ -3125,6 +3304,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3143,6 +3323,10 @@
     "PhaseSpent": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PhaseSpent",
           "enum": [
@@ -3188,6 +3372,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3205,6 +3390,10 @@
     "PhaseTimeUsed": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PhaseTimeUsed",
           "enum": [
@@ -3256,6 +3445,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3341,6 +3531,10 @@
     "PowerDispelled": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PowerDispelled",
           "enum": [
@@ -3386,6 +3580,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3403,6 +3598,10 @@
     "PowerRestarted": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PowerRestarted",
           "enum": [
@@ -3442,6 +3641,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3457,6 +3657,10 @@
     "PresenceActionLost": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PresenceActionLost",
           "enum": [
@@ -3493,6 +3697,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3507,6 +3712,10 @@
     "PresenceApplied": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PresenceApplied",
           "enum": [
@@ -3552,6 +3761,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3569,6 +3779,10 @@
     "PresenceFaded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PresenceFaded",
           "enum": [
@@ -3608,6 +3822,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3623,6 +3838,10 @@
     "PresenceYielded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "PresenceYielded",
           "enum": [
@@ -3668,6 +3887,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3685,6 +3905,10 @@
     "RageRolled": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "RageRolled",
           "enum": [
@@ -3751,6 +3975,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3775,6 +4000,10 @@
     "RageTargeted": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "RageTargeted",
           "enum": [
@@ -3817,6 +4046,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3833,6 +4063,10 @@
     "RecoveryTaken": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "RecoveryTaken",
           "enum": [
@@ -3875,6 +4109,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3891,6 +4126,10 @@
     "ReturnedToTheBoard": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "ReturnedToTheBoard",
           "enum": [
@@ -3936,6 +4175,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -3988,6 +4228,10 @@
     "RulingsStated": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "RulingsStated",
           "enum": [
@@ -4030,6 +4274,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4163,6 +4408,10 @@
     "SegmentAdvanced": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SegmentAdvanced",
           "enum": [
@@ -4205,6 +4454,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4221,6 +4471,10 @@
     "SelfDestructRolled": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SelfDestructRolled",
           "enum": [
@@ -4281,6 +4535,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4303,6 +4558,10 @@
     "SessionEnded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SessionEnded",
           "enum": [
@@ -4349,6 +4608,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4364,6 +4624,10 @@
     "SessionStarted": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SessionStarted",
           "enum": [
@@ -4406,6 +4670,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4472,6 +4737,10 @@
     "SlotsAllocated": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SlotsAllocated",
           "enum": [
@@ -4523,6 +4792,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4541,6 +4811,10 @@
     "SquadLeaderNamed": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SquadLeaderNamed",
           "enum": [
@@ -4593,6 +4867,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4610,6 +4885,10 @@
     "SquadOrdersGiven": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "SquadOrdersGiven",
           "enum": [
@@ -4687,6 +4966,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4704,6 +4984,10 @@
     "StandingAreaEnded": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "StandingAreaEnded",
           "enum": [
@@ -4743,6 +5027,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4758,6 +5043,10 @@
     "StandingAreaEstablished": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "StandingAreaEstablished",
           "enum": [
@@ -4865,6 +5154,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -4895,6 +5185,10 @@
     "StatusEffectsChanged": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "StatusEffectsChanged",
           "enum": [
@@ -4943,6 +5237,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -5035,6 +5330,10 @@
     "VitalsChanged": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "VitalsChanged",
           "enum": [
@@ -5093,6 +5392,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",
@@ -5216,6 +5516,10 @@
     "WeaponMoved": {
       "additionalProperties": false,
       "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
         "__type__": {
           "const": "WeaponMoved",
           "enum": [
@@ -5279,6 +5583,7 @@
       },
       "required": [
         "__type__",
+        "__format__",
         "id",
         "session_id",
         "sequence",

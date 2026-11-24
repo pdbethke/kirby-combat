@@ -12,6 +12,9 @@
 - **`run_phase`** returns `kind="ended"` once the fight has ended (writing nothing) and `kind="end_question"` while a proposal is open; both with no actor.
 - Example: `examples/the_end_of_a_fight.py`.
 
+### Added — every event row says its kind's format
+- **`BaseEvent.FORMAT`** (a `ClassVar[int]`, 1 for every kind today) and **`__format__`** on every serialized event: `to_dict` stamps it, the shipped schema pins it per kind (`const`), and `from_dict` walks an older row up through **`session.event_formats.UPGRADES[(kind, format)]`** before building the event. A version per KIND, not one global number: only kinds whose shape changes move. A row newer than the engine, or older with a gap in its chain, raises `UnknownEventFormat`. Rows written before this release carry no stamp and are read as their kind's first format (`UNSTAMPED_ROWS_ARE_FORMAT`), which they are. kirby-api's `payload_jsonb` carries the stamp through unchanged. Two-databases spec §6 R2: the Danger Room replays fights recorded today after event shapes move on.
+
 ### Changed — breaking
 - **A fight with no terms refuses to step**: `run_phase` / `run_encounter` raise `FightTermsMissing`. State terms when the fight is created (next to `state_rulings`). There is no default.
 - **`until=` is gone** from `run_phase` and `run_encounter`: the stop condition is the fight's own, in its log. A caller-supplied `StopCondition` object is no longer accepted per call; ask for a new `StopKind`.
