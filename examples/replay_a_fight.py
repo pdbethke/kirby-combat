@@ -83,6 +83,12 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.rewind import rewind_to_sequence
 from kirby_combat.statuses import STUNNED, statuses_for
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -175,10 +181,10 @@ def main() -> None:
     rule("REPLAY A FIGHT — reconstructing conditions from the log alone")
 
     template = CombatTemplate.default_6e_superheroic()
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s1", combatants=[HERO, VILLAIN], scene=None,
         template=template, dice_roller=FakeRoller([]),
-    ).start()
+    ).start(), TERMS)
 
     # Combat begins on Segment 12 (6E2 p.20) — one of the villain's own
     # Phases (SPD 4 -> 3/6/9/12), so the hit below lands on his Phase.

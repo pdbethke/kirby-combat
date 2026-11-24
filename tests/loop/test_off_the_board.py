@@ -31,6 +31,10 @@ how he travels. So:
 """
 from __future__ import annotations
 
+from kirby_combat.roster import LastSideStanding
+
+from fixtures.terms import terms_stated
+
 from conftest import blast  # tests/loop/conftest.py
 from kirby_dice import FakeRoller
 from kirby_world.scene import (
@@ -148,10 +152,10 @@ def _session(*, running=12, rolls=()) -> CombatSession:
         pd=4, ed=4, max_stun=60, max_body=15, max_end=40, running=running,
         side=Side.named("villains"), attacks=[blast("t-eb", dice=6)],
     )
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=[attacker, target], scene=_scene(),
         template=TEMPLATE, dice_roller=FakeRoller(list(rolls)),
-    ).start()
+    ).start())
 
 
 def _blast_at_t() -> LegalAction:
@@ -192,7 +196,7 @@ def test_off_the_board_he_is_no_target_but_he_has_not_left():
     assert [e.id for e in roster.enemies_of(s.combatants["a"])] == []
     assert "t" in [cid for ids in roster.standing.values() for cid in ids], (
         "his side is not beaten while he is on his way back")
-    assert not roster.decide()
+    assert not roster.decide(LastSideStanding())
 
 
 def test_a_man_with_no_way_back_has_left():

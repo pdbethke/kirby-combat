@@ -28,6 +28,8 @@ build doc and costed through kirby-cost, in Main6E.hdt's own shapes.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import copy
 from dataclasses import replace
 
@@ -222,10 +224,10 @@ def _session(actor, mark, *, mark_at=MARK_AT, walls=()) -> CombatSession:
         surfaces=[], walls=list(walls), hazards=[], ambient=AmbientConditions(),
         combatant_positions={actor.id: RAVEL_AT, mark.id: mark_at},
     )
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3), combatants=[actor, mark],
-    ).start()
+    ).start())
 
 
 def _menu(session, who: str = "ravel"):

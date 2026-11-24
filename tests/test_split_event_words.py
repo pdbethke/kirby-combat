@@ -6,6 +6,8 @@ Needs the licensed template (skips without KIRBY_COST_HDT).
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 
 from kirby_combat.encounter import Encounter
@@ -31,10 +33,10 @@ class _Answers:
 def _opening(tail):
     hero = _merrick()
     hero = replace(hero, state=replace(hero.state, slot_points={}))
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[hero, fighter("foe", side=Side.named("villains"))],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
-        dice_roller=RandomRoller(seed=7)).start()
+        dice_roller=RandomRoller(seed=7)).start())
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     phase = run_phase(enc, _Answers(tail), roller=RandomRoller(seed=7))
     (alloc,) = [e for e in phase.events if e.kind == "SlotsAllocated"]

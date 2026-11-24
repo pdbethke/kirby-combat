@@ -20,6 +20,8 @@ from the step's events.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import fighter                        # tests/loop/conftest.py
 from kirby_combat.encounter import Encounter
 from kirby_combat.enumeration import enumerate_actions
@@ -48,11 +50,11 @@ def _lot(*, wall: bool, b_at: float = 6.0):
         walls=walls, hazards=[], ambient=AmbientConditions(light_level=4),
         combatant_positions={"a": Position(0.0, 0.0, 0.0), "b": Position(b_at, 0.0, 0.0)},
     )
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", scene=scene, template=TEMPLATE, dice_roller=RandomRoller(seed=2),
         combatants=[fighter("a", side=Side.named("x"), armed=False, dex=30),
                     fighter("b", side=Side.named("y"))],
-    ).start()
+    ).start())
 
 
 def _menu(session):

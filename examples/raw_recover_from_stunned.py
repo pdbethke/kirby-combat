@@ -53,6 +53,12 @@ from kirby_combat.template import CombatTemplate
 
 import uuid
 from datetime import datetime, timezone
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -118,13 +124,13 @@ def _advance(session: CombatSession, to_segment: int, to_turn: int) -> CombatSes
 def main() -> None:
     rule("ARDWIN RECOVERS FROM BEING STUNNED — 6E2 p.107")
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s1",
         combatants=[BASHER, ARDWIN],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
-    ).start()
+    ).start(), TERMS)
 
     # ── Segment 6: the Stunning hit ─────────────────────────────────────
     rule("Segment 6 — Ardwin is Stunned by an attack")

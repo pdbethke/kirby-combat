@@ -41,6 +41,12 @@ from kirby_combat.models import AttackInput, AttackPower, DiceValues, StatBlockC
 from kirby_combat.session import CombatSession
 from kirby_combat.statuses import statuses_for
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -92,13 +98,13 @@ BOB = StatBlockCombatant(
 def main() -> None:
     rule("STUNNED — A CONDITION THAT BITES")
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s1",
         combatants=[STEELWRIGHT, BOB],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
-    ).start()
+    ).start(), TERMS)
 
     # ── 1. A hit that Stuns ───────────────────────────────────────────────
     rule("1. A hit that Stuns — 6E2 p.106")

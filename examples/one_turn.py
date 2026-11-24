@@ -75,6 +75,12 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.session.events import ActionDeclared, make_author_combatant
 from kirby_combat.session.timeline import ActionIntent, ordering_value
 from kirby_combat.world import World
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -236,10 +242,10 @@ def main() -> None:
     scene = scene.place_combatant("talon", Position(20, 5, 0))
     scene = scene.place_combatant("bruiser", Position(12, 20, 0))
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="rooftop-fight", combatants=[vex, talon, bruiser],
         scene=scene, template=RAW_SUPERHEROIC,
-    ).start()
+    ).start(), TERMS)
 
     # Segment 1, not the usual Segment-12 combat-start default (6E2 p.20)
     # — this example wants to walk EVERY Segment of Turn 1 in order, and

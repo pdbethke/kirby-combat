@@ -24,6 +24,8 @@ pinned in `test_reactions_and_concealment.py` and
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import blast  # tests/loop/conftest.py
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_dice import RandomRoller
@@ -84,12 +86,12 @@ class GorgonPlays:
 
 
 def _fight():
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[_man("harlow", "red", dex=30, pre=25),
                             _man("dravik", "blue", dex=10)],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 

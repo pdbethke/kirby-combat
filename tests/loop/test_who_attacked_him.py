@@ -7,6 +7,8 @@ here: the last combatant whose attack roll was made against her.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import encounter_of, fighter  # tests/loop/conftest.py
 from kirby_combat.loop import run_phase
 from kirby_combat.side import Side
@@ -102,11 +104,11 @@ def _field(*people):
         surfaces=[], walls=[], hazards=[], ambient=AmbientConditions(light_level=4),
         combatant_positions={p.id: Position(*spots[p.id]) for p in people},
     )
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=list(people), scene=scene,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 

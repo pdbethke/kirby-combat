@@ -1221,9 +1221,46 @@ class WeaponMoved(BaseEvent):
 
 
 @dataclass
+class FightTermsStated(BaseEvent):
+    """The fight's terms (`kirby_combat.ending`): which stop condition decides
+    it (``stop``, a `StopKind` value) and who confirms its end (``end_mode``,
+    an `EndMode` value). Stated once as the fight starts, in the same window
+    as `RulingsStated`; ``run_phase`` reads it and refuses a fight without
+    it. Data only: nothing on the snapshot holds it."""
+    kind: Literal["FightTermsStated"] = field(default="FightTermsStated", init=False)
+    stop: str = ""
+    end_mode: str = ""
+
+
+@dataclass
+class EndProposed(BaseEvent):
+    """In an ``ASK`` fight, the engine's stop condition (or a guard) says the
+    fight is over and asks the GM to confirm. ``ending`` is an `Ending`
+    value, ``winner`` the winning side's id or None. The fight holds still
+    until `ending.answer_end` or `ending.call_fight`."""
+    kind: Literal["EndProposed"] = field(default="EndProposed", init=False)
+    ending: str = ""
+    winner: str | None = None
+
+
+@dataclass
+class EndDeclined(BaseEvent):
+    """The GM said no to an `EndProposed`; the fight carries on, and the same
+    (ending, winner) is not proposed again."""
+    kind: Literal["EndDeclined"] = field(default="EndDeclined", init=False)
+    ending: str = ""
+    winner: str | None = None
+
+
+@dataclass
 class SessionEnded(BaseEvent):
+    """THE end of the fight, and the only one (`kirby_combat.ending`).
+    ``ending`` is an `Ending` value; ``winner`` the winning side's id, or None
+    (a mutual knockout, a call, a stalemate). The author confirmed it: the
+    engine for an auto-stop, the GM otherwise."""
     kind: Literal["SessionEnded"] = field(default="SessionEnded", init=False)
-    reason: str = ""
+    ending: str = ""
+    winner: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -1299,6 +1336,9 @@ CombatEvent = (
     | WeaponMoved
     | GMOverride
     | SessionEnded
+    | FightTermsStated
+    | EndProposed
+    | EndDeclined
 )
 
 #: EVERY concrete event class, derived from the union above rather than

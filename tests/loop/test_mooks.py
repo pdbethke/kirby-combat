@@ -20,6 +20,10 @@ described a STUN threshold the book does not have.
 """
 from __future__ import annotations
 
+from kirby_combat.roster import LastSideStanding
+
+from fixtures.terms import terms_stated
+
 import dataclasses
 import uuid
 from datetime import datetime, timezone
@@ -45,8 +49,8 @@ def _fight(template, *, minor_hits=1, body=10):
     hero = synthetic_combatant(id="h", name="h", spd=4, side=Side.named("a"))
     mook = synthetic_combatant(id="m", name="m", spd=3, max_body=10, current_body=body,
                                side=Side.named("b"), minor_hits=minor_hits)
-    return CombatSession.create(id="s", combatants=[hero, mook], scene=None,
-                                template=template, dice_roller=None).start()
+    return terms_stated(CombatSession.create(id="s", combatants=[hero, mook], scene=None,
+                                template=template, dice_roller=None).start())
 
 
 def _shot(session, *, hit=True, margin=0, damage_type="normal", status=()):
@@ -135,8 +139,8 @@ def test_through_the_loop_a_one_hit_wonder_falls_and_stays_down():
                                attacks=[blast("h-eb", dice=1)])
     mook = synthetic_combatant(id="m", name="m", dcv=1, spd=2, dex=5, max_stun=60, max_body=20,
                                side=Side.named("b"), minor_hits=1)
-    session = CombatSession.create(id="s", combatants=[hero, mook], scene=None,
-                                   template=COUNTING, dice_roller=RandomRoller(seed=3)).start()
+    session = terms_stated(CombatSession.create(id="s", combatants=[hero, mook], scene=None,
+                                   template=COUNTING, dice_roller=RandomRoller(seed=3)).start())
 
     class _Shoot:
         def give_orders(self, page):
@@ -161,7 +165,7 @@ def test_through_the_loop_a_one_hit_wonder_falls_and_stays_down():
     assert any(e.kind == "StatusEffectsChanged" and e.combatant_id == "m"
                and DEAD in e.added for e in s.event_log)
     assert s.combatants["m"].state.current_stun > 0, "a 1d6 blast cannot KO 60 STUN"
-    assert Roster(s).decide() is not None, "his side is beaten"
+    assert Roster(s).decide(LastSideStanding()) is not None, "his side is beaten"
 
 
 def test_the_cinematic_templates_are_the_raw_ones_with_the_mook_rules_on():

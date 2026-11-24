@@ -16,6 +16,8 @@ behind a green suite.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -109,10 +111,10 @@ def _scene(*, wall: bool, **positions) -> Scene:
 
 
 def _fight(*cast, scene=None) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(cast), scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
 
 
 class _Dice(RandomRoller):

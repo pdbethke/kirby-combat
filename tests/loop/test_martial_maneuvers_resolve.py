@@ -31,6 +31,8 @@ an offered-but-unresolvable kind is the defect, never the price of honesty.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import copy
 from dataclasses import replace
 
@@ -203,11 +205,11 @@ def _session(actor, mark=None) -> CombatSession:
         surfaces=[], walls=[], hazards=[], ambient=AmbientConditions(),
         combatant_positions={actor.id: ACTOR_AT, "mark": MARK_AT},
     )
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
         combatants=[actor, mark],
-    ).start()
+    ).start())
 
 
 def _menu(session, actor_id: str = "ravel"):

@@ -16,6 +16,8 @@ Every seam test drives `run_phase(on_unresolvable="raise")` or
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from types import SimpleNamespace
 
 from conftest import blast                       # tests/loop/conftest.py
@@ -58,11 +60,11 @@ def _man(id: str, side: str, *, pre: int = 15, dex: int = 20, spd: int = 4):
 
 
 def _encounter(*men, segment: int = 12) -> Encounter:
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=list(men), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=segment, sessions=[session])
 
 

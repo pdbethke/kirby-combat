@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.40.0 — 2026-11-24
+
+**The end of a fight: its terms, a question to the GM, and one event in the log.** Two-databases spec §6a; plan `kirby/docs/superpowers/plans/2026-11-24-fight-end.md`.
+
+### Added — `kirby_combat.ending`
+- **`FightTerms(stop, end_mode)`**, stated once as the fight starts with `state_terms(session, terms)`: a new **`FightTermsStated`** row, in the same creation window as `RulingsStated` (that window now admits both). `terms_of(session)` reads it back. `StopKind`: `LAST_SIDE_STANDING`, `FIRST_BLOOD` (over at the first lost STUN, won by the one side nobody hurt, else no winner), `GM_ONLY` (only a call ends it). `EndMode`: `AUTO_STOP` or `ASK`.
+- **`ASK`**: when the stop condition holds, the engine appends **`EndProposed`** (`ending`, `winner`) and holds the fight still; `answer_end(session, accept=, gm_id=)` ends it as the GM, or appends **`EndDeclined`** and the fight carries on, and the same (ending, winner) is not proposed again. `open_proposal(session)` reads the open question.
+- **`call_fight(session, gm_id=)`**: the GM ends any fight now (`Ending.CALLED`), closing an open question.
+- **`ended(session)`**: the `SessionEnded` row, or None.
+- **`run_phase`** returns `kind="ended"` once the fight has ended (writing nothing) and `kind="end_question"` while a proposal is open; both with no actor.
+- Example: `examples/the_end_of_a_fight.py`.
+
+### Changed — breaking
+- **A fight with no terms refuses to step**: `run_phase` / `run_encounter` raise `FightTermsMissing`. State terms when the fight is created (next to `state_rulings`). There is no default.
+- **`until=` is gone** from `run_phase` and `run_encounter`: the stop condition is the fight's own, in its log. A caller-supplied `StopCondition` object is no longer accepted per call; ask for a new `StopKind`.
+- **`Roster.decide(condition)`** takes a required condition (it defaulted to `LastSideStanding`).
+- **`SessionEnded`** now carries `ending` (an `Ending` value: `decided`, `called`, `stalemate`, `turn_limit`) and `winner` (a side id or None) instead of `reason: str`. Nothing emitted it before this release, so no stored row has the old shape. `apply_event` refuses a second end, and any `EndProposed` / `EndDeclined` the live fight would not have written.
+- **`CombatSession.end()` is removed**: `call_fight` (GM) or the fight's terms (engine) end a fight.
+- **Guards end or ask**: `run_encounter`'s Turn limit and stalemate now conclude the fight by its terms (`TURN_LIMIT` / `STALEMATE`): an auto-stop fight ends (`complete=True`, no winner); an ask fight is put to the GM (`complete=False`).
+- **`EncounterResult.winner`** is read off `SessionEnded`.
+
+### Fixed
+- `SessionEnded` existed and nothing emitted it, so no fight's log recorded its end; kirby-api re-asked `Roster.decide(LastSideStanding())` in five places to find out.
+- `examples/the_battle_of_four_armies.py`'s FirstBlood crowned the HURT man's side; it now uses `StopKind.FIRST_BLOOD`.
+
+### For consumers (kirby-api, kirby-ai, Krackle)
+State terms at fight create; read the end off the log; expose `answer_end` / `call_fight`; random fights state `AUTO_STOP`. kirby-ai's soliloquy reads `SessionEnded.reason`, which is gone. Fights stored before this release have no `FightTermsStated`: finished ones replay unchanged; one still in progress would refuse to step.
+
 ## 0.39.0 — 2026-11-15
 
 **GM rulings: what the table has ruled about a body, and what it takes off the menu.**

@@ -31,6 +31,12 @@ from kirby_combat.scene import (
 )
 from kirby_combat.session import CombatSession, build_acting_order_for_segment
 from kirby_combat.template import RAW_SUPERHEROIC
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -163,13 +169,13 @@ def main() -> None:
     print(f"  Scene:    elevation 12m, parapet 1.2m around perimeter")
     print(f"  Template: {RAW_SUPERHEROIC.name}")
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="rooftop-brawl-1",
         combatants=[NIGHTJAR, VOLT],
         scene=SCENE,
         template=RAW_SUPERHEROIC,
         dice_roller=FakeRoller([]),
-    ).start()
+    ).start(), TERMS)
 
     status(session)
 

@@ -19,6 +19,8 @@ Example paraphrased; this project ships no rules text.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
 from conftest import fighter                        # tests/loop/conftest.py
 from kirby_combat.encounter import Encounter
@@ -45,7 +47,7 @@ def _medic(paramedics: int | None = 11):
 
 
 def _fight(*, wounded_body: int, paramedics: int | None = 11):
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="doc", scene=None, template=RAW_HEROIC,
         dice_roller=RandomRoller(seed=2),
         combatants=[_medic(paramedics),
@@ -53,7 +55,7 @@ def _fight(*, wounded_body: int, paramedics: int | None = 11):
                                         max_stun=20, max_body=10,
                                         max_end=25, side=LAW),
                     fighter("foe", side=COW)],
-    ).start()
+    ).start())
     hurt = session.combatants["hurt"]
     session.combatants["hurt"] = apply_vitals_delta(
         hurt, body=wounded_body - hurt.state.current_body)

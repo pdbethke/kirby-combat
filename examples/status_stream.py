@@ -76,6 +76,12 @@ from kirby_combat.resolution.status import determine_status_changes
 from kirby_combat.session import CombatSession
 from kirby_combat.status_emission import status_deltas
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -136,7 +142,7 @@ def show_step(label: str, before: CombatSession, after: CombatSession) -> Combat
 def main() -> None:
     rule("THE STATUS STREAM — a combat published as tokens a client toggles")
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="showcase",
         combatants=[WEAVER, VANGUARD],
         scene=None,
@@ -147,7 +153,7 @@ def main() -> None:
         # Fixed values rather than a seed so this script always prints
         # the same story.
         dice_roller=FakeRoller([[6, 6, 6, 6, 6], [1, 1, 1]]),
-    ).start()
+    ).start(), TERMS)
 
     # ── 1. Entangle lands ─────────────────────────────────────────────────
     rule("1. The Weaver entangles Vanguard (HERO 6E1 Entangle)")

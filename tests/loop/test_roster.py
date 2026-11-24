@@ -2,15 +2,17 @@
 
 A class rather than four functions that all took the same session: things
 answer questions about themselves, so this is ``roster.standing`` and
-``roster.decide()`` rather than ``standing_sides(session)`` and
+``roster.decide(LastSideStanding())`` rather than ``standing_sides(session)`` and
 ``last_side_standing(session)``.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import pytest
 
 from fixtures.synthetic_hero import synthetic_combatant
-from kirby_combat.roster import Roster, Verdict
+from kirby_combat.roster import LastSideStanding, Roster, Verdict
 from kirby_combat.side import Side
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import CombatTemplate
@@ -29,11 +31,11 @@ def _c(id: str, *, side=None, stun: int = 30, body: int = 12):
 
 
 def _session(*combatants) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(combatants), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
 
 
 # ---- Side.of: the default that carries the whole design ----
@@ -58,12 +60,12 @@ def test_a_string_side_is_refused_rather_than_coerced():
 
 def test_two_teams_are_not_over_while_both_stand():
     s = _session(_c("a", side=Side.named("heroes")), _c("b", side=Side.named("villains")))
-    assert Roster(s).decide().over is False
+    assert Roster(s).decide(LastSideStanding()).over is False
 
 
 def test_two_teams_end_when_one_is_down():
     s = _session(_c("a", side=Side.named("heroes")), _c("b", side=Side.named("villains"), stun=0))
-    assert Roster(s).decide().winner == Side.named("heroes")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("heroes")
 
 
 def test_a_side_survives_while_any_member_stands():
@@ -71,22 +73,22 @@ def test_a_side_survives_while_any_member_stands():
         _c("a1", side=Side.named("heroes")), _c("a2", side=Side.named("heroes"), stun=-5),
         _c("b1", side=Side.named("villains"), stun=0),
     )
-    assert Roster(s).decide().winner == Side.named("heroes")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("heroes")
 
 
 # ---- Three, and four ----
 
 def test_a_three_way_runs_until_one_side_remains():
     s = _session(_c("a", side=Side.named("a")), _c("b", side=Side.named("b")), _c("c", side=Side.named("c")))
-    assert Roster(s).decide().over is False
+    assert Roster(s).decide(LastSideStanding()).over is False
 
     s = _session(_c("a", side=Side.named("a")), _c("b", side=Side.named("b"), stun=0), _c("c", side=Side.named("c")))
-    assert Roster(s).decide().over is False, "two sides left is not over"
+    assert Roster(s).decide(LastSideStanding()).over is False, "two sides left is not over"
 
     s = _session(
         _c("a", side=Side.named("a")), _c("b", side=Side.named("b"), stun=0), _c("c", side=Side.named("c"), stun=-3),
     )
-    assert Roster(s).decide().winner == Side.named("a")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("a")
 
 
 def test_the_battle_of_four_armies():
@@ -98,7 +100,7 @@ def test_the_battle_of_four_armies():
             roster.append(_c(f"{army}{n}", side=Side.named(army)))
     s = _session(*roster)
     assert len(Roster(s).standing) == 4
-    assert Roster(s).decide().over is False
+    assert Roster(s).decide(LastSideStanding()).over is False
 
     # Wipe three armies; gold keeps all three soldiers.
     downed = [
@@ -107,7 +109,7 @@ def test_the_battle_of_four_armies():
         for c in s.combatants.values()
     ]
     s = _session(*downed)
-    assert Roster(s).decide().winner == Side.named("gold")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("gold")
     assert len(Roster(s).standing[Side.named("gold")]) == 3
 
 
@@ -117,13 +119,13 @@ def test_an_unlabelled_free_for_all_is_not_over_at_phase_zero():
     """The defect a shared "default" side would have caused: every fighter
     on one team, so the fight is decided before anyone acts."""
     s = _session(_c("a"), _c("b"), _c("c"))
-    assert Roster(s).decide().over is False
+    assert Roster(s).decide(LastSideStanding()).over is False
     assert len(Roster(s).standing) == 3
 
 
 def test_an_unlabelled_free_for_all_ends_with_one_fighter_left():
     s = _session(_c("a"), _c("b", stun=0), _c("c", body=0))
-    assert Roster(s).decide().winner == Side.named("solo:a")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("solo:a")
 
 
 def test_a_team_plus_two_loners():
@@ -133,17 +135,17 @@ def test_a_team_plus_two_loners():
     s = _session(
         _c("p1", side=Side.named("pack")), _c("p2", side=Side.named("pack")), _c("x", stun=0), _c("y", stun=0),
     )
-    assert Roster(s).decide().winner == Side.named("pack")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("pack")
 
 
 # ---- Everyone down ----
 
 def test_a_mutual_knockout_is_over_with_no_winner():
     s = _session(_c("a", side=Side.named("heroes"), stun=0), _c("b", side=Side.named("villains"), stun=-4))
-    assert Roster(s).decide() == Verdict(over=True, winner=None)
+    assert Roster(s).decide(LastSideStanding()) == Verdict(over=True, winner=None)
 
 
 def test_body_at_zero_counts_as_down():
     """6E1 p.421 — dying at BODY <= 0, not only KO'd at STUN <= 0."""
     s = _session(_c("a", side=Side.named("heroes")), _c("b", side=Side.named("villains"), body=0))
-    assert Roster(s).decide().winner == Side.named("heroes")
+    assert Roster(s).decide(LastSideStanding()).winner == Side.named("heroes")

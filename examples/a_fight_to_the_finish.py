@@ -43,6 +43,12 @@ from kirby_combat.statuses import statuses_for
 from kirby_combat.template import CombatTemplate
 from kirby_combat.vitals import apply_vitals_delta
 from kirby_dice import RandomRoller
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 #: A plain 8d6 Energy Blast for both fighters, so the fight is about the
 #: ledger rather than about anyone's build.
@@ -85,10 +91,10 @@ def main() -> None:
     roller = RandomRoller(seed=20260906)
     template = CombatTemplate.default_6e_superheroic()
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="finish", scene=None, template=template, dice_roller=roller,
         combatants=[_fighter("vex", "Vex"), _fighter("talon", "Talon")],
-    ).start()
+    ).start(), TERMS)
 
     print("A FIGHT TO THE FINISH — no database, no web service.\n")
     for c in session.combatants.values():

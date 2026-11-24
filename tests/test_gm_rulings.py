@@ -15,6 +15,8 @@ Ravel and Bokor are PeterB's own characters.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 
 import pytest
@@ -70,10 +72,10 @@ def _ravel(*, in_hero_id: bool = True) -> HeroCombatant:
 
 def _session(*, slot: str = SCORPION, points: int = 37, in_hero_id: bool = True):
     template = CombatTemplate.default_6e_superheroic()
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", scene=None, template=template, dice_roller=RandomRoller(seed=3),
         combatants=[_ravel(in_hero_id=in_hero_id), _bokor(slot, points)],
-    ).start()
+    ).start())
 
 
 def _body(*facts: BodyFact) -> list[Ruling]:
@@ -240,7 +242,7 @@ def test_rulings_are_fixed_once_the_fight_has_moved():
     moved = run_phase(Encounter(id="e", turn=1, segment=12, sessions=[s]), FirstLegalChooser(),
                       roller=RandomRoller(seed=1)).session
     late = [e.kind for e in moved.event_log
-            if e.kind not in ("SessionStarted", "RulingsStated")]
+            if e.kind not in ("SessionStarted", "RulingsStated", "FightTermsStated")]
     assert late, "the Phase must have put rows on the log"
     with pytest.raises(ValueError, match=f"after a {late[0]} row"):
         state_rulings(moved, "bokor", _routes(DeliveryRoute.SKIN))

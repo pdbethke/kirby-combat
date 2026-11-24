@@ -16,7 +16,7 @@ from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.models import StatBlockCombatant
 from kirby_combat.session.timeline import Timeline
 from kirby_combat.session.events import (
-    CombatEvent, SessionStarted, SessionEnded,
+    CombatEvent, SessionStarted,
     make_author_engine,
 )
 
@@ -188,21 +188,6 @@ class CombatSession:
         if self.status == "paused":
             return replace(self, status="active", updated_at=datetime.now(timezone.utc))
         return self
-
-    def end(self, reason: str = "") -> "CombatSession":
-        if self.status == "ended":
-            return self
-        from kirby_combat.session.apply import apply_event
-        seq = self._next_sequence()
-        evt = SessionEnded(
-            id=f"{self.id}-evt-{seq}",
-            session_id=self.id,
-            sequence=seq,
-            timestamp=datetime.now(timezone.utc),
-            author=make_author_engine(),
-            reason=reason,
-        )
-        return apply_event(self, evt)
 
     def _next_sequence(self) -> int:
         return len(self.event_log) + 1

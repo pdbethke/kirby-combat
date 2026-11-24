@@ -13,6 +13,8 @@ draws them, so each test states the numbers it is about.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import pytest
 from conftest import blast  # tests/loop/conftest.py
 from kirby_dice import FakeRoller
@@ -83,10 +85,10 @@ def _target(*, con=35, skills=None, dex=20):
 
 
 def _session(scene, *, attacker=None, target=None, rolls=()) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=[attacker or _attacker(), target or _target()],
         scene=scene, template=TEMPLATE, dice_roller=FakeRoller(list(rolls)),
-    ).start()
+    ).start())
 
 
 def _blast_at_t(power=None) -> LegalAction:

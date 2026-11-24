@@ -15,6 +15,8 @@ situation the loop itself built --- the page a chooser is actually shown
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -76,10 +78,10 @@ class _Reads:
 
 
 def _fight(*cast, scene=None, seed: int = 7) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(cast), scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=seed),
-    ).start()
+    ).start())
 
 
 def _page(session: CombatSession, actor_id: str) -> _Reads:

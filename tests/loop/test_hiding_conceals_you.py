@@ -19,6 +19,8 @@ and only the log knows it.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import pytest
 
 import kirby_combat.loop.resolvers  # noqa: F401 -- registers the kinds
@@ -36,11 +38,11 @@ TEMPLATE = CombatTemplate.default_6e_superheroic()
 
 
 def _session(watchers=("mark", "other")):
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="h", scene=None, template=TEMPLATE, dice_roller=RandomRoller(seed=5),
         combatants=[fighter("sneak", side=Side.named("a"), dex=30)]
         + [fighter(w, side=Side.named("b"), dex=8) for w in watchers],
-    ).start()
+    ).start())
 
 
 @pytest.fixture

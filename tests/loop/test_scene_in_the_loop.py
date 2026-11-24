@@ -13,6 +13,8 @@ compare the two menus so the difference cannot go quiet again.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import pytest
 
 from conftest import fighter, session_of  # tests/loop/conftest.py
@@ -53,10 +55,10 @@ def _session(scene: Scene | None):
         fighter("aurora", side=Side.named("heroes"), dex=25),
         fighter("nemesis", side=Side.named("villains"), dex=15),
     ]
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=fighters, scene=scene, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
 
 
 def _menu_kinds(scene: Scene | None, *, apart: float = 20.0) -> set[str]:

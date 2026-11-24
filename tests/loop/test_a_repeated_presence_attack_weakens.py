@@ -18,6 +18,8 @@ chooser can take every Phase for ever.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import blast  # tests/loop/conftest.py
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_dice import RandomRoller
@@ -47,11 +49,11 @@ def _man(id: str, side: str, *, pre: int, dex: int = 20):
 
 
 def _encounter(*men) -> Encounter:
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=list(men), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 

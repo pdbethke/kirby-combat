@@ -16,6 +16,8 @@ holds, the Mental Blast in the same Multipower is not on his menu.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import dataclasses
 import uuid
 from datetime import datetime, timezone
@@ -134,10 +136,10 @@ def _maintaining_mind_control(session: CombatSession) -> CombatSession:
 
 
 def _session(*, lockout: bool, maintaining: bool) -> CombatSession:
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[_psi(lockout=lockout), _mark()], scene=None,
         template=TEMPLATE, dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
     # Both slots on, stated (6E1 p.404-406): the fight starts opened.
     session = open_with(session, "psi", "mp",
                         {"src-MINDCONTROL": 60, "src-MENTALBLAST": 60})

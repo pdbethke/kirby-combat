@@ -5,6 +5,7 @@ import pytest
 
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_combat.encounter import Encounter
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
 from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import CombatTemplate
@@ -54,18 +55,27 @@ def fighter(
     )
 
 
-def session_of(*combatants, seed: int = 7) -> CombatSession:
-    return CombatSession.create(
+#: The terms the loop tests fight under, stated rather than assumed: the
+#: engine has no default (`kirby_combat.ending`). Last side standing, ended
+#: by the engine, is what every loop test was written against.
+LOOP_TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING,
+                        end_mode=EndMode.AUTO_STOP)
+
+
+def session_of(*combatants, seed: int = 7, terms: FightTerms = LOOP_TERMS
+               ) -> CombatSession:
+    return state_terms(CombatSession.create(
         id="s", combatants=list(combatants), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=seed),
-    ).start()
+    ).start(), terms)
 
 
-def encounter_of(*combatants, seed: int = 7, segment: int = 12) -> Encounter:
+def encounter_of(*combatants, seed: int = 7, segment: int = 12,
+                 terms: FightTerms = LOOP_TERMS) -> Encounter:
     return Encounter(
         id="e", turn=1, segment=segment,
-        sessions=[session_of(*combatants, seed=seed)],
+        sessions=[session_of(*combatants, seed=seed, terms=terms)],
     )
 
 

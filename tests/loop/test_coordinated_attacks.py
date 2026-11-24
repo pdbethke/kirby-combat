@@ -24,6 +24,8 @@ fifth man swings at -4.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 
 from conftest import fighter  # tests/loop/conftest.py
@@ -56,10 +58,10 @@ def _session(template=GANG, *, horde=4, defense_maneuver: str | None = None):
                         if defense_maneuver else [])
     men = [fighter(f"m{i}", side=Side.named("horde"), dex=20 - i)
            for i in range(horde)]
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", scene=None, template=template, dice_roller=RandomRoller(seed=2),
         combatants=[*men, mark],
-    ).start()
+    ).start())
 
 
 def _join(session, who: str):

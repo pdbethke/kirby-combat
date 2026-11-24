@@ -16,6 +16,8 @@ other; both were short of the rule.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from fixtures.synthetic_hero import synthetic_combatant
 from kirby_dice import RandomRoller
 
@@ -71,12 +73,12 @@ class Shoots:
 
 
 def _shot(*, pd: int, rpd: int):
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[_man("dravik", "a", dex=30, pd=4, rpd=0),
                             _man("harlow", "b", dex=10, pd=pd, rpd=rpd)],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     result = run_phase(enc, Shoots(), roller=Ones(), on_unresolvable="raise")
     assert result.actor_id == "dravik" and result.kind == "attack"

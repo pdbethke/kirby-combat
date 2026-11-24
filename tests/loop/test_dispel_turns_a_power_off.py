@@ -11,6 +11,8 @@ point is that every reader of his powers --- here the defences
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -52,10 +54,10 @@ def _fight(*, levels: int = 16, input: str = "Force Field") -> CombatSession:
                   side=Side.named("heroes"))
     nullifier = fighter("null", side=Side.named("villains"), dex=5)
     nullifier.hero.powers.append(_Dispel(levels, input))
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=[lad, nullifier], scene=None, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
 
 
 def _dispel_offer(session):

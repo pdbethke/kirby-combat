@@ -42,6 +42,12 @@ from kirby_combat.side import Side
 from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -159,14 +165,14 @@ def main() -> None:
     template = CombatTemplate.default_6e_superheroic()
     roller = RandomRoller(seed=31)
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="field", scene=None, template=template, dice_roller=roller,
         combatants=[
             _fighter("Aurora", Side.named("Sentinels"), 25),
             _fighter("Bulwark", Side.named("Sentinels"), 20),
             _fighter("Nemesis", Side.named("Iron Chorus"), 22),
         ],
-    ).start()
+    ).start(), TERMS)
     encounter = Encounter(id="e", turn=1, segment=12, sessions=[session])
 
     # ---- What one Phase looks like ----

@@ -31,6 +31,8 @@ Both have a negative control that runs first.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import dataclasses
 import inspect
 import json
@@ -103,11 +105,11 @@ def _rebuilt(combatants: list[HeroCombatant]) -> list[HeroCombatant]:
 def _fight(combatants: list[HeroCombatant], opens_on: dict[str, str]):
     """``opens_on``: the slot (by name) each man's Multipower opens on,
     stated here (6E1 p.404-406); the loop picks none."""
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=combatants, scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=SESSION_SEED),
-    ).start()
+    ).start())
     for cid, slot_name in opens_on.items():
         session = open_on(session, cid, slot_name)
     result = run_encounter(

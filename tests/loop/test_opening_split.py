@@ -14,6 +14,10 @@ loop's mechanics run everywhere without a licensed template.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
+from fixtures.terms import terms_stated
+
 import dataclasses
 
 import pytest
@@ -92,10 +96,10 @@ def _carrying(id, side, *views, standing=None):
 
 
 def _encounter(*combatants):
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=list(combatants), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
-        dice_roller=RandomRoller(seed=7)).start()
+        dice_roller=RandomRoller(seed=7)).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 
@@ -322,18 +326,15 @@ def test_run_encounter_opens_then_fights_and_counts_no_opening_as_a_phase():
 
 # ── review fixes ──────────────────────────────────────────────────────────
 
-def test_a_decided_fight_poses_no_opening_and_emits_nothing():
-    """The decided check comes BEFORE the openings: a fight already over
-    asks nobody for a split (actor_id None, no events)."""
-    from kirby_combat.roster import Verdict
-
-    class AlreadyOver:
-        def decide(self, roster):
-            return Verdict(over=True, winner=None)
+def test_an_ended_fight_poses_no_opening_and_emits_nothing():
+    """The end check comes BEFORE the openings: a fight already over asks
+    nobody for a split (actor_id None, no events)."""
+    from kirby_combat.ending import call_fight
 
     enc = _encounter(_carrying("merrick", "heroes", _magic()), fighter("foe", side=Side.named("villains")))
+    enc = replace(enc, sessions=[call_fight(enc.sessions[0], gm_id="gm")])
     seat = _States({("merrick", "kmp"): "bolt@60"})
-    out = run_phase(enc, seat, roller=_roller(), until=AlreadyOver())
+    out = run_phase(enc, seat, roller=_roller())
     assert out.actor_id is None and out.events == []
     assert seat.seen == []
 
@@ -437,10 +438,10 @@ def test_the_opening_situation_carries_the_distances_and_reach_of_a_phase():
     base = _carrying("merrick", "heroes", _magic())
     merrick = _Reaching(**{f.name: getattr(base, f.name)
                             for f in dataclasses.fields(base)})
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[merrick, fighter("foe", side=Side.named("villains"))],
         scene=scene, template=CombatTemplate.default_6e_superheroic(),
-        dice_roller=RandomRoller(seed=7)).start()
+        dice_roller=RandomRoller(seed=7)).start())
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     seat = _States({("merrick", "kmp"): "wall@45+wind@15"})
 

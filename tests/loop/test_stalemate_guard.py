@@ -65,9 +65,12 @@ def test_a_fight_where_nothing_happens_stops_early():
 
 
 def test_it_reports_a_stalemate_rather_than_a_winner():
+    from kirby_combat.ending import Ending, ended
+
     result = _fight()
-    assert result.complete is False
     assert result.winner is None
+    # Auto-stop (the loop tests' terms): the guard ends it, as a stalemate.
+    assert ended(result.encounter.sessions[0]).ending == Ending.STALEMATE
 
 
 def test_it_says_why():

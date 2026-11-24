@@ -2,6 +2,8 @@
 Over Time, Side Effects, Increased END, Move By/Through, hazard zones)."""
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 
 from conftest import blast                          # tests/loop/conftest.py
@@ -56,10 +58,10 @@ def scene_with(positions: dict[str, tuple[float, float, float]], *,
 
 
 def session_on(scene, *combatants, template=TEMPLATE) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(combatants), scene=scene, template=template,
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
 
 
 def encounter_on(scene, *combatants, segment: int = 12, template=TEMPLATE) -> Encounter:

@@ -73,7 +73,7 @@ from kirby_combat.loop.chooser import Chooser, PhaseSituation, validate_choice
 from kirby_combat.loop.registry import (
     ResolvedAction, UnresolvableAction, resolve_chosen,
 )
-from kirby_combat.roster import LastSideStanding, Roster, StopCondition, Verdict
+from kirby_combat.roster import Roster
 from kirby_combat.self_destruct import judge_the_squad, self_destruct_offers
 from kirby_combat.session.apply import apply_event
 from kirby_combat.session.events import PhaseSpent, make_author_engine
@@ -849,6 +849,35 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     return situation
 
 
+def _end_of_the_fight(encounter: "Encounter", log_before: int) -> "PhaseResult | None":
+    """The PhaseResult that stops this step at the end of the fight, or None
+    to step on. See `run_phase`'s docstring and `kirby_combat.ending`."""
+    from kirby_combat.ending import (
+        Ending, conclude, ended, open_proposal, terms_of, verdict_of,
+    )
+
+    session = encounter.sessions[0]
+    terms_of(session)  # FightTermsMissing: no terms, no step
+    if ended(session) is not None:
+        return PhaseResult(encounter=encounter, kind="ended",
+                           notes=["the fight has ended"])
+    if open_proposal(session) is not None:
+        return PhaseResult(encounter=encounter, kind="end_question",
+                           notes=["the end is proposed; awaiting the GM"])
+    verdict = verdict_of(session)
+    if not verdict:
+        return None
+    after = conclude(session, Ending.DECIDED,
+                     verdict.winner.id if verdict.winner is not None else None)
+    if after is session:
+        return None  # the GM declined this verdict: the fight carries on
+    return PhaseResult(
+        encounter=_with(encounter, after),
+        kind="ended" if ended(after) is not None else "end_question",
+        events=list(after.event_log[log_before:]),
+    )
+
+
 def run_phase(
     encounter: "Encounter",
     chooser: Chooser,
@@ -856,7 +885,6 @@ def run_phase(
     roller,
     on_unresolvable: str = "raise",
     campaign: Any = None,
-    until: StopCondition | None = None,
 ) -> PhaseResult:
     """Step the WHOLE fight by one Phase --- the clock included.
 
@@ -879,7 +907,7 @@ def run_phase(
     in.
 
     THE SIGNATURE, for a consumer: ``run_phase(encounter, chooser, *,
-    roller, on_unresolvable="raise", campaign=None, until=None)``. It
+    roller, on_unresolvable="raise", campaign=None)``. It
     takes the ``Encounter`` because that is where the clock is; the
     template is resolved from the Encounter and the campaign exactly as
     ``advance_segment`` and ``run_segment`` resolve it, rather than being
@@ -891,9 +919,12 @@ def run_phase(
     returns, before any Segment begins: ``actor_id`` is that combatant and
     ``kind`` is ``"opening_split"`` (`_pose_opening`, 6E1 p.404-406).
 
-    ``actor_id`` is ``None`` in exactly ONE case now: the fight is
-    already decided by ``until`` (default: last side standing). Nothing
-    is emitted in that case. Every other return has an actor.
+    ``actor_id`` is ``None`` only at the END OF THE FIGHT
+    (`kirby_combat.ending`): ``kind="ended"`` once ``SessionEnded`` is in
+    the log, ``kind="end_question"`` while an ``EndProposed`` awaits the
+    GM. The fight's own TERMS (``FightTermsStated``) say when it is over
+    and who confirms it; a fight without them raises ``FightTermsMissing``.
+    Every other return has an actor.
 
     ``roller`` serves both contracts. Resolvers want a dice object; 6E2
     p.21's tie-break wants a zero-argument callable, because it is a
@@ -913,7 +944,6 @@ def run_phase(
     if on_unresolvable not in ("raise", "skip"):
         raise ValueError(f"on_unresolvable must be 'raise' or 'skip', got {on_unresolvable!r}")
 
-    stop: StopCondition = until or LastSideStanding()
     template = encounter._resolve_template(campaign)
 
     # EVERYTHING THIS CALL WRITES DOWN, measured rather than assembled.
@@ -939,13 +969,15 @@ def run_phase(
     def tie_roller() -> list[int]:
         return roller.roll_dice(3)
 
-    # A FIGHT THAT IS OVER EMITS NOTHING FURTHER. Asked before the clock
-    # is touched, so a decided fight cannot be advanced a Segment by
-    # somebody asking it for one more Phase.
-    if Roster(encounter.sessions[0]).decide(stop):
-        return PhaseResult(
-            encounter=encounter, notes=["the fight is already decided"],
-        )
+    # THE END OF THE FIGHT, BEFORE THE CLOCK MOVES (`kirby_combat.ending`).
+    # Asked first, so a decided fight cannot be advanced a Segment by
+    # somebody asking it for one more Phase. An ended fight writes nothing;
+    # an open question to the GM holds it still; a verdict the terms say is
+    # final ends it, or is put to the GM. A verdict the GM has declined
+    # lets the fight carry on.
+    ending = _end_of_the_fight(encounter, log_before)
+    if ending is not None:
+        return ending
 
     # THE OPENING SPLITS, BEFORE THE CLOCK MOVES (6E1 p.404-406; spec §5.2,
     # decision 7). One per call, so a seat that cannot answer now (a player:
@@ -1445,7 +1477,6 @@ def run_encounter(
     chooser: Chooser,
     *,
     roller,
-    until: StopCondition | None = None,
     max_turns: int = 20,
     stalemate_after: int = 40,
     on_unresolvable: str = "raise",
@@ -1454,15 +1485,16 @@ def run_encounter(
 ) -> EncounterResult:
     """Drive a fight to its end, or to ``max_turns``.
 
-    The default stop condition is ``last_side_standing`` --- over when at
-    most one side still has someone up. Any number of sides is legal: two
-    teams, a three-way, the battle of four armies, or a free-for-all where
-    nobody carries a side label and each fighter is their own. Pass
-    ``until`` to replace it (first blood, an objective, a scripted end).
+    The fight's own TERMS (``FightTermsStated``, `kirby_combat.ending`) say
+    which condition decides it and whether its end is final or put to the
+    GM. Any number of sides is legal: two teams, a three-way, the battle of
+    four armies, or a free-for-all where nobody carries a side label and
+    each fighter is their own.
 
-    ``max_turns`` is a guard, not a rule. A fight that reaches it returns
-    ``complete=False`` with a note saying so, rather than looping forever
-    on a chooser that will not commit.
+    ``max_turns`` and ``stalemate_after`` are guards, not rules. When one
+    trips, the fight is concluded by its terms with ``Ending.TURN_LIMIT`` /
+    ``Ending.STALEMATE``: an auto-stop fight ends; an ask fight puts it to
+    the GM and returns ``complete=False`` awaiting the answer.
 
     Sides are validated before the first Phase. Two labels differing only
     in case or spacing raise ``AmbiguousSides`` --- a typo that adds an
@@ -1473,18 +1505,14 @@ def run_encounter(
     _require_one_fight(encounter)
     Roster(encounter.sessions[0]).validate(expected=expected_sides)
 
-    stop: StopCondition = until or LastSideStanding()
+    from kirby_combat.ending import Ending, conclude, terms_of
+
+    terms_of(encounter.sessions[0])  # FightTermsMissing before anything runs
     skipped: dict[str, int] = {}
 
     phases = 0
     turns = 0
 
-    verdict = Roster(encounter.sessions[0]).decide(stop)
-    if verdict:
-        return EncounterResult(
-            encounter=encounter, complete=True, winner=verdict.winner,
-            notes=["fight was already decided before the first Phase"],
-        )
 
     # NO SECOND COPY OF THE ADVANCE. This used to resolve the Segment's
     # order, spend every slot in it, and call `advance_segment` itself,
@@ -1498,15 +1526,15 @@ def run_encounter(
 
         phase = run_phase(
             encounter, chooser, roller=roller,
-            on_unresolvable=on_unresolvable, campaign=campaign, until=stop,
+            on_unresolvable=on_unresolvable, campaign=campaign,
         )
         before = encounter.sessions[0]
         encounter = phase.encounter
         turns += encounter.turn - start_turn
 
         if phase.actor_id is None:
-            # The only `actor_id=None` there is: the fight is decided.
-            break
+            # The end of the fight: ended, or a question to the GM.
+            return _encounter_result(encounter, turns, phases, skipped)
         if phase.kind == OPENING_KIND:
             # An opening split is set-up, not a Phase (spec §5.2): not
             # counted, and not "nothing happened" for the stalemate guard.
@@ -1529,31 +1557,40 @@ def run_encounter(
         else:
             quiet += 1
         if quiet >= stalemate_after:
-            return EncounterResult(
-                encounter=encounter, turns=turns, phases=phases,
-                complete=False, winner=None, skipped_kinds=skipped,
-                notes=[f"stalemate: nothing happened to anybody for "
-                       f"{quiet} Phases"],
-            )
+            encounter = _with(encounter, conclude(
+                encounter.sessions[0], Ending.STALEMATE, None))
+            return _encounter_result(
+                encounter, turns, phases, skipped,
+                note=f"stalemate: nothing happened to anybody for {quiet} Phases")
 
-        verdict = Roster(phase.session).decide(stop)
-        if verdict:
-            return EncounterResult(
-                encounter=encounter, turns=turns, phases=phases,
-                complete=True, winner=verdict.winner, skipped_kinds=skipped,
-            )
+    encounter = _with(encounter, conclude(
+        encounter.sessions[0], Ending.TURN_LIMIT, None))
+    return _encounter_result(
+        encounter, turns, phases, skipped,
+        note=f"reached the {max_turns}-Turn guard without a decision")
 
-    verdict = Roster(encounter.sessions[0]).decide(stop)
-    if verdict:
+
+def _encounter_result(encounter: "Encounter", turns: int, phases: int,
+                      skipped: dict[str, int], *, note: str | None = None
+                      ) -> EncounterResult:
+    """What `run_encounter` hands back, read off the log: complete once
+    ``SessionEnded`` is there, with its winner; otherwise awaiting the GM."""
+    from kirby_combat.ending import ended, open_proposal
+
+    session = encounter.sessions[0]
+    end = ended(session)
+    notes = [note] if note else []
+    if end is None:
+        if open_proposal(session) is not None:
+            notes.append("the end is proposed; awaiting the GM")
         return EncounterResult(
-            encounter=encounter, turns=turns, phases=phases,
-            complete=True, winner=verdict.winner, skipped_kinds=skipped,
-        )
+            encounter=encounter, turns=turns, phases=phases, complete=False,
+            winner=None, skipped_kinds=skipped, notes=notes)
+    winner = next((side for side in Roster(session).sides
+                   if side.id == end.winner), None)
     return EncounterResult(
-        encounter=encounter, turns=turns, phases=phases,
-        complete=False, winner=None, skipped_kinds=skipped,
-        notes=[f"stopped at the {max_turns}-Turn guard without a decision"],
-    )
+        encounter=encounter, turns=turns, phases=phases, complete=True,
+        winner=winner, skipped_kinds=skipped, notes=notes)
 
 
 #: Events that mean something happened TO SOMEBODY, whatever the numbers

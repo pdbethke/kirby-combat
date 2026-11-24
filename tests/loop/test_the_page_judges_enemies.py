@@ -10,6 +10,8 @@ Every page here is the one `run_phase` hands the chooser.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from dataclasses import replace
 
 import pytest
@@ -56,9 +58,9 @@ class _Reads:
 
 
 def _session(*cast, template, seed=7):
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(cast), scene=None, template=template,
-        dice_roller=RandomRoller(seed=seed)).start()
+        dice_roller=RandomRoller(seed=seed)).start())
 
 
 def _play(session, actor_id=None) -> _Reads:
@@ -179,9 +181,9 @@ def test_an_enemy_he_cannot_perceive_keeps_todays_single_line():
         vex = fighter("vex", side=VILLAINS)
         if invisible:
             vex.hero.powers.append(_InvisibilityPower())
-        s = CombatSession.create(
+        s = terms_stated(CombatSession.create(
             id="s", combatants=[fighter("hero", side=HEROES), vex], scene=floor,
-            template=JUDGED, dice_roller=RandomRoller(seed=1)).start()
+            template=JUDGED, dice_roller=RandomRoller(seed=1)).start())
         for author, payload in (
             ("vex", dict(kind="attack", power_name="Blast", target_id="hero",
                          hit=False, status_changes=[])),

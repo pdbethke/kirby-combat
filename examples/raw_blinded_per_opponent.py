@@ -48,6 +48,12 @@ from kirby_combat.models import StatBlockCombatant
 from kirby_combat.sense_penalties import NontargetingPerception
 from kirby_combat.session import CombatSession
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def rule(title: str) -> None:
@@ -87,13 +93,13 @@ def _report(session: CombatSession, opponent: str) -> tuple[int, int, int, int]:
 def main() -> None:
     rule("CORVIN FIGHTS BLIND — 6E2 p.9")
 
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s1",
         combatants=[CORVIN, DUNMAR, FINNACH],
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
-    ).start()
+    ).start(), TERMS)
 
     print("\n  Corvin, unblinded — 8 OCV / 8 DCV against anyone:")
     assert _report(session, "dunmar") == (8, 8, 8, 8)

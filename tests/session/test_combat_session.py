@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from kirby_combat.session import CombatSession, Timeline
 from fixtures.synthetic_hero import synthetic_combatant
+from fixtures.terms import terms_stated
 from kirby_combat.template import CombatTemplate
 from kirby_dice import FakeRoller
 
@@ -60,15 +61,21 @@ def test_session_pause_and_resume():
 
 
 def test_session_end_is_terminal():
-    s = CombatSession.create(
+    """A fight ends once (`kirby_combat.ending`): a second end is refused,
+    and the log holds one SessionEnded."""
+    import pytest
+
+    from kirby_combat.ending import call_fight
+
+    s = call_fight(terms_stated(CombatSession.create(
         id="s1", combatants=[_mk_c("alice", 4, 20)],
         scene=None, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=FakeRoller([]),
-    ).start().end(reason="tpk")
+    ).start()), gm_id="gm")
     assert s.status == "ended"
-    s2 = s.end(reason="double-end")
-    assert s2.status == "ended"
-    ends = [e for e in s2.event_log if e.kind == "SessionEnded"]
+    with pytest.raises(ValueError, match="already ended"):
+        call_fight(s, gm_id="gm")
+    ends = [e for e in s.event_log if e.kind == "SessionEnded"]
     assert len(ends) == 1
 
 

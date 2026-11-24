@@ -33,6 +33,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kirby_combat.models import AttackPower, DefenseItem
 from kirby_combat.side import Side
 from kirby_combat.synthetic import synthetic_combatant
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 
 def revolver(name: str, dice: int = 2, *, minus_one: bool = True,
@@ -389,9 +395,9 @@ def the_fight(seed: int = DEMO_SEED, *, chooser=None):
     # depending on whether a MODEL also fails to reach a rule. See
     # `scripts/coverage.py`.
     chooser = chooser if chooser is not None else TacticChooser()
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id=f"shootout-{seed}", combatants=cast, scene=scene,
-        template=template, dice_roller=roller).start()
+        template=template, dice_roller=roller).start(), TERMS)
     result = run_encounter(
         Encounter(id=f"shootout-{seed}", turn=1, segment=12,
                   sessions=[session], template=template),

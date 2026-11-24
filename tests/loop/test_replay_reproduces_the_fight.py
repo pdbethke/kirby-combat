@@ -20,6 +20,9 @@ rebuilding it from the rows alone. Same winner, same log.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+from kirby_combat.ending import ended
+
 
 from conftest import fighter  # tests/loop/conftest.py
 
@@ -126,7 +129,7 @@ def _fresh_session() -> CombatSession:
 
 def _encounter() -> Encounter:
     return Encounter(
-        id="e", turn=1, segment=12, sessions=[_fresh_session().start()],
+        id="e", turn=1, segment=12, sessions=[terms_stated(_fresh_session().start())],
     )
 
 
@@ -457,7 +460,6 @@ def _stepped_one_phase_at_a_time():
     """
     roller = RandomRoller(seed=FIGHT_SEED)
     chooser = CloseTheDistanceThenFight()
-    stop = LastSideStanding()
     rows: list = list(_encounter().sessions[0].event_log)
     winner = None
 
@@ -475,10 +477,12 @@ def _stepped_one_phase_at_a_time():
         )
         rows = list(phase.session.event_log)
         if phase.actor_id is None:
-            break
-        verdict = Roster(phase.session).decide(stop)
-        if verdict:
-            winner = verdict.winner
+            # The end of the fight is an event now (`kirby_combat.ending`):
+            # the stepped consumer reads the winner off the log, exactly as
+            # the live run did.
+            end = ended(phase.session)
+            winner = next((side for side in Roster(phase.session).sides
+                           if side.id == end.winner), None)
             break
     else:                                   # pragma: no cover - guard
         raise AssertionError("the stepped fight never finished")

@@ -63,6 +63,12 @@ from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import RAW_HEROIC
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 SEED = 5
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
@@ -234,9 +240,9 @@ def main() -> None:
     scene = arena_for(random.Random(SEED), cast,
                       generator=ArenaGenerator.WITH_COVER)
     roller = RandomRoller(seed=SEED)
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="squad-takes-cover", combatants=cast, scene=scene,
-        template=RAW_HEROIC, dice_roller=roller).start()
+        template=RAW_HEROIC, dice_roller=roller).start(), TERMS)
 
     print("Squads declared:")
     for squad in squads_of(session):

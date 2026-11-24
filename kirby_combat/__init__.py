@@ -197,6 +197,10 @@ from kirby_combat.loop import (  # noqa: E402
     LastSideStanding, Roster, Side, StopCondition, Verdict,
     next_actor_id, registered_kinds, run_encounter, run_phase,
 )
+from kirby_combat.ending import (  # noqa: E402
+    Ending, EndMode, FightTerms, FightTermsMissing, StopKind,
+    answer_end, call_fight, ended, open_proposal, state_terms, terms_of,
+)
 
 # The readable projection of a fight, imported after the loop for the same
 # reason the loop is imported last: it reads `next_actor_id` and
@@ -242,6 +246,10 @@ __all__ = [
     "PhaseResult", "EncounterResult",
     "run_phase", "run_encounter", "next_actor_id", "registered_kinds",
     "Side", "Roster", "Verdict", "LastSideStanding", "StopCondition",
+    # The end of a fight (kirby_combat.ending)
+    "Ending", "EndMode", "FightTerms", "FightTermsMissing", "StopKind",
+    "answer_end", "call_fight", "ended", "open_proposal", "state_terms",
+    "terms_of",
     "Brief", "CombatantLine",
     "Finding", "critique",
     # Combatants

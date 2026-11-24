@@ -32,7 +32,7 @@ Exercises:
   - run_encounter / run_phase / next_actor_id
   - FirstLegalChooser, TacticChooser, and a hand-written chooser
   - side_of / standing_sides / last_side_standing, with four armies
-  - a caller-supplied stop condition replacing last-side-standing
+  - a fight's own terms: first blood instead of last side standing
   - registered_kinds() — the honest size of what the engine can execute
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ import dataclasses
 
 from kirby_combat.encounter import Encounter
 from kirby_combat.loop import (
-    FirstLegalChooser, PhaseSituation, Roster, TacticChooser, Verdict,
+    FirstLegalChooser, PhaseSituation, Roster, TacticChooser,
     next_actor_id, registered_kinds, run_encounter, run_phase,
 )
 from kirby_combat.side import Side
@@ -50,6 +50,12 @@ from kirby_combat.models import AttackPower
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.template import CombatTemplate
 from kirby_dice import RandomRoller
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 ARMIES = ("Crimson", "Azure", "Verdant", "Golden")
 
@@ -158,12 +164,12 @@ def _soldier(id: str, side: Side | None, dex: int) -> HeroCombatant:
     )
 
 
-def _encounter(roster, seed: int) -> Encounter:
-    session = CombatSession.create(
+def _encounter(roster, seed: int, terms: FightTerms = TERMS) -> Encounter:
+    session = state_terms(CombatSession.create(
         id="field", combatants=roster, scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=seed),
-    ).start()
+    ).start(), terms)
     # Combat begins on Segment 12 (6E2 p.20, "BEGINNING COMBAT").
     return Encounter(id="battle", turn=1, segment=12, sessions=[session])
 
@@ -219,26 +225,21 @@ def main() -> None:
     )
     _report("A duel, picked by role and doctrine:", result)
 
-    # ---- A caller-supplied ending ----
-    class FirstBlood:
-        """A caller's own ending, as a class implementing StopCondition.
-
-        Objects over strings, classes over functions: a stop condition is a
-        thing with a rule, not a bare callable."""
-
-        def decide(self, roster):
-            for c in roster.combatants:
-                if c.state.current_stun < c.combat_stats().max_stun:
-                    return Verdict(over=True, winner=Side.of(c))
-            return Verdict(over=False)
-
+    # ---- A fight's own ending ----
+    #
+    # The stop condition is part of the fight's TERMS, stated once as it
+    # starts and kept in its log: here, first blood, won by the side nobody
+    # hurt. (An earlier version of this example passed its own FirstBlood
+    # class per call, and crowned the HURT man's side.)
+    first_blood = FightTerms(stop=StopKind.FIRST_BLOOD,
+                             end_mode=EndMode.AUTO_STOP)
     result = run_encounter(
         _encounter([_soldier("Duellist", Side.named("a"), 25),
-         _soldier("Rival", Side.named("b"), 20)], seed=3),
+         _soldier("Rival", Side.named("b"), 20)], seed=3, terms=first_blood),
         FirstLegalChooser(), roller=RandomRoller(seed=3),
-        until=FirstBlood(), on_unresolvable="skip", max_turns=10,
+        on_unresolvable="skip", max_turns=10,
     )
-    _report("A duel to first blood — the caller's rule, not the engine's:", result)
+    _report("A duel to first blood — the fight's own terms:", result)
 
     # ---- One Phase at a time: what a networked session actually steps ----
     #

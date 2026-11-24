@@ -47,6 +47,12 @@ from kirby_combat.side import Side
 from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 TEMPLATE = CombatTemplate.default_6e_superheroic()
 OAF = {"xmlid": "FOCUS", "option_id": "OAF", "base_cost": -1.0}
@@ -100,9 +106,9 @@ def _menu(student):
     from kirby_combat.loop.run import _situation_for
 
     mark = synthetic_combatant(id="mark", name="Mark", spd=2, side=Side.named("b"))
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s", combatants=[student, mark], scene=None, template=TEMPLATE,
-        dice_roller=RandomRoller(seed=1)).start()
+        dice_roller=RandomRoller(seed=1)).start(), TERMS)
     return [o for o in _situation_for(session, "student").menu if o.target_id == "mark"]
 
 
@@ -168,9 +174,9 @@ def _brawler(id_, side, spd, dex):
 def _haymaker_fight(script):
     hero = _brawler("hero", Side.named("a"), spd=4, dex=20)        # 3, 6, 9, 12
     other = _brawler("other", Side.named("b"), spd=7, dex=10)      # 2, 4, 6, 7, 9, 11, 12
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s", combatants=[hero, other], scene=None, template=TEMPLATE,
-        dice_roller=RandomRoller(seed=1)).start()
+        dice_roller=RandomRoller(seed=1)).start(), TERMS)
     enc, events = Encounter(id="e", turn=1, segment=12, sessions=[session]), []
     while (enc.turn, enc.segment) <= (2, 7):
         r = run_phase(enc, script, roller=RandomRoller(seed=5), on_unresolvable="raise")

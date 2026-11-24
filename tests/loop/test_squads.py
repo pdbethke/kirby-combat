@@ -1,6 +1,8 @@
 """Squads and their leaders (squad tactics spec, section 4)."""
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import uuid
 from datetime import datetime, timezone
 
@@ -24,8 +26,8 @@ def _man(id, *, side=RED, squad="alpha", tactics=None, int_=10, pre=10):
 
 
 def _fight(*men):
-    return CombatSession.create(id="s", combatants=list(men), scene=None,
-                                template=None, dice_roller=None).start()
+    return terms_stated(CombatSession.create(id="s", combatants=list(men), scene=None,
+                                template=None, dice_roller=None).start())
 
 
 def _knock_out(session, cid):
@@ -162,9 +164,9 @@ def test_through_the_loop_the_leader_falls_and_the_next_is_named_in_that_step():
                                  attacks=[blast("k-eb", dice=12)])
     lead = _man("l", tactics=14)
     deputy = _man("d", tactics=10)
-    session = CombatSession.create(id="s", combatants=[killer, lead, deputy], scene=None,
+    session = terms_stated(CombatSession.create(id="s", combatants=[killer, lead, deputy], scene=None,
                                    template=RAW_SUPERHEROIC,
-                                   dice_roller=RandomRoller(seed=3)).start()
+                                   dice_roller=RandomRoller(seed=3)).start())
 
     class _Shoot:
         def give_orders(self, page):

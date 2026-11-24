@@ -13,6 +13,8 @@ fight, on kirby-api a /run 500:
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import fighter                             # tests/loop/conftest.py
 from shaped import TEMPLATE, Dice, Picks, encounter_on, scene_with
 
@@ -101,11 +103,11 @@ def _wall_fight():
                      segment=(Position(5, -2, 0), Position(5, 2, 0)),
                      blocks_los=True, blocks_movement=True, def_value=1, body=2)
     scene = scene_with({"caster": (0, 0, 0), "mark": (20, 0, 0)}, constructs=[shed])
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[fighter("caster", side=VILLAINS, dex=30),
                             fighter("mark", side=HEROES)],
         scene=scene, template=TEMPLATE, dice_roller=Dice(face=6),
-    ).start()
+    ).start())
     return session
 
 
@@ -152,10 +154,10 @@ def test_a_wall_that_was_never_there_still_raises():
 # ── a one-target Flash and Entangle roll to hit ──────────────────────────────
 
 def _effect_fight(xmlid: str, levels: int):
-    enc = Encounter(id="e", turn=1, segment=12, sessions=[CombatSession.create(
+    enc = Encounter(id="e", turn=1, segment=12, sessions=[terms_stated(CombatSession.create(
         id="s", combatants=[_caster(xmlid, levels), fighter("mark", side=HEROES)],
         scene=None, template=TEMPLATE, dice_roller=Dice(face=3),
-    ).start()])
+    ).start())])
     return enc
 
 

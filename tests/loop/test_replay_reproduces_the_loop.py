@@ -14,6 +14,8 @@ a fresh roller and an EMPTY log; the only thing it is given is the events.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import fighter  # tests/loop/conftest.py
 
 from kirby_combat.encounter import Encounter
@@ -50,10 +52,10 @@ def _combatants():
 
 
 def _started(combatants) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=combatants, scene=None, template=TEMPLATE,
         dice_roller=RandomRoller(seed=7),
-    ).start()
+    ).start())
 
 
 def _encounter_for(session: CombatSession) -> Encounter:

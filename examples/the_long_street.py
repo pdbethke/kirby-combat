@@ -49,6 +49,12 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.side import Side
 from kirby_combat.synthetic import synthetic_combatant
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 #: Chosen the way the Corral's is: for coverage, not for a story.
 DEMO_SEED = 7
@@ -278,9 +284,9 @@ def the_fight(seed: int = DEMO_SEED, *, chooser=None):
     template = replace(RAW_HEROIC, use_bleeding_rules=True)
     roller = RandomRoller(seed=seed)
     chooser = chooser if chooser is not None else TacticChooser()
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id=f"street-{seed}", combatants=the_cast(), scene=the_street(),
-        template=template, dice_roller=roller).start()
+        template=template, dice_roller=roller).start(), TERMS)
     return chooser, run_encounter(
         Encounter(id=f"street-{seed}", turn=1, segment=12,
                   sessions=[session], template=template),

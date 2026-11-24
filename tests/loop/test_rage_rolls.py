@@ -12,6 +12,8 @@ go 11-, recover 14-") reads through the same function from a real build.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from types import SimpleNamespace
 
 import pytest
@@ -70,11 +72,11 @@ def _man(id: str, side: str, *, dex: int = 20, stun: int = 40, end: int = 40,
 
 
 def _encounter(*men, segment: int = 12) -> Encounter:
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=list(men), scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=1),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=segment, sessions=[session])
 
 

@@ -13,6 +13,8 @@ asks two things: is it the same fight, and does it keep going the same way.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import json
 from dataclasses import replace
 
@@ -34,7 +36,7 @@ PHASES_BEFORE_SAVE = 2
 
 
 def _fight() -> Encounter:
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s",
         combatants=[
             fighter("a", side=Side.named("blue"), dex=20),
@@ -44,7 +46,7 @@ def _fight() -> Encounter:
         scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=7),
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 

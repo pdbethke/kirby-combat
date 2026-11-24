@@ -19,6 +19,8 @@ p.234: "Healing BODY 2d6 spell (maximum effect 12 points, or 6 BODY)".
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from types import SimpleNamespace
 
 import pytest
@@ -67,10 +69,10 @@ def _with(c, *powers):
 
 
 def _session(*cast) -> CombatSession:
-    return CombatSession.create(
+    return terms_stated(CombatSession.create(
         id="s", combatants=list(cast), scene=None, template=TEMPLATE,
         dice_roller=RandomRoller(seed=3),
-    ).start()
+    ).start())
 
 
 def _offer(session, actor_id: str, kind: str, target_id: str):

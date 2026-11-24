@@ -118,20 +118,25 @@ def test_the_turn_wrap_and_its_free_recovery_fire_through_this_door():
 # The one remaining `actor_id is None`
 # ---------------------------------------------------------------------------
 
-def test_a_decided_fight_returns_no_actor_and_emits_nothing():
+def test_a_decided_fight_ends_and_then_emits_nothing():
+    """Auto-stop: the decided fight's one event is its end; asked again, it
+    writes nothing and is not advanced a Segment."""
     encounter = encounter_of(
         fighter("a", side=Side.named("x"), dex=25),
         fighter("down", side=Side.named("y"), dex=10, stun=0),
     )
-    before = len(encounter.sessions[0].event_log)
 
     phase = run_phase(encounter, FirstLegalChooser(),
                       roller=RandomRoller(seed=3))
+    assert phase.actor_id is None and phase.kind == "ended"
+    assert [e.kind for e in phase.events] == ["SessionEnded"]
 
-    assert phase.actor_id is None
-    assert phase.events == []
-    assert len(phase.session.event_log) == before, (
-        "a decided fight must not be advanced a Segment by being asked "
+    before = len(phase.session.event_log)
+    again = run_phase(phase.encounter, FirstLegalChooser(),
+                      roller=RandomRoller(seed=3))
+    assert again.actor_id is None and again.events == []
+    assert len(again.session.event_log) == before, (
+        "an ended fight must not be advanced a Segment by being asked "
         "for one more Phase"
     )
 
@@ -140,10 +145,6 @@ def test_a_fight_nobody_can_act_in_says_so_rather_than_spinning():
     """The honest answer when a whole Turn passes with no actor and the
     fight is still not decided. A quiet `actor_id=None` here is what would
     let a consumer loop for ever."""
-    class NeverOver:
-        def decide(self, roster) -> Verdict:
-            return Verdict(over=False)
-
     # REC of zero, deliberately: 6E2 p.131's free Post-Segment 12 Recovery
     # fires inside the advance and would otherwise put one of them back on
     # his feet before the Turn was out -- which is the right rule and
@@ -161,17 +162,21 @@ def test_a_fight_nobody_can_act_in_says_so_rather_than_spinning():
             side=Side.named(side),
         )
 
+    from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+    # GM_ONLY: nothing decides it, so the empty Turn is the only answer.
     encounter = Encounter(id="e", turn=1, segment=12, sessions=[
-        CombatSession.create(
+        state_terms(CombatSession.create(
             id="s", combatants=[_out("a", "x", 25), _out("b", "y", 10)],
             scene=None, template=CombatTemplate.default_6e_superheroic(),
             dice_roller=RandomRoller(seed=7),
-        ).start(),
+        ).start(), FightTerms(stop=StopKind.GM_ONLY,
+                              end_mode=EndMode.AUTO_STOP)),
     ])
 
     with pytest.raises(ValueError, match="whole"):
         run_phase(encounter, FirstLegalChooser(),
-                  roller=RandomRoller(seed=3), until=NeverOver())
+                  roller=RandomRoller(seed=3))
 
 
 # ---------------------------------------------------------------------------

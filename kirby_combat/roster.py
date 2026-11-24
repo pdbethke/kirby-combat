@@ -65,7 +65,8 @@ class Verdict:
 
 @runtime_checkable
 class StopCondition(Protocol):
-    """Decides whether a fight has ended. ``LastSideStanding`` is the default."""
+    """Decides whether a fight has ended. A fight names its own
+    (`kirby_combat.ending.StopKind`); there is no default."""
 
     def decide(self, roster: "Roster") -> Verdict: ...
 
@@ -220,8 +221,11 @@ class Roster:
             and self.on_the_board(c.id)
         ]
 
-    def decide(self, condition: StopCondition | None = None) -> Verdict:
-        return (condition or LastSideStanding()).decide(self)
+    def decide(self, condition: StopCondition) -> Verdict:
+        """What ``condition`` says about this roster. Required: a fight's
+        condition is its own choice (`kirby_combat.ending.StopKind`), never
+        assumed."""
+        return condition.decide(self)
 
     def validate(self, *, expected: Iterable[Side] | None = None) -> None:
         """Raise if the roster's sides look like a mistake.

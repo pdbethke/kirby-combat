@@ -78,6 +78,12 @@ from kirby_combat.side import Side
 from kirby_combat.template import RAW_HEROIC
 from kirby_cost.io.build_json import build_from_json
 from kirby_dice import RandomRoller
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 #: Where the archetypes and the weapon prefabs live on THIS machine. Both
 #: are paid Hero Games material, so the repo carries the variable names and
@@ -522,7 +528,7 @@ def main() -> None:
           f"opening range 2m between the front men\n")
 
     roller = RandomRoller(seed=18811026)
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="ok-corral", combatants=fighters, scene=scene,
         # A WESTERN GUNFIGHT IS A HEROIC FIGHT, and this ran the
         # SUPERHEROIC template -- which ships `use_hit_locations=False`
@@ -537,7 +543,7 @@ def main() -> None:
         # and it means a bullet now lands somewhere: a shot to the Vitals
         # and a shot to the foot stop being the same shot.
         template=RAW_HEROIC,
-        dice_roller=roller).start()
+        dice_roller=roller).start(), TERMS)
     seat = _seat(seat_name, {c.id: c for c in fighters})
     result = run_encounter(
         Encounter(id="tombstone", turn=1, segment=12, sessions=[session],

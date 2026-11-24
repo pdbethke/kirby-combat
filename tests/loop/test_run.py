@@ -1,6 +1,8 @@
 """The turn loop, driving fights to decisions with no database and no HTTP."""
 from __future__ import annotations
 
+from kirby_combat.roster import LastSideStanding
+
 import pytest
 
 from conftest import encounter_of, fighter, session_of  # tests/loop/conftest.py
@@ -236,7 +238,7 @@ def test_a_duel_reaches_a_decision():
     assert result.complete
     assert result.winner in (Side.named("heroes"), Side.named("villains"))
     assert result.phases > 0
-    verdict = Roster(result.encounter.sessions[0]).decide()
+    verdict = Roster(result.encounter.sessions[0]).decide(LastSideStanding())
     assert verdict == Verdict(over=True, winner=result.winner)
 
 
@@ -267,24 +269,22 @@ def test_the_battle_of_four_armies():
         assert result.notes, "an undecided fight must say why it stopped"
 
 
-def test_a_caller_supplied_stop_condition_replaces_last_side_standing():
-    """First blood: over the moment anyone has taken a point of STUN."""
-    class FirstBlood:
-        """A caller's own rule, as a class -- the StopCondition protocol."""
-
-        def decide(self, roster):
-            for c in roster.combatants:
-                if c.state.current_stun < c.combat_stats().max_stun:
-                    return Verdict(over=True, winner=Side.of(c))
-            return Verdict(over=False)
+def test_the_fights_own_terms_replace_last_side_standing():
+    """First blood, stated as the fight's terms: over at the first hit, won
+    by the side nobody hurt (`kirby_combat.ending.FirstBlood`)."""
+    from kirby_combat.ending import EndMode, FightTerms, StopKind
 
     result = run_encounter(
-        encounter_of(fighter("a", side=Side.named("x"), dex=25), fighter("b", side=Side.named("y"))),
+        encounter_of(fighter("a", side=Side.named("x"), dex=25),
+                     fighter("b", side=Side.named("y")),
+                     terms=FightTerms(stop=StopKind.FIRST_BLOOD,
+                                      end_mode=EndMode.AUTO_STOP)),
         FirstLegalChooser(), roller=RandomRoller(seed=3),
-        until=FirstBlood(), on_unresolvable="skip", max_turns=5,
+        on_unresolvable="skip", max_turns=5,
     )
     assert result.complete
     assert result.phases == 1, "one landed hit should end a first-blood fight"
+    assert result.winner == Side.named("x")
 
 
 def test_an_already_decided_fight_returns_before_any_phase():
@@ -294,7 +294,7 @@ def test_an_already_decided_fight_returns_before_any_phase():
     )
     assert result.complete and result.winner == Side.named("x")
     assert result.phases == 0
-    assert "already decided" in " ".join(result.notes)
+    assert result.encounter.sessions[0].event_log[-1].kind == "SessionEnded"
 
 
 def test_the_max_turns_guard_stops_rather_than_looping():
@@ -304,8 +304,27 @@ def test_the_max_turns_guard_stops_rather_than_looping():
         FirstLegalChooser(), roller=RandomRoller(seed=2),
         on_unresolvable="skip", max_turns=2,
     )
-    assert result.complete is False
+    from kirby_combat.ending import Ending, ended
+
+    # Auto-stop: the guard ends the fight, and says so in the log.
+    assert result.complete is True and result.winner is None
+    assert ended(result.encounter.sessions[0]).ending == Ending.TURN_LIMIT
     assert "guard" in " ".join(result.notes)
+
+
+def test_an_ask_fight_puts_the_turn_limit_to_the_gm():
+    from kirby_combat.ending import EndMode, FightTerms, StopKind, open_proposal
+
+    result = run_encounter(
+        encounter_of(fighter("a", side=Side.named("x"), dice=1),
+                     fighter("b", side=Side.named("y"), dice=1),
+                     terms=FightTerms(stop=StopKind.LAST_SIDE_STANDING,
+                                      end_mode=EndMode.ASK)),
+        FirstLegalChooser(), roller=RandomRoller(seed=2),
+        on_unresolvable="skip", max_turns=2,
+    )
+    assert result.complete is False
+    assert open_proposal(result.encounter.sessions[0]).ending == "turn_limit"
 
 
 def test_a_fight_is_deterministic_for_a_seed():

@@ -6,6 +6,8 @@ template -- CI has no corpus. The same construction as
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import uuid
 from datetime import datetime, timezone
 
@@ -103,7 +105,7 @@ def a_fight_that_has_happened() -> CombatSession:
     encounter = Encounter(
         id="e", turn=1, segment=12,
         sessions=[
-            CombatSession.create(
+            terms_stated(CombatSession.create(
                 id="s3",
                 combatants=[
                     synthetic_combatant(
@@ -118,7 +120,7 @@ def a_fight_that_has_happened() -> CombatSession:
                 scene=None,
                 template=RAW_SUPERHEROIC,
                 dice_roller=RandomRoller(seed=7),
-            ).start()
+            ).start())
         ],
     )
     return run_phase(

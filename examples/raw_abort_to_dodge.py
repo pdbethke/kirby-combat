@@ -46,6 +46,12 @@ from kirby_combat.side import Side
 from kirby_combat.squads import KEEP_ORDERS
 from kirby_combat.synthetic import synthetic_combatant
 from kirby_combat.template import CombatTemplate
+from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
+
+#: The fight's terms, stated: the engine assumes none (kirby_combat.ending).
+#: Last side standing, ended by the engine the moment it holds.
+TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
+
 
 HEROES, VILLAINS = Side.named("heroes"), Side.named("villains")
 
@@ -129,11 +135,11 @@ class Script:
 
 def _fight(a, b, *, own, react, until: tuple[int, int]):
     """Run the loop from the start of the fight until (turn, segment) is past."""
-    session = CombatSession.create(
+    session = state_terms(CombatSession.create(
         id="s", combatants=[a, b], scene=None,
         template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=11),
-    ).start()
+    ).start(), TERMS)
     ref = [Encounter(id="e", turn=1, segment=12, sessions=[session])]
     script = Script({a.id: b.id, b.id: a.id}, own=own, react=react)
     events = []

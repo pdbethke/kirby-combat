@@ -1633,6 +1633,128 @@
       "title": "DivedForCover",
       "type": "object"
     },
+    "EndDeclined": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EndDeclined",
+          "enum": [
+            "EndDeclined"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "ending": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EndDeclined",
+          "enum": [
+            "EndDeclined"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "ending",
+        "winner"
+      ],
+      "title": "EndDeclined",
+      "type": "object"
+    },
+    "EndProposed": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "EndProposed",
+          "enum": [
+            "EndProposed"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "ending": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "EndProposed",
+          "enum": [
+            "EndProposed"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "ending",
+        "winner"
+      ],
+      "title": "EndProposed",
+      "type": "object"
+    },
     "EnduranceReserveChanged": {
       "additionalProperties": false,
       "properties": {
@@ -2008,6 +2130,60 @@
         "segment"
       ],
       "title": "FightRead",
+      "type": "object"
+    },
+    "FightTermsStated": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "FightTermsStated",
+          "enum": [
+            "FightTermsStated"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "end_mode": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "FightTermsStated",
+          "enum": [
+            "FightTermsStated"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "stop": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "stop",
+        "end_mode"
+      ],
+      "title": "FightTermsStated",
       "type": "object"
     },
     "FlashApplied": {
@@ -4137,6 +4313,9 @@
         "author": {
           "$ref": "#/$defs/EventAuthor"
         },
+        "ending": {
+          "type": "string"
+        },
         "id": {
           "type": "string"
         },
@@ -4145,9 +4324,6 @@
           "enum": [
             "SessionEnded"
           ],
-          "type": "string"
-        },
-        "reason": {
           "type": "string"
         },
         "sequence": {
@@ -4159,6 +4335,16 @@
         "timestamp": {
           "format": "date-time",
           "type": "string"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -4169,7 +4355,8 @@
         "timestamp",
         "author",
         "kind",
-        "reason"
+        "ending",
+        "winner"
       ],
       "title": "SessionEnded",
       "type": "object"
@@ -5113,7 +5300,7 @@
       "type": "object"
     }
   },
-  "$id": "urn:kirby-combat:schema:events:0.39.0",
+  "$id": "urn:kirby-combat:schema:events:0.40.0",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "oneOf": [
     {
@@ -5168,6 +5355,12 @@
       "$ref": "#/$defs/DivedForCover"
     },
     {
+      "$ref": "#/$defs/EndDeclined"
+    },
+    {
+      "$ref": "#/$defs/EndProposed"
+    },
+    {
       "$ref": "#/$defs/EnduranceReserveChanged"
     },
     {
@@ -5181,6 +5374,9 @@
     },
     {
       "$ref": "#/$defs/FightRead"
+    },
+    {
+      "$ref": "#/$defs/FightTermsStated"
     },
     {
       "$ref": "#/$defs/FlashApplied"
@@ -5292,5 +5488,5 @@
     }
   ],
   "title": "CombatEvent",
-  "x-kirby-combat-version": "0.39.0"
+  "x-kirby-combat-version": "0.40.0"
 }

@@ -12,6 +12,8 @@ damage must stay on the wall for the next shot.
 """
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 from conftest import fighter                      # tests/loop/conftest.py
 from kirby_combat.constructs import constructs_in, damage_taken
 from kirby_combat.encounter import Encounter
@@ -44,12 +46,12 @@ def _encounter(seed: int) -> Encounter:
         combatant_positions={"lad": Position(2.0, 5.0, 0.0),
                              "ike": Position(10.0, 5.0, 0.0)},
     )
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", scene=scene, template=CombatTemplate.default_6e_superheroic(),
         dice_roller=RandomRoller(seed=seed),
         combatants=[fighter("lad", side=Side.named("x"), dex=30),
                     fighter("ike", side=Side.named("y"), dex=10)],
-    ).start()
+    ).start())
     return Encounter(id="e", turn=1, segment=12, sessions=[session])
 
 

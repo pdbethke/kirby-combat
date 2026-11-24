@@ -1,6 +1,8 @@
 """Round-trip parity tests — to_dict -> from_dict invariant."""
 from __future__ import annotations
 
+from fixtures.terms import terms_stated
+
 import dataclasses
 from typing import get_args
 
@@ -63,7 +65,7 @@ def test_full_session_roundtrip_preserves_state():
         SessionEnded(
             id="evt-4", session_id="s1", sequence=4,
             timestamp=_ts(), author=make_author_engine(),
-            reason="all done",
+            ending="decided", winner="heroes",
         ),
     ]
     for ev in events:
@@ -199,10 +201,10 @@ def _a_short_fight():
         )
 
     template = CombatTemplate.default_6e_superheroic()
-    session = CombatSession.create(
+    session = terms_stated(CombatSession.create(
         id="s", combatants=[_f("a", "x", 25), _f("b", "y", 10)],
         scene=None, template=template, dice_roller=RandomRoller(seed=7),
-    ).start()
+    ).start())
     result = run_encounter(
         Encounter(id="e", turn=1, segment=12, sessions=[session]),
         FirstLegalChooser(), roller=RandomRoller(seed=5),

@@ -34,8 +34,11 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
     if kind == "SessionStarted":
         return replace(session, event_log=new_log, status="active", updated_at=now)
 
-    if kind == "SessionEnded":
-        return replace(session, event_log=new_log, status="ended", updated_at=now)
+    if kind in ("FightTermsStated", "EndProposed", "EndDeclined", "SessionEnded"):
+        _check_ending_event(session, event)
+        if kind == "SessionEnded":
+            return replace(session, event_log=new_log, status="ended", updated_at=now)
+        return replace(session, event_log=new_log, updated_at=now)
 
     if kind == "SegmentAdvanced":
         assert isinstance(event, SegmentAdvanced)
@@ -284,7 +287,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # Read from the log (`rulings.rulings_for`); nothing on the snapshot
         # holds a ruling. Once per fighter, only a fighter in the fight, and
         # only BEFORE THE FIGHT HAS DONE ANYTHING: the window is the start
-        # of the log, `SessionStarted` and other `RulingsStated` rows only.
+        # of the log, `SessionStarted`, `RulingsStated` and `FightTermsStated` rows only.
         # The first row of any other kind closes it --- in practice an
         # opening split's `ActionDeclared` or `SlotsAllocated` before
         # Segment 12, else the first `ActingOrderResolved` /
@@ -292,8 +295,7 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # edit applies from the next fight). Enforced here so a replay
         # refuses what the live fight would.
         late = next((e for e in session.event_log
-                     if getattr(e, "kind", None)
-                     not in ("SessionStarted", "RulingsStated")), None)
+                     if getattr(e, "kind", None) not in _START_WINDOW), None)
         if late is not None:
             raise ValueError(
                 f"RulingsStated for {event.combatant_id!r} in session "
@@ -694,3 +696,46 @@ def _enforce_lightning_reflexes_phase_restriction(
                 f"declare {event.action_type!r}"
             )
         return
+
+
+#: Rows that may precede a fight's terms: the opening, and other statements
+#: made as it starts. The first row of any other kind closes the window.
+_START_WINDOW = ("SessionStarted", "RulingsStated", "FightTermsStated")
+
+
+def _check_ending_event(session, event) -> None:
+    """Refuse an ending-family event the live fight would not have written,
+    so a replay refuses it too (`kirby_combat.ending`)."""
+    from kirby_combat.ending import EndMode, Ending, StopKind, ended, open_proposal
+
+    kind = event.kind
+    if kind == "FightTermsStated":
+        StopKind(event.stop)
+        EndMode(event.end_mode)
+        if any(getattr(e, "kind", None) == "FightTermsStated"
+               for e in session.event_log):
+            raise ValueError(
+                f"FightTermsStated in session {session.id!r}: its terms are "
+                "already stated; they are fixed when the fight starts")
+        late = next((e for e in session.event_log
+                     if getattr(e, "kind", None) not in _START_WINDOW), None)
+        if late is not None:
+            raise ValueError(
+                f"FightTermsStated in session {session.id!r} after a "
+                f"{late.kind} row (sequence {late.sequence}): terms are fixed "
+                "when the fight starts")
+        return
+
+    Ending(event.ending)
+    if ended(session) is not None:
+        raise ValueError(f"{kind} in session {session.id!r}: the fight has "
+                         "already ended")
+    proposal = open_proposal(session)
+    if kind == "EndProposed" and proposal is not None:
+        raise ValueError(f"EndProposed in session {session.id!r}: an end is "
+                         "already proposed and unanswered")
+    if kind == "EndDeclined" and (
+            proposal is None
+            or (proposal.ending, proposal.winner) != (event.ending, event.winner)):
+        raise ValueError(f"EndDeclined in session {session.id!r} answers no "
+                         "open proposal")
