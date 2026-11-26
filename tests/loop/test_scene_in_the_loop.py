@@ -66,7 +66,7 @@ def _menu_kinds(scene: Scene | None, *, apart: float = 20.0) -> set[str]:
     session = _session(scene)
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3, 6))
 
     seen: list[set[str]] = []
 
@@ -203,7 +203,7 @@ def test_a_phase_resolves_with_a_scene_present():
     ))
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3, 6))
 
     result = run_phase(
         enc, FirstLegalChooser(), roller=roller, on_unresolvable="skip",

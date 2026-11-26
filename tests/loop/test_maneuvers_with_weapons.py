@@ -44,7 +44,7 @@ OAF = {"xmlid": "FOCUS", "option_id": "OAF", "base_cost": -1.0}
 class _AlwaysLow(RandomRoller):
     """Every die shows 1: every Attack Roll is a 3 and hits (6E2 p.37)."""
 
-    def roll_dice(self, n, sides=6):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 

@@ -40,7 +40,7 @@ from kirby_combat.template import CombatTemplate
 
 
 class Ones:
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [1] * n
 
 

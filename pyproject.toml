@@ -20,7 +20,7 @@ dependencies = [
     # The roller moved out at 0.10.0. It is a real dependency, not a shim:
     # `kirby_combat.dice` is GONE, and consumers import `kirby_dice`
     # directly. A re-export here would just be a second name for one thing.
-    "kirby-dice>=0.1.0",
+    "kirby-dice>=0.2.0",
     # Terrain: what is physically there and how hard it is to break.
     # Owns the 6E2 p173 Objects Table, which this package re-exports
     # rather than copying -- one home for a transcribed rulebook table.

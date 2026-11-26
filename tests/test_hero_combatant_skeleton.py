@@ -376,8 +376,8 @@ def test_canon_hdc_combatant_stats_are_int_and_rollable():
     roller = RandomRoller(seed=11)
     pre_dice = base_pre_dice(c)
     assert type(pre_dice) is int
-    assert len(roller.roll_dice(pre_dice)) == pre_dice
+    assert len(roller.roll_dice(pre_dice, 6)) == pre_dice
 
     strike = c.str_strike_view()
     assert type(strike.damage_dice) is int
-    assert len(roller.roll_dice(strike.damage_dice)) == strike.damage_dice
+    assert len(roller.roll_dice(strike.damage_dice, 6)) == strike.damage_dice

@@ -121,7 +121,7 @@ def test_a_downed_combatant_is_skipped_not_asked():
         fighter("c", side=Side.named("y"), dex=5),
     )
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3, 6))
 
     assert next_actor_id(enc.sessions[0]) == "a"
     first = run_phase(enc, FirstLegalChooser(), roller=roller)

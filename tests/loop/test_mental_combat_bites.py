@@ -125,7 +125,7 @@ class _Dice(RandomRoller):
         self._three = [list(t) for t in three_d6]
         self._effect = effect
 
-    def roll_dice(self, count, sides=6):
+    def roll_dice(self, count, sides):
         if count == 3 and self._three:
             return self._three.pop(0)
         if self._effect is not None and count != 3:

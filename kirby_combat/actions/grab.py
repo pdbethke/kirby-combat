@@ -64,7 +64,7 @@ def _body_of(roller, dice: int) -> int:
 
     if dice <= 0:
         return 0
-    return sum(_body_for_normal_die(v) for v in roller.roll_dice(dice))
+    return sum(_body_for_normal_die(v) for v in roller.roll_dice(dice, 6))
 
 
 class Grab:

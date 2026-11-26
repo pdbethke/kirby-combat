@@ -223,7 +223,7 @@ def roll_presence_attack(
     repeats = {t.id: repeats_against(session, actor.id, t.id) for t in targets}
     dice_values = roller.roll_dice(
         max((presence_dice(actor, repeats=n) for n in repeats.values()),
-            default=0))
+            default=0), 6)
     results = {}
     for target in targets:
         result = resolve_presence_attack(

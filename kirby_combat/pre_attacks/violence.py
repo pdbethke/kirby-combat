@@ -163,7 +163,7 @@ def presence_from_violence(
         listener = _Speaker(witness_id, witness.combat_stats().pre)
         dice = max(0, speaker.pre // 5 + situation_dice)
         result = resolve_presence_attack(
-            speaker, listener, roller.roll_dice(dice),
+            speaker, listener, roller.roll_dice(dice, 6),
             bonus_dice_from_situation=situation_dice,
         )
         session, _ = PresenceEffects.apply(

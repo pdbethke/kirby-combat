@@ -203,12 +203,12 @@ def test_clinging_that_cannot_resist_knockback_adds_nothing():
 # ---------------------------------------------------------------------------
 
 class Ones(RandomRoller):
-    def roll_dice(self, n, sides=6):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 
 class Sixes(RandomRoller):
-    def roll_dice(self, n, sides=6):
+    def roll_dice(self, n, sides):
         return [6] * n
 
 

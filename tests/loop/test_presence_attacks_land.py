@@ -39,12 +39,12 @@ from kirby_dice import RandomRoller
 class Sixes:
     """Every die a six: a Presence Attack whose result is arithmetic."""
 
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [6] * n
 
 
 class Ones:
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [1] * n
 
 

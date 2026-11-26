@@ -296,8 +296,8 @@ def _dose(session, effect: Lingering, power, *, template, roller,
         attacker=attacker, target=target, power=bare, distance_m=None,
         aim=None,
         dice=DiceValues(
-            to_hit=[], damage=roller.roll_dice(count),
-            hit_location=roller.roll_dice(3), stun_multiplier=roller.roll_dice(1),
+            to_hit=[], damage=roller.roll_dice(count, 6),
+            hit_location=roller.roll_dice(3, 6), stun_multiplier=roller.roll_dice(1, 6),
         ),
         fixed_to_hit=fixed,
     )
@@ -354,8 +354,8 @@ def _dose_against_one_defense(session, effect: Lingering, power, *,
                    side_effects=None)
     count = max(1, int(bare.damage_dice or 0)) + (1 if bare.half_die else 0)
     damage = compute_damage(
-        bare, DiceValues(damage=roller.roll_dice(count),
-                         stun_multiplier=roller.roll_dice(1)), template)
+        bare, DiceValues(damage=roller.roll_dice(count, 6),
+                         stun_multiplier=roller.roll_dice(1, 6)), template)
     defense = compute_defense(target, bare)
     spent_stun, spent_body = _absorbed_so_far(session, effect)
     stun_pool = max(0, int(defense.total_defense) - spent_stun)

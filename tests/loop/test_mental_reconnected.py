@@ -57,7 +57,7 @@ class _Hits(RandomRoller):
     """Every 3d6 roll is a 3, so the MCV Attack Roll always hits and these
     tests reach the Effect Roll they are about; other dice are honest."""
 
-    def roll_dice(self, count, sides=6):
+    def roll_dice(self, count, sides):
         return [1, 1, 1] if count == 3 else super().roll_dice(count, sides)
 
 

@@ -126,7 +126,7 @@ def test_the_driver_tells_enumeration_who_cannot_be_seen(hidden_session):
     _ties = RandomRoller(seed=11)
     encounter = Encounter(id="e", turn=1, segment=12, sessions=[session],
                           template=TEMPLATE).run_segment(
-        roller=lambda: _ties.roll_dice(3))
+        roller=lambda: _ties.roll_dice(3, 6))
 
     run.enumerate_actions = spy
     try:

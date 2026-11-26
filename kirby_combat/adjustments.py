@@ -312,7 +312,7 @@ def roll_effect(power, roller) -> int:
     from kirby_combat.resolution.damage import half_die_face
 
     full, half, pips = effect_dice(power)
-    rolled = roller.roll_dice(full + (1 if half else 0))
+    rolled = roller.roll_dice(full + (1 if half else 0), 6)
     whole = rolled[:full]
     total = sum(whole) + (half_die_face(rolled[-1]) if half else 0) + pips
     return max(0, total)

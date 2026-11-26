@@ -228,7 +228,7 @@ class _SingleDice(Dice):
         super().__init__(face=3)
         self.singles = list(singles)
 
-    def roll_dice(self, count, sides=6):
+    def roll_dice(self, count, sides):
         if count == 1:
             return [self.singles.pop(0)]
         return [3] * count

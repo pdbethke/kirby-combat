@@ -23,7 +23,7 @@ X, Y = Side.named("x"), Side.named("y")
 class Ones(RandomRoller):
     """Every die shows 1: every Attack Roll hits (6E2 p.37)."""
 
-    def roll_dice(self, n, sides=6):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 

@@ -83,7 +83,7 @@ class _BlindRoller:
     """Every die a 6, so any 3d6 roll totals 18 and fails. Used to make the
     Fringe PER roll for an Invisible target lose deterministically."""
 
-    def roll_dice(self, count: int) -> list[int]:
+    def roll_dice(self, count: int, sides) -> list[int]:
         return [6] * count
 
 
@@ -91,7 +91,7 @@ class _SharpRoller:
     """Every die a 1, so any 3d6 roll totals 3 and succeeds — the observer
     makes its PER roll."""
 
-    def roll_dice(self, count: int) -> list[int]:
+    def roll_dice(self, count: int, sides) -> list[int]:
         return [1] * count
 
 

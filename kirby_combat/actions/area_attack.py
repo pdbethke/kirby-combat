@@ -479,7 +479,7 @@ def area_use(session, attack, template, *, roller, declaration_event_id,
     deviated_m = 0.0
     if not to_hit.hit and geo is not None and not no_range:
         missed_by = abs(int(to_hit.margin))
-        direction = int(sum(roller.roll_dice(1)))
+        direction = int(sum(roller.roll_dice(1, 6)))
         moved, deviated_m = _deviate(geo.point, shooter_xyz, missed_by, direction)
         geo = AreaGeometry(point=moved, axis=geo.axis)
 
@@ -616,7 +616,7 @@ def resolve_area_attack_in_session(
             # 6E1 p.326: "a separate Attack Roll against every target ...
             # at that target's normal DCV; the character suffers any
             # relevant modifiers to his OCV, such as the Range Modifier."
-            dice = replace(dice, to_hit=roller.roll_dice(3))
+            dice = replace(dice, to_hit=roller.roll_dice(3, 6))
             here = _position(s, attacker.id)
             there = _position(s, victim_id)
             dist = (math.dist(_xyz(here), _xyz(there))

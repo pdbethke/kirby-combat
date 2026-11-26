@@ -40,7 +40,7 @@ class _UnluckyRoller:
     """Every die a 6 -- the PER roll to spot an Invisible enemy's fringe
     fails, so the attacker really is swinging at something it cannot see."""
 
-    def roll_dice(self, count: int) -> list[int]:
+    def roll_dice(self, count: int, sides) -> list[int]:
         return [6] * count
 
 

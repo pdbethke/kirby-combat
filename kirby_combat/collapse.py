@@ -211,7 +211,7 @@ def bring_it_down(session: Any, construct: Any, *, roller, template,
         victim = session.combatants.get(cid)
         if victim is None:
             continue
-        dmg = compute_damage(rubble, DiceValues(damage=roller.roll_dice(dice)),
+        dmg = compute_damage(rubble, DiceValues(damage=roller.roll_dice(dice, 6)),
                              template)
         stats = victim.combat_stats()
         # Normal Damage against ordinary PD. Resistant defenses count too ---

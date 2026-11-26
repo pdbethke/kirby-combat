@@ -158,7 +158,7 @@ def try_roll_with_punch(
     defender_ocv = int(effective_ocv_for(session, defender_id, against=attacker_id,
                                          combat_type=HTH)) + OCV_PENALTY
     needed = _target_number(defender_ocv, attacker_ocv)
-    rolled = sum(roller.roll_dice(3))
+    rolled = sum(roller.roll_dice(3, 6))
     # 6E2 p.37: a 3 always hits and an 18 always misses.
     success = rolled == 3 or (rolled != 18 and rolled <= needed)
     payload = {"rolled": True, "roll": rolled, "target_number": needed,

@@ -122,7 +122,7 @@ def _resolve_attack_entangle(
 
         omcv_delta = effective_omcv_for(session, actor.id) - int(actor.omcv)
         to_hit = resolve_mental_to_hit(
-            actor, victim, roller.roll_dice(3), ocv_modifier=omcv_delta,
+            actor, victim, roller.roll_dice(3, 6), ocv_modifier=omcv_delta,
             # The paralysis's DMCV 3, not the man's.
             dcv_modifier=TARGETED_PARALYSIS_DMCV - int(victim.dmcv),
         )
@@ -139,7 +139,7 @@ def _resolve_attack_entangle(
         # -3 OCV is targeting the thing rather than the man (p.218).
         attack = _fold_session_cvs(session, AttackInput(
             attacker=actor, target=victim, power=power, distance_m=distance,
-            aim=None, dice=DiceValues(to_hit=roller.roll_dice(3)),
+            aim=None, dice=DiceValues(to_hit=roller.roll_dice(3, 6)),
             ocv_modifier=TARGETED_ENTANGLE_OCV,
         ))
         to_hit = resolve_to_hit(attack, template)
@@ -159,11 +159,11 @@ def _resolve_attack_entangle(
 
     whole = max(1, int(getattr(power, "damage_dice", 0) or 0))
     if paralysis:
-        body = counted_body(roller.roll_dice(whole))
+        body = counted_body(roller.roll_dice(whole, 6))
         defense = hold.md
     else:
         body = compute_damage(
-            power, DiceValues(damage=roller.roll_dice(_with_half_die(power, whole))),
+            power, DiceValues(damage=roller.roll_dice(_with_half_die(power, whole), 6)),
             template).body
         defense = hold.ed if power.defense_type == "ed" else hold.pd
     through = escape_body(body, defense)

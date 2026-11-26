@@ -132,7 +132,7 @@ def judge_the_squad(session: "CombatSession", actor_id: str, roller) -> "CombatS
         return session
     squad = _squad_of(session, actor_id)
     number = characteristic_roll(int(actor.int_))
-    rolled = sum(roller.roll_dice(3))
+    rolled = sum(roller.roll_dice(3, 6))
     return apply_event(session, SelfDestructRolled(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,

@@ -155,7 +155,7 @@ def test_through_the_loop_a_one_hit_wonder_falls_and_stays_down():
 
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     r = RandomRoller(seed=3)
-    phase = run_phase(enc.run_segment(roller=lambda: r.roll_dice(3)), _Shoot(),
+    phase = run_phase(enc.run_segment(roller=lambda: r.roll_dice(3, 6)), _Shoot(),
                       roller=RandomRoller(seed=3), on_unresolvable="raise")
     s = phase.session
     hit = [e for e in s.event_log if e.kind == "ActionResolved"

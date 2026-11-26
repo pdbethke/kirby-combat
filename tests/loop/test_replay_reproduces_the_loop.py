@@ -79,7 +79,7 @@ def _ran_a_segment_and_a_phase() -> CombatSession:
     # Resolved explicitly, with its own seeded tie-roller, so this file's
     # "same inputs" claim stays stateable. `run_phase` would resolve one
     # itself if the session were carrying none; it leaves this one alone.
-    encounter = encounter.run_segment(roller=lambda: tie_roller.roll_dice(3))
+    encounter = encounter.run_segment(roller=lambda: tie_roller.roll_dice(3, 6))
     phase = run_phase(
         encounter, FirstLegalChooser(),
         roller=RandomRoller(seed=PHASE_SEED),

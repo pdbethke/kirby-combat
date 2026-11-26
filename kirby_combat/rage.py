@@ -386,7 +386,7 @@ def _try_to_recover(session, actor, state: RageState, occasion: RecoveryOccasion
     rage = _complication(actor, state.complication_id)
     return _rolled(
         session, actor.id, rage.complication_id, RollKind.RECOVER,
-        sum(roller.roll_dice(3)), rage.recover,
+        sum(roller.roll_dice(3, 6)), rage.recover,
         berserk=state.berserk, target_id=state.target_id, reason=occasion.value,
     )
 
@@ -433,7 +433,7 @@ def rage_phase_start(session: "CombatSession", actor_id: str, roller) -> "Combat
                     holds, provoker = True, provoker or who
         if not holds:
             continue
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         target = _first_target(session, actor, rage, provoker) if roll <= rage.go else None
         reason = ",".join(sorted(c.value for c in rage.circumstances))
         session = _rolled(

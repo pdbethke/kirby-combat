@@ -238,7 +238,7 @@ def _knocked_off_in_segment_12():
     enc = Encounter(id="e", turn=1, segment=12, sessions=[_session()])
     # Two DEX tie-breaks, then his read of the fight (6E1 p.93, `fight_reading`).
     roller = FakeRoller([TIE, TIE, TIE] + list(KNOCKED_20M))
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3, 6))
     phase = run_phase(enc, _BlastHim(), roller=roller, on_unresolvable="raise")
     assert phase.actor_id == "a"
     return phase

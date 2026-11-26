@@ -31,7 +31,7 @@ class Ones(RandomRoller):
     """Every die shows 1: every Attack Roll and Block hits, every DEX and PER
     Roll is made by the most it can be."""
 
-    def roll_dice(self, n, sides=6):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 

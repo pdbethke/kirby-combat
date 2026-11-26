@@ -34,7 +34,7 @@ class Ones:
     """Every die a one: the to-hit is a 3 (always hits, 6E2 p.37), each
     killing die is 1 BODY and the STUN Multiplier's half die is 1."""
 
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [1] * n
 
 

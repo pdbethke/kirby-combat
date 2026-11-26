@@ -509,7 +509,7 @@ def _dive(session: "CombatSession", defender_id: str, attacker_id: str,
     distance = distance_3d(start, destination)
     result = DiveForCover.resolve_dex_roll(
         int(session.combatants[defender_id].combat_stats().dex),
-        list(roller.roll_dice(3)), distance_m=distance,
+        list(roller.roll_dice(3, 6)), distance_m=distance,
         underwater=in_water(session, defender_id),
         requested_destination=offer.reposition_dest,
     )
@@ -679,8 +679,8 @@ def _contest_dex(session, holder, actor, roller) -> tuple[bool, str]:
 
     h_target = dex_roll_target(int(holder.combat_stats().dex))
     a_target = dex_roll_target(int(actor.combat_stats().dex))
-    h_roll = sum(roller.roll_dice(3))
-    a_roll = sum(roller.roll_dice(3))
+    h_roll = sum(roller.roll_dice(3, 6))
+    a_roll = sum(roller.roll_dice(3, 6))
     first = (h_target - h_roll) > (a_target - a_roll)
     note = (f"DEX Rolls (6E2 p22): {holder.id} {h_roll} vs {h_target}-, "
             f"{actor.id} {a_roll} vs {a_target}-")

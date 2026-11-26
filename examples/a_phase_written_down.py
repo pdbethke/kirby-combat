@@ -177,7 +177,7 @@ def main() -> None:
 
     # ---- What one Phase looks like ----
     stepper = RandomRoller(seed=31)
-    resolved = encounter.run_segment(roller=lambda: stepper.roll_dice(3))
+    resolved = encounter.run_segment(roller=lambda: stepper.roll_dice(3, 6))
     live = resolved.sessions[0]
     actor = live.combatants["Aurora"]
     roster = Roster(live)

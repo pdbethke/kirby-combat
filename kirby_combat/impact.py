@@ -149,7 +149,7 @@ def skill_roll(session, combatant_id: str, xmlid: str, *, modifier: int,
     if base is None:
         return None
     needed = int(base) + int(modifier)
-    rolled = sum(_dice(roller).roll_dice(3))
+    rolled = sum(_dice(roller).roll_dice(3, 6))
     return {"skill": xmlid, "target": needed, "roll": rolled,
             "made": rolled <= needed, "made_by": needed - rolled}
 
@@ -179,7 +179,7 @@ def impact_damage(session, target_id: str, dice: int, *, roller, template,
                          "stunned": False}
     target = session.combatants[target_id]
     power = impact_power(dice, reason)
-    rolled = DiceValues(damage=_dice(roller).roll_dice(int(dice)))
+    rolled = DiceValues(damage=_dice(roller).roll_dice(int(dice), 6))
     damage = compute_damage(power, rolled, template)
     defense = compute_defense(target, power)
     raw_stun = damage.stun * (2 if double_stun else 1)
@@ -709,7 +709,7 @@ def keep_footing(session, target_id: str, result: "AttackResult", *, roller,
                 if hasattr(combatant, "skill_roll_value") else None)
         if acro is not None and int(acro) > best:
             best = int(acro)
-        rolled = sum(_dice(roller).roll_dice(3))
+        rolled = sum(_dice(roller).roll_dice(3, 6))
         payload.update({"rolled": True, "target": best, "roll": rolled,
                         "kept_footing": rolled <= best})
     if payload["kept_footing"]:

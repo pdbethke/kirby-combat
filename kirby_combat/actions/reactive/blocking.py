@@ -145,7 +145,7 @@ def try_block(
     session, result, _priority = resolve_block_in_session(
         session,
         blocker_id=blocker_id, attacker_id=attacker_id,
-        blocker_ocv=int(blocker_ocv), blocker_dice=roller.roll_dice(3),
+        blocker_ocv=int(blocker_ocv), blocker_dice=roller.roll_dice(3, 6),
         attacker_ocv=attacker_ocv,
         declaration_event_id=declaration_id,
     )

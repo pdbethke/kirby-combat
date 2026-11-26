@@ -144,7 +144,7 @@ def test_the_driver_tells_enumeration_who_is_on_his_side():
     ties = RandomRoller(seed=11)
     encounter = Encounter(id="e", turn=1, segment=12, sessions=[session],
                           template=RAW_HEROIC).run_segment(
-        roller=lambda: ties.roll_dice(3))
+        roller=lambda: ties.roll_dice(3, 6))
 
     handed: list = []
     original = run.enumerate_actions

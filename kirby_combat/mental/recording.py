@@ -289,7 +289,7 @@ def illusion_strikes(session: "CombatSession", effect, roller) -> "CombatSession
     )
     stun = body = 0
     if dice > 0:                # under 5 points of effect buys no die at all
-        rolled = compute_damage(phantom, DiceValues(damage=roller.roll_dice(dice)),
+        rolled = compute_damage(phantom, DiceValues(damage=roller.roll_dice(dice, 6)),
                                 session.template)
         defense = compute_defense(target, phantom).total_defense
         stun = max(0, rolled.stun - defense)

@@ -967,7 +967,7 @@ def run_phase(
     # object is not callable`, which reads like a bad argument and is
     # really this mismatch.
     def tie_roller() -> list[int]:
-        return roller.roll_dice(3)
+        return roller.roll_dice(3, 6)
 
     # THE END OF THE FIGHT, BEFORE THE CLOCK MOVES (`kirby_combat.ending`).
     # Asked first, so a decided fight cannot be advanced a Segment by

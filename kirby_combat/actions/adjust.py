@@ -139,7 +139,7 @@ def attack_roll(session: "CombatSession", actor, target, power, roller, template
             distance = distance_3d(here, there)
     attack = _fold_session_cvs(session, AttackInput(
         attacker=actor, target=target, power=_attack_view(power),
-        distance_m=distance, aim=None, dice=DiceValues(to_hit=roller.roll_dice(3)),
+        distance_m=distance, aim=None, dice=DiceValues(to_hit=roller.roll_dice(3, 6)),
     ))
     return resolve_to_hit(attack, template)
 
@@ -587,7 +587,7 @@ def resolve_heal(session, actor, action, *, roller, template):
         raise ValueError(f"{action.action_id!r}: this Healing is not built")
 
     full, half, pips = effect_dice(power)
-    dice = roller.roll_dice(full + (1 if half else 0))
+    dice = roller.roll_dice(full + (1 if half else 0), 6)
     total = max(0, sum(dice[:full]) + (half_die_face(dice[-1]) if half else 0) + pips)
 
     # Per stat, the CHARACTER POINTS rolled (before the margin rule) and the

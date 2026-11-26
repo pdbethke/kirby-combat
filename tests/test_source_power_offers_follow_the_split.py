@@ -153,7 +153,7 @@ class _Spy(RandomRoller):
         super().__init__(seed=seed)
         self.counts: list[int] = []
 
-    def roll_dice(self, count, sides=6):
+    def roll_dice(self, count, sides):
         self.counts.append(count)
         return super().roll_dice(count, sides)
 

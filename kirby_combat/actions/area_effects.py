@@ -116,8 +116,8 @@ def resolve_area_effect(session, actor, action: "LegalAction", *, template,
     attack = AttackInput(
         attacker=session.combatants[actor.id], target=target, power=view,
         distance_m=None, aim=None,
-        dice=DiceValues(to_hit=roller.roll_dice(3),
-                        damage=roller.roll_dice(dice_count)),
+        dice=DiceValues(to_hit=roller.roll_dice(3, 6),
+                        damage=roller.roll_dice(dice_count, 6)),
     )
     placed = area_use(session, attack, template, roller=roller,
                       declaration_event_id=None, action_type=kind,
@@ -133,7 +133,7 @@ def resolve_area_effect(session, actor, action: "LegalAction", *, template,
             victim = s.combatants[victim_id]
             if per_target:
                 hit = _per_target_hit(s, actor, victim, view,
-                                      roller.roll_dice(3), template)
+                                      roller.roll_dice(3, 6), template)
                 if not hit.hit:
                     results.append((victim_id, None))
                     continue
@@ -232,7 +232,7 @@ def resolve_area_drain(session, actor, action: "LegalAction", *, template, rolle
     spec = view.area
     attack = AttackInput(
         attacker=session.combatants[actor.id], target=target, power=view,
-        distance_m=None, aim=None, dice=DiceValues(to_hit=roller.roll_dice(3)),
+        distance_m=None, aim=None, dice=DiceValues(to_hit=roller.roll_dice(3, 6)),
     )
     placed = area_use(session, attack, template, roller=roller,
                       declaration_event_id=None, action_type="drain",
@@ -251,7 +251,7 @@ def resolve_area_drain(session, actor, action: "LegalAction", *, template, rolle
     for victim_id, _distance in placed.victims:
         victim = s.combatants[victim_id]
         if per_target:
-            hit = _per_target_hit(s, actor, victim, view, roller.roll_dice(3), template)
+            hit = _per_target_hit(s, actor, victim, view, roller.roll_dice(3, 6), template)
             if not hit.hit:
                 payload["victims"][victim_id] = {"hit": False}
                 continue
@@ -336,7 +336,7 @@ def resolve_area_mind_control(session, actor, action: "LegalAction", *,
     spec = view.area
     me = session.combatants[actor.id]
     to_hit = resolve_mental_to_hit(
-        me, target, roller.roll_dice(3),
+        me, target, roller.roll_dice(3, 6),
         ocv_modifier=effective_omcv_for(session, actor.id) - int(me.omcv),
         dcv_modifier=AREA_MENTAL_DMCV - int(target.dmcv),
     )
@@ -349,7 +349,7 @@ def resolve_area_mind_control(session, actor, action: "LegalAction", *,
     results = []
     if placed.failed is None and placed.victims:
         levels = int(getattr(power, "levels", 0) or 0)
-        effect = roller.roll_dice(max(1, levels))
+        effect = roller.roll_dice(max(1, levels), 6)
         per_target = spec.targeting in (AreaTargeting.SELECTIVE,
                                         AreaTargeting.NONSELECTIVE)
         for victim_id, _distance in placed.victims:

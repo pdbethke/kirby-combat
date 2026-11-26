@@ -82,7 +82,7 @@ def test_skill_roll_value_returns_none_when_absent():
 def test_3d6_succeeds_is_roll_le_target():
     # roller seeded so the 3d6 is deterministic; success iff sum <= target.
     r = RandomRoller(seed=1)
-    rolled = sum(RandomRoller(seed=1).roll_dice(3))   # same seed → same roll
+    rolled = sum(RandomRoller(seed=1).roll_dice(3, 6))   # same seed → same roll
     assert _roll_3d6_succeeds(target=rolled, roller=r) is True
     r2 = RandomRoller(seed=1)
     assert _roll_3d6_succeeds(target=rolled - 1, roller=r2) is False
@@ -1009,7 +1009,7 @@ class _FixedRoller:
     def __init__(self, total):
         self._total = total
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         base = self._total // n
         rem = self._total - base * n
         return [base + (1 if i < rem else 0) for i in range(n)]

@@ -178,7 +178,7 @@ class Images:
         )
         s = apply_event(session, declared)
 
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         hit = roll <= target_number
         image_id = f"image-{uuid.uuid4().hex[:8]}" if hit else None
 
@@ -434,7 +434,7 @@ class Images:
 
         target_number = (per_roll_target(observer)
                          + int(image.per_modifier) + int(extra_modifier))
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         succeeded = roll <= target_number
 
         evt = ActionResolved(

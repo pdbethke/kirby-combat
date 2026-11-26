@@ -249,7 +249,7 @@ def test_a_fighter_who_has_left_is_skipped_not_asked():
     session = _session(_scene(runner_at=(60.0, 0.0)))    # bounds end at x=30
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     roller = RandomRoller(seed=3)
-    enc = enc.run_segment(roller=lambda: roller.roll_dice(3))
+    enc = enc.run_segment(roller=lambda: roller.roll_dice(3, 6))
 
     # The runner has the higher DEX, so he would be first if asked at all.
     assert next_actor_id(enc.sessions[0]) == "chaser"

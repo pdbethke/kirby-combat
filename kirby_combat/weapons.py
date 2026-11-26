@@ -335,7 +335,7 @@ def str_body(roller, strength: int) -> tuple[int, list[int]]:
     from kirby_combat.resolution.damage import _body_for_normal_die
 
     dice = max(0, int(strength) // 5)
-    faces = list(roller.roll_dice(dice)) if dice else []
+    faces = list(roller.roll_dice(dice, 6)) if dice else []
     return sum(_body_for_normal_die(v) for v in faces), faces
 
 
@@ -400,7 +400,7 @@ def disarm_landing(session: "CombatSession", attacker_id: str, target_id: str,
 def knock_away(session: "CombatSession", weapon: Weapon, *, attacker_id: str,
                target_id: str, roller) -> tuple["CombatSession", dict]:
     """The Disarm's consequence: the weapon flies 1d6+1m (6E2 p.62)."""
-    metres = float(sum(roller.roll_dice(1)) + 1)
+    metres = float(sum(roller.roll_dice(1, 6)) + 1)
     landing = disarm_landing(session, attacker_id, target_id, metres)
     session = move_weapon(session, weapon, by_id=attacker_id, cause=DISARMED,
                           holder_id=None, position=landing)

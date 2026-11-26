@@ -149,7 +149,7 @@ class Darkness:
         )
         s = apply_event(session, declared)
 
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         hit = roll <= target_number
 
         # One id per Sense Group, minted now so the ActionResolved can name

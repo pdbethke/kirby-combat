@@ -347,7 +347,7 @@ class NontargetingPerception:
         )
         s = apply_event(session, declared)
 
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         succeeded = roll <= int(target_number)
 
         resolved = ActionResolved(

@@ -44,15 +44,15 @@ class _Rigged(RandomRoller):
         self._to_hit = list(totals)
         self._armed = True
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         if n == 1:
             self._armed = True                  # end of one attack's dice
-            return super().roll_dice(n)
+            return super().roll_dice(n, 6)
         if n == 3 and self._armed and self._to_hit:
             self._armed = False
             base, rem = divmod(self._to_hit.pop(0), 3)
             return [base + (1 if i < rem else 0) for i in range(3)]
-        return super().roll_dice(n)
+        return super().roll_dice(n, 6)
 
 
 def _sequence(to_hit_totals, enemies: int = 3):

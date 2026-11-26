@@ -131,7 +131,7 @@ def range_modifier(distance_m: float) -> int:
 
 def _roll_3d6_succeeds(target: int, roller) -> bool:
     """Auditable 3d6 ≤ target via the session roller (like the throw spec)."""
-    return sum(roller.roll_dice(3)) <= int(target)
+    return sum(roller.roll_dice(3, 6)) <= int(target)
 
 
 def disbelieve_image(*, per_target: int, image_penalty: int, roller) -> bool:
@@ -360,8 +360,8 @@ def _opposed_perceives(per_target: int, stealth_target: int, roller) -> tuple[bo
     Ties go to the observer. (A failed PER roll has a negative margin, so a
     hider who makes their Stealth roll wins; a blown Stealth roll loses.)
     Returns (perceived, per_roll, stealth_roll)."""
-    per_roll = sum(roller.roll_dice(3))
-    stealth_roll = sum(roller.roll_dice(3))
+    per_roll = sum(roller.roll_dice(3, 6))
+    stealth_roll = sum(roller.roll_dice(3, 6))
     perceived = (per_target - per_roll) >= (stealth_target - stealth_roll)
     return perceived, per_roll, stealth_roll
 
@@ -527,7 +527,7 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
                     and "fringe" not in detail
                     and _distance(observer, target, scene) <= _FRINGE_RANGE_M):
                 per_target = per_roll_target(observer)
-                per_roll = sum(roller.roll_dice(3))
+                per_roll = sum(roller.roll_dice(3, 6))
                 if per_roll <= per_target:
                     detail["fringe"] = {"per": per_target, "per_roll": per_roll}
                     via_physical.append("fringe")

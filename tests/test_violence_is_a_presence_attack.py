@@ -46,7 +46,7 @@ class _MaxRoller:
     """Every die a six, so the tier is decided by the rule under test and
     not by luck."""
 
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [6] * n
 
 

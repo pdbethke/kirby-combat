@@ -60,7 +60,7 @@ def read_the_fight(session: "CombatSession", actor_id: str, roller) -> "CombatSe
     if roller is None:
         raise ValueError("the read-the-fight roll needs the Phase's dice")
     skill, target = reading_roll(actor)
-    rolled = sum(roller.roll_dice(3))
+    rolled = sum(roller.roll_dice(3, 6))
     return apply_event(session, FightRead(
         id=str(uuid.uuid4()), session_id=session.id,
         sequence=len(session.event_log) + 1,

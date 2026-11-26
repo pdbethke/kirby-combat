@@ -86,8 +86,8 @@ def _run_fight(seed: int) -> dict:
             attacker=attacker, target=target, power=_ATTACK,
             distance_m=0, aim=None,
             dice=DiceValues(
-                to_hit=roller.roll_dice(3),
-                damage=roller.roll_dice(_ATTACK.damage_dice),
+                to_hit=roller.roll_dice(3, 6),
+                damage=roller.roll_dice(_ATTACK.damage_dice, 6),
             ),
         )
         session, _result = resolve_attack_in_session(session, attack, session.template)

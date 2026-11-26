@@ -68,7 +68,7 @@ def test_it_does_not_resolve_a_second_order_over_one_already_standing():
     Resolving another would re-roll 6E2 p.21's tie-break and draw dice the
     fight that ran never drew."""
     roller = RandomRoller(seed=3)
-    encounter = _pair().run_segment(roller=lambda: roller.roll_dice(3))
+    encounter = _pair().run_segment(roller=lambda: roller.roll_dice(3, 6))
 
     phase = run_phase(encounter, FirstLegalChooser(), roller=roller)
 

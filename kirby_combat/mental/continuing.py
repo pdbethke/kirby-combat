@@ -231,7 +231,7 @@ def roll_breakouts(session: "CombatSession", target_id: str, roller) -> "CombatS
         if bonus is None:
             continue
         number = characteristic_roll(target.ego) + effect.breakout_modifier + bonus
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         broke_free = roll_succeeds(roll, number)
         session = apply_event(session, BreakoutRolled(
             id=str(uuid.uuid4()), session_id=session.id,

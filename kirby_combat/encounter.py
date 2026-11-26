@@ -278,7 +278,7 @@ def _apply_wound_bleeding(
         dice = bleeding_dice(body_lost, killing=killing)
         if dice <= 0:
             continue
-        loss = bleeding_result(roller.roll_dice(dice))
+        loss = bleeding_result(roller.roll_dice(dice, 6))
         session = apply_event(session, BleedingSuffered(
             id=str(uuid.uuid4()),
             session_id=session.id,

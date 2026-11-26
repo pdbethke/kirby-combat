@@ -178,7 +178,7 @@ def spend_end(session, combatant_id: str, cost: int):
             raise ValueError(
                 f"{combatant_id!r} owes {short} END in STUN (6E2 p.133) and the "
                 "session has no dice_roller to roll it with")
-        stun = sum(session.dice_roller.roll_dice(math.ceil(short / 2)))
+        stun = sum(session.dice_roller.roll_dice(math.ceil(short / 2), 6))
         session, _ = record_vitals_change(
             session, combatant_id, stun=-stun, reason="stun_for_end",
             caused_by=combatant_id,

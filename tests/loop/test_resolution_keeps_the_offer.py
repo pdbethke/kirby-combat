@@ -58,7 +58,7 @@ class _AlwaysLow(RandomRoller):
     mid-sequence.
     """
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 

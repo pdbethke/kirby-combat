@@ -46,7 +46,7 @@ class _Hits(RandomRoller):
     5s (Blast, Fist, or STR 60) put BODY through PD 4, which is what
     provokes the witnesses' Presence reaction."""
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [5] * n
 
 
@@ -54,7 +54,7 @@ class _NotThisOne(RandomRoller):
     """The session's roller. Anything that rolls it has ignored the roller
     the caller passed."""
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         raise AssertionError(
             f"rolled {n} dice on session.dice_roller instead of the "
             f"roller passed to resolve_chosen")

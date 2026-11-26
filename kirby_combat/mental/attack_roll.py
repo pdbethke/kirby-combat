@@ -47,7 +47,7 @@ def mental_attack_roll(
     if target.id in session.combatants:
         dcv_delta += effective_dmcv_for(session, target.id) - int(target.dmcv)
     return resolve_mental_to_hit(
-        attacker, target, roller.roll_dice(3),
+        attacker, target, roller.roll_dice(3, 6),
         ocv_modifier=ocv_delta, dcv_modifier=dcv_delta,
     )
 

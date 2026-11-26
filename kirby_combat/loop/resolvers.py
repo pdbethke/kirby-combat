@@ -117,12 +117,12 @@ def _attack_dice(roller, dice_count: int) -> DiceValues:
     two that diverge by template.
     """
     return DiceValues(
-        to_hit=roller.roll_dice(3),
-        damage=roller.roll_dice(dice_count) if dice_count > 0 else [],
-        hit_location=roller.roll_dice(3),
+        to_hit=roller.roll_dice(3, 6),
+        damage=roller.roll_dice(dice_count, 6) if dice_count > 0 else [],
+        hit_location=roller.roll_dice(3, 6),
         # 6E2 p.100's 1/2d6, passed as a raw d6 -- `compute_damage` does
         # the round-up halving, and has done all along.
-        stun_multiplier=roller.roll_dice(1),
+        stun_multiplier=roller.roll_dice(1, 6),
     )
 
 
@@ -360,7 +360,7 @@ def _resolve_mental_blast(
     power = action._attack_view
     dice = max(1, int(getattr(power, "damage_dice", 1) or 1))
     new_session, result = resolve_mental_blast_in_session(
-        session, actor, target, roller.roll_dice(dice), to_hit=to_hit,
+        session, actor, target, roller.roll_dice(dice, 6), to_hit=to_hit,
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -385,7 +385,7 @@ def _effect_dice(action: LegalAction, roller) -> list[int]:
     """
     power = action._attack_view
     levels = int(getattr(power, "levels", 0) or 0)
-    return roller.roll_dice(max(1, levels))
+    return roller.roll_dice(max(1, levels), 6)
 
 
 @resolves("mind_control")
@@ -962,7 +962,7 @@ def _resolve_flash(
             result=to_hit, events=_events_since(session, new_session),
         )
     groups = sorted(flash_groups(power)) or ["sight"]
-    body = counted_body(roller.roll_dice(_levels(action)))
+    body = counted_body(roller.roll_dice(_levels(action), 6))
 
     new_session, result = Flash.apply(
         session,
@@ -1020,7 +1020,7 @@ def _resolve_entangle(
             result=to_hit, events=_events_since(session, new_session),
         )
     dice = _levels(action)
-    body = counted_body(roller.roll_dice(dice))
+    body = counted_body(roller.roll_dice(dice, 6))
     per_die_pd, per_die_ed = entangle_default_defenses(dice)
     new_session, result = Entangle.apply(
         session,
@@ -1062,7 +1062,7 @@ def _resolve_grab(
         attacker_id=actor.id, target_id=target.id,
         attacker_str=int(actor_stats.str_), target_str=int(target_stats.str_),
         attacker_ocv=int(actor_stats.ocv), target_dcv=int(target_stats.dcv),
-        attack_roll=sum(roller.roll_dice(3)),
+        attack_roll=sum(roller.roll_dice(3, 6)),
     )
     return ResolvedAction(
         session=new_session, kind=action.kind, action_id=action.action_id,
@@ -1120,7 +1120,7 @@ def _resolve_mental_entangle(
     to_hit = _mcv_roll(session, actor, target, roller)
     if not to_hit.hit:
         return _mental_miss(session, actor, target, action, to_hit)
-    result = roll_mental_paralysis(actor, target, roller.roll_dice(_levels(action)))
+    result = roll_mental_paralysis(actor, target, roller.roll_dice(_levels(action), 6))
     new_session = _record_outcome(session, actor, action, {
         "kind": action.kind,
         "target_id": target.id,
@@ -1358,7 +1358,7 @@ def _rapid_fire_at_construct(
     dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
     shots = apply_autofire_to_construct(
         power,
-        [DiceValues(damage=roller.roll_dice(_with_half_die(power, dice)))
+        [DiceValues(damage=roller.roll_dice(_with_half_die(power, dice), 6))
          for _ in outcome.per_shot_ocv],
         construct, template,
     )
@@ -1622,7 +1622,7 @@ def _resolve_throw(
             increased_stun_mult=0, source_id=held_id or "thrown",
         )
         hit = apply_attack_to_construct(
-            missile, DiceValues(damage=roller.roll_dice(max(1, int(dice)))),
+            missile, DiceValues(damage=roller.roll_dice(max(1, int(dice)), 6)),
             target, template,
         )
         caught: list = []
@@ -2053,7 +2053,7 @@ def _resolve_escape_str(
     dice = str_escape_dice(strength, casual=casual)
     new_session, result = Entangle.escape_attempt(
         session, target_id=actor.id,
-        damage_body=escape_body(counted_body(roller.roll_dice(dice)) if dice else 0, hold.pd),
+        damage_body=escape_body(counted_body(roller.roll_dice(dice, 6)) if dice else 0, hold.pd),
         escape_type="casual" if casual else "full",
     )
     # AND THE STR COSTS END: "1 END per 10 points of STR used" (6E1 p.43),
@@ -2101,7 +2101,7 @@ def _resolve_escape_attack(
     # The physical branch goes through `compute_damage`, which reads the last
     # die as the ½d6; `counted_body` counts every die it is handed as whole,
     # so the paralysis branch rolls the whole dice only.
-    dice = roller.roll_dice(whole if paralysis else _with_half_die(power, whole))
+    dice = roller.roll_dice(whole if paralysis else _with_half_die(power, whole), 6)
     if paralysis:
         new_session, result = Entangle.escape_paralysis_attempt(
             session, target_id=actor.id,
@@ -2137,7 +2137,7 @@ def _resolve_escape_ego(
         raise UnresolvableAction(action.kind, action.action_id)
     ego = int(actor.combat_stats().ego)
     dice = ego_escape_dice(ego)
-    body = counted_body(roller.roll_dice(dice)) if dice else 0
+    body = counted_body(roller.roll_dice(dice, 6)) if dice else 0
     new_session, result = Entangle.escape_paralysis_attempt(
         session, target_id=actor.id,
         damage_body=escape_body(body, hold.md), method="full_ego",
@@ -2227,7 +2227,7 @@ def _resolve_attack_construct(
 
     dice = max(1, int(getattr(power, "damage_dice", 0) or 0))
     outcome = apply_attack_to_construct(
-        power, DiceValues(damage=roller.roll_dice(_with_half_die(power, dice))),
+        power, DiceValues(damage=roller.roll_dice(_with_half_die(power, dice), 6)),
         construct, template,
     )
     caught: list = []
@@ -2426,7 +2426,7 @@ def _resolve_stabilize(
     paramedics = actor.skill_roll_value("PARAMEDICS") or EVERYMAN_PARAMEDICS
     needed = stabilize_target(paramedics_roll=paramedics,
                               current_body=patient.state.current_body)
-    rolled = sum(roller.roll_dice(3))
+    rolled = sum(roller.roll_dice(3, 6))
     made = rolled <= needed
 
     return _recorded(session, actor, action, made, {
@@ -2489,7 +2489,7 @@ def _resolve_force_wall(
 
         modifier = _placement_range_modifier(session, actor, centre, power)
         target_number = actor.combat_stats().ocv + modifier + 11 - AREA_DCV
-        roll = sum(roller.roll_dice(3))
+        roll = sum(roller.roll_dice(3, 6))
         placement = {"at_range": True, "hit": roll <= target_number,
                      "roll": roll, "target_number": target_number,
                      "target_dcv": AREA_DCV, "range_modifier": modifier}
@@ -2939,7 +2939,7 @@ def _acrobatics_save(session, target_id: str | None, result, *, roller):
         return None
     # `-max(0, margin)`: never a bonus for having been hit by a hair.
     needed = int(skill_roll) - max(0, int(result.to_hit.margin))
-    rolled = sum(roller.roll_dice(3))
+    rolled = sum(roller.roll_dice(3, 6))
     return {
         "rolled": True, "target": needed, "roll": rolled,
         "kept_feet": rolled <= needed,
@@ -3206,7 +3206,7 @@ def _resolve_coordinate(
     attempt = CoordinationRoll(
         combatant_id=actor.id, target_id=action.target_id,
         skill=skill, target_number=target_number,
-        roll=sum(roller.roll_dice(3)),
+        roll=sum(roller.roll_dice(3, 6)),
     )
     return _recorded(session, actor, action, attempt, {
         "kind": action.kind,
@@ -3725,7 +3725,7 @@ def _resolve_interaction(
     #: The target resists with EGO, the characteristic that says how hard
     #: they are to talk into anything.
     resist = 9 + int(target_stats.ego) // 5
-    roll = sum(roller.roll_dice(3))
+    roll = sum(roller.roll_dice(3, 6))
     margin = skill_target - roll
 
     return _recorded(session, actor, action, margin, {

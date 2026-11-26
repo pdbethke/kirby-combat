@@ -69,14 +69,14 @@ TEMPLATE = CombatTemplate.default_6e_superheroic()
 class _AlwaysLow(RandomRoller):
     """Every die shows 1: every Attack Roll is a 3 and hits (6E2 p.37)."""
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [1] * n
 
 
 class _AlwaysHigh(RandomRoller):
     """Every die shows 6: every Attack Roll is an 18 and misses (6E2 p.37)."""
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [6] * n
 
 
@@ -89,7 +89,7 @@ class _Faces(RandomRoller):
         super().__init__(seed=1)
         self.other = other
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [1 if n == 3 else self.other] * n
 
 
@@ -435,7 +435,7 @@ class _TwoThenThree(RandomRoller):
     def __init__(self):
         super().__init__(seed=1)
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         return [1 if n == 2 else 6] * n
 
 
@@ -461,7 +461,7 @@ class _ContestLoser(RandomRoller):
         super().__init__(seed=1)
         self.first = True
 
-    def roll_dice(self, n):
+    def roll_dice(self, n, sides):
         if self.first and n == 3:
             self.first = False
             return [1, 1, 1]
@@ -582,7 +582,7 @@ def test_a_man_with_no_attack_powers_disarms_with_his_hands():
     offer = next(a for a in _menu(session) if a.kind == "disarm")
 
     class _Refuses(RandomRoller):
-        def roll_dice(self, n):
+        def roll_dice(self, n, sides):
             raise AssertionError("the session's roller was used")
 
     session = replace(session, dice_roller=_Refuses(seed=1))

@@ -437,9 +437,9 @@ def _roll(power, roller):
 
     bare = _bare(power)
     count = max(1, int(bare.damage_dice or 0)) + (1 if bare.half_die else 0)
-    return DiceValues(to_hit=[], damage=roller.roll_dice(count),
-                      hit_location=roller.roll_dice(3),
-                      stun_multiplier=roller.roll_dice(1))
+    return DiceValues(to_hit=[], damage=roller.roll_dice(count, 6),
+                      hit_location=roller.roll_dice(3, 6),
+                      stun_multiplier=roller.roll_dice(1, 6))
 
 
 def _no_roll(page: str):
@@ -482,7 +482,7 @@ def dose(session, area: StandingArea, power, victim_id: str, *, dice,
             Dose.INTERVAL: "6E1 p.332", Dose.CONTACT: "6E1 p.323"}[why]
     distance = None
     if roll_to_hit:
-        dice = replace(dice, to_hit=roller.roll_dice(3))
+        dice = replace(dice, to_hit=roller.roll_dice(3, 6))
         positions = _positions(session)
         a, v = positions.get(area.owner_id), positions.get(victim_id)
         if a is not None and v is not None and getattr(power, "is_ranged", False):

@@ -43,7 +43,7 @@ class Dice:
     def __init__(self, face: int) -> None:
         self.face = face
 
-    def roll_dice(self, n: int) -> list[int]:
+    def roll_dice(self, n: int, sides) -> list[int]:
         return [self.face] * n
 
 

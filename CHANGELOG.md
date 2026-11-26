@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — dice state their sides
+
+### Changed
+- Every `roll_dice` call states its sides (`roll_dice(3, 6)`), for kirby-dice 0.2.0, which dropped its `sides=6` default (no-defaults rule). Requires `kirby-dice>=0.2.0`. Test rollers take a required `sides` too. No behaviour change: 4216 passed, 3 xfailed, as before.
+
 ## 0.40.0 — 2026-11-24
 
 **The end of a fight: its terms, a question to the GM, and one event in the log.** Two-databases spec §6a; plan `kirby/docs/superpowers/plans/2026-11-24-fight-end.md`.

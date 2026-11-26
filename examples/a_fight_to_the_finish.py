@@ -120,8 +120,8 @@ def main() -> None:
                 attacker=attacker, target=target, power=BLAST,
                 distance_m=10, aim=None,
                 dice=DiceValues(
-                    to_hit=roller.roll_dice(3),
-                    damage=roller.roll_dice(BLAST.damage_dice),
+                    to_hit=roller.roll_dice(3, 6),
+                    damage=roller.roll_dice(BLAST.damage_dice, 6),
                 ),
             ),
             template,

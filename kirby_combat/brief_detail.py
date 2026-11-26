@@ -69,7 +69,7 @@ class _WouldRoll(Exception):
 class _NoDice:
     """A roller that refuses. See the module docstring: the page never rolls."""
 
-    def roll_dice(self, count, sides=6):
+    def roll_dice(self, count, sides):
         raise _WouldRoll()
 
     def roll(self, *args, **kwargs):

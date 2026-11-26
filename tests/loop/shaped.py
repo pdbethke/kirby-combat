@@ -32,7 +32,7 @@ class Dice:
         self.queue = [list(q) for q in (queue or [])]
         self.calls: list[int] = []
 
-    def roll_dice(self, count: int, sides: int = 6) -> list[int]:
+    def roll_dice(self, count: int, sides: int) -> list[int]:
         self.calls.append(count)
         if self.queue:
             roll = self.queue.pop(0)

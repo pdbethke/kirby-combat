@@ -294,7 +294,7 @@ def _activation_check(session: CombatSession, attack: AttackInput, roller):
     target = getattr(attack.power, "activation_roll", None)
     if target is None:
         return None
-    rolled = sum((roller or session.dice_roller).roll_dice(3))
+    rolled = sum((roller or session.dice_roller).roll_dice(3, 6))
     return {"activated": rolled <= int(target), "roll": rolled,
             "target": int(target)}
 
@@ -786,7 +786,7 @@ def resolve_attack_in_session(
         if kb_count and kb_body >= kb_count and kb_roller is not None:
             from kirby_combat.resolution.knockback import compute_knockback
 
-            pool = kb_roller.roll_dice(kb_count)
+            pool = kb_roller.roll_dice(kb_count, 6)
             kb = compute_knockback(
                 body=kb_body, knockback_dice=list(pool),
                 kb_resistance_m=int(result.defense.knockback_resistance),
@@ -1117,7 +1117,7 @@ def apply_side_effects(session: CombatSession, attack: AttackInput, template,
         armor_piercing=0, penetrating=0, increased_stun_mult=0,
     )
     damage = compute_damage(
-        blast, DiceValues(damage=(roller or session.dice_roller).roll_dice(dice)),
+        blast, DiceValues(damage=(roller or session.dice_roller).roll_dice(dice, 6)),
         template,
     )
     victim = session.combatants[victim_id]

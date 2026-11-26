@@ -326,7 +326,7 @@ def _flash(session, actor, target, effect: MartialEffect, *, roller):
     from kirby_combat.actions.flash import Flash
     from kirby_combat.resolution.damage import _body_for_normal_die
 
-    faces = roller.roll_dice(max(0, int(effect.damage_classes)))
+    faces = roller.roll_dice(max(0, int(effect.damage_classes)), 6)
     body = sum(_body_for_normal_die(v) for v in faces)
     session, _result = Flash.apply(
         session, attacker_id=actor.id, target_id=target.id,

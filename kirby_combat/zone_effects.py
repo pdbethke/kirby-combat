@@ -127,9 +127,9 @@ def _burn(session, construct, combatant_id: str, *, template, roller):
     result = resolve_attack(AttackInput(
         attacker=victim, target=victim, power=power, distance_m=None,
         aim=None, fixed_to_hit=fixed,
-        dice=DiceValues(damage=roller.roll_dice(dice),
-                        hit_location=roller.roll_dice(3),
-                        stun_multiplier=roller.roll_dice(1)),
+        dice=DiceValues(damage=roller.roll_dice(dice, 6),
+                        hit_location=roller.roll_dice(3, 6),
+                        stun_multiplier=roller.roll_dice(1, 6)),
     ), template)
     session, cause = _triggered(session, construct.obj_id, combatant_id, {
         "kind": "damage", "dice": dice, "damage_type": kind,
@@ -170,7 +170,7 @@ def _drown(session, construct, combatant_id: str, *, roller):
     if owed:
         if int(victim.state.current_stun) > 0:
             dice = -(-owed // STUN_AS_END_PER_DIE)
-            stun = sum(roller.roll_dice(dice))
+            stun = sum(roller.roll_dice(dice, 6))
         else:
             # "If a character is already at 0 STUN or below when he runs
             # out of END, he starts burning BODY right away."

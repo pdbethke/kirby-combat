@@ -181,7 +181,7 @@ def test_through_the_loop_the_leader_falls_and_the_next_is_named_in_that_step():
 
     enc = Encounter(id="e", turn=1, segment=12, sessions=[session])
     r = RandomRoller(seed=3)
-    phase = run_phase(enc.run_segment(roller=lambda: r.roll_dice(3)), _Shoot(),
+    phase = run_phase(enc.run_segment(roller=lambda: r.roll_dice(3, 6)), _Shoot(),
                       roller=RandomRoller(seed=3), on_unresolvable="raise")
     s = phase.session
     kinds = [(e.kind, getattr(e, "combatant_id", None)) for e in s.event_log]
