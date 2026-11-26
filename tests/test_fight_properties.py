@@ -4,7 +4,7 @@
 failure can be reproduced. Until `kirby-dice` gave `RandomRoller` a seed it
 could hand back, an unseeded roller drew unrecoverable OS entropy: a red
 build here would have told you a fight broke and given you no way back to
-it. `RandomRoller().seed` is what makes the loop closeable, so every failure
+it. `RandomRoller.fresh().seed` is what makes the loop closeable, so every failure
 message below prints the seed that produced it.
 
 **The limit this file used to carry is gone (2026-09-06).** It read: "the
@@ -128,7 +128,7 @@ def test_different_seeds_actually_produce_different_fights():
 def test_a_fight_is_reproducible_from_an_unseeded_roller_s_own_seed():
     """The production shape: nobody chose the seed, and the fight still
     replays — which is the whole point of recording it."""
-    discovered = RandomRoller().seed
+    discovered = RandomRoller.fresh().seed
     assert _run_fight(discovered)["log"] == _run_fight(discovered)["log"]
 
 

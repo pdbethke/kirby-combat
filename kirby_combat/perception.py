@@ -463,7 +463,11 @@ def perceive(observer, target, scene, *, target_invisible: bool = False,
     has the same line of sight back even with no Mind Scan of its own.
     Pure: no DB, no mutation."""
     if roller is None:
-        roller = RandomRoller()
+        # KNOWN DEFECT (2026-11-26): a caller that passes no roller gets
+        # fresh, unrecorded dice for any PER roll or Stealth contest, so
+        # such a read cannot be replayed. Kept as before, now named, until
+        # every caller threads the Phase's roller.
+        roller = RandomRoller.fresh()
 
     via_physical: list[str] = []
     via_mental: list[str] = []
