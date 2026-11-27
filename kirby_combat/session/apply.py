@@ -387,6 +387,8 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         "FlashApplied", "FlashRecovered",
         "PresenceApplied", "PresenceFaded", "PresenceActionLost",
         "BreakoutRolled", "RageRolled", "RageTargeted", "SelfDestructRolled",
+        # A nerve check and its outcome: folded by `kirby_combat/nerve.py`.
+        "NerveRolled",
         "FightRead",
         # A Dive for Cover's roll and its outcome: folded by
         # `kirby_combat/statuses.py` (prone, in the air); the move rides on

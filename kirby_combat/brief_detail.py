@@ -407,6 +407,8 @@ def _status_words(session, combatant_id: str) -> list[str]:
         (st.GRAB, "grabbed"),
         (st.ABORTED, "aborted to a defensive action"),
         (st.FLINCHING, "flinching from a wound: no offensive action this Phase (6E2 p.110)"),
+        (st.FLEEING, "his nerve broke: he is getting out (Western Hero p.128)"),
+        (st.SURRENDERED, "has surrendered (6E2 p.139)"),
     ]
     return [w for key, w in words if key in have]
 

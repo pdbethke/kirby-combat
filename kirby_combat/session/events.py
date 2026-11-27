@@ -144,7 +144,8 @@ class PhaseSpent(BaseEvent):
     #: "left" (out of the scene's bounds, so no longer in the fight),
     #: "aborted" (he already spent it on an Abort, 6E2 p.24), "stunned"
     #: (he spent it recovering from being Stunned, 6E2 p.107) or "entranced"
-    #: (lost in an EGO+30 Mental Illusion, 6E1 p.251).
+    #: (lost in an EGO+30 Mental Illusion, 6E1 p.251), or "surrendered" (his
+    #: nerve broke and he could not run, `kirby_combat.nerve`).
     reason: str = "acted"
 
 
@@ -791,6 +792,24 @@ class PresenceYielded(BaseEvent):
 
 
 @dataclass
+class NerveRolled(BaseEvent):
+    """A man's PRE Roll to stand when his side is breaking (`kirby_combat.nerve`).
+
+    Western Hero p.128: "you might make a PRE roll for a person facing
+    overwhelming odds to resist fleeing". ``modifiers`` is each penalty as
+    ``"label:value"``; ``outcome`` is ``held``, ``fled`` (he breaks off from
+    here on) or ``surrendered`` (6E2 p.139: he "may surrender, run away"; he
+    is out of the fight). Recorded so a replay lands on the same outcome.
+    """
+    kind: Literal["NerveRolled"] = field(default="NerveRolled", init=False)
+    combatant_id: str = ""
+    roll: int = 0
+    needed: int = 0
+    modifiers: tuple[str, ...] = ()
+    outcome: str = ""
+
+
+@dataclass
 class RageRolled(BaseEvent):
     """A roll against an Enraged/Berserk complication (6E1 p.424-425).
 
@@ -1348,6 +1367,7 @@ CombatEvent = (
     | SquadOrdersGiven
     | EnduranceReserveChanged
     | RageRolled
+    | NerveRolled
     | SelfDestructRolled
     | FightRead
     | RageTargeted

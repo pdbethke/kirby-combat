@@ -209,6 +209,12 @@ HOLDING = "holding"
 
 PRONE = "prone"
 
+FLEEING = "fleeing"
+SURRENDERED = "surrendered"
+# Western Hero p.128 / 6E2 p.139: a man who failed his PRE Roll with his side
+# breaking runs, or, cornered, surrenders (`kirby_combat/nerve.py`, folded off
+# its `NerveRolled`).
+
 FLINCHING = "flinching"
 # 6E2 p.110 WOUNDING (optional) -- a failed EGO Roll after taking BODY: "can't
 # take any offensive action in his next Phase". Folded by `wounds.flinching`
@@ -1064,6 +1070,14 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     # 6E2 p.87: a failed Dive for Cover, not yet landed.
     if _is_in_the_air(session, combatant_id):
         statuses.add(IN_THE_AIR)
+    # Western Hero p.128: broken nerve (`nerve.nerve_state`).
+    from kirby_combat.nerve import FLED, SURRENDERED as _SURR, nerve_state
+
+    broken = nerve_state(session, combatant_id)
+    if broken == FLED:
+        statuses.add(FLEEING)
+    elif broken == _SURR:
+        statuses.add(SURRENDERED)
     # 6E2 p.110: flinching from a wound, until his next Phase is spent.
     from kirby_combat.wounds import flinching
 

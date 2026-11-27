@@ -3407,6 +3407,80 @@
       "title": "MovementResolved",
       "type": "object"
     },
+    "NerveRolled": {
+      "additionalProperties": false,
+      "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
+        "__type__": {
+          "const": "NerveRolled",
+          "enum": [
+            "NerveRolled"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "NerveRolled",
+          "enum": [
+            "NerveRolled"
+          ],
+          "type": "string"
+        },
+        "modifiers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "needed": {
+          "type": "integer"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "roll": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "__format__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "roll",
+        "needed",
+        "modifiers",
+        "outcome"
+      ],
+      "title": "NerveRolled",
+      "type": "object"
+    },
     "PhaseSpent": {
       "additionalProperties": false,
       "properties": {
@@ -5864,6 +5938,9 @@
     },
     {
       "$ref": "#/$defs/MovementResolved"
+    },
+    {
+      "$ref": "#/$defs/NerveRolled"
     },
     {
       "$ref": "#/$defs/PhaseSpent"

@@ -30,21 +30,16 @@ from kirby_combat.health import classify_health
 from kirby_combat.tactics.base import Basis, Plan, PlanStep, Situation, Tactic
 from kirby_combat.tactics.library import register
 
-#: Complication words that make a man duck, and that make him stand. Read
-#: from the text a player wrote (`complications_of(...).name`).
-COWARDLY = ("not brave", "coward", "cowardly", "craven", "fearful")
-FEARLESS = ("vengeful", "no fear", "fearless", "reckless", "death wish",
-            "overconfiden")
+#: Complication words that make a man duck, and that make him stand: one
+#: list for this and the nerve check (`kirby_combat.courage`).
+from kirby_combat.courage import COWARDLY, FEARLESS, complication_saying
 
 DODGE, KEEP = "dodge", "no_abort"
 
 
 def _says(situation: Situation, words) -> str | None:
-    for comp in situation.actor_complications or []:
-        text = (getattr(comp, "name", "") or "").lower()
-        if any(w in text for w in words):
-            return getattr(comp, "name", "")
-    return None
+    comp = complication_saying(situation.actor_complications, words)
+    return getattr(comp, "name", "") if comp is not None else None
 
 
 def _armed(actor) -> bool:

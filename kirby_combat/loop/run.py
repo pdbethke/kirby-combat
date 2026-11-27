@@ -281,6 +281,8 @@ def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
         return "down"
     if Roster(session).has_left(combatant_id):
         return "left"
+    if Roster(session).has_surrendered(combatant_id):
+        return "surrendered"
     window = session.timeline.aborts.get(combatant_id)
     if window is not None and window.aborted == (
             session.timeline.turn, session.timeline.segment):
@@ -768,6 +770,12 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
 
     if FLINCHING in statuses_for(session, actor_id):
         menu = without_offence(menu)
+    # HIS NERVE BROKE (`nerve`): he breaks off, and does nothing else; with
+    # nowhere to break off to, only what keeps him alive.
+    from kirby_combat.nerve import FLED, flee_menu, nerve_state
+
+    if nerve_state(session, actor_id) == FLED:
+        menu = flee_menu(menu) or without_offence(menu)
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
     if presence_attack_made_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind not in PRESENCE_KINDS]
@@ -1111,6 +1119,15 @@ def run_phase(
     # Phase" was settled the first time.
     continuing = phase_already_begun(session, actor_id)
     if not continuing:
+        # NERVE FIRST (Western Hero p.128, `nerve`): with his side breaking
+        # he rolls PRE before he does anything, and a man who surrenders
+        # spends the Phase on nothing.
+        from kirby_combat.nerve import SURRENDERED as _SURR, nerve_check, nerve_state
+
+        session = nerve_check(session, actor_id, roller=roller)
+        if nerve_state(session, actor_id) == _SURR:
+            session, spent = _mark_acted(session, actor_id, reason="surrendered")
+            return _done(session, notes=[f"{actor_id} surrendered"])
         session = roll_breakouts(session, actor_id, roller)
         # BREAKFALL TO HIS FEET, also taking no time (6E1 p.68: "gets to
         # his feet as a Zero Phase Action"), so it comes before anything

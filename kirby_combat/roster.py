@@ -122,6 +122,13 @@ class Roster:
         return (outside_the_bounds(self._session, combatant_id)
                 and not is_off_board(self._session, combatant_id))
 
+    def has_surrendered(self, combatant_id: str) -> bool:
+        """He threw up his hands (`nerve`, Western Hero p.128, 6E2 p.139):
+        out of the fight, like a man who is down or gone."""
+        from kirby_combat.nerve import SURRENDERED, nerve_state
+
+        return nerve_state(self._session, combatant_id) == SURRENDERED
+
     def is_off_board(self, combatant_id: str) -> bool:
         """Forced off the map and coming back: still in the fight, but out of
         everybody's reach until he is back (`kirby_combat/off_board.py`)."""
@@ -157,7 +164,9 @@ class Roster:
         """
         out: dict[Side, list[str]] = {}
         for combatant in self.combatants:
-            if is_down(combatant) or self.has_left(combatant.id):
+            # A MAN WHO SURRENDERED stands for nobody (`nerve`, 6E2 p.139).
+            if (is_down(combatant) or self.has_left(combatant.id)
+                    or self.has_surrendered(combatant.id)):
                 continue
             out.setdefault(Side.of(combatant), []).append(combatant.id)
         return out
@@ -187,6 +196,8 @@ class Roster:
             c for c in self.combatants
             if Side.of(c) != mine and not is_down(c)
             and self.on_the_board(c.id)
+            # Nobody is offered a shot at a man who surrendered (`nerve`).
+            and not self.has_surrendered(c.id)
         ]
 
     def allies_of(self, actor) -> list:
