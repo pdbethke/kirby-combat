@@ -40,7 +40,7 @@ fighter takes cover once and then fires from it.
 WHAT IT NEEDS. One directory of BUILD DOCS for licensed material this repo
 does not and will not ship, named by environment variable:
 
-    KIRBY_CORRAL_BUILDS   <Archetype>.json + arsenal.json + PowerLad.json
+    KIRBY_CORRAL_BUILDS   one <Man>.json each + arsenal.json + PowerLad.json
     KIRBY_COST_HDT        a HERO Designer .hdt --- kirby-cost needs it
 
 Build docs, not .hdc files, and that is not a detail. This engine reads no
@@ -85,21 +85,38 @@ from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
 TERMS = FightTerms(stop=StopKind.LAST_SIDE_STANDING, end_mode=EndMode.AUTO_STOP)
 
 
-#: Where the archetypes and the weapon prefabs live on THIS machine. Both
+#: Where the builds and the weapon prefabs live on THIS machine. Both
 #: are paid Hero Games material, so the repo carries the variable names and
 #: never the files --- and a machine-bound literal path here would put the
 #: suite back to being unrunnable anywhere but one laptop.
-#: A directory of build docs: one per archetype, plus `arsenal.json` whose
+#: A directory of build docs: one per man, plus `arsenal.json` whose
 #: equipment list is every 19th-century weapon HSEG defines. `PowerLad.json`
 #: alongside them arms `--power-lad`.
 BUILDS = os.environ.get("KIRBY_CORRAL_BUILDS")
 
+#: EACH MAN IS HIS OWN BUILD, not his archetype's. The second field names
+#: the build doc. Every Earp loaded as the one Lawman archetype, so Wyatt,
+#: Virgil and Morgan were the same man, and his whole "What drives you" read
+#: "Distinctive: Lawman; Hunted by: Local People". A model given that page
+#: played all three as men who abort to Dodge whenever a gun points at them
+#: (2026-11-27: 198 of 376 decisions were Dodge, 293 Phases). HERO's record
+#: of who a man is is his Psychological Complications (6E1 Complications),
+#: and the Brief already puts them on the page.
+#:
+#: Six builds are the "Historical Guns" pack's own (Wyatt Earp, John
+#: Holliday, Ike and Billy Clanton, Frank McLaury, Billy Claibourne -- the
+#: pack's spelling). The pack has no Virgil, Morgan or Tom McLaury: those
+#: three are their Western Hero archetype with nothing removed, plus
+#: complications inferred from the record (Peter, 2026-11-27) --- Virgil's
+#: errand to disarm ("throw up your hands, I want your guns"), Morgan's
+#: loyalty to his brothers, Tom's to Frank, and Tom wanting no part of it.
+#:
 #: Historical armament. The Earps carried revolvers; Doc Holliday carried a
 #: coach gun, which is why he is the most dangerous man on the lot.
-LAWMEN = [("Wyatt Earp", "Lawman", ["Colt Peacemaker"]),
-          ("Virgil Earp", "Lawman", ["Colt Peacemaker"]),
-          ("Morgan Earp", "Lawman", ["Colt Peacemaker"]),
-          ("Doc Holliday", "Gambler", ["Shotgun", "Colt Peacemaker"])]
+LAWMEN = [("Wyatt Earp", "Wyatt Earp", ["Colt Peacemaker"]),
+          ("Virgil Earp", "Virgil Earp", ["Colt Peacemaker"]),
+          ("Morgan Earp", "Morgan Earp", ["Colt Peacemaker"]),
+          ("Doc Holliday", "John Holliday", ["Shotgun", "Colt Peacemaker"])]
 
 # Two of the five Cowboys were UNARMED, and arming them is what made this
 # benchmark unwinnable for the Earps. Ike Clanton --- who had spent the
@@ -112,11 +129,11 @@ LAWMEN = [("Wyatt Earp", "Lawman", ["Colt Peacemaker"]),
 # the Cowboys swept every run before it was corrected. An empty list is the
 # historical fact and the harder test: an unarmed man in a crossfire is
 # exactly the actor who ought to be running.
-COWBOYS = [("Billy Clanton", "Gunfighter", ["Colt Frontier .44-40"]),
-           ("Frank McLaury", "Skilled Gunfighter", ["Colt Frontier .44-40"]),
-           ("Tom McLaury", "Cowboy", ["Winchester '73"]),
-           ("Ike Clanton", "Cowboy", []),
-           ("Billy Claiborne", "Cowboy", [])]
+COWBOYS = [("Billy Clanton", "Billy Clanton", ["Colt Frontier .44-40"]),
+           ("Frank McLaury", "Frank McLaury", ["Colt Frontier .44-40"]),
+           ("Tom McLaury", "Tom McLaury", ["Winchester '73"]),
+           ("Ike Clanton", "Ike Clanton", []),
+           ("Billy Claiborne", "Billy Claibourne", [])]
 
 
 def the_lot() -> Scene:
@@ -344,14 +361,14 @@ def the_sides():
     )
     return law, cow
 
-def arm(name: str, archetype: str, weapons: list, side: Side, guns: dict):
-    """Load an archetype and hand it its guns.
+def arm(name: str, build: str, weapons: list, side: Side, guns: dict):
+    """Load a man's build and hand him his guns.
 
     The weapon objects are the HSEG prefab's own -- costed by the engine,
     not rebuilt here -- appended to the character's equipment, which
     `HeroCombatant.attacks` now reads.
     """
-    c = HeroCombatant.from_build(build_from_json(_doc(archetype)),
+    c = HeroCombatant.from_build(build_from_json(_doc(build)),
                                  id=name.lower().replace(" ", "_"))
     c.hero.equipment = list(getattr(c.hero, "equipment", None) or []) + [guns[w] for w in weapons]
     c.hero.name = name
