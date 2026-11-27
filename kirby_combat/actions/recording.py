@@ -925,6 +925,8 @@ def resolve_attack_in_session(
         # 6E2 p.120: rolled at maximum. On the row so a replay and a
         # narrator can say so; the damage alone does not.
         "critical": result.critical,
+        # WHERE IT LANDED (6E2 p.110), None with no Hit Locations.
+        "location": result.location,
         "stun_dealt": result.stun_dealt,
         "body_dealt": result.body_dealt,
         "status_changes": status_changes,

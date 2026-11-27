@@ -610,6 +610,16 @@ def resolve_area_attack_in_session(
         if spec.explosion:
             dice, power = _explosion_dice(dice, bare, explosion_dice_lost(
                 distance, killing=bare.damage_type == "killing"))
+        # EACH VICTIM'S OWN HIT LOCATION. The damage is rolled once and each
+        # victim takes it (6E1 p.321); where it lands on him is rolled for
+        # him. Western Hero p.159 leaves Areas with Hit Locations to the GM
+        # (roll as normal, or ignore them); RULING (Peter, 2026-11-27): roll
+        # as normal, for each victim. One roll for all put one blast in eight
+        # men's Stomachs.
+        from kirby_combat.resolution.hit_location import uses_hit_locations
+
+        if uses_hit_locations(template, victim):
+            dice = replace(dice, hit_location=roller.roll_dice(3, 6))
         per_target = spec.targeting in (AreaTargeting.SELECTIVE,
                                         AreaTargeting.NONSELECTIVE)
         if per_target:
@@ -699,3 +709,51 @@ def _damage_construct(s, attacker, power, dice, construct, template, roller,
             "area_use_id": use_id,
         },
     ))
+
+
+def mark_area_catches(session, actor, menu: list) -> list:
+    """Each Area attack offer, marked with who it would catch as aimed now.
+
+    The same geometry the use reads (`aimed_area`). Its summary says so,
+    naming the actor's own men: Doc Holliday's cone caught Wyatt and Virgil
+    Earp on his first Phase, and nothing on the offer said they stood in it
+    (2026-11-27). A man down is still in the way, and still counted.
+    """
+    from dataclasses import replace as _replace
+
+    from kirby_combat.side import Side
+
+    scene = getattr(session, "scene", None)
+    if scene is None:
+        return menu
+    mine = Side.of(actor)
+    out = []
+    for offer in menu:
+        view = getattr(offer, "_attack_view", None)
+        if (getattr(view, "area", None) is None or offer.target_id is None
+                or offer.target_id not in session.combatants):
+            out.append(offer)
+            continue
+        aimed = aimed_area(session, actor.id, offer.target_id, view)
+        if aimed is None:
+            out.append(offer)
+            continue
+        caught = tuple(sorted(
+            cid for cid in session.combatants
+            if (here := _position(session, cid)) is not None and aimed.holds(_xyz(here))))
+        own = tuple(c for c in caught
+                    if c == actor.id or Side.of(session.combatants[c]) == mine)
+        if not caught:
+            out.append(offer)
+            continue
+
+        def name(cid):
+            c = session.combatants[cid]
+            return "yourself" if cid == actor.id else (getattr(getattr(c, "hero", None), "name", None) or cid)
+
+        note = f" --- the area catches {len(caught)}: " + ", ".join(name(c) for c in caught)
+        if own:
+            note += "; YOUR OWN SIDE: " + ", ".join(name(c) for c in own)
+        out.append(_replace(offer, summary=offer.summary + note,
+                            _area_catches=caught, _area_allies=own))
+    return out

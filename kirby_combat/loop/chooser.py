@@ -475,6 +475,15 @@ class TacticChooser:
         if not situation.menu:
             raise InvalidChoice("<empty menu>", [])
 
+        # NOT THROUGH HIS OWN SIDE (Peter, 2026-11-27): an Area offer that
+        # catches one of his men (`_area_allies`) is not doctrine's to take,
+        # and not its fallback's either, while anything else is on offer.
+        clear = [a for a in situation.menu if not getattr(a, "_area_allies", ())]
+        if clear and len(clear) < len(situation.menu):
+            from dataclasses import replace as _replace
+
+            situation = _replace(situation, menu=clear)
+
         by_kind: dict[str, list[LegalAction]] = {}
         # Scenery last here too: a tactic that names a kind but no target
         # takes `offers[0]`, and `attack` offers include every wall on the

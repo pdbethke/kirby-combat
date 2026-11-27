@@ -836,6 +836,10 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     from kirby_combat.recovery_limits import without_futile_recovery
 
     menu = without_futile_recovery(session, actor_id, menu)
+    # WHO AN AREA WOULD CATCH, on the offer (`area_attack.mark_area_catches`).
+    from kirby_combat.actions.area_attack import mark_area_catches
+
+    menu = mark_area_catches(session, actor, menu)
     situation = PhaseSituation(
         actor=actor, menu=menu, enemies=enemies,
         allies=[a for a in allies if not is_down(a)],

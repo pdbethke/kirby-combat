@@ -408,6 +408,13 @@ class LegalAction:
     # / hidden). The resolver applies the ½ OCV / ½ DCV blind-combat penalty
     # (negated by Combat Sense) — Task 2. False for every perceived offer.
     blind: bool = False
+    # AN AREA'S CATCH (`area_attack.mark_area_catches`): everyone standing
+    # in the area as aimed now, and of them, the actor's own side (himself
+    # included). Set by the loop, which has the map; empty for every offer
+    # that is not an Area attack. Doctrine will not fire through its own
+    # side (Peter, 2026-11-27); a model seat reads the names on the summary.
+    _area_catches: tuple = ()
+    _area_allies: tuple = ()
     # Repositioning §2: for a ``reposition_strike`` (offensive: move to a LoS-
     # clear vantage and fire) / ``reposition`` (defensive: break contact), the
     # engine ``Position`` destination as an (x, y, z) tuple. Enumeration computes
