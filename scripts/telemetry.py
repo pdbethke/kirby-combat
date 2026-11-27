@@ -55,9 +55,10 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from dataclasses import replace
 
     from the_ok_corral import (
-        COWBOYS, LAWMEN, arm, arsenal, the_interloper, the_lot, the_sides,
+        COWBOYS, LAWMEN, TERMS, arm, arsenal, the_interloper, the_lot, the_sides,
     )
     from kirby_combat.encounter import Encounter
+    from kirby_combat.ending import state_terms
     from kirby_combat.loop import TacticChooser, run_encounter
     from kirby_combat.scene.scene import Position
     from kirby_combat.session.combat_session import CombatSession
@@ -98,6 +99,9 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
         # and a shot to the foot stop being the same shot.
         template=RAW_HEROIC,
         dice_roller=roller).start()
+    # THE BENCHMARK'S OWN TERMS (`the_ok_corral.TERMS`): last side standing,
+    # stopped automatically. 0.40.0 refuses to step a fight without terms.
+    session = state_terms(session, TERMS)
     result = run_encounter(
         Encounter(id=f"t-{seed}", turn=1, segment=12, sessions=[session],
                   # ON THE ENCOUNTER TOO, and this is not belt-and-braces.
