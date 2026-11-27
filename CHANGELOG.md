@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.40.0 — 2026-11-27
+
+**The end of a fight: its terms, a question to the GM, and one event in the log.** Two-databases spec §6a; plan `kirby/docs/superpowers/plans/2026-11-24-fight-end.md`.
 
 ### Changed — dice state their sides
 - Every `roll_dice` call states its sides (`roll_dice(3, 6)`), for kirby-dice 0.2.0, which dropped its `sides=6` default (no-defaults rule). Requires `kirby-dice>=0.2.0`. Test rollers take a required `sides` too. No behaviour change: 4216 passed, 3 xfailed, as before.
@@ -18,10 +20,6 @@
 
 ### Changed — `stabilize_the_dying` kneels only where it is safe to
 JUDGEMENT (Peter, 2026-11-27), not a rule: 6E2 p.109 says a dying man can be stabilized, not when. A fighter stops fighting to do it only when no enemy is standing, or he is in cover from every standing enemy (cover is per shooter, 6E2 p.45), or the man dies at the end of this Turn without help. Before, men bandaged a friend in the open while the other side shot them down; in every corral seed the Earps lost, that was why. Corral, 10 seeds under `TacticChooser`: Earps 7, Cowboys 3 (was 3 and 3 of 6, each Cowboy win with 3-8 Phases of first aid under fire).
-
-## 0.40.0 — 2026-11-24
-
-**The end of a fight: its terms, a question to the GM, and one event in the log.** Two-databases spec §6a; plan `kirby/docs/superpowers/plans/2026-11-24-fight-end.md`.
 
 ### Added — `kirby_combat.ending`
 - **`FightTerms(stop, end_mode)`**, stated once as the fight starts with `state_terms(session, terms)`: a new **`FightTermsStated`** row, in the same creation window as `RulingsStated` (that window now admits both). `terms_of(session)` reads it back. `StopKind`: `LAST_SIDE_STANDING`, `FIRST_BLOOD` (over at the first lost STUN, won by the one side nobody hurt, else no winner), `GM_ONLY` (only a call ends it). `EndMode`: `AUTO_STOP` or `ASK`.
