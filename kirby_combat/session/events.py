@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 # rehydrated by `from_dict`, both of which resolve the annotation by name.
 # `rulings` imports nothing from the session at module level, so no cycle.
 from kirby_combat.rulings import Ruling
+from kirby_combat.grips import Grip
 
 if TYPE_CHECKING:
     from kirby_combat.session.timeline import ActionIntent
@@ -1239,6 +1240,20 @@ class WeaponMoved(BaseEvent):
 
 
 @dataclass
+class GripsStated(BaseEvent):
+    """Which hand holds each of one fighter's weapons (`kirby_combat.grips`).
+
+    Stated once per fighter as the fight starts, in the same window as
+    `RulingsStated` and `FightTermsStated` (Peter's ruling, 2026-11-27:
+    grips are stated, never assumed). Data only: read from the log by
+    `grips.grip_of`; `apply_event` refuses grips his weapons cannot have.
+    """
+    kind: Literal["GripsStated"] = field(default="GripsStated", init=False)
+    combatant_id: str = ""
+    grips: tuple[Grip, ...] = ()
+
+
+@dataclass
 class FightTermsStated(BaseEvent):
     """The fight's terms (`kirby_combat.ending`): which stop condition decides
     it (``stop``, a `StopKind` value) and who confirms its end (``end_mode``,
@@ -1355,6 +1370,7 @@ CombatEvent = (
     | GMOverride
     | SessionEnded
     | FightTermsStated
+    | GripsStated
     | StructureBroughtDown
     | EndProposed
     | EndDeclined

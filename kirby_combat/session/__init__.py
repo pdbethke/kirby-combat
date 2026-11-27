@@ -47,7 +47,7 @@ __all__ += [
     "HeldActionDeclared", "HeldActionReleased",
     "AdjustmentApplied", "AdjustmentFaded",
     "EntangleApplied", "EntangleEscape", "FlashApplied", "FlashRecovered",
-    "EnvironmentalTriggered", "ConstructDamaged", "ConstructSpawned", "StructureBroughtDown", "BarrierRaised", "DarknessPlaced", "DarknessEnded", "SlotsAllocated", "ChargeSpent", "RulingsStated",
+    "EnvironmentalTriggered", "ConstructDamaged", "ConstructSpawned", "StructureBroughtDown", "BarrierRaised", "DarknessPlaced", "DarknessEnded", "SlotsAllocated", "ChargeSpent", "RulingsStated", "GripsStated",
     "PowerDispelled", "PowerRestarted", "WeaponMoved",
     "GMOverride", "SessionEnded",
     "make_author_combatant", "make_author_gm", "make_author_engine",

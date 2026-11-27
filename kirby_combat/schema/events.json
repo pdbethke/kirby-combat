@@ -2716,6 +2716,93 @@
       "title": "GMOverride",
       "type": "object"
     },
+    "Grip": {
+      "additionalProperties": false,
+      "properties": {
+        "__type__": {
+          "const": "Grip",
+          "enum": [
+            "Grip"
+          ],
+          "type": "string"
+        },
+        "hands": {
+          "type": "string"
+        },
+        "weapon_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "weapon_id",
+        "hands"
+      ],
+      "title": "Grip",
+      "type": "object"
+    },
+    "GripsStated": {
+      "additionalProperties": false,
+      "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
+        "__type__": {
+          "const": "GripsStated",
+          "enum": [
+            "GripsStated"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "grips": {
+          "items": {
+            "$ref": "#/$defs/Grip"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "GripsStated",
+          "enum": [
+            "GripsStated"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "__format__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "grips"
+      ],
+      "title": "GripsStated",
+      "type": "object"
+    },
     "Hazard": {
       "additionalProperties": false,
       "properties": {
@@ -5753,6 +5840,9 @@
     },
     {
       "$ref": "#/$defs/GMOverride"
+    },
+    {
+      "$ref": "#/$defs/GripsStated"
     },
     {
       "$ref": "#/$defs/HeldActionDeclared"

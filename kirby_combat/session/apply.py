@@ -289,6 +289,26 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
         # the log; nothing on the snapshot holds a Charge count.
         return replace(session, event_log=new_log, updated_at=now)
 
+    if kind == "GripsStated":
+        # Read from the log (`grips.grip_of`). Once per fighter, a fighter
+        # in the fight, in the start window, and grips his weapons can have.
+        from kirby_combat.grips import GripsWrong, check_grips
+
+        late = next((e for e in session.event_log
+                     if getattr(e, "kind", None) not in _START_WINDOW), None)
+        if late is not None:
+            raise ValueError(
+                f"GripsStated for {event.combatant_id!r} after a {late.kind} "
+                f"row (sequence {late.sequence}): grips are stated as the "
+                "fight starts")
+        if event.combatant_id not in session.combatants:
+            raise KeyError(f"GripsStated for {event.combatant_id!r}: no such combatant")
+        if any(getattr(e, "kind", None) == "GripsStated"
+               and e.combatant_id == event.combatant_id for e in session.event_log):
+            raise GripsWrong(f"GripsStated for {event.combatant_id!r}: already stated")
+        check_grips(session.combatants[event.combatant_id], event.grips)
+        return replace(session, event_log=new_log, updated_at=now)
+
     if kind == "RulingsStated":
         # Read from the log (`rulings.rulings_for`); nothing on the snapshot
         # holds a ruling. Once per fighter, only a fighter in the fight, and
@@ -706,7 +726,7 @@ def _enforce_lightning_reflexes_phase_restriction(
 
 #: Rows that may precede a fight's terms: the opening, and other statements
 #: made as it starts. The first row of any other kind closes the window.
-_START_WINDOW = ("SessionStarted", "RulingsStated", "FightTermsStated")
+_START_WINDOW = ("SessionStarted", "RulingsStated", "FightTermsStated", "GripsStated")
 
 
 def _check_ending_event(session, event) -> None:
