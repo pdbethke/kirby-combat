@@ -51,7 +51,11 @@ def _adders_of(raw: Any) -> dict[str, str]:
     objects did not survive.
     """
     out: dict[str, str] = {}
-    for adder in (getattr(raw, "adders", None) or []):
+    # `assigned_adders` is where kirby-cost keeps them (`rage.py` reads the
+    # same). This read `adders`, which no loaded build has, so every
+    # imported complication lost its severity and the page printed Wyatt
+    # Earp's Vengeful (Total) like a Moderate one (2026-11-27).
+    for adder in (getattr(raw, "assigned_adders", None) or []):
         xmlid = (getattr(adder, "xmlid", "") or "").upper()
         option = (getattr(getattr(adder, "selected_option", None), "xmlid", None)
                   or getattr(adder, "option_id", None) or "")
