@@ -182,6 +182,23 @@ def state_the_grips(session):
     return session
 
 
+def the_fight_lot():
+    """The ground the benchmark fights on: the lot as it was.
+
+    `the_shootout_we_can_publish.the_lot_as_it_was` --- built from the map
+    and extruded, the buildings real footprints, the two sides facing each
+    other across eighteen feet as the inquest has it. The benchmark fought
+    on `the_lot` below until 2026-11-27, a ten-metre corridor with the sides
+    in interleaved columns, which measures the engine and is not the place
+    (Peter: "doesnt much look like the tombstone layout"); every realism
+    number taken on it was taken on the wrong ground. `the_lot` stays for
+    the tests that pin it.
+    """
+    from the_shootout_we_can_publish import the_lot_as_it_was
+
+    return the_lot_as_it_was()
+
+
 def the_lot() -> Scene:
     """The vacant lot beside Fly's, 26 October 1881, about 3pm.
 
@@ -595,7 +612,7 @@ def main() -> None:
     law, cow = the_sides()
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
-    scene = the_lot()
+    scene = the_fight_lot()
 
     if interloper:
         lad = the_interloper()

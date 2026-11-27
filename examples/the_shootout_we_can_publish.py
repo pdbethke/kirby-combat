@@ -364,10 +364,10 @@ def the_scene():
 def the_fight(seed: int = DEMO_SEED, *, chooser=None):
     """Run it, and hand back the finished encounter.
 
-    The LOT is imported from the benchmark rather than copied: terrain is
+    The LOT is this file's `the_lot_as_it_was`, and since 2026-11-27 the
+    benchmark fights on it too (`the_ok_corral.the_fight_lot`): terrain is
     geometry we authored and carries no licensed content, so the same
-    Harwood House wall, Fly's Studio, wagon, barrels, trough and crates
-    stand here. Only the men are different.
+    ground serves both. Only the men are different.
     """
     from dataclasses import replace
 

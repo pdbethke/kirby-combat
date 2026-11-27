@@ -56,7 +56,7 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
 
     from the_ok_corral import (
         COWBOYS, LAWMEN, RULES, TERMS, arm, arsenal, state_the_grips,
-        the_interloper, the_lot, the_sides,
+        the_fight_lot, the_interloper, the_sides,
     )
     from kirby_combat.encounter import Encounter
     from kirby_combat.ending import state_terms
@@ -71,7 +71,8 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     law, cow = the_sides()
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
-    scene = the_lot()
+    # The lot as it was, from the map (`the_ok_corral.the_fight_lot`).
+    scene = the_fight_lot()
     if with_power_lad:
         lad = the_interloper()
         if lad is not None:
