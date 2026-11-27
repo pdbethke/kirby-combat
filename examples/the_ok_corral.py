@@ -75,7 +75,7 @@ from kirby_combat.scene.scene import (
 )
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
-from kirby_combat.template import RAW_HEROIC
+from kirby_combat.template import GRITTY_HEROIC
 from kirby_cost.io.build_json import build_from_json
 from kirby_dice import RandomRoller
 from kirby_combat.ending import EndMode, FightTerms, StopKind, state_terms
@@ -112,11 +112,17 @@ BUILDS = os.environ.get("KIRBY_CORRAL_BUILDS")
 #: loyalty to his brothers, Tom's to Frank, and Tom wanting no part of it.
 #:
 #: Historical armament. The Earps carried revolvers; Doc Holliday carried a
-#: coach gun, which is why he is the most dangerous man on the lot.
+#: coach gun, which is why he is the most dangerous man on the lot. HSEG's
+#: arsenal has no shotgun of its own (only LeMat barrels), so his is the
+#: Equipment Guide's 10-gauge double-barrel (EG p.81, Peter's choice
+#: 2026-11-27), built as a doc and costed by kirby-cost at the book's own
+#: 124 Active / 22 Real. It is Two-Handed, so his nickel-plated Colt is
+#: left off until the engine can holster a gun and draw it: he cannot hold
+#: both, and a gun he is not holding is not one he can fire.
 LAWMEN = [("Wyatt Earp", "Wyatt Earp", ["Colt Peacemaker"]),
           ("Virgil Earp", "Virgil Earp", ["Colt Peacemaker"]),
           ("Morgan Earp", "Morgan Earp", ["Colt Peacemaker"]),
-          ("Doc Holliday", "John Holliday", ["Shotgun", "Colt Peacemaker"])]
+          ("Doc Holliday", "John Holliday", ["10 Gauge Double-Barrel Shotgun"])]
 
 # Two of the five Cowboys were UNARMED, and arming them is what made this
 # benchmark unwinnable for the Earps. Ike Clanton --- who had spent the
@@ -134,6 +140,46 @@ COWBOYS = [("Billy Clanton", "Billy Clanton", ["Colt Frontier .44-40"]),
            ("Tom McLaury", "Tom McLaury", ["Winchester '73"]),
            ("Ike Clanton", "Ike Clanton", []),
            ("Billy Claiborne", "Billy Claibourne", [])]
+
+
+#: THE RULES THE FIGHT RUNS UNDER. Western Hero's Gritty Campaign (book
+#: p.168), whose Historical variant names Tombstone: every lethality option
+#: on (`GRITTY_HEROIC`). Peter, 2026-11-27: "gunfights were messy affairs
+#: never as cinematic as the movies". Hit Locations, END and the rest of
+#: RAW Heroic stay as they were.
+RULES = GRITTY_HEROIC
+
+#: WHICH HAND HOLDS EACH GUN, stated, never assumed (`grips`; Peter's
+#: ruling, 2026-11-27). An Impairing arm wound spoils the gun in that hand
+#: (6E2 p.113). No account of the fight records anybody's handedness, so
+#: every man is stated right-handed. Doc's shotgun and Tom McLaury's
+#: Winchester are both bought Two-Handed (REQUIREDHANDS), so both hands.
+GRIPS: dict[str, dict[str, str]] = {
+    "Wyatt Earp": {"Colt Peacemaker": "right"},
+    "Virgil Earp": {"Colt Peacemaker": "right"},
+    "Morgan Earp": {"Colt Peacemaker": "right"},
+    "Doc Holliday": {"10 Gauge Double-Barrel Shotgun": "both"},
+    "Billy Clanton": {"Colt Frontier .44-40": "right"},
+    "Frank McLaury": {"Colt Frontier .44-40": "right"},
+    "Tom McLaury": {"Winchester '73": "both"},
+    "Ike Clanton": {},
+    "Billy Claiborne": {},
+}
+
+
+def state_the_grips(session):
+    """Put every man's grips on the log as the fight starts (`GRIPS`)."""
+    from kirby_combat.grips import Grip, state_grips
+    from kirby_combat.weapons import accessible_foci
+
+    for c in session.combatants.values():
+        if c.hero.name not in GRIPS:
+            continue
+        foci = {w.name: w.weapon_id for w in accessible_foci(c)}
+        held = [Grip(foci[gun], hand) for gun, hand in GRIPS[c.hero.name].items()]
+        if held:
+            session = state_grips(session, c.id, held)
+    return session
 
 
 def the_lot() -> Scene:
@@ -317,15 +363,41 @@ def _doc(name: str) -> dict:
 
 
 def arsenal() -> dict:
-    """Every 19th-century weapon HSEG defines, by name.
+    """Every 19th-century weapon HSEG defines, by name, plus the guns built
+    from the Equipment Guide's own tables (`arsenal-equipment-guide.json`).
 
     One document carrying them all as EQUIPMENT --- which the build doc
     could not represent until 2026-09-08, so a carried weapon round-tripped
     into nothing and an armed man arrived unarmed.
     """
-    out = {}
-    for e in getattr(build_from_json(_doc("arsenal")), "equipment", []) or []:
-        out.setdefault(getattr(e, "name", "") or "", e)
+    # TOP-LEVEL PURCHASES ONLY. The equipment list is flat: a Multipower's
+    # slots are listed beside it, each pointing at its parent. Three LeMat
+    # Multipowers each carry a slot named "Shotgun", and keyed by name the
+    # first won, so Doc Holliday fought every Corral until 2026-11-27 with
+    # the LeMat CARBINE's shotgun barrel, bought Two-Handed. A slot is not
+    # a gun of its own. HSEG also lists some guns twice: the two Colt
+    # Peacemakers are the same purchase and the first is kept (as before);
+    # the two Kerr's Patent Revolvers differ, so asking for one by name is
+    # refused rather than answered with whichever came first.
+    import json as _json
+
+    out: dict = {}
+    ambiguous: set[str] = set()
+    for name in ("arsenal", "arsenal-equipment-guide"):
+        raw = {e["id"]: e for e in _doc(name)["equipment"]}
+        for e in getattr(build_from_json(_doc(name)), "equipment", []) or []:
+            if raw.get(str(getattr(e, "id", "")), {}).get("parent"):
+                continue
+            key = getattr(e, "name", "") or ""
+            if key in out:
+                same = (_json.dumps({k: v for k, v in raw[str(e.id)].items() if k != "id"}, sort_keys=True)
+                        == _json.dumps({k: v for k, v in raw[str(out[key].id)].items() if k != "id"}, sort_keys=True))
+                if not same:
+                    ambiguous.add(key)
+                continue
+            out[key] = e
+    for key in ambiguous:
+        out.pop(key, None)
     return out
 
 
@@ -551,7 +623,7 @@ def main() -> None:
         # SUPERHEROIC template -- which ships `use_hit_locations=False`
         # and `manage_endurance=False`, because four-colour games
         # hand-wave both. Nine men with revolvers in a vacant lot in 1881
-        # are the other genre: `RAW_HEROIC` is "grittier; hit locations
+        # are the other genre: RAW Heroic is "grittier; hit locations
         # and END tracked", which is the fight this benchmark is trying
         # to be. PeterB, on hit locations: "esp relevant to heroic fights
         # like ok corral".
@@ -559,8 +631,9 @@ def main() -> None:
         # It costs nothing in END here -- those Colts run on Charges --
         # and it means a bullet now lands somewhere: a shot to the Vitals
         # and a shot to the foot stop being the same shot.
-        template=RAW_HEROIC,
+        template=RULES,
         dice_roller=roller).start(), TERMS)
+    session = state_the_grips(session)
     seat = _seat(seat_name, {c.id: c for c in fighters})
     result = run_encounter(
         Encounter(id="tombstone", turn=1, segment=12, sessions=[session],
@@ -572,7 +645,7 @@ def main() -> None:
                   # the whole fight under a default template, so the
                   # heroic flags did nothing; an Encounter with no
                   # template now raises instead.
-                  template=RAW_HEROIC),
+                  template=RULES),
         seat,
         roller=roller, on_unresolvable="skip", max_turns=40)
 

@@ -55,7 +55,8 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from dataclasses import replace
 
     from the_ok_corral import (
-        COWBOYS, LAWMEN, TERMS, arm, arsenal, the_interloper, the_lot, the_sides,
+        COWBOYS, LAWMEN, RULES, TERMS, arm, arsenal, state_the_grips,
+        the_interloper, the_lot, the_sides,
     )
     from kirby_combat.encounter import Encounter
     from kirby_combat.ending import state_terms
@@ -63,7 +64,6 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
     from kirby_combat.scene.scene import Position
     from kirby_combat.session.combat_session import CombatSession
     from kirby_combat.side import Side
-    from kirby_combat.template import RAW_HEROIC
     from kirby_dice import RandomRoller
 
     guns = arsenal()
@@ -97,11 +97,13 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
         # It costs nothing in END here -- those Colts run on Charges --
         # and it means a bullet now lands somewhere: a shot to the Vitals
         # and a shot to the foot stop being the same shot.
-        template=RAW_HEROIC,
+        template=RULES,
         dice_roller=roller).start()
     # THE BENCHMARK'S OWN TERMS (`the_ok_corral.TERMS`): last side standing,
     # stopped automatically. 0.40.0 refuses to step a fight without terms.
     session = state_terms(session, TERMS)
+    # Which hand holds each gun (`the_ok_corral.GRIPS`).
+    session = state_the_grips(session)
     result = run_encounter(
         Encounter(id=f"t-{seed}", turn=1, segment=12, sessions=[session],
                   # ON THE ENCOUNTER TOO, and this is not belt-and-braces.
@@ -111,7 +113,7 @@ def _fight(seed: int, with_power_lad: bool, make_chooser=None):
                   # not from the session's own `template` field. Setting
                   # only the session left the whole fight resolving under
                   # the default, so the heroic flags did nothing.
-                  template=RAW_HEROIC),
+                  template=RULES),
         chooser, roller=roller, on_unresolvable="skip", max_turns=40)
     return chooser, result
 
