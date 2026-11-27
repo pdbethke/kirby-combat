@@ -25,6 +25,7 @@ from kirby_combat.tactics.catalog import (
     shield_allies,
     stand_and_take_it,
     abort_or_stand,
+    rearm,
     take_cover_when_hurt,
     # Disarming --- the Earps' stated objective, which no tactic served
     disarm_the_armed,
@@ -67,6 +68,7 @@ __all__ = [
     "shield_allies",
     "stand_and_take_it",
     "abort_or_stand",
+    "rearm",
     "take_cover_when_hurt",
     "withdraw_when_outmatched",
 ]

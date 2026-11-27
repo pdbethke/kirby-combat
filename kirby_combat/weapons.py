@@ -61,7 +61,8 @@ ACCESSIBLE_FOCI = frozenset({"OAF", "IAF"})
 DISARMED = "disarm"            # 6E2 p.62: knocked flying
 TAKEN = "takeaway"             # 6E2 p.69 / 6E1 p.379: wrenched away
 PICKED_UP = "pick_up"          # 6E2 p.25, p.62: recovered off the ground
-CAUSES = frozenset({DISARMED, TAKEN, PICKED_UP})
+DROPPED = "drop"               # let fall by its owner: a Zero Phase Action (ruling, `holster`)
+CAUSES = frozenset({DISARMED, TAKEN, PICKED_UP, DROPPED})
 
 
 @dataclass(frozen=True)
@@ -222,9 +223,14 @@ def out_of_hand_ids(session: "CombatSession", combatant_id: str) -> frozenset[st
         return frozenset()
     where = locations(session)
     off: set[str] = set()
+    # IN ITS HOLSTER is out of his hand too (`grips.HOLSTERED`): stated so,
+    # or put there, and off his sheet until he draws it.
+    from kirby_combat.grips import holstered_weapon_ids
+
+    holstered = holstered_weapon_ids(session, combatant_id)
     for w in accessible_foci(combatant):
         place = where.get((w.owner_id, w.weapon_id))
-        if place is not None and place != InHand(combatant_id):
+        if (place is not None and place != InHand(combatant_id)) or w.weapon_id in holstered:
             off |= w.power_ids
     return frozenset(off)
 

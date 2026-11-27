@@ -169,7 +169,7 @@ def test_every_kind_is_wired():
     test_coordination_and_frameworks.py for how that surfaced."""
     from kirby_combat.enumeration import ALL_ACTION_KINDS
 
-    assert len(registered_kinds()) == 82   # desolidify, drop_desolid, turn_invisible, drop_invisible (2026-11-15); opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
+    assert len(registered_kinds()) == 89   # draw/fast_draw/holster/fast_holster/drop_weapon, reload, fast_reload (2026-11-27); desolidify, drop_desolid, turn_invisible, drop_invisible (2026-11-15); opening_split (split task 5); half_move, snap_out_of_rage, attack_entangle, self_destruct, drop_darkness
     assert registered_kinds() == ALL_ACTION_KINDS
 
 
@@ -199,6 +199,8 @@ def test_every_registered_kind_is_covered_by_a_test_here_or_elsewhere():
         "charm", "persuasion", "conversation", "trading",
         #                          test_hidden_kinds
         "move_to_cover",           # test_move_to_cover
+        "draw_weapon", "fast_draw_weapon", "holster_weapon", "fast_holster_weapon",
+        "drop_weapon", "reload", "fast_reload",   # test_holster_and_reload
         "disengage",               # test_disengage
         "stabilize",               # test_doc_stops_the_bleeding
         "mind_scan",               # test_mental_combat_bites

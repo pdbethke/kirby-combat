@@ -17,7 +17,7 @@ def test_the_catalogue_is_populated():
     It counts REGISTERED tactics, which is one fewer than the catalogue
     has files: `_filters` is a helper, and `raise_force_wall_t` registers
     under a name that is not its filename."""
-    assert len(all_tactics()) == 29   # + abort_or_stand (2026-11-27)
+    assert len(all_tactics()) == 30   # + abort_or_stand, rearm (2026-11-27)
 
 
 def test_every_tactic_is_a_tactic_with_a_name():

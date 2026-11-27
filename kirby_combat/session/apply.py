@@ -307,6 +307,24 @@ def apply_event(session: CombatSession, event: CombatEvent) -> CombatSession:
                and e.combatant_id == event.combatant_id for e in session.event_log):
             raise GripsWrong(f"GripsStated for {event.combatant_id!r}: already stated")
         check_grips(session.combatants[event.combatant_id], event.grips)
+        # A weapon stated holstered is off his sheet from the start.
+        from kirby_combat.actions.dispel import fold_dispel
+
+        return fold_dispel(replace(session, event_log=new_log, updated_at=now),
+                           event.combatant_id)
+
+    if kind == "GripChanged":
+        # Drawn or holstered (`kirby_combat.holster`): refold his sheet.
+        from kirby_combat.actions.dispel import fold_dispel
+        from kirby_combat.grips import HANDS, GripsWrong
+
+        if event.hands not in HANDS:
+            raise GripsWrong(f"GripChanged: hands {event.hands!r} is not one of {HANDS}")
+        return fold_dispel(replace(session, event_log=new_log, updated_at=now),
+                           event.combatant_id)
+
+    if kind == "ClipChanged":
+        # Counted where Charges are (`charges.spent_charges`), from the log.
         return replace(session, event_log=new_log, updated_at=now)
 
     if kind == "RulingsStated":

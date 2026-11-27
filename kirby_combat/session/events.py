@@ -1273,6 +1273,35 @@ class GripsStated(BaseEvent):
 
 
 @dataclass
+class GripChanged(BaseEvent):
+    """A weapon of his drawn into a hand, or put back in its holster
+    (`kirby_combat.holster`; 6E1 p.76, 6E2 p.23). ``hands`` is the grip it
+    ended in (`grips.HANDS`). `apply_event` refolds his sheet: a holstered
+    weapon is off it, a drawn one back on.
+    """
+    kind: Literal["GripChanged"] = field(default="GripChanged", init=False)
+    combatant_id: str = ""
+    weapon_id: str = ""
+    hands: str = ""
+
+
+@dataclass
+class ClipChanged(BaseEvent):
+    """A fresh clip in a Charged power (6E1 p.371, `kirby_combat.reload`).
+    ``pool_id`` is what `charges.charge_pool` counts uses against; the uses
+    counted against it restart here, and whatever was left in the old clip
+    is gone with it."""
+    kind: Literal["ClipChanged"] = field(default="ClipChanged", init=False)
+    combatant_id: str = ""
+    pool_id: str = ""
+    #: What it took: "full" (6E1 p.371), or "half" on a made Fast Draw roll
+    #: (6E1 p.76). The roll, when there was one; 0 when there was not.
+    took: str = ""
+    fast_draw_roll: int = 0
+    needed: int = 0
+
+
+@dataclass
 class FightTermsStated(BaseEvent):
     """The fight's terms (`kirby_combat.ending`): which stop condition decides
     it (``stop``, a `StopKind` value) and who confirms its end (``end_mode``,
@@ -1391,6 +1420,8 @@ CombatEvent = (
     | SessionEnded
     | FightTermsStated
     | GripsStated
+    | GripChanged
+    | ClipChanged
     | StructureBroughtDown
     | EndProposed
     | EndDeclined

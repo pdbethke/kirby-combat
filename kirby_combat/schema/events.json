@@ -856,6 +856,77 @@
       "title": "ChargeSpent",
       "type": "object"
     },
+    "ClipChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
+        "__type__": {
+          "const": "ClipChanged",
+          "enum": [
+            "ClipChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "fast_draw_roll": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "ClipChanged",
+          "enum": [
+            "ClipChanged"
+          ],
+          "type": "string"
+        },
+        "needed": {
+          "type": "integer"
+        },
+        "pool_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "took": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "__format__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "pool_id",
+        "took",
+        "fast_draw_roll",
+        "needed"
+      ],
+      "title": "ClipChanged",
+      "type": "object"
+    },
     "CombatantStateView": {
       "additionalProperties": false,
       "properties": {
@@ -2739,6 +2810,69 @@
         "hands"
       ],
       "title": "Grip",
+      "type": "object"
+    },
+    "GripChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "__format__": {
+          "const": 1,
+          "type": "integer"
+        },
+        "__type__": {
+          "const": "GripChanged",
+          "enum": [
+            "GripChanged"
+          ],
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/EventAuthor"
+        },
+        "combatant_id": {
+          "type": "string"
+        },
+        "hands": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "GripChanged",
+          "enum": [
+            "GripChanged"
+          ],
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "weapon_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "__type__",
+        "__format__",
+        "id",
+        "session_id",
+        "sequence",
+        "timestamp",
+        "author",
+        "kind",
+        "combatant_id",
+        "weapon_id",
+        "hands"
+      ],
+      "title": "GripChanged",
       "type": "object"
     },
     "GripsStated": {
@@ -5862,6 +5996,9 @@
       "$ref": "#/$defs/ChargeSpent"
     },
     {
+      "$ref": "#/$defs/ClipChanged"
+    },
+    {
       "$ref": "#/$defs/ConcentrationBegan"
     },
     {
@@ -5914,6 +6051,9 @@
     },
     {
       "$ref": "#/$defs/GMOverride"
+    },
+    {
+      "$ref": "#/$defs/GripChanged"
     },
     {
       "$ref": "#/$defs/GripsStated"

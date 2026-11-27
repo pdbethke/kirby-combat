@@ -70,6 +70,9 @@ class ActionTime(str, enum.Enum):
     #: Breaking out of an Entangle or a Grab with full force: the time it
     #: takes is decided by how well it went (6E2 p.126), see `breakout_time`.
     BREAKOUT = "breakout"
+    #: A Fast Draw reload: a Half Phase on a made roll, the Full Phase on a
+    #: miss (6E1 p.76). Fits only where a Full Phase does; see `rolled_time`.
+    ROLLED = "rolled"
 
     @property
     def ends_the_phase(self) -> bool:
@@ -105,6 +108,13 @@ KIND_TIMES: dict[str, tuple[ActionTime, str]] = {
     "move_to_cover": (_T.HALF, "the resolver moves a Half Move (6E2 p.26)"),
     "stand_up": (_T.HALF, "Get to one's feet: 1/2 Phase (6E2 p.25, p.51)"),
     "pick_up_weapon": (_T.HALF, "Pick up Disarmed weapon: 1/2 Phase (6E2 p.25)"),
+    "draw_weapon": (_T.HALF, "Draw a weapon: the usual Half Phase (6E1 p.76; 6E2 p.23)"),
+    "fast_draw_weapon": (_T.ZERO, "Fast Draw: draw as a Zero Phase Action (6E1 p.76)"),
+    "holster_weapon": (_T.HALF, "RULING: put a weapon away as drawing one (Peter, 2026-11-27)"),
+    "fast_holster_weapon": (_T.ZERO, "RULING: with Fast Draw, as drawing (Peter, 2026-11-27)"),
+    "drop_weapon": (_T.ZERO, "RULING: let a weapon fall, a Zero Phase Action (Peter, 2026-11-27)"),
+    "reload": (_T.FULL, "Change Clips: a Full Phase (6E1 p.371)"),
+    "fast_reload": (_T.ROLLED, "Change Clips with Fast Draw: Half Phase on a made roll (6E1 p.76)"),
     # RULING: lifting a loose object to throw is read as picking up a
     # Disarmed weapon; 6E2 p.175 has a light object used "as part of a
     # single Attack Action", and this offer is for the heavy ones.
@@ -196,6 +206,14 @@ def time_of(action: "LegalAction") -> ActionTime:
             f"({action.action_id!r}); add it to action_time.KIND_TIMES with "
             f"its page (6E2 p.20, p.25)"
         ) from None
+
+
+def rolled_time(resolved) -> ActionTime:
+    """What a Fast Draw reload took, read off the `ClipChanged` it wrote."""
+    took = (resolved.result or {}).get("took")
+    if took not in ("half", "full"):
+        raise ValueError(f"{resolved.action_id!r} recorded no reload time (6E1 p.76)")
+    return ActionTime.HALF if took == "half" else ActionTime.FULL
 
 
 def breakout_time(resolved) -> ActionTime:
@@ -296,7 +314,9 @@ def fits_in_a_half(action: "LegalAction") -> bool:
     decides afterwards). Not a Full Phase Action, and not two Half Phase
     Actions offered as one.
     """
-    return time_of(action) is not ActionTime.FULL
+    # A Fast Draw reload may take the Full Phase (6E1 p.76: a miss), so it
+    # fits only where a Full Phase does.
+    return time_of(action) not in (ActionTime.FULL, ActionTime.ROLLED)
 
 
 def rest_of_phase(session: "CombatSession", combatant_id: str,

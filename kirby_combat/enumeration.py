@@ -927,6 +927,9 @@ ALL_ACTION_KINDS = frozenset({
     "mental_entangle", "mental_illusion", "mind_control", "move", "move_by",
     "move_strike", "move_through", "multiple_attack", "persuasion",
     "pickup", "pick_up_weapon", "presence_attack", "presence_attack_group", "push",
+    # `holster`, `reload` (offered by the loop, which knows grips and ammunition)
+    "draw_weapon", "fast_draw_weapon", "holster_weapon", "fast_holster_weapon",
+    "drop_weapon", "reload", "fast_reload",
     "rapid_fire", "reallocate", "reconfigure_vpp", "recover",
     "release_held", "reposition", "reposition_push", "reposition_strike",
     "stabilize", "stand_up",

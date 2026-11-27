@@ -759,6 +759,12 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
     #   * the Phase's time filters (`rest_of_phase` and the rest) price it as
     #     the Attack Action it is.
     menu = menu + self_destruct_offers(session, actor)
+    # HIS HANDS AND HIS AMMUNITION (`holster`, `reload`): draw, put away or
+    # drop a weapon; change Clips on a power bought with them (6E1 p.371).
+    from kirby_combat.holster import hand_offers
+    from kirby_combat.reload import reload_offers
+
+    menu = menu + hand_offers(session, actor) + reload_offers(session, actor)
     if obeyed.withdraw:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if rage is not None:
@@ -1326,6 +1332,10 @@ def run_phase(
     time = time_of(action)
     if time is ActionTime.BREAKOUT:
         time = breakout_time(resolved)
+    if time is ActionTime.ROLLED:
+        from kirby_combat.action_time import rolled_time
+
+        time = rolled_time(resolved)
     if time in (ActionTime.NO_TIME, ActionTime.ZERO, ActionTime.HALF):
         session = record_time(session, actor_id, action, time)
         if time is not ActionTime.HALF or halves_left(session, actor_id) > 0:

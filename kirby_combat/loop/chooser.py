@@ -316,6 +316,9 @@ class PhaseSituation:
             # can see who is holding the axe but never learns who used it.
             session=self.session,
             out_of_turn=self.out_of_turn,
+            menu_kinds=frozenset(a.kind for a in self.menu),
+            has_ranged_offer=any(getattr(getattr(a, "_attack_view", None), "is_ranged", False)
+                                 for a in self.menu),
             # Two tactics have read these since the day tactics existed and
             # the loop never filled them, so `bait_enraged` and
             # `exploit_susceptibility` have never once fired in a

@@ -86,6 +86,12 @@ class Situation:
     #: Phase. Without it no tactic could tell the Abort question from a
     #: Phase, so the abort page carried no doctrine at all (2026-11-27).
     out_of_turn: Any = None
+    #: The kinds on his menu this Phase: what a tactic about his own means
+    #: (`rearm`: is anything left to shoot with?) reads, rather than guessing.
+    menu_kinds: frozenset = frozenset()
+    #: Whether any offer on his menu is a ranged attack: what `rearm` asks to
+    #: tell an empty gun from a man still armed (a punch is not a gun).
+    has_ranged_offer: bool = False
 
     def in_reach(self, enemy_id: str) -> bool:
         """Whether `enemy_id` is close enough to touch.

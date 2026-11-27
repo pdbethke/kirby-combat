@@ -96,6 +96,9 @@ NON_THREAT_KINDS = frozenset({
     "escape_ego", "escape_str", "escape_teleport", "hide", "hold",
     "move", "half_move", "move_to_cover",
     "pickup", "pick_up_weapon", "opening_split", "reallocate", "reconfigure_vpp", "recover",
+    # His own weapons and ammunition (`holster`, `reload`): nobody else is touched.
+    "draw_weapon", "fast_draw_weapon", "holster_weapon", "fast_holster_weapon",
+    "drop_weapon", "reload", "fast_reload",
     "release_held", "reposition", "reposition_vantage", "set", "stabilize",
     "stand_up", "change_identity", "change_identity_instant",
     "raise_damage_shield", "snap_out_of_rage",

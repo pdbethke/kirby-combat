@@ -116,13 +116,13 @@ BUILDS = os.environ.get("KIRBY_CORRAL_BUILDS")
 #: arsenal has no shotgun of its own (only LeMat barrels), so his is the
 #: Equipment Guide's 10-gauge double-barrel (EG p.81, Peter's choice
 #: 2026-11-27), built as a doc and costed by kirby-cost at the book's own
-#: 124 Active / 22 Real. It is Two-Handed, so his nickel-plated Colt is
-#: left off until the engine can holster a gun and draw it: he cannot hold
-#: both, and a gun he is not holding is not one he can fire.
+#: 124 Active / 22 Real. It is Two-Handed, so his nickel-plated Colt starts
+#: in its holster: when the shotgun is empty he lets it fall and draws
+#: (`holster`, `tactics/catalog/rearm.py`), which is what he did.
 LAWMEN = [("Wyatt Earp", "Wyatt Earp", ["Colt Peacemaker"]),
           ("Virgil Earp", "Virgil Earp", ["Colt Peacemaker"]),
           ("Morgan Earp", "Morgan Earp", ["Colt Peacemaker"]),
-          ("Doc Holliday", "John Holliday", ["10 Gauge Double-Barrel Shotgun"])]
+          ("Doc Holliday", "John Holliday", ["10 Gauge Double-Barrel Shotgun", "Colt Peacemaker"])]
 
 # Two of the five Cowboys were UNARMED, and arming them is what made this
 # benchmark unwinnable for the Earps. Ike Clanton --- who had spent the
@@ -158,7 +158,7 @@ GRIPS: dict[str, dict[str, str]] = {
     "Wyatt Earp": {"Colt Peacemaker": "right"},
     "Virgil Earp": {"Colt Peacemaker": "right"},
     "Morgan Earp": {"Colt Peacemaker": "right"},
-    "Doc Holliday": {"10 Gauge Double-Barrel Shotgun": "both"},
+    "Doc Holliday": {"10 Gauge Double-Barrel Shotgun": "both", "Colt Peacemaker": "holstered"},
     "Billy Clanton": {"Colt Frontier .44-40": "right"},
     "Frank McLaury": {"Colt Frontier .44-40": "right"},
     "Tom McLaury": {"Winchester '73": "both"},

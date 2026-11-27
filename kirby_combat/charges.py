@@ -130,6 +130,11 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
                 key = pools.get(source, source)
                 out[key] = out.get(key, 0) + 1
             continue
+        if kind == "ClipChanged":
+            # A FRESH CLIP (6E1 p.371, `reload`): uses restart from here.
+            if getattr(event, "combatant_id", "") == combatant_id:
+                out[str(getattr(event, "pool_id", ""))] = 0
+            continue
         if kind == "ActionDeclared":
             if getattr(event, "combatant_id", "") == combatant_id:
                 mine.add(getattr(event, "id", ""))
@@ -147,3 +152,56 @@ def spent_charges(session: Any, combatant_id: str) -> dict[str, int]:
                 key = pools.get(str(source), str(source))
                 out[key] = out.get(key, 0) + used
     return out
+
+
+# ---------------------------------------------------------------------------
+# Clips (6E1 p.371)
+# ---------------------------------------------------------------------------
+
+def _charges_modifier(power: Any):
+    for mod in (getattr(power, "assigned_modifiers", None) or []):
+        if (getattr(mod, "xmlid", "") or "").upper() == "CHARGES":
+            return mod
+    return None
+
+
+def _adder(mod: Any, xmlid: str):
+    for adder in (getattr(mod, "assigned_adders", None) or []):
+        if (getattr(adder, "xmlid", "") or "").upper() == xmlid:
+            return adder
+    return None
+
+
+def clips_on(power: Any) -> int:
+    """How many clips its Charges come in. 6E1 p.371: "Charges are normally
+    purchased in a single 'clip'"; HD's ``CLIPS`` adder at level L is
+    "x[LVL] Clips" with LVLPOWER 2, i.e. 2^L clips. The Charges option is
+    the count in ONE clip. A power with no Charges has no clips (0)."""
+    mod = _charges_modifier(power)
+    if mod is None:
+        return 0
+    clips = _adder(mod, "CLIPS")
+    if clips is None:
+        return 1
+    return 2 ** int(getattr(clips, "levels", 0) or 0)
+
+
+def increased_reload(power: Any) -> str | None:
+    """HD's ``INCREASEDRELOAD`` option (6E1 p.371's Increased Reloading Time
+    table: EXTRAPHASE = 2 Full Phases, TURN, MINUTE ...), or None for the
+    ordinary Full Phase."""
+    mod = _charges_modifier(power)
+    adder = _adder(mod, "INCREASEDRELOAD") if mod is not None else None
+    if adder is None:
+        return None
+    opt = getattr(getattr(adder, "_selected_option", None), "xmlid", None) \
+        or getattr(adder, "option_id", None)
+    return str(opt or "").upper() or None
+
+
+def clips_changed(session: Any, combatant_id: str, pool_id: str) -> int:
+    """How many fresh clips he has put in that pool this fight."""
+    return sum(1 for e in (getattr(session, "event_log", None) or [])
+               if getattr(e, "kind", "") == "ClipChanged"
+               and getattr(e, "combatant_id", "") == combatant_id
+               and str(getattr(e, "pool_id", "")) == pool_id)

@@ -28,7 +28,11 @@ if TYPE_CHECKING:
     from kirby_combat.session.combat_session import CombatSession
 
 RIGHT, LEFT, BOTH = "right", "left", "both"
-HANDS = (RIGHT, LEFT, BOTH)
+#: In its holster (or scabbard, or sling): his, and in no hand. STATED like
+#: the others (Peter's ruling, 2026-11-27), never assumed for a weapon nobody
+#: placed. Drawn with a Half Phase, Zero with Fast Draw (6E1 p.76; `holster`).
+HOLSTERED = "holstered"
+HANDS = (RIGHT, LEFT, BOTH, HOLSTERED)
 
 
 class GripsMissing(LookupError):
@@ -62,7 +66,10 @@ def hands_needed(purchase: Any) -> int:
     return 2 if required is not None and _option(required) == "TWO" else 1
 
 
-def _sides(hands: str) -> frozenset[str]:
+def _sides(hands: str | None) -> frozenset[str]:
+    """The hands a grip occupies: none for a holstered or absent weapon."""
+    if hands is None or hands == HOLSTERED:
+        return frozenset()
     return frozenset({RIGHT, LEFT}) if hands == BOTH else frozenset({hands})
 
 
@@ -90,7 +97,7 @@ def check_grips(combatant: Any, grips: Iterable[Grip]) -> None:
         if grip.weapon_id not in owned:
             raise GripsWrong(f"{combatant.id!r} owns no weapon {grip.weapon_id!r}")
         need = hands_needed(_purchase(combatant, grip.weapon_id))
-        if need == 2 and grip.hands != BOTH:
+        if need == 2 and grip.hands not in (BOTH, HOLSTERED):
             raise GripsWrong(f"{combatant.id!r}'s {grip.weapon_id!r} needs two "
                              f"hands (Required Hands: Two-Handed)")
         clash = _sides(grip.hands) & used
@@ -126,21 +133,26 @@ def stated_grips(session: "CombatSession", combatant_id: str) -> dict[str, str]:
 
 
 def grip_of(session: "CombatSession", owner_id: str, weapon_id: str) -> str | None:
-    """The hand(s) holding his weapon, or None when it is out of his hands.
+    """The hand(s) holding his weapon, ``holstered``, or None when it is out of
+    his hands altogether (on the ground, or somebody else's).
 
-    The stated grip until a `WeaponMoved` takes it; a pickup by its owner
-    goes to a free hand, the right if both are free (ruling above).
+    The stated grip, then the log: a `GripChanged` (drawn or holstered,
+    `holster`) sets it; a `WeaponMoved` away clears it; a pickup by its
+    owner goes to a free hand, the right if both are free (ruling above).
     """
     from kirby_combat.weapons import PICKED_UP
 
-    grips = dict(stated_grips(session, owner_id))
-    held: dict[str, str | None] = dict(grips)
+    held: dict[str, str | None] = dict(stated_grips(session, owner_id))
     for event in session.event_log:
-        if getattr(event, "kind", None) != "WeaponMoved" or event.owner_id != owner_id:
+        kind = getattr(event, "kind", None)
+        if kind == "GripChanged" and event.combatant_id == owner_id:
+            held[event.weapon_id] = event.hands
+            continue
+        if kind != "WeaponMoved" or event.owner_id != owner_id:
             continue
         if event.cause == PICKED_UP and event.holder_id == owner_id:
             busy = set().union(*(_sides(h) for w, h in held.items()
-                                 if h is not None and w != event.weapon_id))
+                                 if w != event.weapon_id))
             need = hands_needed(_purchase(_owner(session, owner_id), event.weapon_id))
             if need == 2:
                 held[event.weapon_id] = BOTH
@@ -154,6 +166,21 @@ def grip_of(session: "CombatSession", owner_id: str, weapon_id: str) -> str | No
             f"{owner_id!r}'s weapon {weapon_id!r} has no stated grip: state it "
             "with grips.state_grips as the fight starts")
     return held[weapon_id]
+
+
+def free_hands(session: "CombatSession", owner_id: str) -> frozenset[str]:
+    """The hands nothing of his is in."""
+    held = dict(stated_grips(session, owner_id))
+    for weapon_id in list(held):
+        held[weapon_id] = grip_of(session, owner_id, weapon_id)
+    busy = set().union(*(_sides(h) for h in held.values()))
+    return frozenset({RIGHT, LEFT}) - busy
+
+
+def holstered_weapon_ids(session: "CombatSession", owner_id: str) -> frozenset[str]:
+    """His weapons in their holsters now: off his sheet until drawn."""
+    return frozenset(w for w in stated_grips(session, owner_id)
+                     if grip_of(session, owner_id, w) == HOLSTERED)
 
 
 def _owner(session: "CombatSession", owner_id: str) -> Any:
