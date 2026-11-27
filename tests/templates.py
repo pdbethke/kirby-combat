@@ -33,5 +33,9 @@ PLAIN = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    use_wounding=False,
+    use_impairing_disabling=False,
+    use_knockdown=False,
+    use_critical_hits=False,
     page_knowledge=PageKnowledge.SHEET,
 )

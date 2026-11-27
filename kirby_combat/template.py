@@ -133,6 +133,21 @@ class CombatTemplate:
     #: middle of a HTH Combat" -- and because it can hurt a combatant
     #: nobody aimed at, which no campaign should acquire by default.
     use_firing_into_melee: bool
+    # THE LETHALITY OPTIONS. Western Hero's Gritty Campaign (book p.168)
+    # turns "every single optional rule" that makes combat dangerous on;
+    # 6E2 offers each separately, so each is its own switch. Off in every
+    # template but `GRITTY_HEROIC` (Peter, 2026-11-27).
+    #: 6E2 p.110: BODY taken calls for an EGO Roll, -1 per full 2 BODY of
+    #: the hit; a failure costs his next Phase's offensive actions.
+    use_wounding: bool
+    #: 6E2 p.113-114: a location's BODY over half (Impaired) or all
+    #: (Disabled) of his starting BODY. Needs Hit Locations.
+    use_impairing_disabling: bool
+    #: 6E2 p.114-115: Impairing and Disabling wounds knock a man down.
+    use_knockdown: bool
+    #: 6E2 p.120: an Attack Roll under half of what he needed does
+    #: maximum damage.
+    use_critical_hits: bool
     #: What a fighter's page shows of her ENEMIES: JUDGED is what she can
     #: reasonably judge of them; SHEET is their full sheet.
     #:
@@ -225,6 +240,10 @@ RAW_SUPERHEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    use_wounding=False,
+    use_impairing_disabling=False,
+    use_knockdown=False,
+    use_critical_hits=False,
     page_knowledge=PageKnowledge.JUDGED,
 )
 
@@ -249,6 +268,10 @@ RAW_HEROIC = CombatTemplate(
     killing_stun_mult_fixed=None,
     use_bleeding_rules=False,
     use_firing_into_melee=False,
+    use_wounding=False,
+    use_impairing_disabling=False,
+    use_knockdown=False,
+    use_critical_hits=False,
     page_knowledge=PageKnowledge.JUDGED,
 )
 
@@ -286,6 +309,21 @@ CINEMATIC_HEROIC_GANG = replace(
     use_multiple_attacker_bonus=True,
 )
 
+#: Western Hero's Gritty Campaign (book p.168; its Historical variant names
+#: Tombstone): "every single optional rule here that makes the game more
+#: challenging, dangerous, and difficult". RAW Heroic with each 6E2
+#: lethality option on, the optional Bleeding rules (6E2 p.115) on, and
+#: Knockdown instead of Knockback, which Western Hero p.112 calls "not
+#: ideal for most Western Hero campaigns". Peter, 2026-11-27, for the
+#: O.K. Corral: "gunfights were messy affairs never as cinematic as the
+#: movies". Fumbles are left out: 6E2 has no fumble rule.
+GRITTY_HEROIC = replace(
+    RAW_HEROIC, name="Gritty Heroic",
+    use_knockback=False, use_bleeding_rules=True,
+    use_wounding=True, use_impairing_disabling=True,
+    use_knockdown=True, use_critical_hits=True,
+)
+
 TEMPLATES_BY_NAME: dict[str, CombatTemplate] = {
     "6e-superheroic": RAW_SUPERHEROIC,
     "6e-heroic": RAW_HEROIC,
@@ -293,4 +331,5 @@ TEMPLATES_BY_NAME: dict[str, CombatTemplate] = {
     "6e-heroic-cinematic": CINEMATIC_HEROIC,
     "6e-superheroic-cinematic-gang": CINEMATIC_SUPERHEROIC_GANG,
     "6e-heroic-cinematic-gang": CINEMATIC_HEROIC_GANG,
+    "6e-heroic-gritty": GRITTY_HEROIC,
 }
