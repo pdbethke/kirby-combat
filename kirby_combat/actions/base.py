@@ -55,6 +55,7 @@ class AttackAction:
         if not to_hit.hit:
             return AttackResult(
                 hit=False,
+                critical=False,
                 to_hit=to_hit,
                 damage=None,
                 defense=None,
@@ -108,10 +109,26 @@ class AttackAction:
                     )
                 location = (effect_for(location_for_roll(rolled), template=template)
                             if rolled else None)
+        # A CRITICAL HIT (6E2 p.120, optional): under half of what he needed
+        # does maximum damage, to a living target. Only on a roll made HERE:
+        # an Area's victims and a lingering power's later damage were hit by
+        # a roll made elsewhere (`fixed_to_hit`), which is not this one.
+        from kirby_combat.resolution import critical as _critical
+
+        critical = bool(
+            template.use_critical_hits and fixed is None
+            and _critical.is_critical(roll=to_hit.roll, needed=to_hit.target_number)
+            and _critical.is_living(target))
+        damage_dice = _critical.maximum(attack.dice) if critical else attack.dice
+        if critical:
+            audit_trail.append(
+                f"Critical Hit: rolled {to_hit.roll}, under half of "
+                f"{to_hit.target_number} (6E2 p120) -- maximum damage")
+
         from kirby_combat.resolution.damage_taken import damage_taken
 
         taken = damage_taken(
-            power, target, attack.dice, template, aim=attack.aim,
+            power, target, damage_dice, template, aim=attack.aim,
             location=location, blocked_by_cover=blocked_by_cover,
             surprise=getattr(attack, "surprise", None),
             dc_modifier=attack.dc_modifier,
@@ -188,6 +205,7 @@ class AttackAction:
         # ------------------------------------------------------------------
         return AttackResult(
             hit=True,
+            critical=critical,
             to_hit=to_hit,
             damage=damage,
             defense=defense,

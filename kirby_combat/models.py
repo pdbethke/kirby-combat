@@ -602,6 +602,11 @@ class AttackResult:
     knockback: KnockbackResult | None
     status_changes: list[str]
     power_xmlid: str
+    #: 6E2 p.120's Critical Hit: the Attack Roll was under half of what he
+    #: needed, so the damage was rolled at maximum. False when the rule is
+    #: off (`CombatTemplate.use_critical_hits`), on a miss, against an
+    #: object, or where this application made no roll of its own.
+    critical: bool
     audit_trail: list[str] = field(default_factory=list)
     #: The blow can knock him back (6E2 p.116) and was resolved with no
     #: Knockback pool to roll it with -- the session door rolls it

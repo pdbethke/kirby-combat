@@ -374,7 +374,7 @@ def _record_failed_activation(
     )
     s = apply_event(s, resolved)
     return s, AttackResult(
-        hit=False, to_hit=None, damage=None, defense=None,
+        critical=False, hit=False, to_hit=None, damage=None, defense=None,
         stun_dealt=0, body_dealt=0, end_spent=0, knockback=None,
         status_changes=[], power_xmlid=attack.power.xmlid,
         audit_trail=[
@@ -450,7 +450,7 @@ def _record_blocked_attack(
     )
     s = apply_event(s, resolved)
     return s, AttackResult(
-        hit=False, to_hit=None, damage=None, defense=None,
+        critical=False, hit=False, to_hit=None, damage=None, defense=None,
         stun_dealt=0, body_dealt=0, end_spent=end_spent, knockback=None,
         status_changes=[], power_xmlid=attack.power.xmlid,
         audit_trail=[
@@ -905,6 +905,9 @@ def resolve_attack_in_session(
     result_payload: dict[str, Any] = {
         "kind": action_type,
         "hit": result.hit,
+        # 6E2 p.120: rolled at maximum. On the row so a replay and a
+        # narrator can say so; the damage alone does not.
+        "critical": result.critical,
         "stun_dealt": result.stun_dealt,
         "body_dealt": result.body_dealt,
         "status_changes": status_changes,
