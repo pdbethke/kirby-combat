@@ -339,7 +339,7 @@ def _facing_toward(session, combatant_id: str) -> str | None:
     me = session.combatants[combatant_id]
     best = None
     for other in session.combatants.values():
-        if other.id == combatant_id or Side.of(other) == Side.of(me):
+        if other.id == combatant_id or not Side.of(me).hostile_to(Side.of(other)):
             continue
         there = position_of(scene, other.id)
         if there is None:

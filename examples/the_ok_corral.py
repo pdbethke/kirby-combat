@@ -194,9 +194,43 @@ def the_fight_lot():
     number taken on it was taken on the wrong ground. `the_lot` stays for
     the tests that pin it.
     """
-    from the_shootout_we_can_publish import the_lot_as_it_was
+    from dataclasses import replace
 
-    return the_lot_as_it_was()
+    from the_shootout_we_can_publish import the_lot_as_it_was
+    from kirby_world.scene import Position
+
+    lot = the_lot_as_it_was()
+    return replace(lot, combatant_positions={
+        **lot.combatant_positions,
+        **{hid: Position(x, y, 0.0) for hid, (_name, (x, y)) in HORSES.items()},
+    })
+
+
+#: THE HORSES, as combatants (Peter, 2026-11-27), each the HERO System
+#: Bestiary's Riding Horse (`Riding Horse.json`, converted from the
+#: Bestiary character pack's .hdc; licensed, outside the repo). On a NEUTRAL
+#: side (`Side.neutral`): nobody's target, standing until gunfire spooks
+#: them (`spooking`), cover while they stand (`bodies`).
+#:
+#: WHERE, from the accounts --- placement is ours, the inquest gives no
+#: coordinates. Tom McLaury used a horse as a breastwork: Billy Clanton's,
+#: north of Tom, between him and the Earps at the mouth. Frank McLaury held
+#: his own horse's reins: beside him, on the far side from the Earps.
+HORSES: dict[str, tuple[str, tuple[float, float]]] = {
+    "billy_clantons_horse": ("Billy Clanton's horse", (4.6, 1.9)),
+    "frank_mclaurys_horse": ("Frank McLaury's horse", (2.6, 0.1)),
+}
+HORSE_SIDE = Side.named("Horses", neutral=True)
+
+
+def the_horses() -> list:
+    """The two horses, built from the Bestiary sheet, on the neutral side."""
+    out = []
+    for hid, (name, _xy) in HORSES.items():
+        c = HeroCombatant.from_build(build_from_json(_doc("Riding Horse")), id=hid)
+        c.hero.name = name
+        out.append(replace(c, side=HORSE_SIDE))
+    return out
 
 
 def the_lot() -> Scene:
@@ -613,6 +647,7 @@ def main() -> None:
     fighters = ([arm(n, a, w, law, guns) for n, a, w in LAWMEN]
                 + [arm(n, a, w, cow, guns) for n, a, w in COWBOYS])
     scene = the_fight_lot()
+    fighters = fighters + the_horses()
 
     if interloper:
         lad = the_interloper()

@@ -2624,7 +2624,7 @@ def enumerate_actions(
             # p.256); `turn` needs friends for him to turn on.
             others = [e for e in alive_enemies if e.id != enemy.id]
             his_friends = [e for e in others if _Side.of(e) == _Side.of(enemy)]
-            his_foes = [e for e in others if _Side.of(e) != _Side.of(enemy)]
+            his_foes = [e for e in others if _Side.of(e).hostile_to(_Side.of(enemy))]
             for order, level in _MC_ORDERS.items():
                 if order == "spare" and not his_foes:
                     continue

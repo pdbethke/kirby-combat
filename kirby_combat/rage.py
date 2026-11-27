@@ -251,7 +251,7 @@ def _is_enemy(session, a_id: str, b_id: str) -> bool:
     from kirby_combat.side import Side
 
     a, b = session.combatants.get(a_id), session.combatants.get(b_id)
-    return a is not None and b is not None and Side.of(a) != Side.of(b)
+    return a is not None and b is not None and Side.of(a).hostile_to(Side.of(b))
 
 
 def _provoker(session, combatant_id: str, circumstance: Circumstance) -> tuple[bool, str | None]:

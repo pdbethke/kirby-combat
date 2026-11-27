@@ -305,7 +305,7 @@ def obey(session: "CombatSession", actor, enemies: list, allies: list) -> Obedie
         controller = session.combatants.get(effect.attacker_id)
         if effect.order == "spare" and controller is not None:
             theirs = Side.of(controller)
-            enemies = [e for e in enemies if Side.of(e) != theirs]
+            enemies = [e for e in enemies if Side.of(e).hostile_to(theirs)]
         elif effect.order == "turn":
             enemies = Roster(session).allies_of(actor)
             allies = []

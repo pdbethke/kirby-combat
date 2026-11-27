@@ -145,7 +145,8 @@ class PhaseSpent(BaseEvent):
     #: "aborted" (he already spent it on an Abort, 6E2 p.24), "stunned"
     #: (he spent it recovering from being Stunned, 6E2 p.107) or "entranced"
     #: (lost in an EGO+30 Mental Illusion, 6E1 p.251), or "surrendered" (his
-    #: nerve broke and he could not run, `kirby_combat.nerve`).
+    #: nerve broke and he could not run, `kirby_combat.nerve`), or "stands"
+    #: (a neutral body, a horse, taking no part until it spooks).
     reason: str = "acted"
 
 

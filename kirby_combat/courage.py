@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-COWARDLY = ("not brave", "coward", "cowardly", "craven", "fearful")
+#: "timid": the Bestiary's horses (Timid, Common, Strong), which bolt
+#: (`spooking`).
+COWARDLY = ("not brave", "coward", "cowardly", "craven", "fearful", "timid")
 FEARLESS = ("vengeful", "no fear", "fearless", "reckless", "death wish",
             "overconfiden")
 

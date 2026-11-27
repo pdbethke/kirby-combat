@@ -229,9 +229,14 @@ def _cover_against(session: CombatSession, attack: AttackInput,
     prone = "prone" in {
         str(s).lower() for s in (statuses_for(session, attack.target.id) or [])
     }
+    # A STANDING HORSE IS COVER too (`bodies`): asked of the scene with the
+    # bodies in it, the shooter's and the target's own left out.
+    from kirby_combat.bodies import with_bodies
+
     level = compute_cover_level(
         shooter_pos=shooter, target_pos=target,
-        target_is_prone_or_diving=prone, scene=scene,
+        target_is_prone_or_diving=prone,
+        scene=with_bodies(session, excluding=(attack.attacker.id, attack.target.id)),
     )
     return level, cover_ocv(level, template=template, target=attack.target)
 
@@ -567,6 +572,10 @@ def _fold_session_cvs(
     from kirby_combat.wounds import arm_ocv_delta
 
     ocv_delta += arm_ocv_delta(session, attacker_id, attack.power)
+    # A BIG TARGET (`size`): "+2 OCV for others to hit", off his own sheet.
+    from kirby_combat.size import ocv_to_hit
+
+    ocv_delta += ocv_to_hit(session.combatants[target_id])
 
     base_dcv = int(session.combatants[target_id].combat_stats().dcv)
     if surprise:
@@ -892,6 +901,11 @@ def resolve_attack_in_session(
 
     s, wounded = after_the_wound(
         s, attack, result, roller=roller or session.dice_roller, template=template)
+    # THE HORSES HEARD IT (`spooking`): every horse the shot was at, or
+    # landed near, rolls PRE or bolts.
+    from kirby_combat.spooking import after_a_shot
+
+    s = after_a_shot(s, attack, roller=roller or session.dice_roller)
     from kirby_combat.statuses import FELL as _FELL
 
     if _FELL in wounded and _FELL in landed:

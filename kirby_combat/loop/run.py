@@ -283,6 +283,14 @@ def _skip_reason(session: "CombatSession", combatant_id: str) -> str | None:
         return "left"
     if Roster(session).has_surrendered(combatant_id):
         return "surrendered"
+    # A NEUTRAL BODY STANDS (the horses, `Side.neutral`): it takes no part in
+    # the fight and is asked nothing, until it spooks (`spooking`) --- then
+    # it is a man who ran, breaking off the field like one.
+    from kirby_combat.nerve import nerve_state
+    from kirby_combat.side import Side
+
+    if Side.of(combatant).neutral and nerve_state(session, combatant_id) is None:
+        return "stands"
     window = session.timeline.aborts.get(combatant_id)
     if window is not None and window.aborted == (
             session.timeline.turn, session.timeline.segment):

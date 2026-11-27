@@ -168,6 +168,10 @@ class Roster:
             if (is_down(combatant) or self.has_left(combatant.id)
                     or self.has_surrendered(combatant.id)):
                 continue
+            # A NEUTRAL SIDE (the horses) is not a side in the fight: it
+            # cannot win it, and it cannot keep it going (`Side.neutral`).
+            if Side.of(combatant).neutral:
+                continue
             out.setdefault(Side.of(combatant), []).append(combatant.id)
         return out
 
@@ -194,7 +198,7 @@ class Roster:
         mine = Side.of(actor)
         return [
             c for c in self.combatants
-            if Side.of(c) != mine and not is_down(c)
+            if mine.hostile_to(Side.of(c)) and not is_down(c)
             and self.on_the_board(c.id)
             # Nobody is offered a shot at a man who surrendered (`nerve`).
             and not self.has_surrendered(c.id)

@@ -79,6 +79,17 @@ class Side:
     #: one side must compare equal, and a fight whose halves word the goal
     #: differently is still one fight.
     objective: str | None = field(default=None, compare=False)
+    #: NOBODY'S ENEMY: the Cowboys' horses at the O.K. Corral (Peter,
+    #: 2026-11-27). A neutral side is not targeted by anybody's doctrine,
+    #: is hostile to nobody, and never counts as a side still standing ---
+    #: a fight is not kept going by the horses. Still hit by what hits
+    #: everybody (an Area, a stray shot). `compare=False`: a property of the
+    #: side, not part of its identity.
+    neutral: bool = field(default=False, compare=False)
+
+    def hostile_to(self, other: "Side") -> bool:
+        """Two different sides, neither of them neutral."""
+        return self != other and not self.neutral and not other.neutral
 
     def __post_init__(self) -> None:
         if not (self.id or "").strip():
@@ -131,7 +142,7 @@ class Side:
 
     @classmethod
     def named(cls, name: str, *, team_id: str | None = None,
-              objective: str | None = None) -> "Side":
+              objective: str | None = None, neutral: bool = False) -> "Side":
         """A named side, with its id derived from the name.
 
         The id is canonicalised (trimmed, internal whitespace collapsed,
@@ -144,7 +155,7 @@ class Side:
         if not canonical:
             raise ValueError("a named Side needs a name")
         return cls(id=canonical.casefold(), name=canonical, team_id=team_id,
-                   objective=objective)
+                   objective=objective, neutral=neutral)
 
     @property
     def is_solo(self) -> bool:
