@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed — which attacks a Combat Skill Level reaches is kirby-cost's rule
+- `resolution.to_hit._csl_reaches` calls `kirby_cost.engine.csl.reaches`, and `HeroCombatant.csls` reads a level's breadth and words through `breadth_of` and `named_text`, so kirby-cost's workshop limits and this roll read one rule (6E1 72). The copies here (`_CSL_BREADTHS`, `_CSL_GENERIC_ALIASES`, `_csl_named_attacks`, the matching loop) are deleted. **Requires kirby-cost 0.9.0.**
+- This engine's readings stay its own: kirby-cost's UNKNOWN (words that cannot say) reads as "does not reach"; an option that is none of HD's six reads as "single"; a hand-built level with breadth "" reads as All Attacks.
+- One narrowing: a hand-built `CombatSkillLevel` with a breadth string that is none of the six (and not "") used to be matched as a narrow level; it now reaches nothing. Nothing in this repo, kirby-ai or kirby-api builds one.
+
 ## 0.39.0 — 2026-11-15
 
 **GM rulings: what the table has ruled about a body, and what it takes off the menu.**

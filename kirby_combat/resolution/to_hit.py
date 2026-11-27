@@ -4,6 +4,8 @@ Formula: Roll 3d6 <= (OCV + 11 - DCV) to hit.
 """
 from __future__ import annotations
 
+from kirby_cost.engine.csl import Breadth, Reach, reaches
+
 from kirby_combat.models import AttackInput, ToHitResult
 from kirby_combat.tables import HIT_LOCATIONS, range_penalty as _range_penalty
 from kirby_combat.template import CombatTemplate
@@ -14,53 +16,30 @@ _DEFAULT_ROLL = 11
 def _csl_reaches(csl, power) -> bool:
     """Whether this Combat Skill Level covers ``power`` (6E1 p.72).
 
-    The page prices a level by its breadth --- 2 points with any single
-    attack, 8 with HTH Combat, 8 with Ranged Combat, 10 with All Attacks
-    --- so the breadth is the rule, not decoration, and summing levels
-    without it spends the cheapest price at the dearest reach.
+    The rule is kirby-cost's (`kirby_cost.engine.csl.reaches`), so the
+    builder's limits and this roll read one rule: HTH / Ranged / All reach
+    by range, a single / small group / large group level reaches the
+    attacks its words name -- the power's own name or its framework's (a
+    BROAD level is usually written across a framework: LUMEN-CV1's "with
+    Power Over Light And Heat Multipower"). ``is_ranged`` is `AttackPower`'s
+    own derived field, the one the reach gate and the blind-penalty row
+    read.
 
-    ``is_ranged`` is `AttackPower`'s own derived field, the same one the
-    reach gate and the blind-penalty row already read; asking it here keeps
-    ONE answer in the engine to "is this a shot or a punch".
+    THIS ENGINE'S READING OF DOUBT: kirby-cost answers UNKNOWN when a
+    level's words cannot say, and a fight reads that as "does not reach".
+    Guessing would hand out All Attacks at the single-attack price, and an
+    over-generous reading of a build is how a sim quietly makes everyone
+    better than they were paid for.
 
-    A "single"/"tight"/"broad" level is matched against the free text the
-    build names its attacks in (`hero_view._csl_named_attacks`: HD's NAME
-    and OPTION_ALIAS, with the template's own boilerplate dropped). A level
-    naming nothing reaches nothing: guessing would hand out All Attacks at
-    the single-attack price, and an over-generous reading of a build is how
-    a sim quietly makes everyone better than they were paid for.
-
-    THE POWER'S NAME **OR** ITS FRAMEWORK'S. A BROAD level is usually
-    bought across a whole framework and says so in those words -- LUMEN-CV1
-    carries "with Power Over Light And Heat Multipower" and every one of his
-    five attacks sits in the Multipower of that name, none of them called
-    anything like it. Matching the power name alone found nothing for him.
-    PowerLad's TIGHT level names the maneuvers instead ("+1 With Punch,
-    Haymaker, and Throw"), so both readings are needed and neither is
-    sufficient.
-
-    Substring, because a builder writes a sentence rather than filling in a
-    database field. Floored at three characters so a power called "X" -- or
-    an empty name arriving as "" -- cannot match every sentence in the
-    build.
+    A level handed in by hand with no breadth ("") reads as All Attacks,
+    as it always has: its caller has already decided what it covers.
     """
-    breadth = (getattr(csl, "breadth", "all") or "all").lower()
-    if breadth == "all":
-        return True
-    is_ranged = bool(getattr(power, "is_ranged", False))
-    if breadth == "ranged":
-        return is_ranged
-    if breadth == "hth":
-        return not is_ranged
-    named = (getattr(csl, "named_attacks", "") or "").lower()
-    if not named:
-        return False
-    for label in (getattr(power, "name", None),
-                  getattr(power, "framework_name", None)):
-        text = (label or "").strip().lower()
-        if len(text) >= 3 and text in named:
-            return True
-    return False
+    name = (getattr(csl, "breadth", "") or "all").upper()
+    breadth = Breadth[name] if name in Breadth.__members__ else None
+    answer = reaches(breadth, getattr(csl, "named_attacks", "") or "",
+                     (getattr(power, "name", None), getattr(power, "framework_name", None)),
+                     bool(getattr(power, "is_ranged", False)))
+    return answer is Reach.YES
 
 
 def resolve_to_hit(attack: AttackInput, template: CombatTemplate) -> ToHitResult:
