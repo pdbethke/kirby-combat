@@ -858,6 +858,14 @@ def resolve_attack_in_session(
         s, attack, result, roller=roller or session.dice_roller,
         template=template,
     )
+    # WHAT THE WOUND DID (`wounds.after_the_wound`): the lethality options
+    # a Gritty campaign turns on, each read off this hit's BODY. On the
+    # same row, so a replay folds the same flinch.
+    from kirby_combat.wounds import after_the_wound
+
+    landed.update(after_the_wound(
+        s, attack.target.id, result.body_dealt,
+        roller=roller or session.dice_roller, template=template))
     # A Knockback impact or a fall is damage of its own, checked against
     # CON on its own (6E2 p.105): it can Stun a man the blow did not.
     if (_impact_stunned(landed) and "Stunned" not in status_changes):

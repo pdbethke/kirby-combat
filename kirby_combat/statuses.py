@@ -209,6 +209,11 @@ HOLDING = "holding"
 
 PRONE = "prone"
 
+FLINCHING = "flinching"
+# 6E2 p.110 WOUNDING (optional) -- a failed EGO Roll after taking BODY: "can't
+# take any offensive action in his next Phase". Folded by `wounds.flinching`
+# off the attack row's ``wounding`` payload until he spends a Phase.
+
 IN_THE_AIR = "inTheAir"
 # 6E2 p.87 DIVE FOR COVER, FAILED -- he is "in the air" at his starting
 # point until his next Phase, when he lands prone. His DCV does not change;
@@ -1059,6 +1064,11 @@ def statuses_for(session: "CombatSession", combatant_id: str) -> frozenset[str]:
     # 6E2 p.87: a failed Dive for Cover, not yet landed.
     if _is_in_the_air(session, combatant_id):
         statuses.add(IN_THE_AIR)
+    # 6E2 p.110: flinching from a wound, until his next Phase is spent.
+    from kirby_combat.wounds import flinching
+
+    if flinching(session, combatant_id):
+        statuses.add(FLINCHING)
 
     if _is_dead(session, combatant_id):
         statuses.add(DEAD)

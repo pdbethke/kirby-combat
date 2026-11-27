@@ -761,6 +761,13 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         menu = [a for a in menu if a.kind in WITHDRAW_KINDS]
     if rage is not None:
         menu = RageMenu.narrowed(menu)
+    # FLINCHING FROM A WOUND (6E2 p.110, `wounds`): a failed Wounding roll
+    # takes the offence out of his next Phase. Dodge and cover stay.
+    from kirby_combat.statuses import FLINCHING, statuses_for
+    from kirby_combat.wounds import without_offence
+
+    if FLINCHING in statuses_for(session, actor_id):
+        menu = without_offence(menu)
     # ONE FREE PRESENCE ATTACK A PHASE (a ruling; see `in_the_phase`).
     if presence_attack_made_this_phase(session, actor_id):
         menu = [a for a in menu if a.kind not in PRESENCE_KINDS]
