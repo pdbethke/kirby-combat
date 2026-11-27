@@ -562,7 +562,7 @@ def resolve_damage_over_time_use(session, attack, template, *, roller,
     dot = attack.power.damage_over_time
     cost = end_cost(attack.power)
     result = AttackResult(
-        critical=False, hit=to_hit.hit, to_hit=to_hit, damage=None, defense=None,
+        critical=False, location=None, hit=to_hit.hit, to_hit=to_hit, damage=None, defense=None,
         stun_dealt=0, body_dealt=0, end_spent=cost, knockback=None,
         status_changes=[], power_xmlid=attack.power.xmlid,
         audit_trail=list(to_hit.audit) + [

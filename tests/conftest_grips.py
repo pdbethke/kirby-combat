@@ -13,7 +13,6 @@ from kirby_dice import RandomRoller
 from kirby_combat.hero_view import HeroCombatant
 from kirby_combat.session.combat_session import CombatSession
 from kirby_combat.side import Side
-from kirby_combat.synthetic import synthetic_combatant
 
 OAF = {"xmlid": "FOCUS", "option_id": "OAF", "base_cost": -1.0}
 TWO_HANDS = {"xmlid": "REQUIREDHANDS", "option_id": "TWO", "base_cost": -0.5}
@@ -21,9 +20,10 @@ _CHARS = [{"xmlid": x, "levels": 0} for x in (
     "STR", "DEX", "CON", "BODY", "STUN", "END", "SPD", "PD", "ED", "REC", "OCV", "DCV")]
 
 
-def gun(id_, name, *, two_handed=False):
+def gun(id_, name, *, two_handed=False, levels=2):
+    """An RKA of ``levels`` d6, bought OAF (and Two-Handed if asked)."""
     mods = [OAF] + ([TWO_HANDS] if two_handed else [])
-    return {"id": id_, "xmlid": "RKA", "name": name, "levels": 2,
+    return {"id": id_, "xmlid": "RKA", "name": name, "levels": levels,
             "input": "PD", "modifiers": mods}
 
 
@@ -40,10 +40,9 @@ def gunman(id_, *guns, side="a"):
 
 
 def session_of(*men, template):
-    mark = synthetic_combatant(id="mark", name="Mark", spd=2, dex=5,
-                               side=Side.named("b"))
+    """Just these men: a bystander would roll Presence at every wound."""
     return CombatSession.create(
-        id="s", combatants=[*men, mark], scene=None,
+        id="s", combatants=list(men), scene=None,
         template=template,
         dice_roller=RandomRoller(seed=1)).start()
 

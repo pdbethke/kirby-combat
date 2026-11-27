@@ -55,7 +55,7 @@ class AttackAction:
         if not to_hit.hit:
             return AttackResult(
                 hit=False,
-                critical=False,
+                critical=False, location=None,
                 to_hit=to_hit,
                 damage=None,
                 defense=None,
@@ -206,6 +206,8 @@ class AttackAction:
         return AttackResult(
             hit=True,
             critical=critical,
+            location=(location.name if location is not None and not blocked_by_cover
+                      else None),
             to_hit=to_hit,
             damage=damage,
             defense=defense,

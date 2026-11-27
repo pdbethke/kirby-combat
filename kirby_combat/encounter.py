@@ -104,6 +104,12 @@ def _apply_post_12_recovery(
         # Over Time has taken (6E1 p.333). See `recovery_limits`.
         stun_delta, end_delta = allowed_recovery(
             session, session.combatants[combatant_id], stun_delta, end_delta)
+        # A CHEST, STOMACH OR VITALS WOUND (6E2 p.113, Impairing): "no longer
+        # receives his Post-Segment 12 Recoveries". See `wounds`.
+        from kirby_combat.wounds import no_post_twelve_recovery
+
+        if no_post_twelve_recovery(session, combatant_id):
+            stun_delta, end_delta = 0, 0
         session = apply_event(session, RecoveryTaken(
             id=str(uuid.uuid4()),
             session_id=session.id,

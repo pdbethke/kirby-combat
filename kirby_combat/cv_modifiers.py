@@ -354,12 +354,25 @@ def _climbing_cv_modifiers(
     return climbing_cv_modifiers(session, combatant_id, opponent_id, combat_type)
 
 
+def _wound_cv_modifiers(
+    session: "CombatSession", combatant_id: str, opponent_id: str,
+    combat_type: str,
+) -> dict[str, float]:
+    """Impairing wounds (6E2 p.113; Western Hero p.154): a leg is -2 DCV, a
+    head -2 to his CVs. Per-opponent only because a flat delta rides this
+    seam; it is the same against everybody. See `wounds`."""
+    from kirby_combat.wounds import wound_cv_modifiers
+
+    return wound_cv_modifiers(session, combatant_id)
+
+
 _PER_OPPONENT_CV_MODIFIER_SOURCES: tuple[
     Callable[["CombatSession", str, str, str], dict[str, float]], ...
 ] = (
     _sense_penalty_cv_modifiers,
     _ground_cv_modifiers,
     _climbing_cv_modifiers,
+    _wound_cv_modifiers,
 )
 
 

@@ -662,7 +662,7 @@ def resolve_area_attack_in_session(
 
     if named_result is None:
         named_result = AttackResult(
-            critical=False, hit=False, to_hit=to_hit, damage=None, defense=None,
+            critical=False, location=None, hit=False, to_hit=to_hit, damage=None, defense=None,
             stun_dealt=0, body_dealt=0, end_spent=end_cost(attack.power),
             knockback=None, status_changes=[], power_xmlid=attack.power.xmlid,
             audit_trail=list(to_hit.audit) + [

@@ -374,7 +374,7 @@ def _record_failed_activation(
     )
     s = apply_event(s, resolved)
     return s, AttackResult(
-        critical=False, hit=False, to_hit=None, damage=None, defense=None,
+        critical=False, location=None, hit=False, to_hit=None, damage=None, defense=None,
         stun_dealt=0, body_dealt=0, end_spent=0, knockback=None,
         status_changes=[], power_xmlid=attack.power.xmlid,
         audit_trail=[
@@ -450,7 +450,7 @@ def _record_blocked_attack(
     )
     s = apply_event(s, resolved)
     return s, AttackResult(
-        critical=False, hit=False, to_hit=None, damage=None, defense=None,
+        critical=False, location=None, hit=False, to_hit=None, damage=None, defense=None,
         stun_dealt=0, body_dealt=0, end_spent=end_spent, knockback=None,
         status_changes=[], power_xmlid=attack.power.xmlid,
         audit_trail=[
@@ -540,6 +540,11 @@ def _fold_session_cvs(
     ocv_delta = effective_ocv_for(
         session, attacker_id, against=target_id, combat_type=combat_type,
     ) - base_ocv
+    # AN IMPAIRED ARM (6E2 p.113): -3 OCV "for any attacks using that arm",
+    # which is this weapon's grip (`grips`, `wounds.arm_ocv_delta`).
+    from kirby_combat.wounds import arm_ocv_delta
+
+    ocv_delta += arm_ocv_delta(session, attacker_id, attack.power)
 
     base_dcv = int(session.combatants[target_id].combat_stats().dcv)
     if surprise:
@@ -863,9 +868,13 @@ def resolve_attack_in_session(
     # same row, so a replay folds the same flinch.
     from kirby_combat.wounds import after_the_wound
 
-    landed.update(after_the_wound(
-        s, attack.target.id, result.body_dealt,
-        roller=roller or session.dice_roller, template=template))
+    s, wounded = after_the_wound(
+        s, attack, result, roller=roller or session.dice_roller, template=template)
+    from kirby_combat.statuses import FELL as _FELL
+
+    if _FELL in wounded and _FELL in landed:
+        wounded = {**wounded, _FELL: sorted(set(wounded[_FELL]) | set(landed[_FELL]))}
+    landed.update(wounded)
     # A Knockback impact or a fall is damage of its own, checked against
     # CON on its own (6E2 p.105): it can Stun a man the blow did not.
     if (_impact_stunned(landed) and "Stunned" not in status_changes):

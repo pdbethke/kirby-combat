@@ -607,6 +607,10 @@ class AttackResult:
     #: off (`CombatTemplate.use_critical_hits`), on a miss, against an
     #: object, or where this application made no roll of its own.
     critical: bool
+    #: Where it landed on the Hit Location table (6E2 p.110), or None: no
+    #: Hit Locations, a miss, or the shot found the cover (p.45). What the
+    #: Impairing and Disabling rules read (6E2 p.113, `wounds`).
+    location: str | None
     audit_trail: list[str] = field(default_factory=list)
     #: The blow can knock him back (6E2 p.116) and was resolved with no
     #: Knockback pool to roll it with -- the session door rolls it
