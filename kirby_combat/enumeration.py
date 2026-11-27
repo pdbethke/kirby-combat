@@ -1042,6 +1042,7 @@ def enumerate_actions(
     weapons: Any = None,
     block_follow_ups: frozenset[str] | None = None,
     haymaker_pending: bool = False,
+    stabilized: frozenset[str] | None = None,
 ) -> list[LegalAction]:
     """Return the legal action menu for ``actor`` this phase.
 
@@ -2184,6 +2185,15 @@ def enumerate_actions(
     # gives the attempt to anyone, "even just the Everyman 8- roll".
     for _ally in (allies or []):
         if _ally.state.current_body > 0:
+            continue
+        # ALREADY STABLE: p.109's roll stops his losing BODY, and it holds
+        # until he is wounded again (`encounter.is_stabilized`, read off the
+        # log by the loop, since enumeration holds no session).
+        if _ally.id in (stabilized or ()):
+            continue
+        # DEAD IS PAST SAVING: at negative his starting BODY (6E2 p.109).
+        _max_body = getattr(_ally, "max_body", None)
+        if _max_body is not None and _ally.state.current_body <= -int(_max_body):
             continue
         _para = actor.skill_roll_value("PARAMEDICS") or _EVERYMAN_PARAMEDICS
         _target = _stabilize_target(paramedics_roll=_para,

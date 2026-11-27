@@ -148,7 +148,7 @@ def _apply_bleeding(session: "CombatSession") -> "CombatSession":
         max_body = max_body_of(combatant)
         if max_body is not None and body <= -max_body:
             continue                      # already Dead; nothing left to lose
-        if _is_stabilized(session, combatant_id):
+        if is_stabilized(session, combatant_id):
             continue                      # 6E2 p.109: he stops losing BODY
         lost = bleed_out_body(current_body=body)
         if not lost:
@@ -185,7 +185,7 @@ def max_body_of(combatant) -> int | None:
     return getattr(getattr(combatant, "state", None), "max_body", None)
 
 
-def _is_stabilized(session, combatant_id: str) -> bool:
+def is_stabilized(session, combatant_id: str) -> bool:
     """Whether somebody made the Paramedics roll on this man (6E2 p.109).
 
     Folded from the log, like every other fight-fact in this engine, so a
@@ -205,7 +205,11 @@ def _is_stabilized(session, combatant_id: str) -> bool:
         if payload.get("target_id") != combatant_id:
             continue
         if payload.get("kind") == "stabilize":
-            stabilized = bool(payload.get("stabilized"))
+            # A MISSED ROLL CHANGES NO WOUND. p.109 stabilizes "his
+            # condition"; a second man fumbling a roll he did not need
+            # leaves it stable. This read the latest attempt, so a miss
+            # after a made roll set him bleeding again.
+            stabilized = stabilized or bool(payload.get("stabilized"))
         elif (payload.get("kind") == "heal"
               and "BODY" in (payload.get("rolled_by_stat") or {})):
             # 6E1 p.234: "Any successful use of a Healing BODY stops

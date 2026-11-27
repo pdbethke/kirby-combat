@@ -2427,7 +2427,8 @@ def _resolve_stabilize(
     needed = stabilize_target(paramedics_roll=paramedics,
                               current_body=patient.state.current_body)
     rolled = sum(roller.roll_dice(3, 6))
-    made = rolled <= needed
+    # 6E1 57: "a roll of 3 always succeeds, and a roll of 18 always fails".
+    made = rolled == 3 or (rolled != 18 and rolled <= needed)
 
     return _recorded(session, actor, action, made, {
         "kind": action.kind, "target_id": target_id,

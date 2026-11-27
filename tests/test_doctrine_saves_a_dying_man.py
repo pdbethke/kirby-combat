@@ -117,3 +117,8 @@ def test_it_is_registered_in_the_catalogue():
     from kirby_combat.tactics.library import all_tactics
 
     assert "stabilize_the_dying" in {t.name for t in all_tactics()}
+
+
+def test_a_dead_ally_is_past_saving():
+    """6E2 p.109: at negative his starting BODY he is dead."""
+    assert not _tactic().applicable(_situation([_Man("wyatt_earp", body=-20)]))

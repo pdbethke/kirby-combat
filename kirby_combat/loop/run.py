@@ -31,7 +31,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 
-from kirby_combat.encounter import SEGMENTS_PER_TURN
+from kirby_combat.encounter import SEGMENTS_PER_TURN, is_stabilized
 from kirby_combat.enumeration import enumerate_actions, is_down
 from kirby_combat.pre_attacks.presence_effects import PresenceEffects, can_act
 from kirby_combat.pre_attacks.landing import stating_the_dice, without_spent_shouts
@@ -697,6 +697,9 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         # for the man on the ground who needs somebody to kneel beside
         # him.
         allies=allies,
+        # WHO IS ALREADY STABLE: a fallen ally someone has stopped bleeding
+        # is offered no second roll (6E2 p.109), read off the log here.
+        stabilized=frozenset(a.id for a in allies if is_stabilized(session, a.id)),
         # WHOSE MINDS HE CAN REACH WITHOUT SEEING THEM: the Mind Scan locks
         # this fight has established, his and the ones on him (6E1 p.265's
         # two-way circuit). Owning Mind Scan reaches nobody by itself.

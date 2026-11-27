@@ -307,12 +307,12 @@ def test_healing_is_not_offered_on_a_man_who_has_lost_nothing():
 
 def test_healing_body_stops_bleeding():
     """6E1 p.234: "Any successful use of a Healing BODY stops Bleeding"."""
-    from kirby_combat.encounter import _is_stabilized
+    from kirby_combat.encounter import is_stabilized
 
     session = _hurt(_session(_healer(), fighter("patient", side=HEROES),
                              fighter("foe", side=VILLAINS)), "patient", body=14)
     after = _use(session, "doc", "heal", "patient", [[1, 1, 1, 1]]).session
-    assert _is_stabilized(after, "patient")
+    assert is_stabilized(after, "patient")
 
 
 # ── The loop ─────────────────────────────────────────────────────────────────

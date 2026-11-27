@@ -186,3 +186,95 @@ def test_a_fallen_ally_is_still_an_ally():
     doc = session.combatants["doc"]
     assert [c.id for c in roster.allies_of(doc)] == []
     assert [c.id for c in roster.fallen_allies_of(doc)] == ["hurt"]
+
+
+# ---- Once he is stable (6E2 p.109) ----------------------------------------
+
+def test_a_missed_roll_after_a_made_one_leaves_him_stable():
+    """p.109: a made roll stabilizes "his condition so he doesn't lose any
+    more BODY". A second man fumbling a roll he did not need changes no
+    wound; only a new one does."""
+    session = _fight(wounded_body=-2)
+    made = _stabilize(session, [1, 1, 1]).session
+    offer = [m for m in enumerate_actions(made.combatants["doc"], [made.combatants["foe"]],
+                                          allies=[made.combatants["hurt"]])
+             if m.kind == "stabilize"][0]
+    missed = resolve_chosen(made, made.combatants["doc"], offer,
+                            template=RAW_HEROIC, roller=FakeRoller([[6, 6, 6]])).session
+    assert missed.event_log[-1].result_payload["stabilized"] is False
+    ended = Encounter(id="e", turn=1, segment=12, sessions=[missed],
+                      template=RAW_HEROIC).advance_segment().sessions[0]
+    assert ended.combatants["hurt"].state.current_body == -2
+
+
+def test_nobody_offers_to_stabilize_a_man_already_stable():
+    session = _fight(wounded_body=-2)
+    actor, foe, hurt = (session.combatants[i] for i in ("doc", "foe", "hurt"))
+    offers = [m for m in enumerate_actions(actor, [foe], allies=[hurt],
+                                           stabilized=frozenset({"hurt"}))
+              if m.kind == "stabilize"]
+    assert offers == []
+
+
+def test_the_driver_tells_enumeration_who_is_already_stable():
+    """The loop reads the log; enumeration holds no session."""
+    from kirby_combat.encounter import Encounter as _Encounter
+    import kirby_combat.loop.run as run
+
+    stable = _stabilize(_fight(wounded_body=-2), [1, 1, 1]).session
+    ties = RandomRoller(seed=11)
+    encounter = _Encounter(id="e", turn=1, segment=12, sessions=[stable],
+                           template=RAW_HEROIC).run_segment(
+        roller=lambda: ties.roll_dice(3, 6))
+    handed: list = []
+    original = run.enumerate_actions
+
+    def spy(actor, enemies, **kwargs):
+        handed.append((actor.id, kwargs.get("stabilized")))
+        return original(actor, enemies, **kwargs)
+
+    class _Idle:
+        """Nobody fights, so the fight lasts until Doc's Phase."""
+
+        def give_orders(self, page):
+            return KEEP_ORDERS
+
+        def choose(self, situation):
+            idle = [m for m in situation.menu if m.kind in ("dodge", "set")]
+            return (idle or situation.menu)[0].action_id
+
+    run.enumerate_actions = spy
+    try:
+        dice = RandomRoller(seed=2)
+        for _ in range(12):                 # until Doc has had a Phase
+            encounter = run.run_phase(encounter, _Idle(), roller=dice,
+                                      on_unresolvable="skip").encounter
+            if any(a == "doc" for a, _ in handed):
+                break
+    finally:
+        run.enumerate_actions = original
+    doc = [s for a, s in handed if a == "doc"]
+    assert doc, "Doc never had a Phase"
+    assert doc[0] == frozenset({"hurt"}), handed
+
+
+# ---- The dead, and the 3 and the 18 ---------------------------------------
+
+def test_nobody_offers_to_stabilize_the_dead():
+    """6E2 p.109: at negative his starting BODY he is dead, and no roll
+    brings that back. Three men knelt over a corpse for 340 Phases."""
+    assert _offers(_fight(wounded_body=-10)) == []
+
+
+def test_a_three_always_stops_the_bleeding():
+    """6E1 57: a roll of 3 always succeeds. Paramedics 5- at -8 BODY is
+    1-, and a 3 still makes it."""
+    session = _fight(wounded_body=-8, paramedics=5)
+    assert _offers(session)[0].summary.count("1-") == 1
+    assert _stabilize(session, [1, 1, 1]).session.event_log[-1].result_payload["stabilized"] is True
+
+
+def test_an_eighteen_always_misses():
+    """6E1 57: a roll of 18 always fails, however good the medic."""
+    session = _fight(wounded_body=-2, paramedics=20)
+    assert _stabilize(session, [6, 6, 6]).session.event_log[-1].result_payload["stabilized"] is False

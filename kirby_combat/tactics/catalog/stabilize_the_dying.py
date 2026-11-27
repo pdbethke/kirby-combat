@@ -30,6 +30,12 @@ from kirby_combat.tactics.library import register
 _DYING_AT_OR_BELOW = 0
 
 
+def _dead(man) -> bool:
+    """At negative his starting BODY he is dead (6E2 p.109), past saving."""
+    max_body = getattr(man, "max_body", None)
+    return max_body is not None and man.current_body <= -int(max_body)
+
+
 def _dying_allies(situation: Situation) -> list:
     """Allies at 0 or negative BODY, worst first.
 
@@ -47,6 +53,7 @@ def _dying_allies(situation: Situation) -> list:
         a for a in candidates
         if getattr(a, "current_body", 1) is not None
         and getattr(a, "current_body", 1) <= _DYING_AT_OR_BELOW
+        and not _dead(a)
     ]
     return sorted(dying, key=lambda a: getattr(a, "current_body", 0))
 
