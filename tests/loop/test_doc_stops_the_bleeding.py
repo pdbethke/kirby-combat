@@ -216,6 +216,7 @@ def test_nobody_offers_to_stabilize_a_man_already_stable():
     assert offers == []
 
 
+@pytest.mark.state_set_by_hand("wounds a man by assigning his BODY, not by a VitalsChanged")
 def test_the_driver_tells_enumeration_who_is_already_stable():
     """The loop reads the log; enumeration holds no session."""
     from kirby_combat.encounter import Encounter as _Encounter
