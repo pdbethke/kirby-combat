@@ -58,12 +58,71 @@ def _dying_allies(situation: Situation) -> list:
     return sorted(dying, key=lambda a: getattr(a, "current_body", 0))
 
 
+def _dies_this_turn(man) -> bool:
+    """Whether the next bleed (the end of Segment 12) kills him: he loses
+    what `bleed_out_body` says and dies at negative his starting BODY
+    (6E2 p.109)."""
+    from kirby_combat.resolution.bleeding import bleed_out_body
+
+    max_body = getattr(man, "max_body", None)
+    if max_body is None:
+        return False
+    after = man.current_body - bleed_out_body(current_body=man.current_body)
+    return after <= -int(max_body)
+
+
+def _covered_from_every_enemy(situation: Situation) -> bool:
+    """Whether he stands behind cover from every enemy still standing.
+
+    Cover is a fact about the target against one shooter (6E2 p.45), so
+    covered from one man and in the open to another is in the open. No
+    map, or a man the map cannot place, and nobody can say he is covered.
+    """
+    session = getattr(situation, "session", None)
+    scene = getattr(session, "scene", None) if session is not None else None
+    if scene is None:
+        return False
+    from kirby_combat.placement import position_of
+    from kirby_world.cover import compute_cover_level
+
+    here = position_of(scene, situation.actor.id)
+    if here is None:
+        return False
+    for enemy in situation.enemies:
+        there = position_of(scene, enemy.id)
+        if there is None or compute_cover_level(
+                shooter_pos=there, target_pos=here,
+                target_is_prone_or_diving=False, scene=scene) <= 0:
+            return False
+    return True
+
+
+def _to_kneel_for(situation: Situation) -> list:
+    """The dying allies worth stopping the fight for, worst first.
+
+    JUDGEMENT (Peter, 2026-11-27), not a rule: 6E2 p.109 says a dying man
+    can be stabilized, not when. A man stops fighting to do it only when no
+    enemy is standing, or he is in cover from every one, or the man dies
+    at the end of this Turn without help. At the corral three Earps
+    bandaged Wyatt in the open while the McLaurys shot them down, and
+    Wyatt had seven Turns to live.
+    """
+    dying = _dying_allies(situation)
+    if not dying:
+        return []
+    if not situation.enemies or _covered_from_every_enemy(situation):
+        return dying
+    return [a for a in dying if _dies_this_turn(a)]
+
+
 @register
 class StabilizeTheDying(Tactic):
     name = "stabilize_the_dying"
     basis = Basis(
         mechanism="6E2 p109",
-        judgement="a man who dies this Turn without help outranks your own comfort",
+        judgement=("stop fighting to save him only when it is safe to kneel (no "
+                   "enemy standing, or cover from every one) or he dies this Turn "
+                   "without help (Peter, 2026-11-27)"),
     )
     #: Above `take_cover_when_hurt` (55) and `withdraw_when_outmatched`
     #: (54) --- those weigh the actor's own skin, and this is somebody
@@ -80,10 +139,10 @@ class StabilizeTheDying(Tactic):
     )
 
     def applicable(self, situation: Situation) -> bool:
-        return bool(_dying_allies(situation))
+        return bool(_to_kneel_for(situation))
 
     def execute(self, situation: Situation) -> Plan:
-        dying = _dying_allies(situation)
+        dying = _to_kneel_for(situation)
         worst = dying[0]
         body = getattr(worst, "current_body", 0)
         name = getattr(worst, "name", None) or getattr(worst, "id", "an ally")

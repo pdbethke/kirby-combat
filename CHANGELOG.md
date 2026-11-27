@@ -10,6 +10,15 @@
 - This engine's readings stay its own: kirby-cost's UNKNOWN (words that cannot say) reads as "does not reach"; an option that is none of HD's six reads as "single"; a hand-built level with breadth "" reads as All Attacks.
 - One narrowing: a hand-built `CombatSkillLevel` with a breadth string that is none of the six (and not "") used to be matched as a narrow level; it now reaches nothing. Nothing in this repo, kirby-ai or kirby-api builds one.
 
+### Fixed — first aid at the O.K. Corral (found running it, 2026-11-27)
+- **A missed roll no longer undoes a made one.** `encounter.is_stabilized` (was `_is_stabilized`) read the latest attempt, so a second man's fumble set a stabilized man bleeding again. 6E2 p.109 stabilizes "his condition"; only a new wound undoes it.
+- **No roll is offered on a man already stable**: the loop passes `enumerate_actions(..., stabilized=)` the stabilized allies, read off the log.
+- **No roll is offered on, or chosen for, the dead** (negative starting BODY, 6E2 p.109). Seed 1 had livelocked: three Earps knelt over Wyatt's corpse for ~340 Phases.
+- **The roll honours 6E1 57**: a 3 always succeeds, an 18 always fails. Found, not fixed: about a dozen other rolls (perception, impact, rage, images, sense penalties, coordination, self-destruct) still test only `roll <= target`.
+
+### Changed — `stabilize_the_dying` kneels only where it is safe to
+JUDGEMENT (Peter, 2026-11-27), not a rule: 6E2 p.109 says a dying man can be stabilized, not when. A fighter stops fighting to do it only when no enemy is standing, or he is in cover from every standing enemy (cover is per shooter, 6E2 p.45), or the man dies at the end of this Turn without help. Before, men bandaged a friend in the open while the other side shot them down; in every corral seed the Earps lost, that was why. Corral, 10 seeds under `TacticChooser`: Earps 7, Cowboys 3 (was 3 and 3 of 6, each Cowboy win with 3-8 Phases of first aid under fire).
+
 ## 0.40.0 — 2026-11-24
 
 **The end of a fight: its terms, a question to the GM, and one event in the log.** Two-databases spec §6a; plan `kirby/docs/superpowers/plans/2026-11-24-fight-end.md`.

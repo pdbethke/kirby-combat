@@ -54,11 +54,14 @@ class _Man:
         return _Stats()
 
 
-def _situation(allies, *, skills=None) -> Situation:
+def _situation(allies, *, skills=None, enemies=(), session=None) -> Situation:
+    """Nobody left to shoot at him unless ``enemies`` says otherwise: the
+    tactic kneels only where it is safe to (see the tests at the end)."""
     return Situation(
         actor=_Man("doc_holliday"), allies=allies,
-        enemies=[_Man("ike_clanton")],
+        enemies=list(enemies),
         actor_skills=dict(skills or {"PARAMEDICS": 11}),
+        session=session,
     )
 
 
@@ -122,3 +125,76 @@ def test_it_is_registered_in_the_catalogue():
 def test_a_dead_ally_is_past_saving():
     """6E2 p.109: at negative his starting BODY he is dead."""
     assert not _tactic().applicable(_situation([_Man("wyatt_earp", body=-20)]))
+
+
+
+# ---- Only where it is safe to kneel (Peter, 2026-11-27) --------------------
+#
+# JUDGEMENT, not a rule: 6E2 p.109 says a dying man can be stabilized, not
+# when. Peter chose: stop fighting to do it only when no enemy is standing,
+# or when you are in cover from every one of them, or when he dies at the
+# end of this Turn without help. At the corral, three Earps bandaged Wyatt
+# in the open while the McLaurys shot them down, and he had seven Turns.
+
+def _scene(*walls, **positions):
+    from kirby_combat.scene.scene import (
+        AmbientConditions, Position, Scene, SceneBounds, Surface,
+    )
+    return Scene(
+        id="lot", name="lot",
+        bounds=SceneBounds(-4.0, -2.0, 0.0, 14.0, 14.0, 14.0),
+        surfaces=[Surface(id="g", name="g",
+                          polygon_xy=[(-4, -2), (14, -2), (14, 14), (-4, 14)],
+                          elevation_m=0.0, surface_type="ground", cover_level=0)],
+        walls=list(walls), hazards=[], ambient=AmbientConditions(light_level=4),
+        combatant_positions={k: Position(*v, 0.0) for k, v in positions.items()},
+    )
+
+
+def _wall():
+    from kirby_combat.scene.scene import Position, Wall
+    return Wall(id="trough", name="Trough",
+                segment=(Position(5.0, 0.0, 0.0), Position(5.0, 10.0, 0.0)),
+                height_m=2.0, blocks_los=True, blocks_movement=True)
+
+
+def _on_the_lot(scene):
+    from types import SimpleNamespace
+    return SimpleNamespace(scene=scene)
+
+
+def test_not_while_a_man_with_a_gun_stands_in_the_open_with_him():
+    wounded = [_Man("wyatt_earp", body=-3)]
+    open_lot = _on_the_lot(_scene(doc_holliday=(2.0, 5.0), tom_mclaury=(8.0, 5.0)))
+    assert not _tactic().applicable(_situation(
+        wounded, enemies=[_Man("tom_mclaury")], session=open_lot))
+
+
+def test_with_no_map_nobody_can_say_he_is_covered():
+    assert not _tactic().applicable(_situation(
+        [_Man("wyatt_earp", body=-3)], enemies=[_Man("tom_mclaury")]))
+
+
+def test_behind_cover_from_every_enemy_he_can_kneel():
+    behind = _on_the_lot(_scene(_wall(), doc_holliday=(2.0, 5.0), tom_mclaury=(8.0, 5.0)))
+    assert _tactic().applicable(_situation(
+        [_Man("wyatt_earp", body=-3)], enemies=[_Man("tom_mclaury")], session=behind))
+
+
+def test_not_when_one_enemy_still_has_a_clear_shot():
+    """Cover is per shooter (6E2 p.45): covered from one is not covered."""
+    flanked = _on_the_lot(_scene(_wall(), doc_holliday=(2.0, 5.0), tom_mclaury=(8.0, 5.0),
+                                 frank_mclaury=(2.0, 12.0)))
+    assert not _tactic().applicable(_situation(
+        [_Man("wyatt_earp", body=-3)],
+        enemies=[_Man("tom_mclaury"), _Man("frank_mclaury")], session=flanked))
+
+
+def test_under_fire_when_he_dies_at_the_end_of_this_turn():
+    """1 BODY a Turn and dead at negative his starting BODY (6E2 p.109):
+    at -19 of 20 the next bleed kills him, so it is now or never."""
+    open_lot = _on_the_lot(_scene(doc_holliday=(2.0, 5.0), tom_mclaury=(8.0, 5.0)))
+    situation = _situation([_Man("wyatt_earp", body=-19), _Man("morgan_earp", body=-2)],
+                           enemies=[_Man("tom_mclaury")], session=open_lot)
+    assert _tactic().applicable(situation)
+    assert _tactic().execute(situation).steps[0].target_id == "wyatt_earp"
