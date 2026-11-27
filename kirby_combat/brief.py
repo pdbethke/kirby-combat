@@ -493,7 +493,16 @@ class Brief:
             summary = " ".join((tactic.narrative_summary or "").split())
             if not summary:
                 continue
-            out.append(f"{tactic.name} -> {kind}: {summary}")
+            # AND WHY FOR HIM. The summary is the tactic's general advice;
+            # the plan's rationale is what it worked out for THIS man ("Not
+            # Brave: he ducks", "he has nothing to shoot back with"). With
+            # only the summary on the page a model reasoned past both:
+            # Claiborne stood and Ike called himself armed (2026-11-27).
+            why = " ".join((getattr(plan, "rationale", "") or "").split())
+            line = f"{tactic.name} -> {kind}: {summary}"
+            if why:
+                line += f" For you: {why}"
+            out.append(line)
         return out
 
     @property

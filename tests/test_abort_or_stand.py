@@ -67,3 +67,12 @@ def test_the_abort_page_carries_the_advice():
     page = Brief(_abort(_man(_psych("Vengeful")))).render()
     assert "abort_or_stand -> no_abort" in page, page
     assert "costs your NEXT Phase" in page
+
+
+def test_the_page_says_why_for_him():
+    """The tactic's reason for THIS man, not only its general advice: an
+    unarmed man is told he has nothing to shoot back with."""
+    page = Brief(_abort(_man(armed=False))).render()
+    assert "For you: he has nothing to shoot back with" in page, page
+    coward = Brief(_abort(_man(_psych("Not Brave")))).render()
+    assert "For you: Not Brave: he ducks" in coward, coward
