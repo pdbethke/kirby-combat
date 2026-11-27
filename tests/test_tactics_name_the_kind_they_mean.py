@@ -170,8 +170,15 @@ def test_every_step_kind_is_a_real_action_kind(tactic, plan):
     if tactic.name in _INERT_BY_DESIGN_DECISION:
         pytest.xfail(f"{tactic.name} emits 'wait', which is not an action "
                      f"kind -- see _INERT_BY_DESIGN_DECISION")
+    # THE ABORT MENU'S KINDS ARE REAL TOO. Out of turn, the menu is
+    # `loop.reactions.Reaction` (``no_abort``, ``dodge``, ``block``, ...),
+    # resolved by the reaction door and not the registry, so they are not
+    # in ALL_ACTION_KINDS; `abort_or_stand` names them.
+    from kirby_combat.loop.reactions import Reaction
+
+    kinds = ALL_ACTION_KINDS | {r.value for r in Reaction}
     for step in plan.steps or []:
-        assert step.kind in ALL_ACTION_KINDS, (
+        assert step.kind in kinds, (
             f"{tactic.name}: step kind {step.kind!r} is not in "
             f"ALL_ACTION_KINDS, so no menu can ever satisfy it"
         )

@@ -80,6 +80,12 @@ class Situation:
     #: The fight, when the caller has one. Optional because most callers do
     #: not: `threat` falls back to what is visible without it.
     session: Any = None
+    #: Why he is being asked OUTSIDE his own Phase (`loop.chooser.OutOfTurn`):
+    #: an attack is coming and he may Abort to a defence (6E2 p.23-24), or
+    #: somebody's Phase is starting and he holds an Action. None in his own
+    #: Phase. Without it no tactic could tell the Abort question from a
+    #: Phase, so the abort page carried no doctrine at all (2026-11-27).
+    out_of_turn: Any = None
 
     def in_reach(self, enemy_id: str) -> bool:
         """Whether `enemy_id` is close enough to touch.

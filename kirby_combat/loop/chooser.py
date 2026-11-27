@@ -315,6 +315,7 @@ class PhaseSituation:
             # WITNESSED rather than merely visible. Without it a fighter
             # can see who is holding the axe but never learns who used it.
             session=self.session,
+            out_of_turn=self.out_of_turn,
             # Two tactics have read these since the day tactics existed and
             # the loop never filled them, so `bait_enraged` and
             # `exploit_susceptibility` have never once fired in a
