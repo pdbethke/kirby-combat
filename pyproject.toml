@@ -16,7 +16,7 @@ dependencies = [
     # to the die" across two repositories, agreeing only by luck.
     # 0.6.3: the build doc says which powers run off an Endurance Reserve.
     # >=0.8.2: slot_words names an unnamed framework slot by what it is.
-    "kirby-cost>=0.8.2",
+    "kirby-cost>=0.9.0",
     # The roller moved out at 0.10.0. It is a real dependency, not a shim:
     # `kirby_combat.dice` is GONE, and consumers import `kirby_dice`
     # directly. A re-export here would just be a second name for one thing.

@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased — dice state their sides
+## Unreleased
 
-### Changed
+### Changed — dice state their sides
 - Every `roll_dice` call states its sides (`roll_dice(3, 6)`), for kirby-dice 0.2.0, which dropped its `sides=6` default (no-defaults rule). Requires `kirby-dice>=0.2.0`. Test rollers take a required `sides` too. No behaviour change: 4216 passed, 3 xfailed, as before.
+
+### Changed — which attacks a Combat Skill Level reaches is kirby-cost's rule
+- `resolution.to_hit._csl_reaches` calls `kirby_cost.engine.csl.reaches`, and `HeroCombatant.csls` reads a level's breadth and words through `breadth_of` and `named_text`, so kirby-cost's workshop limits and this roll read one rule (6E1 72). The copies here (`_CSL_BREADTHS`, `_CSL_GENERIC_ALIASES`, `_csl_named_attacks`, the matching loop) are deleted. **Requires kirby-cost 0.9.0.**
+- This engine's readings stay its own: kirby-cost's UNKNOWN (words that cannot say) reads as "does not reach"; an option that is none of HD's six reads as "single"; a hand-built level with breadth "" reads as All Attacks.
+- One narrowing: a hand-built `CombatSkillLevel` with a breadth string that is none of the six (and not "") used to be matched as a narrow level; it now reaches nothing. Nothing in this repo, kirby-ai or kirby-api builds one.
 
 ## 0.40.0 — 2026-11-24
 

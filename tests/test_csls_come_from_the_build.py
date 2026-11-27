@@ -237,7 +237,7 @@ def test_the_build_doc_cannot_name_a_framework():
     `build_json` is a KIRBY-COST change, not an A3 one.
 
     Asserted on the raw document so it fails the day kirby-cost carries the
-    field -- at which point `_csl_named_attacks` already reads it and this
+    field -- at which point `kirby_cost.engine.csl.named_text` already reads it and this
     test is the notice that the gap closed."""
     from corpus import require_authored_doc
 
@@ -262,7 +262,7 @@ def test_the_build_doc_cannot_name_a_framework():
     assert csl is not None, "PowerLad's COMBAT_LEVELS is not in the build doc"
     assert "option_alias" not in csl, (
         "build_json now carries OPTION_ALIAS — the product-path gap this "
-        "test records has closed; `_csl_named_attacks` already reads it, so "
+        "test records has closed; `kirby_cost.engine.csl.named_text` already reads it, so "
         "rewrite this test to assert the framework match instead."
     )
 
@@ -328,7 +328,7 @@ def test_the_templates_own_boilerplate_names_no_attack():
     else miss, on a coincidence of wording."""
     man = _man(csls=[CombatSkillLevel(
         levels=LEVELS, applies_to="ocv", breadth="tight",
-        named_attacks="",          # what `_csl_named_attacks` returns for it
+        named_attacks="",          # what `kirby_cost.engine.csl.named_text` returns for it
     )])
     assert _roll(man, _blast()).effective_ocv == OCV
 

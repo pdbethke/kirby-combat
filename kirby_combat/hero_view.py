@@ -63,6 +63,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from kirby_cost.engine.csl import breadth_of, named_text
 from kirby_cost.model.activation import (
     ActivationContext, CharacteristicState, Contribution,
 )
@@ -1473,7 +1474,7 @@ class HeroCombatant(Stunnable, CombatParticipant):
                 levels=levels,
                 applies_to="ocv",           # the JUDGEMENT, see above
                 breadth=_csl_breadth(skill),
-                named_attacks=_csl_named_attacks(skill),
+                named_attacks=named_text(skill),
             ))
         return out
 
@@ -2684,59 +2685,6 @@ _DEFENSE_XMLIDS = {
 }
 
 
-#: 6E1 p.72's six options, as HD writes them (Main6E.hdt's COMBAT_LEVELS
-#: OPTION xmlids). Lower-cased for `CombatSkillLevel.breadth`.
-_CSL_BREADTHS = frozenset({"single", "tight", "broad", "hth", "ranged", "all"})
-
-
-#: The six OPTION DISPLAY strings Main6E.hdt ships for COMBAT_LEVELS. HD
-#: copies the chosen option's DISPLAY into OPTION_ALIAS by default and the
-#: builder overwrites it only when naming something, so these exact
-#: sentences are BOILERPLATE: they say which breadth was bought (which
-#: `_csl_breadth` already read from the OPTIONID) and name no attack at
-#: all. Treating them as a list of attacks would make every narrow level
-#: match nothing or everything depending on the power's name -- PowerLad's
-#: TIGHT level carries "with a small group of attacks" verbatim.
-_CSL_GENERIC_ALIASES = frozenset({
-    "with any single attack",
-    "with a small group of attacks",
-    "with a large group of attacks",
-    "with hth combat",
-    "with ranged combat",
-    "with all attacks",
-})
-
-
-def _csl_named_attacks(skill) -> str:
-    """The free text saying WHICH attacks a narrow level was bought for.
-
-    THERE IS NO INPUT FIELD ON A REAL BUILD. This read `skill.input` for a
-    day, and not one COMBAT_LEVELS in the corpus has one: HD puts the words
-    in OPTION_ALIAS ("with Power Over Light And Heat Multipower", LUMEN-CV1)
-    or in NAME ("+1 With Punch, Haymaker, and Throw", PowerLad), and leaves
-    INPUT empty. So every SINGLE / TIGHT / BROAD level in every real
-    character reached nothing, silently, while the synthetic fixture -- which
-    was handed an INPUT because the code asked for one -- passed.
-
-    Both fields are read, and the generic option aliases above are dropped:
-    a level whose only text is the template's own "with a small group of
-    attacks" has named nothing, and matching a power against that sentence
-    is not a rule, it is a coincidence waiting to happen.
-
-    NARROW END ON DOUBT, as everywhere else in this file: the return is ""
-    when neither field says anything, and "" reaches no attack.
-    """
-    parts: list[str] = []
-    option = getattr(skill, "_selected_option", None)
-    for value in (getattr(skill, "name", None),
-                  getattr(option, "alias", None),
-                  getattr(skill, "input", None)):
-        text = (value or "").strip()
-        if text and text.lower() not in _CSL_GENERIC_ALIASES:
-            parts.append(text)
-    return " | ".join(dict.fromkeys(parts))
-
-
 def _csl_skills(hero) -> list:
     """Every COMBAT_LEVELS purchase on this build, wherever it was bought.
 
@@ -2772,26 +2720,19 @@ def _csl_skills(hero) -> list:
 
 
 def _csl_breadth(skill) -> str:
-    """Which of 6E1 p.72's six breadths this level was bought at.
+    """Which of 6E1 p.72's six breadths this level was bought at, as
+    kirby-cost reads it (`kirby_cost.engine.csl.breadth_of`), lower-cased
+    for `CombatSkillLevel.breadth`.
 
-    HD records the chosen OPTION twice over --- as the resolved option
-    object and as the raw ``OPTIONID`` the loader kept --- and neither is
-    guaranteed present on every load shape, so both are asked before
-    falling back.
-
-    THE FALLBACK IS THE NARROW END, not the broad one. An unrecognised
-    option reads as "single", which reaches only an attack the level names
-    and so reaches nothing when it names none. Defaulting to "all" would
-    mean every level this function failed to classify quietly became the
-    ten-point breadth, which is the error a sim never notices: everybody
-    is simply a little better than they paid to be.
+    THE FALLBACK IS THE NARROW END, not the broad one: an option that is
+    none of the six reads as "single", which reaches only an attack the
+    level names and so reaches nothing when it names none. Defaulting to
+    "all" would mean every level that could not be classified quietly
+    became the ten-point breadth, which is the error a sim never notices:
+    everybody is simply a little better than they paid to be.
     """
-    option = getattr(skill, "_selected_option", None)
-    for candidate in (getattr(option, "xmlid", None), getattr(skill, "option_id", None)):
-        value = (candidate or "").strip().lower()
-        if value in _CSL_BREADTHS:
-            return value
-    return "single"
+    breadth = breadth_of(skill)
+    return breadth.value.lower() if breadth is not None else "single"
 
 
 def _has_modifier(power, mod_xmlid: str) -> bool:
