@@ -69,20 +69,20 @@ def _sightings(session, actor_id):
 CORRAL_OFFERS = {'morgan_earp': [('move_to_cover:crates',
                   (3.6, 7.6, 0.0),
                   'Take cover behind Packing crates (0.6m away) — cover 3/4 against 2 '
-                  'of 5 of them, so those attackers take -4 OCV against you; 3 of 5 '
+                  'of 5 of them, so those attackers take -4 OCV against you, or, with Hit Locations, any location roll of 9+ hits the cover instead; 3 of 5 '
                   'would still have a clear shot. Half Move, so you may still attack '
                   '(6E2 p45)')],
  'virgil_earp': [('move_to_cover:barrels',
                   (3.3, 3.2, 0.0),
                   'Take cover behind Stack of whiskey barrels (0.8m away) — cover 2/4 '
-                  'against 1 of 5 of them, so those attackers take -2 OCV against you; '
+                  'against 1 of 5 of them, so those attackers take -2 OCV against you, or, with Hit Locations, any location roll of 12+ hits the cover instead; '
                   '4 of 5 would still have a clear shot. Half Move, so you may still '
                   'attack (6E2 p45)'),
                  ('move_to_cover:flys-studio',
                   (6.5, 1.0, 0.0),
                   "Take cover behind C.S. Fly's Studio (south-east) (4.2m away) — "
                   'cover 4/4 against 4 of 5 of them, so those attackers take -8 OCV '
-                  'against you; 1 of 5 would still have a clear shot. Half Move, so '
+                  'against you, or, with Hit Locations, any location roll of 6+ hits the cover instead; 1 of 5 would still have a clear shot. Half Move, so '
                   'you may still attack (6E2 p45)')]}
 
 # {actor: [sighting line]} as the pre-rewrite Brief wrote it.
@@ -260,7 +260,7 @@ def _yard(*, shooter_at=(10.0, 5.0), actor_at=(4.0, 5.0)):
 YARD_OFFERS = [('move_to_cover:wagon',
   (2.0, 0.0, 0.0),
   'Take cover behind Hay wagon (5.4m away) — cover 3/4 against 1 of 1 of them, so '
-  'those attackers take -4 OCV against you. Half Move, so you may still attack (6E2 '
+  'those attackers take -4 OCV against you, or, with Hit Locations, any location roll of 9+ hits the cover instead. Half Move, so you may still attack (6E2 '
   'p45)')]
 YARD_SIGHTINGS = ['Hay wagon: 3.0m away, would give you cover 3/4; DEF 4, BODY 6 to break '
  'through']

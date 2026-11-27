@@ -180,7 +180,29 @@ def cover_ocv_for_level(level: int) -> int:
     return cover_ocv_modifier(int(level) * 25)
 
 
-def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, int]:
+def cover_ocv(level: int, *, template, target) -> int:
+    """The OCV cover costs THIS shot: the table's, or none with Hit Locations.
+
+    6E2 p.45, "BEHIND COVER WITH HIT LOCATIONS": "If the campaign uses the
+    optional Hit Location Table, Behind Cover works differently. ... Once
+    the GM determines what's Behind Cover, combat occurs normally. If an
+    attack hits the Behind Cover character, roll the Hit Location. If the
+    Hit Location rolled is Behind Cover, the attack strikes the cover
+    instead." So with Hit Locations the cover is the location roll it
+    blocks (`hit_location.exposed_through_cover`), not an OCV penalty as
+    well. This charged both: every shot at a man behind a barrel at the
+    Corral paid -2 OCV AND lost its 12+ location rolls to the barrel
+    (2026-11-27), and the Cowboys hit 4 shots in 26.
+    """
+    from kirby_combat.resolution.hit_location import uses_hit_locations
+
+    if uses_hit_locations(template, target):
+        return 0
+    return cover_ocv_for_level(level)
+
+
+def _cover_against(session: CombatSession, attack: AttackInput,
+                   template) -> tuple[int, int]:
     """Cover the TARGET enjoys against THIS attacker, and its OCV cost.
 
     Per shooter-target pair, which is the only way cover means anything:
@@ -211,7 +233,7 @@ def _cover_against(session: CombatSession, attack: AttackInput) -> tuple[int, in
         shooter_pos=shooter, target_pos=target,
         target_is_prone_or_diving=prone, scene=scene,
     )
-    return level, cover_ocv_for_level(level)
+    return level, cover_ocv(level, template=template, target=attack.target)
 
 
 def _surprise_for(session: CombatSession, actor, target):
@@ -716,7 +738,7 @@ def resolve_attack_in_session(
     # none of the other six callers that arrive here.
     attack = _fold_session_cvs(session, attack, combat_type)
 
-    cover_level, cover_ocv = _cover_against(session, attack)
+    cover_level, cover_ocv = _cover_against(session, attack, template)
     if cover_ocv:
         attack = replace(attack, ocv_modifier=attack.ocv_modifier + cover_ocv)
     # AND THE LEVEL ITSELF, not just its OCV cost. `_cover_against` has

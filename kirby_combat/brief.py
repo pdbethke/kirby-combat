@@ -164,7 +164,17 @@ class EnemyBearing:
         if self.range_ocv:
             bits.append(f"{self.range_ocv:+d} OCV at that range")
         if self.cover_level:
-            bits.append(f"cover {self.cover_level}/4 ({self.cover_ocv:+d} OCV to hit)")
+            if self.cover_ocv:
+                bits.append(f"cover {self.cover_level}/4 ({self.cover_ocv:+d} OCV to hit)")
+            else:
+                # Hit Locations (6E2 p.45): the cover blocks the high
+                # location rolls instead of costing OCV.
+                from kirby_combat.resolution.hit_location import (
+                    MAX_LOCATION_ROLL, ROLLS_HIDDEN_PER_COVER_LEVEL)
+
+                blocked = MAX_LOCATION_ROLL - ROLLS_HIDDEN_PER_COVER_LEVEL * self.cover_level
+                bits.append(f"cover {self.cover_level}/4 (a location roll of "
+                            f"{blocked}+ hits the cover)")
         if not self.in_line_of_sight:
             bits.append("NO line of sight")
         return f"{self.name}: {', '.join(bits)}"
@@ -339,7 +349,7 @@ class Terrain:
         from kirby_world.cover import compute_cover_level
         from kirby_world.geometry import distance_3d
 
-        from kirby_combat.actions.recording import cover_ocv_for_level
+        from kirby_combat.actions.recording import cover_ocv
 
         here = self.position_of(self._actor.id)
         out: list[EnemyBearing] = []
@@ -360,7 +370,9 @@ class Terrain:
                 # The cover LEVEL is 0-4; the OCV table is keyed on percent
                 # covered, so the level is converted the way the rules do
                 # rather than by a second table invented here.
-                cover_ocv=cover_ocv_for_level(cover),
+                # With Hit Locations cover costs no OCV (6E2 p.45): it takes
+                # the location rolls it hides instead (`recording.cover_ocv`).
+                cover_ocv=cover_ocv(cover, template=self._session.template, target=enemy),
                 in_line_of_sight=has_line_of_sight(self.scene, here, there),
             ))
         return sorted(out, key=lambda b: (b.range_m is None, b.range_m or 0.0))

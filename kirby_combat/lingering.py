@@ -555,7 +555,7 @@ def resolve_damage_over_time_use(session, attack, template, *, roller,
                                   failed=True), result
 
     folded = _fold_session_cvs(session, attack, combat_type)
-    cover_level, cover_ocv = _cover_against(session, folded)
+    cover_level, cover_ocv = _cover_against(session, folded, template)
     if cover_ocv:
         folded = replace(folded, ocv_modifier=folded.ocv_modifier + cover_ocv)
     to_hit = resolve_to_hit(folded, template)

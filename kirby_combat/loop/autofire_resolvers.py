@@ -120,7 +120,7 @@ def _burst_roll(session, attack, template):
     from kirby_combat.resolution.to_hit import resolve_to_hit
 
     folded = _fold_session_cvs(session, attack, None)
-    _, cover_ocv = _cover_against(session, folded)
+    _, cover_ocv = _cover_against(session, folded, template)
     if cover_ocv:
         folded = replace(folded, ocv_modifier=folded.ocv_modifier + cover_ocv)
     return resolve_to_hit(folded, template)

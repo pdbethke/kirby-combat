@@ -3689,6 +3689,8 @@ def enumerate_actions(
         from kirby_world.cover import cover_spots
 
         from kirby_combat.actions.recording import cover_ocv_for_level
+        from kirby_combat.resolution.hit_location import (
+            MAX_LOCATION_ROLL as _MAX_LOC, ROLLS_HIDDEN_PER_COVER_LEVEL as _PER_LEVEL)
         from kirby_world.geometry import first_blocking_wall
 
         _threats = {
@@ -3822,7 +3824,9 @@ def enumerate_actions(
                     f"Take cover behind {_name} "
                     f"({_d:.1f}m away) — cover {_level}/4 against "
                     f"{_covered} of {_total} of them, so those attackers take "
-                    f"{cover_ocv_for_level(_level):+d} OCV against you"
+                    f"{cover_ocv_for_level(_level):+d} OCV against you, or, "
+                    f"with Hit Locations, any location roll of "
+                    f"{_MAX_LOC - _PER_LEVEL * _level}+ hits the cover instead"
                     f"{_flank}. Half Move, so you may still attack (6E2 p45)"
                 ),
                 reposition_dest=(_spot.x, _spot.y, _spot.z),
