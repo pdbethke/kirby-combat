@@ -1228,3 +1228,53 @@ def orders_lines(situation: "PhaseSituation") -> list[str]:
     if leader == me.id:
         return ["You lead the squad and have given no orders yet."]
     return [f"Your leader, {who}, has given no orders yet."]
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# What is in his hands
+# ─────────────────────────────────────────────────────────────────────────
+
+_HANDS = {"right": "right hand", "left": "left hand", "both": "both hands"}
+
+
+def hands_lines(situation: "PhaseSituation") -> list[str]:
+    """What the actor is carrying, and where: one line, read off the fight.
+
+    WHY. A model seat at the O.K. Corral (2026-11-28) called Ike Clanton
+    "healthy and armed" with no weapon on his sheet, past a doctrine line
+    that said he had nothing to shoot back with. The page gave his stats,
+    his complications and the ground, and never what was in his hands.
+
+    With grips stated (`grips`): each weapon in hand with its hand(s), each
+    holstered one, each out of his hands. Without them, the weapons he has.
+    No weapon and no attack: he is told he carries none. A man whose
+    attacks are powers, not weapons, gets no line --- nothing to say.
+    """
+    from kirby_combat.grips import HOLSTERED, _purchase, grip_of, stated_grips
+    from kirby_combat.weapons import accessible_foci
+
+    actor, session = situation.actor, situation.session
+    stated = stated_grips(session, actor.id) if session is not None else {}
+    if stated:
+        held, holstered, gone = [], [], []
+        for weapon_id in stated:
+            name = getattr(_purchase(actor, weapon_id), "name", None) or weapon_id
+            grip = grip_of(session, actor.id, weapon_id)
+            if grip == HOLSTERED:
+                holstered.append(name)
+            elif grip is None:
+                gone.append(name)
+            else:
+                held.append(f"{name} ({_HANDS.get(grip, grip)})")
+        line = "In hand: " + (", ".join(held) if held else "nothing") + "."
+        if holstered:
+            line += " Holstered: " + ", ".join(holstered) + "."
+        if gone:
+            line += " Out of your hands: " + ", ".join(gone) + "."
+        return [line]
+    weapons = [w.name for w in accessible_foci(actor)]
+    if weapons:
+        return ["Weapons: " + ", ".join(weapons) + "."]
+    if not getattr(actor, "attacks", None):
+        return ["In hand: nothing. You carry no weapon."]
+    return []

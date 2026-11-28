@@ -702,6 +702,8 @@ class Brief:
             "",
             f"YOU control: {you[0]}",
             *you[1:],
+            # WHAT HE IS CARRYING (`brief_detail.hands_lines`).
+            *(f"    {h}" for h in detail.hands_lines(situation)),
         ]
 
         # ASKED OUTSIDE HIS OWN PHASE (an Abort, or a Held Action), said
