@@ -109,3 +109,30 @@ def test_a_shot_beside_the_horse_spooks_it_and_the_cover_goes():
     assert (rolled.needed, rolled.outcome) == (pre - 5, FLED)
     assert nerve_state(session, "horse") == FLED
     assert sheltering_bodies(session) == []
+
+
+def test_a_bolted_horse_runs_from_the_fight():
+    """A horse that has spooked breaks off like a man who ran (`nerve`):
+    its menu is Disengage and nothing else. It has no enemies (neutral), so
+    it runs from everyone still fighting. A model-seat run, seed 0, 2026-11-28:
+    with no Disengage on offer, both horses were handed the defensive menu
+    and chose "hide" eleven times without ever leaving the lot."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from kirby_combat.loop.run import _situation_for
+    from kirby_combat.nerve import FLED
+    from kirby_combat.session.apply import apply_event
+    from kirby_combat.session.events import NerveRolled, make_author_engine
+
+    shooter = _built("shooter", LAW, guns=[gun("g", "Gun")])
+    tom, horse = _built("tom", COW), _built("horse", HORSES, large=True)
+    session = session_on(scene_with({"shooter": (0, 0, 0), "tom": (4, 0, 0),
+                                     "horse": (4, 1.5, 0)}),
+                         shooter, tom, horse, template=RAW_SUPERHEROIC)
+    session = apply_event(session, NerveRolled(
+        id=str(uuid.uuid4()), session_id=session.id, sequence=len(session.event_log) + 1,
+        timestamp=datetime.now(timezone.utc), author=make_author_engine(),
+        combatant_id="horse", roll=18, needed=7, modifiers=(), outcome=FLED))
+    menu = _situation_for(session, "horse").menu
+    assert [a.kind for a in menu] == ["disengage"], [a.kind for a in menu]

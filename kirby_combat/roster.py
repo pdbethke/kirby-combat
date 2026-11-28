@@ -204,6 +204,23 @@ class Roster:
             and not self.has_surrendered(c.id)
         ]
 
+    def the_fight_around(self, actor) -> list:
+        """Everyone still up, still here and on a side that fights: what a
+        NEUTRAL body that has spooked runs from (`spooking`).
+
+        A horse is nobody's enemy (`Side.neutral`), so `enemies_of` is empty
+        for it, and Disengage --- away from the centroid of the men it is
+        running from --- was never offered. Both horses at the Corral bolted
+        and then "hid" for the rest of the fight in the middle of the lot
+        (a model-seat run, seed 0, 2026-11-28). Western Hero p.113: a frightened
+        horse panics; it gets away from the shooting, which is all of it.
+        """
+        return [
+            c for c in self.combatants
+            if c.id != actor.id and not Side.of(c).neutral and not is_down(c)
+            and self.on_the_board(c.id) and not self.has_surrendered(c.id)
+        ]
+
     def allies_of(self, actor) -> list:
         """Everyone else still up, still here, on the actor's side.
 

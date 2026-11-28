@@ -569,6 +569,14 @@ def _situation_for(session: "CombatSession", actor_id: str) -> PhaseSituation:
         roster.allies_of(actor) + roster.fallen_allies_of(actor),
     )
     enemies = obeyed.enemies
+    # A NEUTRAL BODY THAT SPOOKED runs from the whole fight, not from
+    # enemies it has none of (`Roster.the_fight_around`); its menu is then
+    # narrowed to breaking off, so nobody here becomes a target.
+    from kirby_combat.nerve import FLED as _FLED, nerve_state as _nerve_state
+    from kirby_combat.side import Side as _Side
+
+    if _Side.of(actor).neutral and _nerve_state(session, actor_id) == _FLED:
+        enemies = roster.the_fight_around(actor)
     # LOST IN A MENTAL ILLUSION (6E1 p.251, EGO+30): nothing he could choose
     # would happen. Asked again by `run_phase`, which spends his Phase
     # saying why; here it empties the menu, so a man lost in an Illusion
