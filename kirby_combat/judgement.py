@@ -98,6 +98,9 @@ class EnemyJudgement:
     seen_more: int
     #: Hits earlier than the `MAX_HITS_LISTED` listed.
     hits_earlier: int
+    #: The weapons on him in plain sight (`weapons_in_sight`), each with
+    #: where it is when the fight stated grips. Empty: no weapon in sight.
+    carries: tuple[str, ...]
 
 
 def _used_name(payload: dict) -> str | None:
@@ -185,14 +188,14 @@ def judge_enemy(situation: PhaseSituation, enemy: Any) -> EnemyJudgement:
             enemy_id=enemy.id, name=enemy.name, side=enemy.side,
             perceived=False, looks="", seen=(), how_hits_landed=(),
             features=(), distance_m=None, acted=False, physical=False,
-            seen_more=0, hits_earlier=0)
+            seen_more=0, hits_earlier=0, carries=())
 
     if not sight.physical:
         return EnemyJudgement(
             enemy_id=enemy.id, name=enemy.name, side=enemy.side,
             perceived=True, looks="", seen=(), how_hits_landed=(),
             features=(), distance_m=None, acted=False, physical=False,
-            seen_more=0, hits_earlier=0)
+            seen_more=0, hits_earlier=0, carries=())
 
     session = situation.session
     seen = powers_seen(session, enemy.id)
@@ -225,7 +228,36 @@ def judge_enemy(situation: PhaseSituation, enemy: Any) -> EnemyJudgement:
         how_hits_landed=tuple(landed[-MAX_HITS_LISTED:]), features=tuple(features),
         distance_m=situation.distances_m.get(enemy.id), acted=acted, physical=True,
         seen_more=max(0, len(seen) - MAX_SEEN),
-        hits_earlier=max(0, len(landed) - MAX_HITS_LISTED))
+        hits_earlier=max(0, len(landed) - MAX_HITS_LISTED),
+        carries=weapons_in_sight(session, enemy))
+
+
+def weapons_in_sight(session: Any, combatant: Any) -> tuple[str, ...]:
+    """The weapons a man can be SEEN to carry: his Obvious Accessible Foci
+    (6E1 Focus: an Obvious Focus is readily apparent; an Inobvious one is
+    not), each with where it is when the fight stated grips --- in hand or
+    holstered. A weapon out of his hands is not on him.
+
+    WHY. A model seat at the O.K. Corral (2026-11-28) opened with three
+    Earps shooting Ike Clanton, "the closest enemy", who had no weapon;
+    nothing on the page said who was armed.
+    """
+    from kirby_combat.grips import HOLSTERED, grip_of, stated_grips
+    from kirby_combat.weapons import accessible_foci
+
+    stated = stated_grips(session, combatant.id) if session is not None else {}
+    out: list[str] = []
+    for w in accessible_foci(combatant):
+        if w.focus != "OAF":
+            continue
+        if not stated:
+            out.append(w.name)
+            continue
+        grip = grip_of(session, combatant.id, w.weapon_id)
+        if grip is None:
+            continue
+        out.append(f"{w.name} ({'holstered' if grip == HOLSTERED else 'in hand'})")
+    return tuple(out)
 
 
 def render_judgement(j: EnemyJudgement) -> list[str]:
@@ -253,6 +285,8 @@ def render_judgement(j: EnemyJudgement) -> list[str]:
         lines.append("  has not acted yet")
     else:
         lines.append("  seen: none yet")
+    lines.append("  carries: " + ", ".join(j.carries) if j.carries
+                 else "  no weapon in sight")
     if j.how_hits_landed:
         earlier = f"(and {j.hits_earlier} earlier) | " if j.hits_earlier else ""
         lines.append("  hits taken: " + earlier + " | ".join(j.how_hits_landed))
